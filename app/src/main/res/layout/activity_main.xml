@@ -1,86 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="#F7F5EF"
-    android:fillViewport="true">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:gravity="center"
-        android:orientation="vertical"
-        android:padding="28dp"
-        android:layoutDirection="rtl">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="✦"
-            android:textColor="#C99A32"
-            android:textSize="54sp"
-            android:layout_marginBottom="18dp" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:text="مرحباً بك"
-            android:textColor="#292929"
-            android:textSize="32sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:gravity="center"
-            android:text="يسعدنا وجودك هنا"
-            android:textColor="#77736A"
-            android:textSize="17sp" />
-
-        <TextView
-            android:id="@+id/messageText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="28dp"
-            android:layout_marginBottom="24dp"
-            android:background="#FFFFFF"
-            android:gravity="center"
-            android:minHeight="76dp"
-            android:padding="16dp"
-            android:text="اختر أحد الأزرار للمتابعة"
-            android:textColor="#4B4841"
-            android:textSize="16sp" />
-
-        <Button
-            android:id="@+id/startButton"
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:layout_marginBottom="12dp"
-            android:backgroundTint="#C99A32"
-            android:text="ابدأ الآن"
-            android:textColor="#FFFFFF"
-            android:textStyle="bold" />
-
-        <Button
-            android:id="@+id/aboutButton"
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:layout_marginBottom="12dp"
-            android:backgroundTint="#5E5A50"
-            android:text="عن التطبيق"
-            android:textColor="#FFFFFF"
-            android:textStyle="bold" />
-
-        <Button
-            android:id="@+id/exitButton"
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:backgroundTint="#E7E2D7"
-            android:text="خروج"
-            android:textColor="#39362F"
-            android:textStyle="bold" />
-
-    </LinearLayout>
-</ScrollView>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:background="#F5F3EE" android:fillViewport="true">
+<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="22dp" android:layoutDirection="rtl">
+<TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="مسجل الصوت" android:textColor="#24231F" android:textSize="29sp" android:textStyle="bold" android:gravity="center" android:layout_marginTop="20dp"/>
+<TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="سجّل صوتك واستمع إلى تسجيلاتك واحفظها على الهاتف" android:textColor="#77736A" android:textSize="14sp" android:gravity="center" android:layout_marginTop="9dp" android:layout_marginBottom="28dp"/>
+<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:gravity="center" android:padding="26dp" android:background="#FFFFFF">
+<TextView android:id="@+id/stateText" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="جاهز للتسجيل" android:textColor="#8A6824" android:textSize="16sp" android:textStyle="bold"/>
+<TextView android:id="@+id/timerText" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="00:00" android:textColor="#24231F" android:textSize="48sp" android:textStyle="bold" android:layout_marginTop="12dp"/>
+<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="المدة" android:textColor="#88847B" android:textSize="13sp"/>
+</LinearLayout>
+<Button android:id="@+id/recordButton" android:layout_width="match_parent" android:layout_height="58dp" android:layout_marginTop="22dp" android:backgroundTint="#C99A32" android:text="●  بدء التسجيل" android:textColor="#FFFFFF" android:textStyle="bold" android:textSize="16sp"/>
+<Button android:id="@+id/stopButton" android:layout_width="match_parent" android:layout_height="54dp" android:layout_marginTop="10dp" android:backgroundTint="#514D45" android:text="■  إيقاف وحفظ التسجيل" android:textColor="#FFFFFF" android:textStyle="bold" android:enabled="false"/>
+<Button android:id="@+id/playButton" android:layout_width="match_parent" android:layout_height="54dp" android:layout_marginTop="10dp" android:backgroundTint="#E7DFC9" android:text="▶  تشغيل آخر تسجيل" android:textColor="#39362F" android:textStyle="bold" android:enabled="false"/>
+<Button android:id="@+id/refreshButton" android:layout_width="match_parent" android:layout_height="48dp" android:layout_marginTop="8dp" android:backgroundTint="#FFFFFF" android:text="↻  تحديث التسجيلات" android:textColor="#514D45"/>
+<TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="تسجيلاتي المحفوظة" android:textColor="#24231F" android:textSize="19sp" android:textStyle="bold" android:layout_marginTop="28dp" android:layout_marginBottom="10dp"/>
+<LinearLayout android:id="@+id/recordingsList" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"/>
+<TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="تُحفظ التسجيلات تلقائياً في مجلد Music/VoiceRecorder على الهاتف." android:textColor="#88847B" android:textSize="12sp" android:gravity="center" android:layout_marginTop="22dp" android:layout_marginBottom="18dp"/>
+</LinearLayout></ScrollView>
