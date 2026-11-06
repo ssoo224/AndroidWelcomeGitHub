@@ -6,7 +6,7 @@
 	android:layout_width="match_parent"
 	android:layout_height="match_parent"
 	android:layoutDirection="rtl"
-	android:fitsSystemWindows="true"
+	android:fitsSystemWindows="false"
 	android:tag="bg">
 	<LinearLayout
 		android:id="@+id/mainPage"
@@ -35,18 +35,18 @@
 				android:tag="g" />
 			<TextView
 				android:id="@+id/hdrStories"
-				android:layout_width="44dp"
-				android:layout_height="44dp"
-				android:gravity="center_horizontal|center_vertical"
+				android:layout_width="48dp"
+				android:layout_height="48dp"
+				android:gravity="center"
 				android:text=""
 				android:drawableStart="@drawable/ic_stories_24"
 				android:textSize="20sp"
 				android:tag="t" />
 			<TextView
 				android:id="@+id/mainSearchBtn"
-				android:layout_width="44dp"
-				android:layout_height="44dp"
-				android:gravity="center_horizontal|center_vertical"
+				android:layout_width="48dp"
+				android:layout_height="48dp"
+				android:gravity="center"
 				android:text=""
 				android:drawableStart="@drawable/ic_search_22"
 				android:textSize="19sp"
@@ -86,7 +86,7 @@
 						android:id="@+id/fltAll"
 						android:layout_width="wrap_content"
 						android:layout_height="34dp"
-						android:gravity="center_horizontal|center_vertical"
+						android:gravity="center"
 						android:text="الكل"
 						android:textSize="13sp"
 						android:textStyle="bold"
@@ -98,7 +98,7 @@
 						android:id="@+id/fltUnread"
 						android:layout_width="wrap_content"
 						android:layout_height="34dp"
-						android:gravity="center_horizontal|center_vertical"
+						android:gravity="center"
 						android:text="غير المقروءة"
 						android:textSize="13sp"
 						android:paddingStart="14dp"
@@ -124,7 +124,7 @@
 				android:layout_width="56dp"
 				android:layout_height="56dp"
 				android:layout_margin="16dp"
-				android:gravity="center_horizontal|center_vertical"
+				android:gravity="center"
 				android:text=""
 				android:drawableStart="@drawable/ic_group_24"
 				android:textSize="22sp"
@@ -150,7 +150,7 @@
 						android:id="@+id/searchBack"
 						android:layout_width="52dp"
 						android:layout_height="match_parent"
-						android:gravity="center_horizontal|center_vertical"
+						android:gravity="center"
 						android:text=""
 						android:drawableStart="@drawable/ic_arrow_back_24"
 						android:textSize="24sp"
@@ -214,7 +214,7 @@
 				android:id="@+id/navChats"
 				android:layout_width="0dp"
 				android:layout_height="match_parent"
-				android:gravity="center_horizontal|center_vertical"
+				android:gravity="center"
 				android:orientation="vertical"
 				android:layout_weight="1">
 				<TextView
@@ -237,7 +237,7 @@
 				android:id="@+id/navSettings"
 				android:layout_width="0dp"
 				android:layout_height="match_parent"
-				android:gravity="center_horizontal|center_vertical"
+				android:gravity="center"
 				android:orientation="vertical"
 				android:layout_weight="1">
 				<TextView
@@ -260,7 +260,7 @@
 				android:id="@+id/navProfile"
 				android:layout_width="0dp"
 				android:layout_height="match_parent"
-				android:gravity="center_horizontal|center_vertical"
+				android:gravity="center"
 				android:orientation="vertical"
 				android:layout_weight="1">
 				<TextView
@@ -281,13 +281,15 @@
 			</LinearLayout>
 		</LinearLayout>
 	</LinearLayout>
+
+	<!-- ==================== شاشة المحادثة ==================== -->
 	<LinearLayout
 		android:id="@+id/chatView"
 		android:layout_width="match_parent"
 		android:layout_height="match_parent"
 		android:orientation="vertical"
 		android:visibility="gone"
-		android:tag="bg">
+		android:tag="chatbg">
 		<LinearLayout
 			android:id="@+id/linear607"
 			android:layout_width="match_parent"
@@ -298,9 +300,9 @@
 			android:elevation="3dp">
 			<TextView
 				android:id="@+id/chatBack"
-				android:layout_width="50dp"
+				android:layout_width="52dp"
 				android:layout_height="match_parent"
-				android:gravity="center_horizontal|center_vertical"
+				android:gravity="center"
 				android:text=""
 				android:drawableStart="@drawable/ic_arrow_back_24"
 				android:textSize="24sp"
@@ -316,7 +318,7 @@
 					android:id="@+id/chatAvatar"
 					android:layout_width="42dp"
 					android:layout_height="42dp"
-					android:gravity="center_horizontal|center_vertical"
+					android:gravity="center"
 					android:text="؟"
 					android:textSize="18sp"
 					android:textStyle="bold"
@@ -347,9 +349,9 @@
 			</LinearLayout>
 			<TextView
 				android:id="@+id/chatMore"
-				android:layout_width="46dp"
+				android:layout_width="48dp"
 				android:layout_height="match_parent"
-				android:gravity="center_horizontal|center_vertical"
+				android:gravity="center"
 				android:text=""
 				android:drawableStart="@drawable/ic_more_22"
 				android:textSize="24sp"
@@ -385,7 +387,7 @@
 					android:id="@+id/csX"
 					android:layout_width="44dp"
 					android:layout_height="44dp"
-					android:gravity="center_horizontal|center_vertical"
+					android:gravity="center"
 					android:text=""
 					android:drawableStart="@drawable/ic_close_22"
 					android:textSize="20sp"
@@ -452,18 +454,69 @@
 				android:id="@+id/replyCancel"
 				android:layout_width="40dp"
 				android:layout_height="40dp"
-				android:gravity="center_horizontal|center_vertical"
+				android:gravity="center"
 				android:text=""
 				android:drawableStart="@drawable/ic_close_20"
 				android:textSize="18sp"
 				android:tag="m" />
 		</LinearLayout>
+		<!-- شريط مؤشر التسجيل الصوتي -->
+		<LinearLayout
+			android:id="@+id/recordingBar"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:padding="10dp"
+			android:gravity="center_vertical"
+			android:orientation="horizontal"
+			android:visibility="gone"
+			android:tag="sf"
+			android:elevation="6dp">
+			<TextView
+				android:id="@+id/recDot"
+				android:layout_width="12dp"
+				android:layout_height="12dp"
+				android:text=""
+				android:tag="circRed" />
+			<TextView
+				android:id="@+id/recTimer"
+				android:layout_width="0dp"
+				android:layout_height="wrap_content"
+				android:layout_weight="1"
+				android:text="0:00"
+				android:textSize="15sp"
+				android:textStyle="bold"
+				android:paddingStart="10dp"
+				android:tag="t" />
+			<TextView
+				android:id="@+id/recCancel"
+				android:layout_width="44dp"
+				android:layout_height="44dp"
+				android:gravity="center"
+				android:text=""
+				android:drawableStart="@drawable/ic_close_20"
+				android:textSize="20sp"
+				android:tag="red" />
+			<TextView
+				android:id="@+id/recSend"
+				android:layout_width="48dp"
+				android:layout_height="44dp"
+				android:gravity="center"
+				android:text=""
+				android:drawableStart="@drawable/ic_send_22"
+				android:textSize="22sp"
+				android:rotation="180"
+				android:tag="g" />
+		</LinearLayout>
+		<!-- شريط الإدخال -->
 		<LinearLayout
 			android:id="@+id/textInputBar"
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"
-			android:padding="8dp"
-			android:gravity="bottom"
+			android:paddingStart="8dp"
+			android:paddingEnd="8dp"
+			android:paddingTop="6dp"
+			android:paddingBottom="6dp"
+			android:gravity="center_vertical"
 			android:orientation="horizontal"
 			android:tag="sf"
 			android:elevation="6dp">
@@ -477,32 +530,33 @@
 				android:inputType="textMultiLine|textCapSentences"
 				android:minHeight="44dp"
 				android:maxHeight="120dp"
-				android:paddingStart="14dp"
-				android:paddingEnd="14dp"
+				android:paddingStart="16dp"
+				android:paddingEnd="16dp"
 				android:tag="inp" />
 			<TextView
 				android:id="@+id/btnAttach"
-				android:layout_width="42dp"
-				android:layout_height="44dp"
-				android:gravity="center_horizontal|center_vertical"
+				android:layout_width="48dp"
+				android:layout_height="48dp"
+				android:gravity="center"
 				android:text=""
 				android:drawableStart="@drawable/ic_attach_22"
 				android:textSize="20sp"
+				android:layout_marginStart="2dp"
 				android:tag="m" />
 			<TextView
 				android:id="@+id/btnMic"
-				android:layout_width="42dp"
-				android:layout_height="44dp"
-				android:gravity="center_horizontal|center_vertical"
+				android:layout_width="48dp"
+				android:layout_height="48dp"
+				android:gravity="center"
 				android:text=""
 				android:drawableStart="@drawable/ic_mic_22"
 				android:textSize="20sp"
 				android:tag="m" />
 			<TextView
 				android:id="@+id/btnSend"
-				android:layout_width="44dp"
-				android:layout_height="44dp"
-				android:gravity="center_horizontal|center_vertical"
+				android:layout_width="48dp"
+				android:layout_height="48dp"
+				android:gravity="center"
 				android:text=""
 				android:drawableStart="@drawable/ic_send_22"
 				android:textSize="22sp"

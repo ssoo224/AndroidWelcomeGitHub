@@ -34,4 +34,7 @@ dependencies {
     implementation 'com.google.firebase:firebase-auth'
     implementation 'com.google.firebase:firebase-firestore'
     implementation 'com.google.firebase:firebase-database'
+
+    // ✨ جديد: Firebase Storage لرفع الصور والملفات الصوتية
+    implementation 'com.google.firebase:firebase-storage'
 }

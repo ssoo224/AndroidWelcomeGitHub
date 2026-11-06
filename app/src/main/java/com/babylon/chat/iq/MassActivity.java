@@ -6,9 +6,14 @@ import android.app.Activity;
 import android.content.*;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.graphics.*;
 import android.graphics.drawable.*;
+import android.media.MediaPlayer;
+import android.media.MediaRecorder;
+import android.net.Uri;
 import android.os.*;
+import android.provider.MediaStore;
 import android.text.*;
 import android.text.style.*;
 import android.view.*;
@@ -26,15 +31,16 @@ import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
-import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
+import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.StorageReference;
+import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
 public class MassActivity extends Activity {
 
     private MassBinding binding;
-
     private FirebaseAuth mAuth;
     private FirebaseUser currentUser;
     private FirebaseFirestore db;
@@ -47,6 +53,12 @@ public class MassActivity extends Activity {
     private String otherUid = "";
 
     private ListenerRegistration chatsListener;
+
+    // للتعامل مع نتائج اختيار الصورة وتسجيل الصوت
+    private java.util.function.Consumer<Uri> pendingImageCallback = null;
+    private Runnable pendingMicCallback = null;
+    private static final int REQ_PICK_IMAGE = 1001;
+    private static final int REQ_MIC_PERM = 1002;
 
     @Override
     protected void onCreate(Bundle _savedInstanceState) {
@@ -66,7 +78,6 @@ public class MassActivity extends Activity {
         }
         myUid = currentUser.getUid();
 
-        initialize(_savedInstanceState);
         initializeLogic();
     }
 
@@ -78,7 +89,30 @@ public class MassActivity extends Activity {
         if (chatsListener != null) chatsListener.remove();
     }
 
-    private void initialize(Bundle _savedInstanceState) { }
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_PICK_IMAGE && resultCode == RESULT_OK && data != null && data.getData() != null) {
+            java.util.function.Consumer<Uri> cb = pendingImageCallback;
+            pendingImageCallback = null;
+            if (cb != null) cb.accept(data.getData());
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQ_MIC_PERM) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Runnable cb = pendingMicCallback;
+                pendingMicCallback = null;
+                if (cb != null) cb.run();
+            } else {
+                Toast.makeText(this, "يجب منح إذن الميكروفون لتسجيل الصوت", Toast.LENGTH_SHORT).show();
+                pendingMicCallback = null;
+            }
+        }
+    }
 
     private void initializeLogic() {
         final Activity act = this;
@@ -89,7 +123,7 @@ public class MassActivity extends Activity {
             Handler h = new Handler(Looper.getMainLooper());
             boolean dark = sp.getBoolean("dark", false);
             int fontSp = sp.getInt("font", 15);
-            int radius = sp.getInt("radius", 12);
+            int radius = sp.getInt("radius", 16); // زوايا احترافية افتراضية
             int chatBgIdx = sp.getInt("chatBg", 0);
             int coverColor = sp.getInt("cover", 0xFF1B2A4A);
             boolean unreadOnly = false, muted = false, blocked = false;
@@ -97,21 +131,27 @@ public class MassActivity extends Activity {
             String replyText = null, otherName = "", otherUser = "";
             TextView editing = null;
 
-            String[] pages = {"homeView", "searchView", "profileView", "otherUserProfileView", "settingsView",
-                    "privacySettingsView", "notificationSettingsView", "chatSettingsView", "editProfileView"};
-            String[] govs = {"بغداد", "البصرة", "نينوى", "أربيل", "النجف", "كربلاء", "السليمانية", "دهوك", "كركوك", "الأنبار",
-                    "ديالى", "صلاح الدين", "بابل", "واسط", "ذي قار", "ميسان", "المثنى", "القادسية"};
+            // الصوت
+            MediaRecorder recorder = null;
+            File audioFile = null;
+            boolean isRecording = false;
+            long recordStart = 0;
+            Handler recHandler = new Handler(Looper.getMainLooper());
+            Runnable recTick = null;
+            MediaPlayer mediaPlayer = null;
+
+            String[] pages = {"homeView", "searchView", "profileView", "otherUserProfileView",
+                    "settingsView", "privacySettingsView", "notificationSettingsView",
+                    "chatSettingsView", "editProfileView"};
+            String[] govs = {"بغداد", "البصرة", "نينوى", "أربيل", "النجف", "كربلاء", "السليمانية", "دهوك",
+                    "كركوك", "الأنبار", "ديالى", "صلاح الدين", "بابل", "واسط", "ذي قار", "ميسان", "المثنى", "القادسية"};
             String[] themeNames = {"افتراضي", "أزرق", "أخضر", "بنفسجي", "ذهبي"};
-            int[] bgLight = {0xFFDFE6EE, 0xFFD6E6FA, 0xFFDDF0DD, 0xFFE8DDF3, 0xFFF5EBCB};
+            int[] bgLight = {0xFFE4E9F2, 0xFFD6E6FA, 0xFFDDF0DD, 0xFFE8DDF3, 0xFFF5EBCB};
             int[] bgDark = {0xFF0E1621, 0xFF0B1B30, 0xFF0C1F14, 0xFF1A1128, 0xFF241C08};
             int[] covers = {0xFF1B2A4A, 0xFF3B2A4A, 0xFF0F5132, 0xFF7C2D12, 0xFF334155, 0xFFB8891A};
 
-            // chatData: [name, lastMsg, time, unread, uid]
             ArrayList<String[]> chatData = new ArrayList<>();
-            // users: [name, username, uid]
-            ArrayList<String[]> users = new ArrayList<>();
 
-            // بيانات المستخدم الحالي (Firestore)
             String userName = "", userUsername = "", userBio = "", userGov = "", userEmail = "", userJoin = "";
 
             int dp(float d) { return (int) (d * act.getResources().getDisplayMetrics().density + 0.5f); }
@@ -120,7 +160,7 @@ public class MassActivity extends Activity {
             EditText et(String n) { return (EditText) v(n); }
             String txt(String n) { return et(n).getText().toString().trim(); }
             void toast(String s) { Toast.makeText(act, s, Toast.LENGTH_SHORT).show(); }
-            void vis(String n, boolean on) { v(n).setVisibility(on ? View.VISIBLE : View.GONE); }
+            void vis(String n, boolean on) { View x = v(n); if (x != null) x.setVisibility(on ? View.VISIBLE : View.GONE); }
             String now() { return new SimpleDateFormat("h:mm", Locale.getDefault()).format(new Date()); }
             void hideKb() {
                 try {
@@ -136,7 +176,7 @@ public class MassActivity extends Activity {
                 return g;
             }
 
-            int cBg() { return dark ? 0xFF0F172A : 0xFFF5F7FB; }
+            int cBg() { return dark ? 0xFF0F172A : 0xFFF0F2F5; }
             int cSf() { return dark ? 0xFF17212B : 0xFFFFFFFF; }
             int cBorder() { return dark ? 0xFF344256 : 0xFFE1E7EF; }
             int cText() { return dark ? 0xFFF1F5F9 : 0xFF17212B; }
@@ -148,6 +188,7 @@ public class MassActivity extends Activity {
             int cChatBg() { return dark ? bgDark[chatBgIdx] : bgLight[chatBgIdx]; }
 
             void style(View x) {
+                if (x == null) return;
                 Object t = x.getTag();
                 if (t instanceof String) {
                     String[] ks = ((String) t).split(" ");
@@ -159,16 +200,21 @@ public class MassActivity extends Activity {
                         else if (k.equals("chatbg")) x.setBackgroundColor(cChatBg());
                         else if (k.equals("card")) x.setBackground(shape(cSf(), 16, cBorder()));
                         else if (k.equals("inp")) {
-                            x.setBackground(shape(dark ? 0xFF0F172A : 0xFFFFFFFF, 10, cBorder()));
+                            x.setBackground(shape(dark ? 0xFF0F172A : 0xFFF7F9FC, 22, cBorder()));
                             if (T != null) { T.setTextColor(cText()); T.setHintTextColor(cMuted()); }
                         }
-                        else if (k.equals("gold")) { x.setBackground(shape(cGold(), 10, 0)); if (T != null) T.setTextColor(0xFF17212B); }
-                        else if (k.equals("goldo")) { x.setBackground(shape(0, 10, cGold())); if (T != null) T.setTextColor(cGold()); }
-                        else if (k.equals("redo")) { x.setBackground(shape(0, 10, cRed())); if (T != null) T.setTextColor(cRed()); }
+                        else if (k.equals("gold")) { x.setBackground(shape(cGold(), 12, 0)); if (T != null) T.setTextColor(0xFF17212B); }
+                        else if (k.equals("goldo")) { x.setBackground(shape(0, 12, cGold())); if (T != null) T.setTextColor(cGold()); }
+                        else if (k.equals("redo")) { x.setBackground(shape(0, 12, cRed())); if (T != null) T.setTextColor(cRed()); }
                         else if (k.equals("circ")) {
                             GradientDrawable g = new GradientDrawable();
                             g.setShape(GradientDrawable.OVAL);
                             g.setColor(cGold());
+                            x.setBackground(g);
+                        } else if (k.equals("circRed")) {
+                            GradientDrawable g = new GradientDrawable();
+                            g.setShape(GradientDrawable.OVAL);
+                            g.setColor(cRed());
                             x.setBackground(g);
                         } else if (k.equals("ring")) {
                             GradientDrawable g = new GradientDrawable();
@@ -179,9 +225,11 @@ public class MassActivity extends Activity {
                             if (T != null) T.setTextColor(cGold());
                         } else if (k.equals("bubMine")) {
                             x.setBackground(shape(cMine(), radius, 0));
+                            x.setElevation(dp(1));
                             if (T != null) T.setTextColor(dark ? 0xFFFFFFFF : 0xFF17212B);
                         } else if (k.equals("bubOther")) {
                             x.setBackground(shape(cOther(), radius, dark ? 0 : 0xFFE1E7EF));
+                            x.setElevation(dp(1));
                             if (T != null) T.setTextColor(cText());
                         } else if (k.startsWith("ic:")) x.setBackground(shape(Color.parseColor(k.substring(3)), 12, 0));
                         else if (k.startsWith("cover:")) x.setBackgroundColor(Color.parseColor(k.substring(6)));
@@ -201,14 +249,12 @@ public class MassActivity extends Activity {
                     for (int i = 0; i < g.getChildCount(); i++) style(g.getChildAt(i));
                 }
             }
-            // تلوين أيقونات الـ vector (drawableStart/End...) بنفس لون النص الحالي
             void tintIcons(TextView T) {
                 android.graphics.drawable.Drawable[] ds = T.getCompoundDrawablesRelative();
                 for (android.graphics.drawable.Drawable d : ds) {
                     if (d != null) d.mutate().setColorFilter(T.getCurrentTextColor(), android.graphics.PorterDuff.Mode.SRC_IN);
                 }
             }
-            // نص + أيقونة vector بدل الإيموجي
             void setLabel(String id, String label, int iconRes) {
                 TextView T = tv(id);
                 T.setText(label);
@@ -222,6 +268,7 @@ public class MassActivity extends Activity {
                 b.setTag(on ? "gold" : offTag);
                 style(b);
             }
+
             void applyTheme() {
                 style(v("root"));
                 v("pvBox").setBackgroundColor(cChatBg());
@@ -245,16 +292,16 @@ public class MassActivity extends Activity {
             }
             void setNav(String p) {
                 String[] ids = {"navChats", "navSettings", "navProfile"};
-                String act2 = p.equals("homeView") ? "navChats" : p.equals("settingsView") ? "navSettings" : p.equals("profileView") ? "navProfile" : "";
+                String a2 = p.equals("homeView") ? "navChats" : p.equals("settingsView") ? "navSettings" : p.equals("profileView") ? "navProfile" : "";
                 for (String id : ids) {
-                    boolean on = id.equals(act2);
+                    boolean on = id.equals(a2);
                     tv(id + "Ic").setTag(on ? "g" : "m");
                     tv(id + "Tx").setTag(on ? "g" : "m");
                     style(v(id));
                 }
             }
 
-            // ============ FIREBASE: تحميل الملف الشخصي ============
+            // ============ Firebase: profile ============
             void loadMyProfile() {
                 db.collection("users").document(myUid).get()
                     .addOnSuccessListener(doc -> {
@@ -272,7 +319,6 @@ public class MassActivity extends Activity {
                         }
                     });
             }
-
             String safe(String s) { return s != null ? s : ""; }
 
             void fillProfile() {
@@ -289,7 +335,6 @@ public class MassActivity extends Activity {
                 tv("pEmailDisplay").setText(userEmail);
                 tv("pJoinDisplay").setText(userJoin);
             }
-
             void openEdit() {
                 et("modalNameInput").setText(userName);
                 et("modalUsernameInput").setText(userUsername);
@@ -299,38 +344,32 @@ public class MassActivity extends Activity {
                 vis("modalUserError", false);
                 show("editProfileView");
             }
-
             void saveProfile() {
                 String n = txt("modalNameInput");
                 String u = txt("modalUsernameInput").replace("@", "");
                 String bio = txt("modalBioInput");
                 String gov = govs[((Spinner) v("modalGovInput")).getSelectedItemPosition()];
-
                 if (n.length() == 0) { toast("اكتب اسم العرض"); return; }
                 if (u.length() < 5 || !u.matches("[A-Za-z0-9_]+")) {
-                    tv("modalUserError").setText("اسم المستخدم 5 أحرف إنجليزية فأكثر (أرقام و _ مسموحة)");
+                    tv("modalUserError").setText("اسم المستخدم 5 أحرف إنجليزية فأكثر");
                     vis("modalUserError", true);
                     return;
                 }
-
-                // تحقق إذا اسم المستخدم محجوز من قبل شخص آخر
                 db.collection("users").whereEqualTo("username", u).limit(1).get()
                     .addOnCompleteListener(task -> {
                         if (task.isSuccessful() && task.getResult() != null && !task.getResult().isEmpty()) {
                             String takenBy = task.getResult().getDocuments().get(0).getId();
                             if (!takenBy.equals(myUid) && !u.equals(userUsername)) {
-                                tv("modalUserError").setText("اسم المستخدم محجوز من قبل مستخدم آخر");
+                                tv("modalUserError").setText("اسم المستخدم محجوز");
                                 vis("modalUserError", true);
                                 return;
                             }
                         }
                         Map<String, Object> updates = new HashMap<>();
-                        updates.put("name", n);
-                        updates.put("username", u);
-                        updates.put("bio", bio);
-                        updates.put("gov", gov);
+                        updates.put("name", n); updates.put("username", u);
+                        updates.put("bio", bio); updates.put("gov", gov);
                         db.collection("users").document(myUid).update(updates)
-                            .addOnSuccessListener(aVoid -> {
+                            .addOnSuccessListener(a -> {
                                 userName = n; userUsername = u; userBio = bio; userGov = gov;
                                 fillProfile();
                                 toast("تم حفظ التغييرات");
@@ -341,9 +380,7 @@ public class MassActivity extends Activity {
             }
 
             void openOther(String name, String username, String uid) {
-                otherName = name;
-                otherUser = username;
-                otherUid = uid;
+                otherName = name; otherUser = username; otherUid = uid;
                 blocked = false;
                 tv("otherAvatarText").setText(name.length() > 0 ? name.substring(0, 1) : "?");
                 tv("otherHeaderName").setText(name);
@@ -355,7 +392,7 @@ public class MassActivity extends Activity {
                 prevPage = back;
             }
 
-            // ============ FIREBASE: تحميل المحادثات ============
+            // ============ Firebase: chats ============
             void loadChats() {
                 if (chatsListener != null) chatsListener.remove();
                 chatsListener = db.collection("chats")
@@ -368,7 +405,6 @@ public class MassActivity extends Activity {
                             m.put("__id", doc.getId());
                             temp.add(m);
                         }
-                        // ترتيب حسب الوقت يدويًا (لتجنب الحاجة إلى فهرس)
                         Collections.sort(temp, (a, b) -> {
                             Long ta = (Long) a.get("lastMessageAt");
                             Long tb = (Long) b.get("lastMessageAt");
@@ -387,11 +423,9 @@ public class MassActivity extends Activity {
                             final String lastMsg = m.get("lastMessage") != null ? m.get("lastMessage").toString() : "";
                             final Long lastAt = (Long) m.get("lastMessageAt");
                             final String lastTime = lastAt != null ? new SimpleDateFormat("h:mm", Locale.getDefault()).format(new Date(lastAt)) : "";
-
                             db.collection("users").document(fOtherId).get()
                                 .addOnSuccessListener(udoc -> {
                                     String oName = udoc.exists() && udoc.getString("name") != null ? udoc.getString("name") : "?";
-                                    // استبدل أو أضف
                                     boolean found = false;
                                     for (int i = 0; i < chatData.size(); i++) {
                                         if (chatData.get(i)[4].equals(fOtherId)) {
@@ -429,8 +463,7 @@ public class MassActivity extends Activity {
                     n.setTextSize(11);
                     n.setTag("m");
                     n.setPadding(0, dp(4), 0, 0);
-                    c.addView(r);
-                    c.addView(n);
+                    c.addView(r); c.addView(n);
                     c.setOnClickListener(x -> toast(nm.equals("قصتي") ? "نشر قصة جديدة" : "عرض قصة " + nm));
                     bar.addView(c);
                     style(c);
@@ -467,16 +500,10 @@ public class MassActivity extends Activity {
                     mp.setMargins(dp(12), 0, dp(12), 0);
                     mid.setLayoutParams(mp);
                     TextView nm = new TextView(act);
-                    nm.setText(c[0]);
-                    nm.setTextSize(16);
-                    nm.setTypeface(null, 1);
-                    nm.setTag("t");
+                    nm.setText(c[0]); nm.setTextSize(16); nm.setTypeface(null, 1); nm.setTag("t");
                     TextView ls = new TextView(act);
-                    ls.setText(c[1]);
-                    ls.setTextSize(13);
-                    ls.setSingleLine(true);
-                    ls.setEllipsize(TextUtils.TruncateAt.END);
-                    ls.setTag("m");
+                    ls.setText(c[1]); ls.setTextSize(13);
+                    ls.setSingleLine(true); ls.setEllipsize(TextUtils.TruncateAt.END); ls.setTag("m");
                     mid.addView(nm); mid.addView(ls);
                     LinearLayout end = new LinearLayout(act);
                     end.setOrientation(LinearLayout.VERTICAL);
@@ -498,7 +525,6 @@ public class MassActivity extends Activity {
                         new AlertDialog.Builder(act).setTitle(fName)
                             .setItems(new String[]{"تعليم كمقروءة", "حذف المحادثة"}, (d, w) -> {
                                 if (w == 1) {
-                                    // حذف المحادثة من Firestore والرسائل من RTDB
                                     String cid = getChatId(myUid, fUid);
                                     db.collection("chats").document(cid).delete();
                                     rtdb.getReference("messages").child(cid).removeValue();
@@ -527,23 +553,20 @@ public class MassActivity extends Activity {
                 buildChats();
             }
 
-            // ============ FIREBASE: المحادثة والرسائل ============
             String getChatId(String u1, String u2) {
                 return u1.compareTo(u2) < 0 ? u1 + "_" + u2 : u2 + "_" + u1;
             }
 
             void openChat(String name, String uid) {
-                otherUid = uid;
-                otherName = name;
-                curChat = name;
-                blocked = false;
-                muted = false;
+                otherUid = uid; otherName = name; curChat = name;
+                blocked = false; muted = false;
                 tv("chatTitle").setText(name);
                 tv("chatAvatar").setText(name.length() > 0 ? name.substring(0, 1) : "?");
                 tv("chatSub").setText("متصل");
                 ((LinearLayout) v("messagesArea")).removeAllViews();
                 cancelReply();
                 vis("chatSearchPanel", false);
+                vis("recordingBar", false);
 
                 if (currentChatRef != null && currentChatListener != null)
                     currentChatRef.removeEventListener(currentChatListener);
@@ -558,14 +581,21 @@ public class MassActivity extends Activity {
                 currentChatListener = new ChildEventListener() {
                     @Override
                     public void onChildAdded(DataSnapshot snapshot, String prev) {
+                        String type = snapshot.child("type").getValue(String.class);
+                        if (type == null) type = "text";
                         String text = snapshot.child("text").getValue(String.class);
+                        String url = snapshot.child("url").getValue(String.class);
                         String sender = snapshot.child("sender").getValue(String.class);
                         Long time = snapshot.child("timestamp").getValue(Long.class);
-                        if (text == null) return;
+                        Long dur = snapshot.child("duration").getValue(Long.class);
+                        if (text == null && url == null) return;
                         boolean mine = myUid.equals(sender);
                         String timeStr = new SimpleDateFormat("h:mm", Locale.getDefault())
                                 .format(new Date(time != null ? time : System.currentTimeMillis()));
-                        addMsg(text, mine, timeStr);
+
+                        if (type.equals("image") && url != null) addImageMsg(url, mine, timeStr);
+                        else if (type.equals("audio") && url != null) addAudioMsg(url, dur != null ? dur : 0, mine, timeStr);
+                        else if (text != null) addMsg(text, mine, timeStr);
                         scrollDown();
                     }
                     @Override public void onChildChanged(DataSnapshot s, String p) { }
@@ -581,19 +611,18 @@ public class MassActivity extends Activity {
                 vis("chatView", false);
                 if (currentChatRef != null && currentChatListener != null)
                     currentChatRef.removeEventListener(currentChatListener);
-                currentChatRef = null;
-                currentChatListener = null;
-                currentChatId = "";
-                otherUid = "";
-                buildChats();
-                buildStories();
+                currentChatRef = null; currentChatListener = null;
+                currentChatId = ""; otherUid = "";
+                if (mediaPlayer != null) { try { mediaPlayer.release(); } catch (Exception e) {} mediaPlayer = null; }
+                buildChats(); buildStories();
             }
 
+            // رسالة نصية
             TextView addMsg(String text, final boolean mine, String time) {
                 final TextView b = new TextView(act);
                 b.setTag(mine ? "bubMine" : "bubOther");
                 b.setTextSize(fontSp);
-                b.setPadding(dp(12), dp(7), dp(12), dp(6));
+                b.setPadding(dp(12), dp(8), dp(12), dp(6));
                 b.setMaxWidth((int) (act.getResources().getDisplayMetrics().widthPixels * 0.78f));
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
                 lp.gravity = mine ? Gravity.END : Gravity.START;
@@ -605,7 +634,6 @@ public class MassActivity extends Activity {
                 style(b);
                 return b;
             }
-
             void setMsg(TextView b, String text, boolean mine, String time) {
                 b.setContentDescription(text);
                 SpannableStringBuilder sb = new SpannableStringBuilder(text);
@@ -614,6 +642,140 @@ public class MassActivity extends Activity {
                 sb.setSpan(new RelativeSizeSpan(0.7f), s, sb.length(), 0);
                 sb.setSpan(new ForegroundColorSpan(0xFF8696A7), s, sb.length(), 0);
                 b.setText(sb);
+            }
+
+            // رسالة صورة
+            void addImageMsg(String url, boolean mine, String time) {
+                FrameLayout frame = new FrameLayout(act);
+                int size = Math.min(dp(220), (int) (act.getResources().getDisplayMetrics().widthPixels * 0.68f));
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, size);
+                lp.gravity = mine ? Gravity.END : Gravity.START;
+                lp.setMargins(0, dp(3), 0, dp(3));
+                frame.setLayoutParams(lp);
+                frame.setClipToOutline(true);
+                GradientDrawable bg = new GradientDrawable();
+                bg.setColor(dark ? 0xFF202C33 : 0xFFF0F0F0);
+                bg.setCornerRadius(dp(16));
+                frame.setBackground(bg);
+                frame.setOutlineProvider(new ViewOutlineProvider() {
+                    @Override public void getOutline(View v, Outline o) {
+                        o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), dp(16));
+                    }
+                });
+                ImageView img = new ImageView(act);
+                img.setLayoutParams(new FrameLayout.LayoutParams(-1, -1));
+                img.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                frame.addView(img);
+                loadImageAsync(img, url);
+                TextView t = new TextView(act);
+                t.setText(time);
+                t.setTextSize(10);
+                t.setTextColor(0xFFFFFFFF);
+                t.setPadding(dp(6), dp(2), dp(6), dp(2));
+                GradientDrawable tg = new GradientDrawable();
+                tg.setColor(0x99000000);
+                tg.setCornerRadius(dp(8));
+                t.setBackground(tg);
+                FrameLayout.LayoutParams tlp = new FrameLayout.LayoutParams(-2, -2);
+                tlp.gravity = Gravity.BOTTOM | Gravity.END;
+                tlp.setMargins(0, 0, dp(6), dp(6));
+                t.setLayoutParams(tlp);
+                frame.addView(t);
+                frame.setOnClickListener(v -> {
+                    Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                    try { act.startActivity(i); } catch (Exception e) { toast("لا يمكن فتح الصورة"); }
+                });
+                ((LinearLayout) v("messagesArea")).addView(frame);
+            }
+
+            // رسالة صوتية
+            void addAudioMsg(String url, long durationMs, boolean mine, String time) {
+                LinearLayout box = new LinearLayout(act);
+                box.setOrientation(LinearLayout.HORIZONTAL);
+                box.setGravity(Gravity.CENTER_VERTICAL);
+                box.setPadding(dp(10), dp(8), dp(14), dp(8));
+                box.setTag(mine ? "bubMine" : "bubOther");
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+                lp.gravity = mine ? Gravity.END : Gravity.START;
+                lp.setMargins(0, dp(3), 0, dp(3));
+                box.setLayoutParams(lp);
+                box.setMinimumWidth(dp(180));
+
+                TextView play = new TextView(act);
+                play.setText("▶");
+                play.setTextSize(18);
+                play.setGravity(Gravity.CENTER);
+                play.setLayoutParams(new LinearLayout.LayoutParams(dp(44), dp(44)));
+                play.setTag(mine ? "bubMine" : "bubOther");
+
+                LinearLayout center = new LinearLayout(act);
+                center.setOrientation(LinearLayout.VERTICAL);
+                center.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
+                center.setPadding(dp(10), 0, dp(10), 0);
+
+                TextView durTv = new TextView(act);
+                durTv.setText(formatDuration(durationMs));
+                durTv.setTextSize(fontSp);
+                durTv.setTag(mine ? "bubMine" : "bubOther");
+                durTv.setTextColor(mine ? (dark ? 0xFFFFFFFF : 0xFF17212B) : cText());
+
+                TextView timeTv = new TextView(act);
+                timeTv.setText(time);
+                timeTv.setTextSize(10);
+                timeTv.setTextColor(0xFF8696A7);
+
+                center.addView(durTv); center.addView(timeTv);
+
+                TextView wave = new TextView(act);
+                wave.setText("▁▃▂▅▇▆▃▂");
+                wave.setTextSize(14);
+                wave.setTextColor(mine ? (dark ? 0xFFB0C4DE : 0xFF6B8E23) : cGold());
+                box.addView(play); box.addView(center); box.addView(wave);
+
+                play.setOnClickListener(v -> playAudio(url, play));
+                box.setOnClickListener(v -> playAudio(url, play));
+
+                ((LinearLayout) v("messagesArea")).addView(box);
+                style(box);
+            }
+
+            String formatDuration(long ms) {
+                long s = ms / 1000;
+                return String.format(Locale.getDefault(), "%d:%02d", s / 60, s % 60);
+            }
+
+            void playAudio(String url, TextView btn) {
+                try {
+                    if (mediaPlayer != null) {
+                        mediaPlayer.release();
+                        mediaPlayer = null;
+                    }
+                    mediaPlayer = new MediaPlayer();
+                    mediaPlayer.setAudioStreamType(android.media.AudioManager.STREAM_MUSIC);
+                    mediaPlayer.setDataSource(url);
+                    mediaPlayer.prepareAsync();
+                    mediaPlayer.setOnPreparedListener(mp -> { mp.start(); btn.setText("⏸"); });
+                    mediaPlayer.setOnCompletionListener(mp -> { btn.setText("▶"); });
+                } catch (Exception e) {
+                    toast("فشل تشغيل الصوت");
+                }
+            }
+
+            void loadImageAsync(final ImageView img, final String url) {
+                new Thread(() -> {
+                    try {
+                        java.net.URL u = new java.net.URL(url);
+                        java.net.HttpURLConnection conn = (java.net.HttpURLConnection) u.openConnection();
+                        conn.setDoInput(true);
+                        conn.connect();
+                        java.io.InputStream is = conn.getInputStream();
+                        BitmapFactory.Options opts = new BitmapFactory.Options();
+                        opts.inSampleSize = 2;
+                        final Bitmap bmp = BitmapFactory.decodeStream(is, null, opts);
+                        is.close();
+                        if (bmp != null) act.runOnUiThread(() -> img.setImageBitmap(bmp));
+                    } catch (Exception e) { }
+                }).start();
             }
 
             void msgMenu(final TextView b, final boolean mine) {
@@ -638,8 +800,7 @@ public class MassActivity extends Activity {
                             toast("تم نسخ الرسالة");
                             break;
                         case 3:
-                            editing = b;
-                            replyText = null;
+                            editing = b; replyText = null;
                             setLabel("replyLabel", "تعديل الرسالة", icon("ic_edit", 16));
                             tv("replyPreviewText").setText(raw);
                             vis("replyPreviewBar", true);
@@ -657,16 +818,14 @@ public class MassActivity extends Activity {
             }
 
             void cancelReply() {
-                replyText = null;
-                editing = null;
+                replyText = null; editing = null;
                 vis("replyPreviewBar", false);
             }
-
             void scrollDown() {
                 v("messagesScroll").post(() -> ((ScrollView) v("messagesScroll")).fullScroll(View.FOCUS_DOWN));
             }
 
-            // ============ FIREBASE: إرسال الرسائل ============
+            // ============ إرسال النصوص والوسائط ============
             void send() {
                 String t = txt("messageInput");
                 if (t.length() == 0) return;
@@ -676,7 +835,6 @@ public class MassActivity extends Activity {
                 String fullText = replyText != null ? "↩ " + replyText + "\n" + t : t;
 
                 if (editing != null) {
-                    // تعديل رسالة قديمة: نحتاج مفتاحها — يمكن حذفها وإعادة الإرسال، لكن للبساطة نعيد الإرسال فقط
                     setMsg(editing, t, true, now() + " (معدّلة)");
                     et("messageInput").setText("");
                     cancelReply();
@@ -685,6 +843,7 @@ public class MassActivity extends Activity {
 
                 DatabaseReference ref = rtdb.getReference("messages").child(currentChatId).push();
                 Map<String, Object> msg = new HashMap<>();
+                msg.put("type", "text");
                 msg.put("text", fullText);
                 msg.put("sender", myUid);
                 msg.put("timestamp", System.currentTimeMillis());
@@ -699,6 +858,143 @@ public class MassActivity extends Activity {
 
                 et("messageInput").setText("");
                 cancelReply();
+            }
+
+            void sendMedia(String type, String url, long duration) {
+                if (currentChatId.isEmpty() || otherUid.isEmpty()) return;
+                DatabaseReference ref = rtdb.getReference("messages").child(currentChatId).push();
+                Map<String, Object> msg = new HashMap<>();
+                msg.put("type", type);
+                msg.put("url", url);
+                msg.put("duration", duration);
+                msg.put("sender", myUid);
+                msg.put("timestamp", System.currentTimeMillis());
+                ref.setValue(msg);
+
+                String preview = type.equals("image") ? "📷 صورة"
+                        : type.equals("audio") ? "🎤 رسالة صوتية" : "";
+                Map<String, Object> chatDoc = new HashMap<>();
+                chatDoc.put("participants", Arrays.asList(myUid, otherUid));
+                chatDoc.put("lastMessage", preview);
+                chatDoc.put("lastMessageAt", System.currentTimeMillis());
+                chatDoc.put("lastSender", myUid);
+                db.collection("chats").document(currentChatId).set(chatDoc);
+            }
+
+            // ============ اختيار صورة ورفعها ============
+            void pickImage() {
+                pendingImageCallback = uri -> uploadImage(uri);
+                Intent i = new Intent(Intent.ACTION_GET_CONTENT);
+                i.setType("image/*");
+                try {
+                    act.startActivityForResult(Intent.createChooser(i, "اختر صورة"), REQ_PICK_IMAGE);
+                } catch (Exception e) { toast("لا توجد تطبيقات لعرض الصور"); }
+            }
+
+            void uploadImage(Uri uri) {
+                if (currentChatId.isEmpty()) return;
+                toast("جاري رفع الصورة...");
+                StorageReference ref = FirebaseStorage.getInstance().getReference()
+                        .child("chats/" + currentChatId + "/img_" + System.currentTimeMillis() + ".jpg");
+                ref.putFile(uri)
+                    .addOnSuccessListener(ts -> ref.getDownloadUrl()
+                        .addOnSuccessListener(u -> sendMedia("image", u.toString(), 0))
+                        .addOnFailureListener(e -> toast("فشل رابط الرفع: " + e.getMessage())))
+                    .addOnFailureListener(e -> toast("فشل الرفع: " + e.getMessage()));
+            }
+
+            // ============ تسجيل الصوت وإرساله ============
+            void toggleRecording() {
+                if (!isRecording) startRecord();
+                else stopRecordAndSend();
+            }
+
+            void startRecord() {
+                if (act.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)
+                        != PackageManager.PERMISSION_GRANTED) {
+                    pendingMicCallback = this::startRecord;
+                    act.requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, REQ_MIC_PERM);
+                    return;
+                }
+                try {
+                    File dir = new File(act.getFilesDir(), "voice");
+                    if (!dir.exists()) dir.mkdirs();
+                    audioFile = new File(dir, "rec_" + System.currentTimeMillis() + ".m4a");
+
+                    if (Build.VERSION.SDK_INT >= 31) recorder = new MediaRecorder(act);
+                    else recorder = new MediaRecorder();
+                    recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+                    recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+                    recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
+                    recorder.setAudioEncodingBitRate(64000);
+                    recorder.setAudioSamplingRate(44100);
+                    recorder.setOutputFile(audioFile.getAbsolutePath());
+                    recorder.prepare();
+                    recorder.start();
+                    isRecording = true;
+                    recordStart = System.currentTimeMillis();
+
+                    vis("recordingBar", true);
+                    tv("recTimer").setText("0:00");
+                    recTick = new Runnable() {
+                        @Override public void run() {
+                            if (!isRecording) return;
+                            long s = (System.currentTimeMillis() - recordStart) / 1000;
+                            tv("recTimer").setText(String.format(Locale.getDefault(), "%d:%02d", s / 60, s % 60));
+                            recHandler.postDelayed(this, 500);
+                        }
+                    };
+                    recHandler.post(recTick);
+                    tv("btnMic").setTextColor(cRed());
+                    tintIcons(tv("btnMic"));
+                } catch (Exception e) {
+                    toast("فشل بدء التسجيل: " + e.getMessage());
+                    recorder = null;
+                    isRecording = false;
+                }
+            }
+
+            void stopRecordAndSend() {
+                if (recorder == null) return;
+                long dur = System.currentTimeMillis() - recordStart;
+                try { recorder.stop(); } catch (Exception e) { }
+                try { recorder.release(); } catch (Exception e) { }
+                recorder = null;
+                isRecording = false;
+                if (recTick != null) recHandler.removeCallbacks(recTick);
+                vis("recordingBar", false);
+                tv("btnMic").setTextColor(cMuted());
+                tintIcons(tv("btnMic"));
+
+                if (audioFile == null || !audioFile.exists()) return;
+                if (dur < 800) { audioFile.delete(); toast("التسجيل قصير جداً"); return; }
+                uploadAudio(audioFile, dur);
+            }
+
+            void cancelRecord() {
+                if (recorder == null) return;
+                try { recorder.stop(); } catch (Exception e) { }
+                try { recorder.release(); } catch (Exception e) { }
+                recorder = null;
+                isRecording = false;
+                if (recTick != null) recHandler.removeCallbacks(recTick);
+                vis("recordingBar", false);
+                tv("btnMic").setTextColor(cMuted());
+                tintIcons(tv("btnMic"));
+                if (audioFile != null) audioFile.delete();
+                toast("تم إلغاء التسجيل");
+            }
+
+            void uploadAudio(File f, long dur) {
+                if (currentChatId.isEmpty()) return;
+                toast("جاري رفع الصوت...");
+                StorageReference ref = FirebaseStorage.getInstance().getReference()
+                        .child("chats/" + currentChatId + "/voice_" + System.currentTimeMillis() + ".m4a");
+                ref.putFile(Uri.fromFile(f))
+                    .addOnSuccessListener(ts -> ref.getDownloadUrl()
+                        .addOnSuccessListener(u -> { sendMedia("audio", u.toString(), dur); f.delete(); })
+                        .addOnFailureListener(e -> toast("فشل: " + e.getMessage())))
+                    .addOnFailureListener(e -> toast("فشل الرفع: " + e.getMessage()));
             }
 
             void chatMenu() {
@@ -734,20 +1030,13 @@ public class MassActivity extends Activity {
                 if (first != null) ((ScrollView) v("messagesScroll")).smoothScrollTo(0, first.getTop());
             }
 
-            // ============ FIREBASE: البحث عن مستخدمين ============
             void searchUsers(String q) {
                 String cleanQ = q.replace("@", "").trim().toLowerCase();
                 LinearLayout res = (LinearLayout) v("searchResults");
                 res.removeAllViews();
-                if (cleanQ.length() < 3) {
-                    tv("searchHint").setText("اكتب 3 أحرف على الأقل");
-                    return;
-                }
-                db.collection("users")
-                    .orderBy("username")
-                    .startAt(cleanQ).endAt(cleanQ + "\uf8ff")
-                    .get()
-                    .addOnCompleteListener(task -> {
+                if (cleanQ.length() < 3) { tv("searchHint").setText("اكتب 3 أحرف على الأقل"); return; }
+                db.collection("users").orderBy("username").startAt(cleanQ).endAt(cleanQ + "\uf8ff")
+                    .get().addOnCompleteListener(task -> {
                         res.removeAllViews();
                         int n = 0;
                         if (task.isSuccessful() && task.getResult() != null) {
@@ -853,7 +1142,7 @@ public class MassActivity extends Activity {
                         String s = e.getText().toString().trim();
                         if (s.length() > 0) {
                             Map<String, Object> upd = new HashMap<>();
-                            upd.put(key.equals("email") ? "email" : key, s);
+                            upd.put(key, s);
                             db.collection("users").document(myUid).update(upd)
                                 .addOnSuccessListener(a -> { loadMyProfile(); toast(okMsg); })
                                 .addOnFailureListener(er -> toast("فشل: " + er.getMessage()));
@@ -874,15 +1163,12 @@ public class MassActivity extends Activity {
                     final EditText e = new EditText(act);
                     e.setHint("اسم المجموعة");
                     new AlertDialog.Builder(act).setTitle("مجموعة جديدة").setView(e)
-                        .setPositiveButton("إنشاء", (d, w) -> {
-                            String s = e.getText().toString().trim();
-                            if (s.length() == 0) return;
-                            toast("إنشاء المجموعات قيد التطوير");
-                        }).setNegativeButton("إلغاء", null).show();
+                        .setPositiveButton("إنشاء", (d, w) -> toast("إنشاء المجموعات قيد التطوير"))
+                        .setNegativeButton("إلغاء", null).show();
                 }
-                // الملف الشخصي
+                // profile
                 else if (id.equals("pEdit") || id.equals("pBioRow")) openEdit();
-                else if (id.equals("pPhoto")) toast("اختيار صورة (قيد التطوير مع Firebase Storage)");
+                else if (id.equals("pPhoto")) toast("اختيار صورة (يتطلب Firebase Storage)");
                 else if (id.equals("pCover")) {
                     new AlertDialog.Builder(act).setTitle("لون الغلاف")
                         .setItems(new String[]{"كحلي", "بنفسجي", "أخضر", "برتقالي", "رمادي", "ذهبي"}, (d, w) -> {
@@ -896,23 +1182,11 @@ public class MassActivity extends Activity {
                     cm.setPrimaryClip(ClipData.newPlainText("u", tv("pHeaderUser").getText().toString()));
                     toast("تم نسخ اسم المستخدم");
                 }
-                else if (id.equals("pTabStoriesBtn")) {
-                    vis("pTabStories", true); vis("pTabGifts", false);
-                    setOn(v("pTabStoriesBtn"), true, "m"); setOn(v("pTabGiftsBtn"), false, "m");
-                }
-                else if (id.equals("pTabGiftsBtn")) {
-                    vis("pTabStories", false); vis("pTabGifts", true);
-                    setOn(v("pTabStoriesBtn"), false, "m"); setOn(v("pTabGiftsBtn"), true, "m");
-                }
                 else if (id.equals("editBack") || id.equals("btnCancelEdit")) show("profileView");
                 else if (id.equals("btnSaveProfile")) saveProfile();
-                // بروفايل مستخدم آخر
+                // other profile (بدون نجوم وهدايا)
                 else if (id.equals("otherBack")) show(prevPage);
-                else if (id.equals("otherMsgBtn")) {
-                    openChat(otherName, otherUid);
-                }
-                else if (id.equals("otherStarsBtn")) toast("إهداء نجوم إلى " + otherName);
-                else if (id.equals("otherGiftBtn")) toast("متجر الهدايا");
+                else if (id.equals("otherMsgBtn")) openChat(otherName, otherUid);
                 else if (id.equals("otherBlockBtn")) {
                     blocked = !blocked;
                     setLabel("otherBlockBtn", blocked ? "إلغاء الحظر" : "حظر", icon(blocked ? "ic_check" : "ic_block", 16));
@@ -932,7 +1206,7 @@ public class MassActivity extends Activity {
                     });
                     pm.show();
                 }
-                // الإعدادات
+                // settings
                 else if (id.equals("settingsThemeToggle")) {
                     dark = !dark;
                     sp.edit().putBoolean("dark", dark).apply();
@@ -942,8 +1216,6 @@ public class MassActivity extends Activity {
                 else if (id.equals("itemNotif")) show("notificationSettingsView");
                 else if (id.equals("itemPrivacy")) show("privacySettingsView");
                 else if (id.equals("privacyBack") || id.equals("notifBack") || id.equals("chatSetBack")) show("settingsView");
-                else if (id.equals("itemStars")) new AlertDialog.Builder(act).setTitle("نجوم بابيلون").setMessage("رصيدك الحالي: 0 ⭐").setPositiveButton("حسناً", null).show();
-                else if (id.equals("itemGifts")) toast("متجر الهدايا قريباً");
                 else if (id.equals("itemShare")) {
                     Intent i = new Intent(Intent.ACTION_SEND);
                     i.setType("text/plain");
@@ -957,7 +1229,7 @@ public class MassActivity extends Activity {
                         currentUser.delete().addOnCompleteListener(t -> logout());
                     }
                 });
-                // الخصوصية
+                // privacy
                 else if (id.equals("itemChangePass")) {
                     if (currentUser != null && currentUser.getEmail() != null) {
                         mAuth.sendPasswordResetEmail(currentUser.getEmail())
@@ -967,22 +1239,10 @@ public class MassActivity extends Activity {
                 }
                 else if (id.equals("itemChangeEmail")) input("تغيير الإيميل", "name@domain.com", "email", "تم تحديث الإيميل");
                 else if (id.equals("itemBlocked")) toast("لا يوجد مستخدمون محظورون");
-                else if (id.equals("segLastSeen_show")) {
-                    db.collection("users").document(myUid).update("hideLastSeen", false);
-                    setSeg("segLastSeen", false);
-                }
-                else if (id.equals("segLastSeen_hide")) {
-                    db.collection("users").document(myUid).update("hideLastSeen", true);
-                    setSeg("segLastSeen", true);
-                }
-                else if (id.equals("segAvatar_show")) {
-                    db.collection("users").document(myUid).update("hideAvatar", false);
-                    setSeg("segAvatar", false);
-                }
-                else if (id.equals("segAvatar_hide")) {
-                    db.collection("users").document(myUid).update("hideAvatar", true);
-                    setSeg("segAvatar", true);
-                }
+                else if (id.equals("segLastSeen_show")) { db.collection("users").document(myUid).update("hideLastSeen", false); setSeg("segLastSeen", false); }
+                else if (id.equals("segLastSeen_hide")) { db.collection("users").document(myUid).update("hideLastSeen", true); setSeg("segLastSeen", true); }
+                else if (id.equals("segAvatar_show")) { db.collection("users").document(myUid).update("hideAvatar", false); setSeg("segAvatar", false); }
+                else if (id.equals("segAvatar_hide")) { db.collection("users").document(myUid).update("hideAvatar", true); setSeg("segAvatar", true); }
                 else if (id.equals("itemClearCache")) toast("تم مسح البيانات المؤقتة");
                 else if (id.equals("itemWipe")) confirm("مسح جميع البيانات", "سيتم مسح كل بيانات التطبيق المحلية.", () -> {
                     sp.edit().clear().apply();
@@ -990,22 +1250,30 @@ public class MassActivity extends Activity {
                     logout();
                 });
                 else if (id.equals("itemAbout")) new AlertDialog.Builder(act).setTitle("حول Babylon Chat")
-                    .setMessage("تطبيق المحادثات العربي\nمحادثات، مكالمات، قصص، هدايا ونجوم.")
+                    .setMessage("تطبيق المحادثات العربي\nمحادثات، مكالمات، قصص.")
                     .setPositiveButton("حسناً", null).show();
-                // الإشعارات
+                // notif
                 else if (id.equals("pushOnBtn")) { sp.edit().putBoolean("push", true).apply(); setOnOff("push", true); }
                 else if (id.equals("pushOffBtn")) { sp.edit().putBoolean("push", false).apply(); setOnOff("push", false); }
                 else if (id.equals("soundOnBtn")) { sp.edit().putBoolean("sound", true).apply(); setOnOff("sound", true); }
                 else if (id.equals("soundOffBtn")) { sp.edit().putBoolean("sound", false).apply(); setOnOff("sound", false); }
-                // غرفة المحادثة
+                // chat
                 else if (id.equals("chatBack")) closeChat();
                 else if (id.equals("chatUserInfo")) { hideKb(); vis("chatView", false); openOther(curChat, otherUser, otherUid); }
                 else if (id.equals("chatMore")) chatMenu();
                 else if (id.equals("csX")) { vis("chatSearchPanel", false); et("chatMessageSearchInput").setText(""); searchInChat(""); }
                 else if (id.equals("replyCancel")) { cancelReply(); et("messageInput").setText(""); }
                 else if (id.equals("btnSend")) send();
-                else if (id.equals("btnMic")) toast("تسجيل رسالة صوتية");
-                else if (id.equals("btnAttach")) new AlertDialog.Builder(act).setItems(new String[]{"صورة / فيديو", "ملف"}, null).show();
+                else if (id.equals("btnMic")) toggleRecording();
+                else if (id.equals("recSend")) stopRecordAndSend();
+                else if (id.equals("recCancel")) cancelRecord();
+                else if (id.equals("btnAttach")) {
+                    new AlertDialog.Builder(act).setTitle("إرفاق")
+                        .setItems(new String[]{"صورة من المعرض", "ملف"}, (d, w) -> {
+                            if (w == 0) pickImage();
+                            else toast("الملفات قريباً");
+                        }).show();
+                }
             }
 
             // ============ التهيئة ============
@@ -1036,15 +1304,19 @@ public class MassActivity extends Activity {
 
                 View.OnClickListener L = x -> click(act.getResources().getResourceEntryName(x.getId()));
                 String[] ids = {"hdrStories", "mainSearchBtn", "searchBack", "fltAll", "fltUnread",
-                        "newGroupFab", "navChats", "navSettings", "navProfile", "pEdit", "pPhoto", "pCover", "pBioRow", "pUserRow",
-                        "pTabStoriesBtn", "pTabGiftsBtn", "editBack", "btnCancelEdit", "btnSaveProfile", "otherBack", "otherMsgBtn",
-                        "otherStarsBtn", "otherGiftBtn", "otherBlockBtn", "otherMoreBtn", "settingsThemeToggle", "sxHero",
-                        "itemChatSettings", "itemNotif", "itemPrivacy", "privacyBack", "notifBack", "chatSetBack", "itemStars",
-                        "itemGifts", "itemShare", "itemLogout", "itemDelete", "itemChangePass", "itemChangeEmail", "itemBlocked",
-                        "segLastSeen_show", "segLastSeen_hide", "segAvatar_show", "segAvatar_hide", "itemClearCache", "itemWipe",
-                        "itemAbout", "pushOnBtn", "pushOffBtn", "soundOnBtn", "soundOffBtn", "chatBack", "chatUserInfo", "chatMore",
-                        "csX", "replyCancel", "btnSend", "btnMic", "btnAttach"};
-                for (String id : ids) v(id).setOnClickListener(L);
+                        "newGroupFab", "navChats", "navSettings", "navProfile", "pEdit", "pPhoto", "pCover",
+                        "pBioRow", "pUserRow", "editBack", "btnCancelEdit", "btnSaveProfile", "otherBack",
+                        "otherMsgBtn", "otherBlockBtn", "otherMoreBtn", "settingsThemeToggle", "sxHero",
+                        "itemChatSettings", "itemNotif", "itemPrivacy", "privacyBack", "notifBack",
+                        "chatSetBack", "itemShare", "itemLogout", "itemDelete", "itemChangePass",
+                        "itemChangeEmail", "itemBlocked", "segLastSeen_show", "segLastSeen_hide",
+                        "segAvatar_show", "segAvatar_hide", "itemClearCache", "itemWipe", "itemAbout",
+                        "pushOnBtn", "pushOffBtn", "soundOnBtn", "soundOffBtn", "chatBack", "chatUserInfo",
+                        "chatMore", "csX", "replyCancel", "btnSend", "btnMic", "btnAttach", "recSend", "recCancel"};
+                for (String id : ids) {
+                    View x = v(id);
+                    if (x != null) x.setOnClickListener(L);
+                }
 
                 et("searchInput").addTextChangedListener(new TextWatcher() {
                     public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
@@ -1090,10 +1362,8 @@ public class MassActivity extends Activity {
                 applyBubbles();
                 applyTheme();
 
-                // Firebase loaders
                 loadMyProfile();
                 loadChats();
-
                 show("homeView");
             }
         }
@@ -1101,9 +1371,10 @@ public class MassActivity extends Activity {
         UI ui = new UI();
         ui.init();
 
-        // Status bar setup
+        // ======= شريط حالة وتنقّل شفافان مع Insets =======
         Window w = getWindow();
-        w.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS | WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
+        w.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS
+                | WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
         w.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
         w.setStatusBarColor(0x00000000);
         w.setNavigationBarColor(0x00000000);
@@ -1111,16 +1382,19 @@ public class MassActivity extends Activity {
             w.setNavigationBarContrastEnforced(false);
             w.setStatusBarContrastEnforced(false);
         }
-        int topBg = 0xFFF1F4F9, botBg = 0xFFEEF2F9;
-        boolean topLight = (0.299 * ((topBg >> 16) & 255) + 0.587 * ((topBg >> 8) & 255) + 0.114 * (topBg & 255)) > 150;
-        boolean botLight = (0.299 * ((botBg >> 16) & 255) + 0.587 * ((botBg >> 8) & 255) + 0.114 * (botBg & 255)) > 150;
-        int flags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
-        if (Build.VERSION.SDK_INT >= 23 && topLight) flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
-        if (Build.VERSION.SDK_INT >= 26 && botLight) flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+        boolean darkNow = getSharedPreferences("babylon_ui", MODE_PRIVATE).getBoolean("dark", false);
+        int flags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
+        if (Build.VERSION.SDK_INT >= 23 && !darkNow) flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+        if (Build.VERSION.SDK_INT >= 26 && !darkNow) flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
         w.getDecorView().setSystemUiVisibility(flags);
+
         final View rootView = findViewById(R.id.root);
         rootView.setOnApplyWindowInsetsListener((v, insets) -> {
-            v.setPadding(0, insets.getSystemWindowInsetTop(), 0, insets.getSystemWindowInsetBottom());
+            int top = insets.getSystemWindowInsetTop();
+            int bottom = insets.getSystemWindowInsetBottom();
+            v.setPadding(0, top, 0, bottom);
             return insets;
         });
         rootView.requestApplyInsets();
