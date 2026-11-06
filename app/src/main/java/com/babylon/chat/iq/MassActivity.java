@@ -87,10 +87,25 @@ public class MassActivity extends Activity {
     @Override
     protected void onCreate(Bundle _savedInstanceState) {
         super.onCreate(_savedInstanceState);
+
+        // 1) إعداد معالج الأخطاء العام قبل أي شيء آخر
+        setupCrashHandler();
+
+        // 2) عرض الخطأ السابق (إن وجد) قبل البدء
+        showLastCrash();
+
+        // 3) إشعار بسيط للتأكد أن onCreate يعمل
+        Toast.makeText(this, "جاري فتح MassActivity...", Toast.LENGTH_SHORT).show();
+
         try {
             binding = MassBinding.inflate(getLayoutInflater());
             setContentView(binding.getRoot());
+        } catch (Throwable e) {
+            saveAndDie(e, "inflate_layout");
+            return;
+        }
 
+        try {
             mAuth = FirebaseAuth.getInstance();
             currentUser = mAuth.getCurrentUser();
             db = FirebaseFirestore.getInstance();
@@ -101,51 +116,81 @@ public class MassActivity extends Activity {
                 return;
             }
             myUid = currentUser.getUid();
-
-            try {
-                initializeLogic();
-            } catch (Throwable e) {
-                showCrashDialog(e, "initializeLogic");
-                return;
-            }
-
-            try {
-                makeAllTextBold(getWindow().getDecorView().getRootView());
-            } catch (Throwable ignored) { }
         } catch (Throwable e) {
-            showCrashDialog(e, "onCreate");
+            saveAndDie(e, "firebase_init");
+            return;
         }
+
+        try {
+            initializeLogic();
+        } catch (Throwable e) {
+            saveAndDie(e, "initializeLogic");
+            return;
+        }
+
+        try {
+            makeAllTextBold(getWindow().getDecorView().getRootView());
+        } catch (Throwable ignored) { }
     }
 
-    private void showCrashDialog(Throwable e, String where) {
-        android.util.Log.e("BABYLON_CRASH", where, e);
+    // ==================== نظام التقاط الأخطاء ====================
+
+    private void setupCrashHandler() {
+        final Thread.UncaughtExceptionHandler defaultHandler = Thread.getDefaultUncaughtExceptionHandler();
+        Thread.setDefaultUncaughtExceptionHandler((thread, e) -> {
+            saveCrashToPrefs(e, "uncaught_" + thread.getName());
+            android.util.Log.e("BABYLON_CRASH", "UNCAUGHT in " + thread.getName(), e);
+            try {
+                Toast.makeText(getApplicationContext(),
+                        "خطأ: " + e.getClass().getSimpleName() + " — أعد فتح التطبيق لرؤية التفاصيل",
+                        Toast.LENGTH_LONG).show();
+                Thread.sleep(2500);
+            } catch (Throwable ignored) { }
+            if (defaultHandler != null) defaultHandler.uncaughtException(thread, e);
+        });
+    }
+
+    private void saveCrashToPrefs(Throwable e, String where) {
         StringBuilder sb = new StringBuilder();
+        sb.append("المكان: ").append(where).append("\n\n");
         sb.append(e.getClass().getSimpleName()).append(": ").append(e.getMessage()).append("\n\n");
         StackTraceElement[] st = e.getStackTrace();
-        int shown = 0;
+        int count = 0;
         for (StackTraceElement el : st) {
-            if (el.getClassName().startsWith("com.babylon")) {
-                sb.append("في: ").append(el.getFileName()).append(":").append(el.getLineNumber())
-                        .append("\n").append(el.getMethodName()).append("()\n\n");
-                shown++;
-                if (shown >= 3) break;
+            if (el.getClassName().startsWith("com.babylon") || el.getClassName().startsWith("android.")) {
+                sb.append(el.getFileName()).append(":").append(el.getLineNumber())
+                        .append("  →  ").append(el.getMethodName()).append("()\n");
+                count++;
+                if (count >= 8) break;
             }
         }
-        if (shown == 0 && st.length > 0) {
-            sb.append("في: ").append(st[0].getFileName()).append(":").append(st[0].getLineNumber())
-                    .append("\n").append(st[0].getMethodName()).append("()\n");
-        }
-        try {
-            new AlertDialog.Builder(this)
-                    .setTitle("خطأ: " + where)
-                    .setMessage(sb.toString())
-                    .setPositiveButton("حسناً", (d, w) -> finish())
-                    .setCancelable(false)
-                    .show();
-        } catch (Throwable ignored) {
-            finish();
-        }
+        getSharedPreferences("crash_log", MODE_PRIVATE)
+                .edit().putString("last", sb.toString()).commit();
     }
+
+    private void saveAndDie(Throwable e, String where) {
+        saveCrashToPrefs(e, where);
+        android.util.Log.e("BABYLON_CRASH", where, e);
+        Toast.makeText(this, "سُجل خطأ. أعد فتح التطبيق لرؤيته", Toast.LENGTH_LONG).show();
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            android.os.Process.killProcess(android.os.Process.myPid());
+            System.exit(10);
+        }, 2000);
+    }
+
+    private void showLastCrash() {
+        String last = getSharedPreferences("crash_log", MODE_PRIVATE).getString("last", "");
+        if (last == null || last.isEmpty()) return;
+        new AlertDialog.Builder(this)
+                .setTitle("خطأ في التشغيل السابق")
+                .setMessage(last)
+                .setPositiveButton("مسح ومتابعة", (d, w) ->
+                        getSharedPreferences("crash_log", MODE_PRIVATE).edit().clear().apply())
+                .setCancelable(false)
+                .show();
+    }
+
+    // ==================== دورة الحياة ====================
 
     @Override
     protected void onDestroy() {
