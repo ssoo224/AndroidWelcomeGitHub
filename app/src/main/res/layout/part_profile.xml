@@ -40,14 +40,7 @@
 				android:gravity="center_horizontal"
 				android:orientation="vertical"
 				android:layout_marginTop="-59dp">
-				<FrameLayout
-					android:id="@+id/pAvatarRing"
-					android:layout_width="118dp"
-					android:layout_height="118dp"
-					android:padding="7dp"
-					android:elevation="4dp"
-					android:tag="ring">
-					<TextView
+				<TextView
 					android:id="@+id/pAvatarText"
 					android:layout_width="104dp"
 					android:layout_height="104dp"
@@ -56,7 +49,6 @@
 					android:textStyle="bold"
 					android:textColor="#17212B"
 					android:tag="circ" />
-				</FrameLayout>
 				<TextView
 					android:id="@+id/pHeaderName"
 					android:layout_width="wrap_content"
@@ -158,8 +150,7 @@
 						android:textSize="17sp"
 						android:tag="g"
 						android:gravity="center_horizontal|center_vertical"
-						android:layout_marginEnd="15dp"
-						android:background="@drawable/bg_pf_ico" />
+						android:layout_marginEnd="15dp" />
 					<LinearLayout
 						android:id="@+id/linear646"
 						android:layout_width="0dp"
@@ -207,7 +198,6 @@
 						android:tag="g"
 						android:gravity="center_horizontal|center_vertical"
 						android:layout_marginEnd="15dp"
-						android:background="@drawable/bg_pf_ico"
 						android:textStyle="bold" />
 					<LinearLayout
 						android:id="@+id/linear648"
@@ -255,8 +245,7 @@
 						android:textSize="17sp"
 						android:tag="g"
 						android:gravity="center_horizontal|center_vertical"
-						android:layout_marginEnd="15dp"
-						android:background="@drawable/bg_pf_ico" />
+						android:layout_marginEnd="15dp" />
 					<LinearLayout
 						android:id="@+id/linear650"
 						android:layout_width="0dp"
@@ -303,8 +292,7 @@
 						android:textSize="17sp"
 						android:tag="g"
 						android:gravity="center_horizontal|center_vertical"
-						android:layout_marginEnd="15dp"
-						android:background="@drawable/bg_pf_ico" />
+						android:layout_marginEnd="15dp" />
 					<LinearLayout
 						android:id="@+id/linear652"
 						android:layout_width="0dp"
@@ -351,8 +339,7 @@
 						android:textSize="17sp"
 						android:tag="g"
 						android:gravity="center_horizontal|center_vertical"
-						android:layout_marginEnd="15dp"
-						android:background="@drawable/bg_pf_ico" />
+						android:layout_marginEnd="15dp" />
 					<LinearLayout
 						android:id="@+id/linear654"
 						android:layout_width="0dp"
@@ -481,8 +468,7 @@
 					android:textSize="24sp"
 					android:textColor="#FFFFFF"
 					android:tag="wh"
-					android:layout_margin="12dp"
-					android:background="@drawable/bg_pf_round" />
+					android:layout_margin="12dp" />
 				<TextView
 					android:id="@+id/otherMoreBtn"
 					android:layout_width="40dp"
@@ -494,8 +480,7 @@
 					android:textColor="#FFFFFF"
 					android:layout_gravity="end"
 					android:tag="wh"
-					android:layout_margin="12dp"
-					android:background="@drawable/bg_pf_round" />
+					android:layout_margin="12dp" />
 			</FrameLayout>
 			<LinearLayout
 				android:id="@+id/linear658"
@@ -504,14 +489,7 @@
 				android:gravity="center_horizontal"
 				android:orientation="vertical"
 				android:layout_marginTop="-59dp">
-				<FrameLayout
-					android:id="@+id/otherAvatarRing"
-					android:layout_width="118dp"
-					android:layout_height="118dp"
-					android:padding="7dp"
-					android:elevation="4dp"
-					android:tag="ring">
-					<TextView
+				<TextView
 					android:id="@+id/otherAvatarText"
 					android:layout_width="104dp"
 					android:layout_height="104dp"
@@ -520,7 +498,6 @@
 					android:textStyle="bold"
 					android:textColor="#17212B"
 					android:tag="circ" />
-				</FrameLayout>
 				<TextView
 					android:id="@+id/otherHeaderName"
 					android:layout_width="wrap_content"
@@ -651,8 +628,7 @@
 						android:textSize="17sp"
 						android:tag="g"
 						android:gravity="center_horizontal|center_vertical"
-						android:layout_marginEnd="15dp"
-						android:background="@drawable/bg_pf_ico" />
+						android:layout_marginEnd="15dp" />
 					<LinearLayout
 						android:id="@+id/linear661"
 						android:layout_width="0dp"
@@ -699,7 +675,6 @@
 						android:tag="g"
 						android:gravity="center_horizontal|center_vertical"
 						android:layout_marginEnd="15dp"
-						android:background="@drawable/bg_pf_ico"
 						android:textStyle="bold" />
 					<LinearLayout
 						android:id="@+id/linear663"
@@ -747,8 +722,7 @@
 						android:textSize="17sp"
 						android:tag="g"
 						android:gravity="center_horizontal|center_vertical"
-						android:layout_marginEnd="15dp"
-						android:background="@drawable/bg_pf_ico" />
+						android:layout_marginEnd="15dp" />
 					<LinearLayout
 						android:id="@+id/linear665"
 						android:layout_width="0dp"
@@ -795,8 +769,7 @@
 						android:textSize="17sp"
 						android:tag="g"
 						android:gravity="center_horizontal|center_vertical"
-						android:layout_marginEnd="15dp"
-						android:background="@drawable/bg_pf_ico" />
+						android:layout_marginEnd="15dp" />
 					<LinearLayout
 						android:id="@+id/linear667"
 						android:layout_width="0dp"

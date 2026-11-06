@@ -248,8 +248,7 @@
 				android:gravity="center_horizontal|center_vertical"
 				android:orientation="vertical"
 				android:clickable="true"
-				android:focusable="true"
-				android:background="@drawable/bg_nav_item">
+				android:focusable="true">
 				<TextView
 					android:id="@+id/navChatsIc"
 					android:layout_width="34dp"
@@ -258,7 +257,6 @@
 					android:text=""
 					android:drawableStart="@drawable/ic_chat_22"
 					android:textSize="20sp"
-					android:background="@drawable/bg_nav_icon"
 					android:tag="m" />
 				<TextView
 					android:id="@+id/navChatsTx"
@@ -280,8 +278,7 @@
 				android:gravity="center_horizontal|center_vertical"
 				android:orientation="vertical"
 				android:clickable="true"
-				android:focusable="true"
-				android:background="@drawable/bg_nav_item">
+				android:focusable="true">
 				<TextView
 					android:id="@+id/navSettingsIc"
 					android:layout_width="34dp"
@@ -290,7 +287,6 @@
 					android:text=""
 					android:drawableStart="@drawable/ic_settings_22"
 					android:textSize="20sp"
-					android:background="@drawable/bg_nav_icon"
 					android:tag="m" />
 				<TextView
 					android:id="@+id/navSettingsTx"
@@ -312,8 +308,7 @@
 				android:gravity="center_horizontal|center_vertical"
 				android:orientation="vertical"
 				android:clickable="true"
-				android:focusable="true"
-				android:background="@drawable/bg_nav_item">
+				android:focusable="true">
 				<TextView
 					android:id="@+id/navProfileIc"
 					android:layout_width="34dp"
@@ -322,7 +317,6 @@
 					android:text=""
 					android:drawableStart="@drawable/ic_user_22"
 					android:textSize="20sp"
-					android:background="@drawable/bg_nav_icon"
 					android:tag="m" />
 				<TextView
 					android:id="@+id/navProfileTx"
