@@ -49,9 +49,7 @@ import com.babylon.chat.iq.databinding.MassBinding;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentChange;
-import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
-import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
@@ -89,24 +87,64 @@ public class MassActivity extends Activity {
     @Override
     protected void onCreate(Bundle _savedInstanceState) {
         super.onCreate(_savedInstanceState);
-        binding = MassBinding.inflate(getLayoutInflater());
-        setContentView(binding.getRoot());
+        try {
+            binding = MassBinding.inflate(getLayoutInflater());
+            setContentView(binding.getRoot());
 
-        mAuth = FirebaseAuth.getInstance();
-        currentUser = mAuth.getCurrentUser();
-        db = FirebaseFirestore.getInstance();
+            mAuth = FirebaseAuth.getInstance();
+            currentUser = mAuth.getCurrentUser();
+            db = FirebaseFirestore.getInstance();
 
-        if (currentUser == null) {
-            startActivity(new Intent(this, Main2Activity.class));
-            finish();
-            return;
+            if (currentUser == null) {
+                startActivity(new Intent(this, Main2Activity.class));
+                finish();
+                return;
+            }
+            myUid = currentUser.getUid();
+
+            try {
+                initializeLogic();
+            } catch (Throwable e) {
+                showCrashDialog(e, "initializeLogic");
+                return;
+            }
+
+            try {
+                makeAllTextBold(getWindow().getDecorView().getRootView());
+            } catch (Throwable ignored) { }
+        } catch (Throwable e) {
+            showCrashDialog(e, "onCreate");
         }
-        myUid = currentUser.getUid();
+    }
 
-        initializeLogic();
-
-        // جعل جميع الخطوط عريضة بعد تهيئة الواجهة
-        makeAllTextBold(getWindow().getDecorView().getRootView());
+    private void showCrashDialog(Throwable e, String where) {
+        android.util.Log.e("BABYLON_CRASH", where, e);
+        StringBuilder sb = new StringBuilder();
+        sb.append(e.getClass().getSimpleName()).append(": ").append(e.getMessage()).append("\n\n");
+        StackTraceElement[] st = e.getStackTrace();
+        int shown = 0;
+        for (StackTraceElement el : st) {
+            if (el.getClassName().startsWith("com.babylon")) {
+                sb.append("في: ").append(el.getFileName()).append(":").append(el.getLineNumber())
+                        .append("\n").append(el.getMethodName()).append("()\n\n");
+                shown++;
+                if (shown >= 3) break;
+            }
+        }
+        if (shown == 0 && st.length > 0) {
+            sb.append("في: ").append(st[0].getFileName()).append(":").append(st[0].getLineNumber())
+                    .append("\n").append(st[0].getMethodName()).append("()\n");
+        }
+        try {
+            new AlertDialog.Builder(this)
+                    .setTitle("خطأ: " + where)
+                    .setMessage(sb.toString())
+                    .setPositiveButton("حسناً", (d, w) -> finish())
+                    .setCancelable(false)
+                    .show();
+        } catch (Throwable ignored) {
+            finish();
+        }
     }
 
     @Override
@@ -140,7 +178,6 @@ public class MassActivity extends Activity {
         }
     }
 
-    // دالة لجعل جميع النصوص عريضة
     private void makeAllTextBold(View v) {
         if (v instanceof TextView) {
             ((TextView) v).setTypeface(null, android.graphics.Typeface.BOLD);
@@ -193,16 +230,17 @@ public class MassActivity extends Activity {
 
             int dp(float d) { return (int) (d * act.getResources().getDisplayMetrics().density + 0.5f); }
             View v(String n) { return act.findViewById(act.getResources().getIdentifier(n, "id", act.getPackageName())); }
-            TextView tv(String n) { return (TextView) v(n); }
-            EditText et(String n) { return (EditText) v(n); }
-            String txt(String n) { return et(n).getText().toString().trim(); }
+            TextView tv(String n) { View x = v(n); return x instanceof TextView ? (TextView) x : null; }
+            EditText et(String n) { View x = v(n); return x instanceof EditText ? (EditText) x : null; }
+            String txt(String n) { EditText e = et(n); return e != null ? e.getText().toString().trim() : ""; }
             void toast(String s) { Toast.makeText(act, s, Toast.LENGTH_SHORT).show(); }
             void vis(String n, boolean on) { View x = v(n); if (x != null) x.setVisibility(on ? View.VISIBLE : View.GONE); }
             String now() { return new SimpleDateFormat("h:mm", Locale.getDefault()).format(new Date()); }
             void hideKb() {
                 try {
                     InputMethodManager m = (InputMethodManager) act.getSystemService(Context.INPUT_METHOD_SERVICE);
-                    m.hideSoftInputFromWindow(v("root").getWindowToken(), 0);
+                    View root = v("root");
+                    if (root != null) m.hideSoftInputFromWindow(root.getWindowToken(), 0);
                 } catch (Exception e) { }
             }
             GradientDrawable shape(int fill, float rDp, int stroke) {
@@ -261,7 +299,7 @@ public class MassActivity extends Activity {
                         else if (k.equals("circ")) {
                             GradientDrawable g = new GradientDrawable();
                             g.setShape(GradientDrawable.OVAL); g.setColor(cGold()); x.setBackground(g);
-                            if (photoBmp != null && x instanceof TextView && (x == tv("pAvatarText") || x == tv("sxAvatar"))) applyPhotoTo((TextView) x);
+                            if (photoBmp != null && x instanceof TextView && (x == v("pAvatarText") || x == v("sxAvatar"))) applyPhotoTo((TextView) x);
                         } else if (k.equals("circRed")) {
                             GradientDrawable g = new GradientDrawable();
                             g.setShape(GradientDrawable.OVAL); g.setColor(cRed()); x.setBackground(g);
@@ -303,12 +341,16 @@ public class MassActivity extends Activity {
             int icon(String name, int size) { return act.getResources().getIdentifier(name + "_" + size, "drawable", act.getPackageName()); }
             void setLabel(String id, String label, int iconRes) {
                 TextView T = tv(id);
+                if (T == null) return;
                 T.setText(label);
                 T.setCompoundDrawablePadding(dp(6));
-                T.setCompoundDrawablesRelativeWithIntrinsicBounds(iconRes, 0, 0, 0);
+                if (iconRes != 0) {
+                    T.setCompoundDrawablesRelativeWithIntrinsicBounds(iconRes, 0, 0, 0);
+                }
                 tintIcons(T);
             }
             void setOn(View b, boolean on, String offTag) {
+                if (b == null) return;
                 b.setBackgroundColor(Color.TRANSPARENT);
                 b.setTag(on ? "gold" : offTag);
                 style(b);
@@ -318,18 +360,13 @@ public class MassActivity extends Activity {
                 style(v("root"));
                 View pvBox = v("pvBox");
                 if (pvBox != null) pvBox.setBackgroundColor(cChatBg());
-                // ✅ تم إزالة استدعاء pCoverTxt (غير موجود في التصميم الجديد)
-                View coverView = v("frame_layout642");
-                if (coverView != null) {
-                    // نترك الغلاف المتدرج من XML، لا نغير لونه هنا
-                }
                 TextView themeDesc = tv("themeDescription");
                 if (themeDesc != null) {
                     themeDesc.setText(dark ? "الوضع الليلي مفعّل" : "الوضع النهاري مفعّل");
                 }
                 setLabel("settingsThemeToggle", dark ? "نهاري" : "ليلي", icon(dark ? "ic_sun" : "ic_moon", 16));
-                buildThemeStrip();
-                setNav(curPage);
+                try { buildThemeStrip(); } catch (Throwable ignored) { }
+                try { setNav(curPage); } catch (Throwable ignored) { }
             }
 
             void show(String p) {
@@ -356,15 +393,15 @@ public class MassActivity extends Activity {
                     if (vv != null) {
                         if (on) {
                             vv.setBackground(shape(0xFFFFF7E6, 24, 0));
-                            LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) vv.getLayoutParams();
-                            if (lp != null) {
+                            if (vv.getLayoutParams() instanceof LinearLayout.LayoutParams) {
+                                LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) vv.getLayoutParams();
                                 lp.setMargins(dp(8), dp(8), dp(8), dp(8));
                                 vv.setLayoutParams(lp);
                             }
                         } else {
                             vv.setBackgroundColor(Color.TRANSPARENT);
-                            LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) vv.getLayoutParams();
-                            if (lp != null) {
+                            if (vv.getLayoutParams() instanceof LinearLayout.LayoutParams) {
+                                LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) vv.getLayoutParams();
                                 lp.setMargins(0, 0, 0, 0);
                                 vv.setLayoutParams(lp);
                             }
@@ -394,9 +431,10 @@ public class MassActivity extends Activity {
                             if (createdAt == null) createdAt = System.currentTimeMillis();
 
                             userJoin = new SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(new Date(createdAt));
-                            fillProfile();
+                            try { fillProfile(); } catch (Throwable ignored) { }
                         }
-                    });
+                    })
+                    .addOnFailureListener(e -> { });
             }
             String safe(String s) { return s != null ? s : ""; }
 
@@ -406,7 +444,6 @@ public class MassActivity extends Activity {
                 if (pAv != null) pAv.setText(letter);
                 TextView sxAv = tv("sxAvatar");
                 if (sxAv != null) sxAv.setText(letter);
-                // ✅ إزالة علامة "✓" النصية لأنها أصبحت أيقونة منفصلة
                 TextView pName = tv("pHeaderName");
                 if (pName != null) pName.setText(userName);
                 TextView sxName = tv("sxName");
@@ -433,16 +470,21 @@ public class MassActivity extends Activity {
                         pJoin.setText(userJoin);
                     }
                 }
-
                 applyProfilePhoto();
             }
 
             void openEdit() {
-                et("modalNameInput").setText(userName);
-                et("modalUsernameInput").setText(userUsername);
-                et("modalBioInput").setText(userBio);
-                for (int i = 0; i < govs.length; i++)
-                    if (govs[i].equals(userGov)) ((Spinner) v("modalGovInput")).setSelection(i);
+                EditText nameE = et("modalNameInput");
+                if (nameE != null) nameE.setText(userName);
+                EditText userE = et("modalUsernameInput");
+                if (userE != null) userE.setText(userUsername);
+                EditText bioE = et("modalBioInput");
+                if (bioE != null) bioE.setText(userBio);
+                View govV = v("modalGovInput");
+                if (govV instanceof Spinner) {
+                    for (int i = 0; i < govs.length; i++)
+                        if (govs[i].equals(userGov)) ((Spinner) govV).setSelection(i);
+                }
                 vis("modalUserError", false);
                 show("editProfileView");
             }
@@ -451,19 +493,22 @@ public class MassActivity extends Activity {
                 String n = txt("modalNameInput");
                 String u = txt("modalUsernameInput").replace("@", "");
                 String bio = txt("modalBioInput");
-                String gov = govs[((Spinner) v("modalGovInput")).getSelectedItemPosition()];
+                View govV = v("modalGovInput");
+                String gov = (govV instanceof Spinner) ? govs[((Spinner) govV).getSelectedItemPosition()] : userGov;
                 if (n.length() == 0) { toast("اكتب اسم العرض"); return; }
                 if (u.length() < 5 || !u.matches("[A-Za-z0-9_]+")) {
-                    tv("modalUserError").setText("اسم المستخدم 5 أحرف إنجليزية فأكثر");
-                    vis("modalUserError", true); return;
+                    TextView err = tv("modalUserError");
+                    if (err != null) { err.setText("اسم المستخدم 5 أحرف إنجليزية فأكثر"); err.setVisibility(View.VISIBLE); }
+                    return;
                 }
                 db.collection("users").whereEqualTo("username", u).limit(1).get()
                     .addOnCompleteListener(task -> {
                         if (task.isSuccessful() && task.getResult() != null && !task.getResult().isEmpty()) {
                             String takenBy = task.getResult().getDocuments().get(0).getId();
                             if (!takenBy.equals(myUid) && !u.equals(userUsername)) {
-                                tv("modalUserError").setText("اسم المستخدم محجوز");
-                                vis("modalUserError", true); return;
+                                TextView err = tv("modalUserError");
+                                if (err != null) { err.setText("اسم المستخدم محجوز"); err.setVisibility(View.VISIBLE); }
+                                return;
                             }
                         }
                         Map<String, Object> updates = new HashMap<>();
@@ -472,7 +517,7 @@ public class MassActivity extends Activity {
                         db.collection("users").document(myUid).update(updates)
                             .addOnSuccessListener(a -> {
                                 userName = n; userUsername = u; userBio = bio; userGov = gov;
-                                fillProfile();
+                                try { fillProfile(); } catch (Throwable ignored) { }
                                 toast("تم حفظ التغييرات");
                                 show("profileView");
                             })
@@ -537,8 +582,8 @@ public class MassActivity extends Activity {
                                         }
                                     }
                                     if (!found) chatData.add(new String[]{oName, lastMsg, lastTime, "0", fOtherId});
-                                    buildChats();
-                                    buildStories();
+                                    try { buildChats(); } catch (Throwable ignored) { }
+                                    try { buildStories(); } catch (Throwable ignored) { }
                                 });
                         }
                     });
@@ -723,10 +768,12 @@ public class MassActivity extends Activity {
                                 String timeStr = new SimpleDateFormat("h:mm", Locale.getDefault())
                                         .format(new Date(time != null ? time : System.currentTimeMillis()));
 
-                                if (type.equals("image") && url != null) addImageMsg(url, mine, timeStr);
-                                else if (type.equals("audio") && url != null) addAudioMsg(url, dur != null ? dur : 0, mine, timeStr);
-                                else if (text != null) addMsg(text, mine, timeStr);
-                                scrollDown();
+                                try {
+                                    if (type.equals("image") && url != null) addImageMsg(url, mine, timeStr);
+                                    else if (type.equals("audio") && url != null) addAudioMsg(url, dur != null ? dur : 0, mine, timeStr);
+                                    else if (text != null) addMsg(text, mine, timeStr);
+                                    scrollDown();
+                                } catch (Throwable ignored) { }
                             }
                         }
                     });
@@ -739,7 +786,8 @@ public class MassActivity extends Activity {
                 currentChatId = ""; otherUid = "";
                 renderedMsgIds.clear();
                 if (mediaPlayer != null) { try { mediaPlayer.release(); } catch (Exception e) {} mediaPlayer = null; }
-                buildChats(); buildStories();
+                try { buildChats(); } catch (Throwable ignored) { }
+                try { buildStories(); } catch (Throwable ignored) { }
             }
 
             TextView addMsg(String text, final boolean mine, String time) {
@@ -924,9 +972,11 @@ public class MassActivity extends Activity {
                         case 1:
                             replyText = raw.length() > 40 ? raw.substring(0, 40) + "…" : raw;
                             setLabel("replyLabel", "الرد على الرسالة", icon("ic_reply", 16));
-                            tv("replyPreviewText").setText(replyText);
+                            TextView rp = tv("replyPreviewText");
+                            if (rp != null) rp.setText(replyText);
                             vis("replyPreviewBar", true);
-                            et("messageInput").requestFocus();
+                            EditText mi = et("messageInput");
+                            if (mi != null) mi.requestFocus();
                             break;
                         case 2:
                             ClipboardManager cm = (ClipboardManager) act.getSystemService(Context.CLIPBOARD_SERVICE);
@@ -936,11 +986,15 @@ public class MassActivity extends Activity {
                         case 3:
                             editing = b; replyText = null;
                             setLabel("replyLabel", "تعديل الرسالة", icon("ic_edit", 16));
-                            tv("replyPreviewText").setText(raw);
+                            TextView rp2 = tv("replyPreviewText");
+                            if (rp2 != null) rp2.setText(raw);
                             vis("replyPreviewBar", true);
-                            et("messageInput").setText(raw);
-                            et("messageInput").setSelection(raw.length());
-                            et("messageInput").requestFocus();
+                            EditText mi2 = et("messageInput");
+                            if (mi2 != null) {
+                                mi2.setText(raw);
+                                mi2.setSelection(raw.length());
+                                mi2.requestFocus();
+                            }
                             break;
                         case 4:
                             LinearLayout msgArea = (LinearLayout) v("messagesArea");
@@ -956,7 +1010,7 @@ public class MassActivity extends Activity {
             void scrollDown() {
                 View ms = v("messagesScroll");
                 if (ms != null) {
-                    ms.post(() -> ((ScrollView) v("messagesScroll")).fullScroll(View.FOCUS_DOWN));
+                    ms.post(() -> ((ScrollView) ms).fullScroll(View.FOCUS_DOWN));
                 }
             }
 
@@ -970,7 +1024,8 @@ public class MassActivity extends Activity {
 
                 if (editing != null) {
                     setMsg(editing, t, true, now() + " (معدّلة)");
-                    et("messageInput").setText("");
+                    EditText mi = et("messageInput");
+                    if (mi != null) mi.setText("");
                     cancelReply();
                     return;
                 }
@@ -984,7 +1039,8 @@ public class MassActivity extends Activity {
                     .add(msg);
 
                 updateChatMeta(fullText);
-                et("messageInput").setText("");
+                EditText mi = et("messageInput");
+                if (mi != null) mi.setText("");
                 cancelReply();
             }
 
@@ -1100,7 +1156,7 @@ public class MassActivity extends Activity {
                     try {
                         final String b64 = encodeImage(uri, 320, 60 * 1024, true);
                         act.runOnUiThread(() -> db.collection("users").document(myUid).update("photo", b64)
-                            .addOnSuccessListener(a -> { userPhoto = b64; fillProfile(); toast("تم تحديث الصورة"); })
+                            .addOnSuccessListener(a -> { userPhoto = b64; try { fillProfile(); } catch (Throwable ignored) {} toast("تم تحديث الصورة"); })
                             .addOnFailureListener(er -> toast("فشل: " + er.getMessage())));
                     } catch (Exception e) {
                         act.runOnUiThread(() -> toast("فشل معالجة الصورة: " + e.getMessage()));
@@ -1162,19 +1218,21 @@ public class MassActivity extends Activity {
                     recordStart = System.currentTimeMillis();
 
                     vis("recordingBar", true);
-                    tv("recTimer").setText("0:00");
+                    TextView rt = tv("recTimer");
+                    if (rt != null) rt.setText("0:00");
                     recTick = new Runnable() {
                         @Override public void run() {
                             if (!isRecording) return;
                             long s = (System.currentTimeMillis() - recordStart) / 1000;
-                            tv("recTimer").setText(String.format(Locale.getDefault(), "%d:%02d", s / 60, s % 60));
+                            TextView rt = tv("recTimer");
+                            if (rt != null) rt.setText(String.format(Locale.getDefault(), "%d:%02d", s / 60, s % 60));
                             if (s >= 150) { stopRecordAndSend(); return; }
                             recHandler.postDelayed(this, 500);
                         }
                     };
                     recHandler.post(recTick);
-                    tv("btnMic").setTextColor(cRed());
-                    tintIcons(tv("btnMic"));
+                    TextView mic = tv("btnMic");
+                    if (mic != null) { mic.setTextColor(cRed()); tintIcons(mic); }
                 } catch (Exception e) {
                     toast("فشل بدء التسجيل: " + e.getMessage());
                     recorder = null; isRecording = false;
@@ -1190,8 +1248,8 @@ public class MassActivity extends Activity {
                 isRecording = false;
                 if (recTick != null) recHandler.removeCallbacks(recTick);
                 vis("recordingBar", false);
-                tv("btnMic").setTextColor(cMuted());
-                tintIcons(tv("btnMic"));
+                TextView mic = tv("btnMic");
+                if (mic != null) { mic.setTextColor(cMuted()); tintIcons(mic); }
 
                 if (audioFile == null || !audioFile.exists()) return;
                 if (dur < 800) { audioFile.delete(); toast("التسجيل قصير جداً"); return; }
@@ -1206,8 +1264,8 @@ public class MassActivity extends Activity {
                 isRecording = false;
                 if (recTick != null) recHandler.removeCallbacks(recTick);
                 vis("recordingBar", false);
-                tv("btnMic").setTextColor(cMuted());
-                tintIcons(tv("btnMic"));
+                TextView mic = tv("btnMic");
+                if (mic != null) { mic.setTextColor(cMuted()); tintIcons(mic); }
                 if (audioFile != null) audioFile.delete();
                 toast("تم إلغاء التسجيل");
             }
@@ -1237,17 +1295,24 @@ public class MassActivity extends Activity {
             }
 
             void chatMenu() {
-                PopupMenu pm = new PopupMenu(act, v("chatMore"));
+                View cm = v("chatMore");
+                if (cm == null) return;
+                PopupMenu pm = new PopupMenu(act, cm);
                 pm.getMenu().add(0, 1, 0, muted ? "إلغاء كتم المحادثة" : "كتم المحادثة");
                 pm.getMenu().add(0, 2, 1, "البحث عن رسالة");
                 pm.getMenu().add(0, 3, 2, "مسح المحادثة");
                 pm.setOnMenuItemClickListener(it -> {
                     if (it.getItemId() == 1) { muted = !muted; toast(muted ? "تم كتم المحادثة" : "تم إلغاء الكتم"); }
-                    else if (it.getItemId() == 2) { vis("chatSearchPanel", true); et("chatMessageSearchInput").requestFocus(); }
+                    else if (it.getItemId() == 2) {
+                        vis("chatSearchPanel", true);
+                        EditText et1 = et("chatMessageSearchInput");
+                        if (et1 != null) et1.requestFocus();
+                    }
                     else {
                         if (!currentChatId.isEmpty()) {
                             deleteChatMessages(currentChatId, null);
-                            ((LinearLayout) v("messagesArea")).removeAllViews();
+                            LinearLayout ma = (LinearLayout) v("messagesArea");
+                            if (ma != null) ma.removeAllViews();
                             renderedMsgIds.clear();
                         }
                         toast("تم مسح المحادثة");
@@ -1268,8 +1333,10 @@ public class MassActivity extends Activity {
                     c.setAlpha(q.length() == 0 || hit ? 1f : 0.3f);
                     if (hit) { found++; if (first == null) first = c; }
                 }
-                tv("csCount").setText(q.length() == 0 ? "" : (found + " نتيجة"));
-                if (first != null) ((ScrollView) v("messagesScroll")).smoothScrollTo(0, first.getTop());
+                TextView csc = tv("csCount");
+                if (csc != null) csc.setText(q.length() == 0 ? "" : (found + " نتيجة"));
+                View ms = v("messagesScroll");
+                if (first != null && ms != null) ((ScrollView) ms).smoothScrollTo(0, first.getTop());
             }
 
             void searchUsers(String q) {
@@ -1277,7 +1344,11 @@ public class MassActivity extends Activity {
                 LinearLayout res = (LinearLayout) v("searchResults");
                 if (res == null) return;
                 res.removeAllViews();
-                if (cleanQ.length() < 3) { tv("searchHint").setText("اكتب 3 أحرف على الأقل"); return; }
+                if (cleanQ.length() < 3) {
+                    TextView sh = tv("searchHint");
+                    if (sh != null) sh.setText("اكتب 3 أحرف على الأقل");
+                    return;
+                }
                 db.collection("users").orderBy("username").startAt(cleanQ).endAt(cleanQ + "\uf8ff")
                     .get().addOnCompleteListener(task -> {
                         res.removeAllViews();
@@ -1319,7 +1390,8 @@ public class MassActivity extends Activity {
                                 style(row);
                             }
                         }
-                        tv("searchHint").setText(n == 0 ? "لا توجد نتائج" : n + " نتيجة");
+                        TextView sh = tv("searchHint");
+                        if (sh != null) sh.setText(n == 0 ? "لا توجد نتائج" : n + " نتيجة");
                     });
             }
 
@@ -1348,8 +1420,10 @@ public class MassActivity extends Activity {
             }
 
             void applyBubbles() {
-                tv("pvOther").setTextSize(fontSp);
-                tv("pvMine").setTextSize(fontSp);
+                TextView po = tv("pvOther");
+                if (po != null) po.setTextSize(fontSp);
+                TextView pm2 = tv("pvMine");
+                if (pm2 != null) pm2.setTextSize(fontSp);
                 LinearLayout a = (LinearLayout) v("messagesArea");
                 if (a != null) {
                     for (int i = 0; i < a.getChildCount(); i++) {
@@ -1398,7 +1472,10 @@ public class MassActivity extends Activity {
 
             void click(String id) {
                 if (id.equals("hdrStories")) toast("القصص");
-                else if (id.equals("mainSearchBtn")) { et("searchInput").setText(""); show("searchView"); et("searchInput").requestFocus(); }
+                else if (id.equals("mainSearchBtn")) {
+                    EditText si = et("searchInput");
+                    if (si != null) { si.setText(""); show("searchView"); si.requestFocus(); }
+                }
                 else if (id.equals("searchBack") || id.equals("navChats")) show("homeView");
                 else if (id.equals("navSettings")) show("settingsView");
                 else if (id.equals("navProfile") || id.equals("sxHero")) { loadMyProfile(); show("profileView"); }
@@ -1424,7 +1501,8 @@ public class MassActivity extends Activity {
                 }
                 else if (id.equals("pUserRow")) {
                     ClipboardManager cm = (ClipboardManager) act.getSystemService(Context.CLIPBOARD_SERVICE);
-                    cm.setPrimaryClip(ClipData.newPlainText("u", tv("pHeaderUser").getText().toString()));
+                    TextView pu = tv("pHeaderUser");
+                    if (pu != null) cm.setPrimaryClip(ClipData.newPlainText("u", pu.getText().toString()));
                     toast("تم نسخ اسم المستخدم");
                 }
                 else if (id.equals("editBack") || id.equals("btnCancelEdit")) show("profileView");
@@ -1437,7 +1515,9 @@ public class MassActivity extends Activity {
                     toast(blocked ? "تم حظر " + otherName : "تم إلغاء الحظر");
                 }
                 else if (id.equals("otherMoreBtn")) {
-                    PopupMenu pm = new PopupMenu(act, v("otherMoreBtn"));
+                    View om = v("otherMoreBtn");
+                    if (om == null) return;
+                    PopupMenu pm = new PopupMenu(act, om);
                     pm.getMenu().add(0, 1, 0, "نسخ اسم المستخدم");
                     pm.getMenu().add(0, 2, 1, "إبلاغ");
                     pm.setOnMenuItemClickListener(it -> {
@@ -1501,8 +1581,17 @@ public class MassActivity extends Activity {
                 else if (id.equals("chatBack")) closeChat();
                 else if (id.equals("chatUserInfo")) { hideKb(); vis("chatView", false); openOther(curChat, otherUser, otherUid); }
                 else if (id.equals("chatMore")) chatMenu();
-                else if (id.equals("csX")) { vis("chatSearchPanel", false); et("chatMessageSearchInput").setText(""); searchInChat(""); }
-                else if (id.equals("replyCancel")) { cancelReply(); et("messageInput").setText(""); }
+                else if (id.equals("csX")) {
+                    vis("chatSearchPanel", false);
+                    EditText cs = et("chatMessageSearchInput");
+                    if (cs != null) cs.setText("");
+                    searchInChat("");
+                }
+                else if (id.equals("replyCancel")) {
+                    cancelReply();
+                    EditText mi = et("messageInput");
+                    if (mi != null) mi.setText("");
+                }
                 else if (id.equals("btnSend")) send();
                 else if (id.equals("btnMic")) toggleRecording();
                 else if (id.equals("recSend")) stopRecordAndSend();
@@ -1517,12 +1606,18 @@ public class MassActivity extends Activity {
             }
 
             void init() {
-                v("root").setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                View root = v("root");
+                if (root != null) root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
 
                 FrameLayout host = (FrameLayout) v("pagesHost");
+                if (host == null) throw new RuntimeException("pagesHost غير موجود في mass.xml");
+
                 String[] partFiles = {"part_profile", "part_settings"};
                 for (String pf : partFiles) {
                     int lid = act.getResources().getIdentifier(pf, "layout", act.getPackageName());
+                    if (lid == 0) {
+                        throw new RuntimeException("ملف التصميم " + pf + " غير موجود");
+                    }
                     ViewGroup pr = (ViewGroup) act.getLayoutInflater().inflate(lid, null);
                     while (pr.getChildCount() > 0) {
                         View c = pr.getChildAt(0);
@@ -1531,9 +1626,9 @@ public class MassActivity extends Activity {
                     }
                 }
 
-                Spinner sg = (Spinner) v("modalGovInput");
-                if (sg != null) {
-                    sg.setAdapter(new ArrayAdapter<String>(act, android.R.layout.simple_spinner_dropdown_item, govs) {
+                View govV = v("modalGovInput");
+                if (govV instanceof Spinner) {
+                    ((Spinner) govV).setAdapter(new ArrayAdapter<String>(act, android.R.layout.simple_spinner_dropdown_item, govs) {
                         @Override
                         public View getView(int pos, View cv, ViewGroup parent) {
                             TextView t = (TextView) super.getView(pos, cv, parent);
@@ -1544,7 +1639,11 @@ public class MassActivity extends Activity {
                     });
                 }
 
-                View.OnClickListener L = x -> click(act.getResources().getResourceEntryName(x.getId()));
+                View.OnClickListener L = x -> {
+                    try {
+                        click(act.getResources().getResourceEntryName(x.getId()));
+                    } catch (Throwable ignored) { }
+                };
                 String[] ids = {"hdrStories", "mainSearchBtn", "searchBack", "fltAll", "fltUnread",
                         "newGroupFab", "navChats", "navSettings", "navProfile", "pEdit", "pPhoto", "pCover",
                         "pBioRow", "pUserRow", "editBack", "btnCancelEdit", "btnSaveProfile", "otherBack",
@@ -1560,24 +1659,31 @@ public class MassActivity extends Activity {
                     if (x != null) x.setOnClickListener(L);
                 }
 
-                et("searchInput").addTextChangedListener(new TextWatcher() {
-                    public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
-                    public void onTextChanged(CharSequence s, int a, int b, int c) { searchUsers(s.toString()); }
-                    public void afterTextChanged(Editable s) { }
-                });
-                et("chatMessageSearchInput").addTextChangedListener(new TextWatcher() {
-                    public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
-                    public void onTextChanged(CharSequence s, int a, int b, int c) { searchInChat(s.toString()); }
-                    public void afterTextChanged(Editable s) { }
-                });
+                EditText si = et("searchInput");
+                if (si != null) {
+                    si.addTextChangedListener(new TextWatcher() {
+                        public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
+                        public void onTextChanged(CharSequence s, int a, int b, int c) { try { searchUsers(s.toString()); } catch (Throwable ignored) {} }
+                        public void afterTextChanged(Editable s) { }
+                    });
+                }
+                EditText cms = et("chatMessageSearchInput");
+                if (cms != null) {
+                    cms.addTextChangedListener(new TextWatcher() {
+                        public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
+                        public void onTextChanged(CharSequence s, int a, int b, int c) { try { searchInChat(s.toString()); } catch (Throwable ignored) {} }
+                        public void afterTextChanged(Editable s) { }
+                    });
+                }
 
-                SeekBar fr = (SeekBar) v("fontRange"), rr = (SeekBar) v("radiusRange");
+                SeekBar fr = (SeekBar) v("fontRange");
                 if (fr != null) {
                     fr.setProgress(fontSp - 12);
                     fr.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
                         public void onProgressChanged(SeekBar s, int p, boolean u) {
                             fontSp = 12 + p;
-                            tv("fontVal").setText("" + fontSp);
+                            TextView fv = tv("fontVal");
+                            if (fv != null) fv.setText("" + fontSp);
                             sp.edit().putInt("font", fontSp).apply();
                             applyBubbles();
                         }
@@ -1585,12 +1691,14 @@ public class MassActivity extends Activity {
                         public void onStopTrackingTouch(SeekBar s) { }
                     });
                 }
+                SeekBar rr = (SeekBar) v("radiusRange");
                 if (rr != null) {
                     rr.setProgress(radius);
                     rr.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
                         public void onProgressChanged(SeekBar s, int p, boolean u) {
                             radius = p;
-                            tv("radiusVal").setText("" + p);
+                            TextView rv = tv("radiusVal");
+                            if (rv != null) rv.setText("" + p);
                             sp.edit().putInt("radius", p).apply();
                             applyBubbles();
                         }
@@ -1598,8 +1706,8 @@ public class MassActivity extends Activity {
                         public void onStopTrackingTouch(SeekBar s) { }
                     });
                 }
-                if (fr != null) tv("fontVal").setText("" + fontSp);
-                if (rr != null) tv("radiusVal").setText("" + radius);
+                if (fr != null) { TextView fv = tv("fontVal"); if (fv != null) fv.setText("" + fontSp); }
+                if (rr != null) { TextView rv = tv("radiusVal"); if (rv != null) rv.setText("" + radius); }
 
                 setSeg("segLastSeen", sp.getBoolean("hideLast", false));
                 setSeg("segAvatar", sp.getBoolean("hideAv", false));
@@ -1636,12 +1744,14 @@ public class MassActivity extends Activity {
         w.getDecorView().setSystemUiVisibility(flags);
 
         final View rootView = findViewById(R.id.root);
-        rootView.setOnApplyWindowInsetsListener((v, insets) -> {
-            int top = insets.getSystemWindowInsetTop();
-            int bottom = insets.getSystemWindowInsetBottom();
-            v.setPadding(0, top, 0, bottom);
-            return insets;
-        });
-        rootView.requestApplyInsets();
+        if (rootView != null) {
+            rootView.setOnApplyWindowInsetsListener((v, insets) -> {
+                int top = insets.getSystemWindowInsetTop();
+                int bottom = insets.getSystemWindowInsetBottom();
+                v.setPadding(0, top, 0, bottom);
+                return insets;
+            });
+            rootView.requestApplyInsets();
+        }
     }
 }
