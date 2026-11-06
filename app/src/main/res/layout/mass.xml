@@ -101,6 +101,7 @@
 						android:gravity="center"
 						android:text="غير المقروءة"
 						android:textSize="13sp"
+						android:textStyle="bold"
 						android:paddingStart="14dp"
 						android:paddingEnd="14dp"
 						android:layout_marginStart="8dp"
@@ -175,6 +176,7 @@
 						android:layout_width="match_parent"
 						android:layout_height="wrap_content"
 						android:textSize="14sp"
+						android:textStyle="bold"
 						android:hint="ابحث بـ \@username"
 						android:singleLine="true"
 						android:minHeight="48dp"
@@ -189,6 +191,7 @@
 						android:layout_marginTop="6dp"
 						android:text="اكتب 3 أحرف على الأقل"
 						android:textSize="12sp"
+						android:textStyle="bold"
 						android:tag="m" />
 				</LinearLayout>
 				<ScrollView
@@ -221,6 +224,7 @@
 					android:id="@+id/navChatsIc"
 					android:layout_width="wrap_content"
 					android:layout_height="wrap_content"
+					android:gravity="center"
 					android:text=""
 					android:drawableStart="@drawable/ic_chat_22"
 					android:textSize="20sp"
@@ -231,6 +235,7 @@
 					android:layout_height="wrap_content"
 					android:text="المحادثات"
 					android:textSize="11sp"
+					android:textStyle="bold"
 					android:tag="m" />
 			</LinearLayout>
 			<LinearLayout
@@ -244,6 +249,7 @@
 					android:id="@+id/navSettingsIc"
 					android:layout_width="wrap_content"
 					android:layout_height="wrap_content"
+					android:gravity="center"
 					android:text=""
 					android:drawableStart="@drawable/ic_settings_22"
 					android:textSize="20sp"
@@ -254,6 +260,7 @@
 					android:layout_height="wrap_content"
 					android:text="الإعدادات"
 					android:textSize="11sp"
+					android:textStyle="bold"
 					android:tag="m" />
 			</LinearLayout>
 			<LinearLayout
@@ -267,6 +274,7 @@
 					android:id="@+id/navProfileIc"
 					android:layout_width="wrap_content"
 					android:layout_height="wrap_content"
+					android:gravity="center"
 					android:text=""
 					android:drawableStart="@drawable/ic_user_22"
 					android:textSize="20sp"
@@ -277,6 +285,7 @@
 					android:layout_height="wrap_content"
 					android:text="الملف الشخصي"
 					android:textSize="11sp"
+					android:textStyle="bold"
 					android:tag="m" />
 			</LinearLayout>
 		</LinearLayout>
@@ -344,6 +353,7 @@
 						android:layout_height="wrap_content"
 						android:text="غير متصل"
 						android:textSize="12sp"
+						android:textStyle="bold"
 						android:tag="m" />
 				</LinearLayout>
 			</LinearLayout>
@@ -376,6 +386,7 @@
 					android:layout_width="0dp"
 					android:layout_height="wrap_content"
 					android:textSize="14sp"
+					android:textStyle="bold"
 					android:hint="ابحث في هذه المحادثة..."
 					android:singleLine="true"
 					android:layout_weight="1"
@@ -399,6 +410,7 @@
 				android:layout_height="wrap_content"
 				android:layout_marginTop="4dp"
 				android:textSize="12sp"
+				android:textStyle="bold"
 				android:tag="m" />
 		</LinearLayout>
 		<ScrollView
@@ -446,6 +458,7 @@
 					android:layout_height="wrap_content"
 					android:text="..."
 					android:textSize="13sp"
+					android:textStyle="bold"
 					android:tag="m"
 					android:maxLines="1"
 					android:ellipsize="end" />
@@ -525,6 +538,7 @@
 				android:layout_width="0dp"
 				android:layout_height="wrap_content"
 				android:textSize="15sp"
+				android:textStyle="bold"
 				android:hint="اكتب رسالتك..."
 				android:layout_weight="1"
 				android:inputType="textMultiLine|textCapSentences"

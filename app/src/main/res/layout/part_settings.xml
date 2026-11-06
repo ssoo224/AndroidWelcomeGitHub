@@ -54,6 +54,7 @@
 					android:layout_height="wrap_content"
 					android:layout_marginTop="2dp"
 					android:textSize="13sp"
+					android:textStyle="bold"
 					android:tag="m"
 					android:textDirection="ltr" />
 				<TextView
@@ -62,6 +63,7 @@
 					android:layout_height="wrap_content"
 					android:layout_marginTop="4dp"
 					android:textSize="12sp"
+					android:textStyle="bold"
 					android:tag="m" />
 			</LinearLayout>
 
@@ -118,6 +120,7 @@
 							android:layout_height="wrap_content"
 							android:text="مظهر التطبيق"
 							android:textSize="15sp"
+							android:textStyle="bold"
 							android:tag="t" />
 						<TextView
 							android:id="@+id/themeDescription"
@@ -125,6 +128,7 @@
 							android:layout_height="wrap_content"
 							android:text="الوضع النهاري مفعّل"
 							android:textSize="11.5sp"
+							android:textStyle="bold"
 							android:tag="m" />
 					</LinearLayout>
 					<TextView
@@ -180,6 +184,7 @@
 							android:layout_height="wrap_content"
 							android:text="المظهر والمحادثات"
 							android:textSize="15sp"
+							android:textStyle="bold"
 							android:tag="t" />
 						<TextView
 							android:id="@+id/textview747b"
@@ -187,6 +192,7 @@
 							android:layout_height="wrap_content"
 							android:text="الثيم، حجم الخط، خلفية المحادثة"
 							android:textSize="11.5sp"
+							android:textStyle="bold"
 							android:tag="m" />
 					</LinearLayout>
 					<TextView
@@ -195,6 +201,7 @@
 						android:layout_height="wrap_content"
 						android:text="‹"
 						android:textSize="22sp"
+						android:textStyle="bold"
 						android:tag="m" />
 				</LinearLayout>
 
@@ -235,6 +242,7 @@
 							android:layout_height="wrap_content"
 							android:text="الإشعارات والأصوات"
 							android:textSize="15sp"
+							android:textStyle="bold"
 							android:tag="t" />
 						<TextView
 							android:id="@+id/textview750b"
@@ -242,6 +250,7 @@
 							android:layout_height="wrap_content"
 							android:text="تحكم بالإشعارات والأصوات"
 							android:textSize="11.5sp"
+							android:textStyle="bold"
 							android:tag="m" />
 					</LinearLayout>
 					<TextView
@@ -250,6 +259,7 @@
 						android:layout_height="wrap_content"
 						android:text="‹"
 						android:textSize="22sp"
+						android:textStyle="bold"
 						android:tag="m" />
 				</LinearLayout>
 			</LinearLayout>
@@ -307,6 +317,7 @@
 							android:layout_height="wrap_content"
 							android:text="مشاركة رابط التحميل"
 							android:textSize="15sp"
+							android:textStyle="bold"
 							android:tag="t" />
 						<TextView
 							android:id="@+id/textview762"
@@ -314,6 +325,7 @@
 							android:layout_height="wrap_content"
 							android:text="رابط يفتح صفحة تحميل التطبيق"
 							android:textSize="11.5sp"
+							android:textStyle="bold"
 							android:tag="m" />
 					</LinearLayout>
 					<TextView
@@ -322,6 +334,7 @@
 						android:layout_height="wrap_content"
 						android:text="‹"
 						android:textSize="22sp"
+						android:textStyle="bold"
 						android:tag="m" />
 				</LinearLayout>
 			</LinearLayout>
@@ -379,6 +392,7 @@
 							android:layout_height="wrap_content"
 							android:text="الخصوصية والأمان"
 							android:textSize="15sp"
+							android:textStyle="bold"
 							android:tag="t" />
 						<TextView
 							android:id="@+id/textview766b"
@@ -386,6 +400,7 @@
 							android:layout_height="wrap_content"
 							android:text="كلمة المرور، الحظر، الخصوصية"
 							android:textSize="11.5sp"
+							android:textStyle="bold"
 							android:tag="m" />
 					</LinearLayout>
 					<TextView
@@ -394,6 +409,7 @@
 						android:layout_height="wrap_content"
 						android:text="‹"
 						android:textSize="22sp"
+						android:textStyle="bold"
 						android:tag="m" />
 				</LinearLayout>
 			</LinearLayout>
@@ -440,6 +456,7 @@
 							android:layout_height="wrap_content"
 							android:text="تسجيل الخروج"
 							android:textSize="15sp"
+							android:textStyle="bold"
 							android:tag="t" />
 					</LinearLayout>
 				</LinearLayout>
@@ -481,6 +498,7 @@
 							android:layout_height="wrap_content"
 							android:text="حذف الحساب"
 							android:textSize="15sp"
+							android:textStyle="bold"
 							android:tag="t" />
 					</LinearLayout>
 				</LinearLayout>
@@ -494,6 +512,7 @@
 				android:gravity="center"
 				android:text="Babylon Chat · v1.0"
 				android:textSize="12sp"
+				android:textStyle="bold"
 				android:tag="m" />
 		</LinearLayout>
 	</ScrollView>
@@ -595,6 +614,7 @@
 								android:layout_height="wrap_content"
 								android:text="تغيير كلمة المرور"
 								android:textSize="15sp"
+								android:textStyle="bold"
 								android:tag="t" />
 						</LinearLayout>
 						<TextView
@@ -603,6 +623,7 @@
 							android:layout_height="wrap_content"
 							android:text="‹"
 							android:textSize="22sp"
+							android:textStyle="bold"
 							android:tag="m" />
 					</LinearLayout>
 
@@ -642,6 +663,7 @@
 								android:layout_height="wrap_content"
 								android:text="تغيير الإيميل"
 								android:textSize="15sp"
+								android:textStyle="bold"
 								android:tag="t" />
 						</LinearLayout>
 						<TextView
@@ -650,6 +672,7 @@
 							android:layout_height="wrap_content"
 							android:text="‹"
 							android:textSize="22sp"
+							android:textStyle="bold"
 							android:tag="m" />
 					</LinearLayout>
 
@@ -690,6 +713,7 @@
 								android:layout_height="wrap_content"
 								android:text="المستخدمون المحظورون"
 								android:textSize="15sp"
+								android:textStyle="bold"
 								android:tag="t" />
 						</LinearLayout>
 						<TextView
@@ -698,6 +722,7 @@
 							android:layout_height="wrap_content"
 							android:text="‹"
 							android:textSize="22sp"
+							android:textStyle="bold"
 							android:tag="m" />
 					</LinearLayout>
 				</LinearLayout>
@@ -743,6 +768,7 @@
 								android:layout_height="wrap_content"
 								android:text="آخر ظهور"
 								android:textSize="15sp"
+								android:textStyle="bold"
 								android:tag="t" />
 							<TextView
 								android:id="@+id/textview786"
@@ -750,6 +776,7 @@
 								android:layout_height="wrap_content"
 								android:text="إظهار أو إخفاء وقت آخر تواجدك"
 								android:textSize="11.5sp"
+								android:textStyle="bold"
 								android:tag="m" />
 						</LinearLayout>
 						<TextView
@@ -759,6 +786,7 @@
 							android:gravity="center"
 							android:text="إظهار"
 							android:textSize="13sp"
+							android:textStyle="bold"
 							android:minWidth="68dp"
 							android:tag="goldo" />
 						<TextView
@@ -768,6 +796,7 @@
 							android:gravity="center"
 							android:text="إخفاء"
 							android:textSize="13sp"
+							android:textStyle="bold"
 							android:minWidth="68dp"
 							android:layout_marginStart="6dp"
 							android:tag="goldo" />
@@ -798,6 +827,7 @@
 								android:layout_height="wrap_content"
 								android:text="صورة الملف الشخصي"
 								android:textSize="15sp"
+								android:textStyle="bold"
 								android:tag="t" />
 							<TextView
 								android:id="@+id/textview788"
@@ -805,6 +835,7 @@
 								android:layout_height="wrap_content"
 								android:text="إظهار أو إخفاء صورتك للآخرين"
 								android:textSize="11.5sp"
+								android:textStyle="bold"
 								android:tag="m" />
 						</LinearLayout>
 						<TextView
@@ -814,6 +845,7 @@
 							android:gravity="center"
 							android:text="إظهار"
 							android:textSize="13sp"
+							android:textStyle="bold"
 							android:minWidth="68dp"
 							android:tag="goldo" />
 						<TextView
@@ -823,6 +855,7 @@
 							android:gravity="center"
 							android:text="إخفاء"
 							android:textSize="13sp"
+							android:textStyle="bold"
 							android:minWidth="68dp"
 							android:layout_marginStart="6dp"
 							android:tag="goldo" />
@@ -881,6 +914,7 @@
 								android:layout_height="wrap_content"
 								android:text="مسح البيانات المؤقتة"
 								android:textSize="15sp"
+								android:textStyle="bold"
 								android:tag="t" />
 						</LinearLayout>
 						<TextView
@@ -889,6 +923,7 @@
 							android:layout_height="wrap_content"
 							android:text="‹"
 							android:textSize="22sp"
+							android:textStyle="bold"
 							android:tag="m" />
 					</LinearLayout>
 
@@ -929,6 +964,7 @@
 								android:layout_height="wrap_content"
 								android:text="مسح جميع البيانات"
 								android:textSize="15sp"
+								android:textStyle="bold"
 								android:tag="t" />
 						</LinearLayout>
 						<TextView
@@ -937,6 +973,7 @@
 							android:layout_height="wrap_content"
 							android:text="‹"
 							android:textSize="22sp"
+							android:textStyle="bold"
 							android:tag="m" />
 					</LinearLayout>
 				</LinearLayout>
@@ -981,6 +1018,7 @@
 								android:layout_height="wrap_content"
 								android:text="حول Babylon Chat"
 								android:textSize="15sp"
+								android:textStyle="bold"
 								android:tag="t" />
 						</LinearLayout>
 						<TextView
@@ -989,6 +1027,7 @@
 							android:layout_height="wrap_content"
 							android:text="‹"
 							android:textSize="22sp"
+							android:textStyle="bold"
 							android:tag="m" />
 					</LinearLayout>
 				</LinearLayout>
@@ -1062,6 +1101,7 @@
 							android:id="@+id/textview800"
 							android:layout_width="48dp"
 							android:layout_height="wrap_content"
+							android:gravity="center"
 							android:text=""
 							android:drawableStart="@drawable/ic_bell_30"
 							android:textSize="26sp"
@@ -1086,6 +1126,7 @@
 								android:layout_height="wrap_content"
 								android:text="اختر الإشعارات والأصوات التي تريد تشغيلها أو تعطيلها."
 								android:textSize="12sp"
+								android:textStyle="bold"
 								android:tag="m" />
 						</LinearLayout>
 					</LinearLayout>
@@ -1139,6 +1180,7 @@
 								android:layout_height="wrap_content"
 								android:text="استقبال تنبيهات الجهاز عند السماح بها."
 								android:textSize="11.5sp"
+								android:textStyle="bold"
 								android:tag="m" />
 						</LinearLayout>
 						<TextView
@@ -1148,6 +1190,7 @@
 							android:gravity="center"
 							android:text="تشغيل"
 							android:textSize="13sp"
+							android:textStyle="bold"
 							android:minWidth="64dp"
 							android:tag="gold" />
 						<TextView
@@ -1157,6 +1200,7 @@
 							android:gravity="center"
 							android:text="تعطيل"
 							android:textSize="13sp"
+							android:textStyle="bold"
 							android:minWidth="64dp"
 							android:layout_marginStart="6dp"
 							android:tag="goldo" />
@@ -1211,6 +1255,7 @@
 								android:layout_height="wrap_content"
 								android:text="تشغيل صوت قصير عند وصول رسالة جديدة داخل التطبيق."
 								android:textSize="11.5sp"
+								android:textStyle="bold"
 								android:tag="m" />
 						</LinearLayout>
 						<TextView
@@ -1220,6 +1265,7 @@
 							android:gravity="center"
 							android:text="تشغيل"
 							android:textSize="13sp"
+							android:textStyle="bold"
 							android:minWidth="64dp"
 							android:tag="gold" />
 						<TextView
@@ -1229,6 +1275,7 @@
 							android:gravity="center"
 							android:text="تعطيل"
 							android:textSize="13sp"
+							android:textStyle="bold"
 							android:minWidth="64dp"
 							android:layout_marginStart="6dp"
 							android:tag="goldo" />
@@ -1242,6 +1289,7 @@
 					android:layout_margin="18dp"
 					android:text="قد تحتاج إلى السماح بإشعارات Babylon Chat من إعدادات الهاتف حتى تظهر تنبيهات الجهاز."
 					android:textSize="11.5sp"
+					android:textStyle="bold"
 					android:tag="m" />
 			</LinearLayout>
 		</ScrollView>
@@ -1307,6 +1355,7 @@
 						android:padding="12dp"
 						android:text="رسالة مستلمة\n12:00"
 						android:textSize="15sp"
+						android:textStyle="bold"
 						android:layout_gravity="start"
 						android:tag="bubOther" />
 					<TextView
@@ -1319,6 +1368,7 @@
 						android:drawableEnd="@drawable/ic_check_double_16"
 						android:drawablePadding="6dp"
 						android:textSize="15sp"
+						android:textStyle="bold"
 						android:layout_gravity="end"
 						android:tag="bubMine" />
 				</LinearLayout>

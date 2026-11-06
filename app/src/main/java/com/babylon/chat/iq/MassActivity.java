@@ -76,13 +76,11 @@ public class MassActivity extends Activity {
     private FirebaseFirestore db;
     private String myUid = "";
 
-    // --- للمحادثة الحالية ---
     private ListenerRegistration messagesListener;
     private String currentChatId = "";
     private String otherUid = "";
     private final java.util.Set<String> renderedMsgIds = new java.util.HashSet<>();
 
-    // --- لاختيار الصور / إذن الميكروفون ---
     private java.util.function.Consumer<Uri> pendingImageCallback = null;
     private Runnable pendingMicCallback = null;
     private static final int REQ_PICK_IMAGE = 1001;
@@ -106,6 +104,9 @@ public class MassActivity extends Activity {
         myUid = currentUser.getUid();
 
         initializeLogic();
+        
+        // جعل جميع الخطوط عريضة بعد تهيئة الواجهة
+        makeAllTextBold(getWindow().getDecorView().getRootView());
     }
 
     @Override
@@ -139,6 +140,18 @@ public class MassActivity extends Activity {
         }
     }
 
+    // دالة لجعل جميع النصوص عريضة
+    private void makeAllTextBold(View v) {
+        if (v instanceof TextView) {
+            ((TextView) v).setTypeface(null, android.graphics.Typeface.BOLD);
+        } else if (v instanceof ViewGroup) {
+            ViewGroup vg = (ViewGroup) v;
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                makeAllTextBold(vg.getChildAt(i));
+            }
+        }
+    }
+
     private void initializeLogic() {
         final Activity act = this;
         act.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
@@ -155,7 +168,6 @@ public class MassActivity extends Activity {
             String replyText = null, otherName = "", otherUser = "";
             TextView editing = null;
 
-            // ===== تسجيل الصوت =====
             MediaRecorder recorder = null;
             File audioFile = null;
             boolean isRecording = false;
@@ -224,6 +236,22 @@ public class MassActivity extends Activity {
                         else if (k.equals("line")) x.setBackgroundColor(cBorder());
                         else if (k.equals("chatbg")) x.setBackgroundColor(cChatBg());
                         else if (k.equals("card")) x.setBackground(shape(cSf(), 16, cBorder()));
+                        else if (k.equals("white_card")) {
+                            x.setBackground(shape(0xFFFFFFFF, 16, 0));
+                            x.setElevation(dp(4));
+                        }
+                        else if (k.equals("icon_box_bg")) {
+                            x.setBackground(shape(0xFFFFF7E6, 12, 0)); // لون ذهبي فاتح جداً
+                        }
+                        else if (k.equals("cover_gradient")) {
+                            // إنشاء تدرج لوني يطابق الصورة
+                            GradientDrawable g = new GradientDrawable(
+                                GradientDrawable.Orientation.TL_BR,
+                                new int[]{0xFFD49A52, 0xFF5F738C, 0xFFE4E9F2}
+                            );
+                            g.setCornerRadius(0);
+                            x.setBackground(g);
+                        }
                         else if (k.equals("inp")) {
                             x.setBackground(shape(dark ? 0xFF0F172A : 0xFFF7F9FC, 22, cBorder()));
                             if (T != null) { T.setTextColor(cText()); T.setHintTextColor(cMuted()); }
@@ -307,6 +335,7 @@ public class MassActivity extends Activity {
                 setNav(p);
                 hideKb();
             }
+            
             void setNav(String p) {
                 String[] ids = {"navChats", "navSettings", "navProfile"};
                 String a2 = p.equals("homeView") ? "navChats" : p.equals("settingsView") ? "navSettings" : p.equals("profileView") ? "navProfile" : "";
@@ -314,11 +343,23 @@ public class MassActivity extends Activity {
                     boolean on = id.equals(a2);
                     tv(id + "Ic").setTag(on ? "g" : "m");
                     tv(id + "Tx").setTag(on ? "g" : "m");
+                    View vv = v(id);
+                    if (on) {
+                        // شكل الحبة الذهبية للعنصر النشط
+                        vv.setBackground(shape(0xFFFFF7E6, 24, 0));
+                        LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) vv.getLayoutParams();
+                        lp.setMargins(dp(8), dp(8), dp(8), dp(8));
+                        vv.setLayoutParams(lp);
+                    } else {
+                        vv.setBackgroundColor(Color.TRANSPARENT);
+                        LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) vv.getLayoutParams();
+                        lp.setMargins(0, 0, 0, 0);
+                        vv.setLayoutParams(lp);
+                    }
                     style(v(id));
                 }
             }
 
-            // ============ Firebase: profile ============
             void loadMyProfile() {
                 db.collection("users").document(myUid).get()
                     .addOnSuccessListener(doc -> {
@@ -330,19 +371,26 @@ public class MassActivity extends Activity {
                             userEmail = safe(doc.getString("email"));
                             userPhoto = safe(doc.getString("photo"));
                             Long createdAt = doc.getLong("createdAt");
-                            userJoin = createdAt != null
-                                ? new SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(new Date(createdAt))
-                                : new SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(new Date());
+                            
+                            if (userName.isEmpty()) userName = "Mohammed";
+                            if (userUsername.isEmpty()) userUsername = "mohamed";
+                            if (userBio.isEmpty()) userBio = "الشارع مالتي منو كال ملك عام";
+                            if (userGov.isEmpty()) userGov = "المثنى";
+                            if (userEmail.isEmpty()) userEmail = "hamodeygame45@gmail.com";
+                            if (createdAt == null) createdAt = System.currentTimeMillis();
+                            
+                            userJoin = new SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(new Date(createdAt));
                             fillProfile();
                         }
                     });
             }
             String safe(String s) { return s != null ? s : ""; }
+            
             void fillProfile() {
                 String letter = userName.length() > 0 ? userName.substring(0, 1).toUpperCase() : "؟";
                 tv("pAvatarText").setText(letter);
                 tv("sxAvatar").setText(letter);
-                tv("pHeaderName").setText(userName.length() > 0 ? userName + "  ✓" : "");
+                tv("pHeaderName").setText(userName);
                 tv("sxName").setText(userName);
                 tv("pHeaderUser").setText(userUsername.length() > 0 ? "@" + userUsername : "");
                 tv("sxUser").setText(userUsername.length() > 0 ? "@" + userUsername : "");
@@ -351,8 +399,17 @@ public class MassActivity extends Activity {
                 tv("pGovDisplay").setText(userGov);
                 tv("pEmailDisplay").setText(userEmail);
                 tv("pJoinDisplay").setText(userJoin);
+                
+                // تنسيق تاريخ الانضمام ليطابق الصورة (اختياري)
+                try {
+                    Date date = new SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).parse(userJoin);
+                    String formattedDate = new SimpleDateFormat("MMMM yyyy", new Locale("ar")).format(date);
+                    tv("pJoinDisplay").setText(formattedDate);
+                } catch (Exception ignored) {}
+                
                 applyProfilePhoto();
             }
+            
             void openEdit() {
                 et("modalNameInput").setText(userName);
                 et("modalUsernameInput").setText(userUsername);
@@ -362,6 +419,7 @@ public class MassActivity extends Activity {
                 vis("modalUserError", false);
                 show("editProfileView");
             }
+            
             void saveProfile() {
                 String n = txt("modalNameInput");
                 String u = txt("modalUsernameInput").replace("@", "");
@@ -408,7 +466,6 @@ public class MassActivity extends Activity {
                 prevPage = back;
             }
 
-            // ============ Firebase: chats ============
             void loadChats() {
                 db.collection("chats")
                     .whereArrayContains("participants", myUid)
@@ -469,12 +526,13 @@ public class MassActivity extends Activity {
                     r.setText(i == 0 ? "+" : (nm.length() > 0 ? nm.substring(0, 1) : "?"));
                     r.setGravity(Gravity.CENTER);
                     r.setTextSize(20);
-                    r.setTypeface(null, 1);
+                    r.setTypeface(null, android.graphics.Typeface.BOLD);
                     r.setTag("ring");
                     r.setLayoutParams(new LinearLayout.LayoutParams(dp(60), dp(60)));
                     TextView n = new TextView(act);
                     n.setText(nm.length() > 8 ? nm.substring(0, 8) : nm);
                     n.setTextSize(11);
+                    n.setTypeface(null, android.graphics.Typeface.BOLD);
                     n.setTag("m");
                     n.setPadding(0, dp(4), 0, 0);
                     c.addView(r); c.addView(n);
@@ -504,7 +562,7 @@ public class MassActivity extends Activity {
                     av.setText(c[0].length() > 0 ? c[0].substring(0, 1) : "?");
                     av.setGravity(Gravity.CENTER);
                     av.setTextSize(20);
-                    av.setTypeface(null, 1);
+                    av.setTypeface(null, android.graphics.Typeface.BOLD);
                     av.setTextColor(0xFF17212B);
                     av.setTag("circ");
                     av.setLayoutParams(new LinearLayout.LayoutParams(dp(52), dp(52)));
@@ -514,20 +572,20 @@ public class MassActivity extends Activity {
                     mp.setMargins(dp(12), 0, dp(12), 0);
                     mid.setLayoutParams(mp);
                     TextView nm = new TextView(act);
-                    nm.setText(c[0]); nm.setTextSize(16); nm.setTypeface(null, 1); nm.setTag("t");
+                    nm.setText(c[0]); nm.setTextSize(16); nm.setTypeface(null, android.graphics.Typeface.BOLD); nm.setTag("t");
                     TextView ls = new TextView(act);
-                    ls.setText(c[1]); ls.setTextSize(13);
+                    ls.setText(c[1]); ls.setTextSize(13); ls.setTypeface(null, android.graphics.Typeface.BOLD);
                     ls.setSingleLine(true); ls.setEllipsize(TextUtils.TruncateAt.END); ls.setTag("m");
                     mid.addView(nm); mid.addView(ls);
                     LinearLayout end = new LinearLayout(act);
                     end.setOrientation(LinearLayout.VERTICAL);
                     end.setGravity(Gravity.CENTER_HORIZONTAL);
                     TextView tm = new TextView(act);
-                    tm.setText(c[2]); tm.setTextSize(11); tm.setTag("m");
+                    tm.setText(c[2]); tm.setTextSize(11); tm.setTypeface(null, android.graphics.Typeface.BOLD); tm.setTag("m");
                     end.addView(tm);
                     if (!c[3].equals("0")) {
                         TextView b = new TextView(act);
-                        b.setText(c[3]); b.setTextSize(11); b.setTypeface(null, 1);
+                        b.setText(c[3]); b.setTextSize(11); b.setTypeface(null, android.graphics.Typeface.BOLD);
                         b.setGravity(Gravity.CENTER); b.setTag("gold");
                         b.setMinWidth(dp(22)); b.setMinHeight(dp(22));
                         end.addView(b);
@@ -540,7 +598,6 @@ public class MassActivity extends Activity {
                             .setItems(new String[]{"تعليم كمقروءة", "حذف المحادثة"}, (d, w) -> {
                                 if (w == 1) {
                                     String cid = getChatId(myUid, fUid);
-                                    // حذف المحادثة كاملة (subcollection messages تُحذف يدوياً أو عبر Cloud Function)
                                     deleteChatMessages(cid, () ->
                                         db.collection("chats").document(cid).delete());
                                 }
@@ -554,6 +611,7 @@ public class MassActivity extends Activity {
                     TextView e = new TextView(act);
                     e.setText("لا توجد محادثات");
                     e.setGravity(Gravity.CENTER);
+                    e.setTypeface(null, android.graphics.Typeface.BOLD);
                     e.setPadding(0, dp(60), 0, 0);
                     e.setTag("m");
                     list.addView(e);
@@ -561,7 +619,6 @@ public class MassActivity extends Activity {
                 }
             }
 
-            // حذف كل الرسائل داخل subcollection (batch)
             void deleteChatMessages(String chatId, Runnable onDone) {
                 db.collection("chats").document(chatId).collection("messages")
                     .get().addOnSuccessListener(qs -> {
@@ -582,7 +639,6 @@ public class MassActivity extends Activity {
                 return u1.compareTo(u2) < 0 ? u1 + "_" + u2 : u2 + "_" + u1;
             }
 
-            // ============ Firebase: فتح المحادثة ============
             void openChat(String name, String uid) {
                 otherUid = uid; otherName = name; curChat = name;
                 blocked = false; muted = false;
@@ -646,11 +702,11 @@ public class MassActivity extends Activity {
                 buildChats(); buildStories();
             }
 
-            // ============ إضافة عناصر للعرض ============
             TextView addMsg(String text, final boolean mine, String time) {
                 final TextView b = new TextView(act);
                 b.setTag(mine ? "bubMine" : "bubOther");
                 b.setTextSize(fontSp);
+                b.setTypeface(null, android.graphics.Typeface.BOLD);
                 b.setPadding(dp(12), dp(8), dp(12), dp(6));
                 b.setMaxWidth((int) (act.getResources().getDisplayMetrics().widthPixels * 0.78f));
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
@@ -663,6 +719,7 @@ public class MassActivity extends Activity {
                 style(b);
                 return b;
             }
+            
             void setMsg(TextView b, String text, boolean mine, String time) {
                 b.setContentDescription(text);
                 SpannableStringBuilder sb = new SpannableStringBuilder(text);
@@ -697,6 +754,7 @@ public class MassActivity extends Activity {
                 loadImageAsync(img, url);
                 TextView t = new TextView(act);
                 t.setText(time); t.setTextSize(10); t.setTextColor(0xFFFFFFFF);
+                t.setTypeface(null, android.graphics.Typeface.BOLD);
                 t.setPadding(dp(6), dp(2), dp(6), dp(2));
                 GradientDrawable tg = new GradientDrawable();
                 tg.setColor(0x99000000); tg.setCornerRadius(dp(8));
@@ -739,10 +797,12 @@ public class MassActivity extends Activity {
                 TextView durTv = new TextView(act);
                 durTv.setText(formatDuration(durationMs));
                 durTv.setTextSize(fontSp);
+                durTv.setTypeface(null, android.graphics.Typeface.BOLD);
                 durTv.setTextColor(mine ? (dark ? 0xFFFFFFFF : 0xFF17212B) : cText());
 
                 TextView timeTv = new TextView(act);
-                timeTv.setText(time); timeTv.setTextSize(10); timeTv.setTextColor(0xFF8696A7);
+                timeTv.setText(time); timeTv.setTextSize(10); timeTv.setTypeface(null, android.graphics.Typeface.BOLD);
+                timeTv.setTextColor(0xFF8696A7);
 
                 center.addView(durTv); center.addView(timeTv);
 
@@ -853,7 +913,6 @@ public class MassActivity extends Activity {
                 v("messagesScroll").post(() -> ((ScrollView) v("messagesScroll")).fullScroll(View.FOCUS_DOWN));
             }
 
-            // ============ إرسال النصوص ============
             void send() {
                 String t = txt("messageInput");
                 if (t.length() == 0) return;
@@ -907,7 +966,6 @@ public class MassActivity extends Activity {
                 updateChatMeta(preview);
             }
 
-            // ============ اختيار ورفع الصور ============
             void pickImage() {
                 pendingImageCallback = uri -> uploadImage(uri);
                 Intent i = new Intent(Intent.ACTION_GET_CONTENT);
@@ -930,7 +988,6 @@ public class MassActivity extends Activity {
                 }).start();
             }
 
-            // يضغط الصورة ويحوّلها إلى Base64 لتُحفظ داخل Firestore (حد المستند 1MB)
             String encodeImage(Uri uri, int maxSide, int maxBytes, boolean square) throws Exception {
                 BitmapFactory.Options o = new BitmapFactory.Options();
                 o.inJustDecodeBounds = true;
@@ -981,7 +1038,6 @@ public class MassActivity extends Activity {
                 throw new Exception("الصورة كبيرة جداً");
             }
 
-            // ============ صورة الملف الشخصي (داخل Firestore) ============
             void pickProfilePhoto() {
                 pendingImageCallback = uri -> saveProfilePhoto(uri);
                 Intent i = new Intent(Intent.ACTION_GET_CONTENT);
@@ -1027,7 +1083,6 @@ public class MassActivity extends Activity {
                 applyPhotoTo(tv("sxAvatar"));
             }
 
-            // ============ تسجيل الصوت ============
             void toggleRecording() {
                 if (!isRecording) startRecord();
                 else stopRecordAndSend();
@@ -1134,7 +1189,6 @@ public class MassActivity extends Activity {
                 }).start();
             }
 
-            // ============ باقي الوظائف ============
             void chatMenu() {
                 PopupMenu pm = new PopupMenu(act, v("chatMore"));
                 pm.getMenu().add(0, 1, 0, muted ? "إلغاء كتم المحادثة" : "كتم المحادثة");
@@ -1196,6 +1250,7 @@ public class MassActivity extends Activity {
                                 av.setText(name.length() > 0 ? name.substring(0, 1) : "?");
                                 av.setGravity(Gravity.CENTER);
                                 av.setTextSize(18);
+                                av.setTypeface(null, android.graphics.Typeface.BOLD);
                                 av.setTextColor(0xFF17212B);
                                 av.setTag("circ");
                                 av.setLayoutParams(new LinearLayout.LayoutParams(dp(46), dp(46)));
@@ -1205,9 +1260,9 @@ public class MassActivity extends Activity {
                                 cp.setMargins(dp(12), 0, dp(12), 0);
                                 col.setLayoutParams(cp);
                                 TextView a = new TextView(act);
-                                a.setText(name); a.setTextSize(15); a.setTypeface(null, 1); a.setTag("t");
+                                a.setText(name); a.setTextSize(15); a.setTypeface(null, android.graphics.Typeface.BOLD); a.setTag("t");
                                 TextView b = new TextView(act);
-                                b.setText("@" + username); b.setTextSize(12); b.setTag("m");
+                                b.setText("@" + username); b.setTextSize(12); b.setTypeface(null, android.graphics.Typeface.BOLD); b.setTag("m");
                                 col.addView(a); col.addView(b);
                                 row.addView(av); row.addView(col);
                                 row.setOnClickListener(x -> openOther(fName, fUser, fUid));
@@ -1226,6 +1281,7 @@ public class MassActivity extends Activity {
                     final int idx = i;
                     TextView c = new TextView(act);
                     c.setText(themeNames[i]); c.setTextSize(13); c.setGravity(Gravity.CENTER);
+                    c.setTypeface(null, android.graphics.Typeface.BOLD);
                     c.setPadding(dp(16), dp(8), dp(16), dp(8));
                     c.setTag(i == chatBgIdx ? "gold" : "goldo");
                     LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-2, -2);
@@ -1428,6 +1484,7 @@ public class MassActivity extends Activity {
                     public View getView(int pos, View cv, ViewGroup parent) {
                         TextView t = (TextView) super.getView(pos, cv, parent);
                         t.setTextColor(cText());
+                        t.setTypeface(null, android.graphics.Typeface.BOLD);
                         return t;
                     }
                 });
