@@ -4,6 +4,8 @@ import android.animation.*;
 import android.app.*;
 import android.app.Activity;
 import android.content.*;
+import android.content.ClipboardManager;
+import android.content.Context;
 import android.graphics.*;
 import android.graphics.drawable.*;
 import android.os.*;
@@ -12,6 +14,7 @@ import android.text.style.*;
 import android.view.*;
 import android.view.View.*;
 import android.view.animation.*;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.*;
 import com.babylon.chat.iq.databinding.*;
 import com.google.firebase.auth.FirebaseAuth;
@@ -121,7 +124,7 @@ public class MassActivity extends Activity {
             String now() { return new SimpleDateFormat("h:mm", Locale.getDefault()).format(new Date()); }
             void hideKb() {
                 try {
-                    InputMethodManager m = (InputMethodManager) act.getSystemService(INPUT_METHOD_SERVICE);
+                    InputMethodManager m = (InputMethodManager) act.getSystemService(Context.INPUT_METHOD_SERVICE);
                     m.hideSoftInputFromWindow(v("root").getWindowToken(), 0);
                 } catch (Exception e) { }
             }
@@ -613,7 +616,7 @@ public class MassActivity extends Activity {
                             et("messageInput").requestFocus();
                             break;
                         case 2:
-                            ClipboardManager cm = (ClipboardManager) act.getSystemService(CLIPBOARD_SERVICE);
+                            ClipboardManager cm = (ClipboardManager) act.getSystemService(Context.CLIPBOARD_SERVICE);
                             cm.setPrimaryClip(ClipData.newPlainText("msg", raw));
                             toast("تم نسخ الرسالة");
                             break;
@@ -872,7 +875,7 @@ public class MassActivity extends Activity {
                         }).show();
                 }
                 else if (id.equals("pUserRow")) {
-                    ClipboardManager cm = (ClipboardManager) act.getSystemService(CLIPBOARD_SERVICE);
+                    ClipboardManager cm = (ClipboardManager) act.getSystemService(Context.CLIPBOARD_SERVICE);
                     cm.setPrimaryClip(ClipData.newPlainText("u", tv("pHeaderUser").getText().toString()));
                     toast("تم نسخ اسم المستخدم");
                 }
@@ -904,7 +907,7 @@ public class MassActivity extends Activity {
                     pm.getMenu().add(0, 2, 1, "إبلاغ");
                     pm.setOnMenuItemClickListener(it -> {
                         if (it.getItemId() == 1) {
-                            ClipboardManager cm = (ClipboardManager) act.getSystemService(CLIPBOARD_SERVICE);
+                            ClipboardManager cm = (ClipboardManager) act.getSystemService(Context.CLIPBOARD_SERVICE);
                             cm.setPrimaryClip(ClipData.newPlainText("u", "@" + otherUser));
                             toast("تم النسخ");
                         } else toast("تم إرسال البلاغ");
