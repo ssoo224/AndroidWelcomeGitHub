@@ -22,8 +22,11 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      # إعداد متغيرات بيئة أندرويد الأساسية
+      - name: Setup Android SDK Environment
+        run: |
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
 
       - name: Cache Gradle packages
         uses: actions/cache@v4
@@ -35,12 +38,10 @@ jobs:
           restore-keys: |
             gradle-${{ runner.os }}-
 
-      # التأكد من وجود google-services.json (يجب رفعه إلى المستودع أو استخدام Secret)
       - name: Verify google-services.json
         run: |
           if [ ! -f app/google-services.json ]; then
             echo "❌ ERROR: app/google-services.json is missing!"
-            echo "ارفع الملف إلى المستودع داخل مجلد app/ قبل البناء."
             exit 1
           fi
           echo "✅ google-services.json found."
@@ -48,6 +49,7 @@ jobs:
       - name: Grant execute permission to gradlew
         run: chmod +x ./gradlew
 
+      # سيقوم Gradle تلقائياً بتحميل أي مكونات ناقصة في الـ SDK
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
 
