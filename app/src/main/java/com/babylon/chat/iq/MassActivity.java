@@ -56,8 +56,6 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
-import com.google.firebase.storage.FirebaseStorage;
-import com.google.firebase.storage.StorageReference;
 
 import java.io.File;
 import java.text.SimpleDateFormat;
@@ -178,6 +176,8 @@ public class MassActivity extends Activity {
 
             ArrayList<String[]> chatData = new ArrayList<>();
             String userName = "", userUsername = "", userBio = "", userGov = "", userEmail = "", userJoin = "";
+            String userPhoto = "", shownPhoto = "";
+            Bitmap photoBmp = null;
 
             int dp(float d) { return (int) (d * act.getResources().getDisplayMetrics().density + 0.5f); }
             View v(String n) { return act.findViewById(act.getResources().getIdentifier(n, "id", act.getPackageName())); }
@@ -234,6 +234,7 @@ public class MassActivity extends Activity {
                         else if (k.equals("circ")) {
                             GradientDrawable g = new GradientDrawable();
                             g.setShape(GradientDrawable.OVAL); g.setColor(cGold()); x.setBackground(g);
+                            if (photoBmp != null && x instanceof TextView && (x == tv("pAvatarText") || x == tv("sxAvatar"))) applyPhotoTo((TextView) x);
                         } else if (k.equals("circRed")) {
                             GradientDrawable g = new GradientDrawable();
                             g.setShape(GradientDrawable.OVAL); g.setColor(cRed()); x.setBackground(g);
@@ -327,6 +328,7 @@ public class MassActivity extends Activity {
                             userBio = safe(doc.getString("bio"));
                             userGov = safe(doc.getString("gov"));
                             userEmail = safe(doc.getString("email"));
+                            userPhoto = safe(doc.getString("photo"));
                             Long createdAt = doc.getLong("createdAt");
                             userJoin = createdAt != null
                                 ? new SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(new Date(createdAt))
@@ -349,6 +351,7 @@ public class MassActivity extends Activity {
                 tv("pGovDisplay").setText(userGov);
                 tv("pEmailDisplay").setText(userEmail);
                 tv("pJoinDisplay").setText(userJoin);
+                applyProfilePhoto();
             }
             void openEdit() {
                 et("modalNameInput").setText(userName);
@@ -615,7 +618,8 @@ public class MassActivity extends Activity {
                                 String type = doc.getString("type");
                                 if (type == null) type = "text";
                                 String text = doc.getString("text");
-                                String url = doc.getString("url");
+                                String url = doc.getString("data");
+                                if (url == null) url = doc.getString("url");
                                 String sender = doc.getString("sender");
                                 Long time = doc.getLong("timestamp");
                                 Long dur = doc.getLong("duration");
@@ -765,7 +769,17 @@ public class MassActivity extends Activity {
                     if (mediaPlayer != null) { mediaPlayer.release(); mediaPlayer = null; }
                     mediaPlayer = new MediaPlayer();
                     mediaPlayer.setAudioStreamType(android.media.AudioManager.STREAM_MUSIC);
-                    mediaPlayer.setDataSource(url);
+                    if (url.startsWith("http")) {
+                        mediaPlayer.setDataSource(url);
+                    } else {
+                        File pf = new File(act.getCacheDir(), "play_" + url.length() + "_" + Math.abs(url.hashCode()) + ".m4a");
+                        if (!pf.exists()) {
+                            byte[] b = android.util.Base64.decode(url, android.util.Base64.DEFAULT);
+                            java.io.FileOutputStream fo = new java.io.FileOutputStream(pf);
+                            fo.write(b); fo.close();
+                        }
+                        mediaPlayer.setDataSource(pf.getAbsolutePath());
+                    }
                     mediaPlayer.prepareAsync();
                     mediaPlayer.setOnPreparedListener(mp -> { mp.start(); btn.setText("⏸"); });
                     mediaPlayer.setOnCompletionListener(mp -> { btn.setText("▶"); });
@@ -775,15 +789,22 @@ public class MassActivity extends Activity {
             void loadImageAsync(final ImageView img, final String url) {
                 new Thread(() -> {
                     try {
-                        java.net.URL u = new java.net.URL(url);
-                        java.net.HttpURLConnection conn = (java.net.HttpURLConnection) u.openConnection();
-                        conn.setDoInput(true); conn.connect();
-                        java.io.InputStream is = conn.getInputStream();
+                        Bitmap bmp;
                         BitmapFactory.Options opts = new BitmapFactory.Options();
                         opts.inSampleSize = 2;
-                        final Bitmap bmp = BitmapFactory.decodeStream(is, null, opts);
-                        is.close();
-                        if (bmp != null) act.runOnUiThread(() -> img.setImageBitmap(bmp));
+                        if (url.startsWith("http")) {
+                            java.net.URL u = new java.net.URL(url);
+                            java.net.HttpURLConnection conn = (java.net.HttpURLConnection) u.openConnection();
+                            conn.setDoInput(true); conn.connect();
+                            java.io.InputStream is = conn.getInputStream();
+                            bmp = BitmapFactory.decodeStream(is, null, opts);
+                            is.close();
+                        } else {
+                            byte[] b = android.util.Base64.decode(url, android.util.Base64.DEFAULT);
+                            bmp = BitmapFactory.decodeByteArray(b, 0, b.length, opts);
+                        }
+                        final Bitmap fb = bmp;
+                        if (fb != null) act.runOnUiThread(() -> img.setImageBitmap(fb));
                     } catch (Exception e) { }
                 }).start();
             }
@@ -870,11 +891,11 @@ public class MassActivity extends Activity {
                 db.collection("chats").document(currentChatId).set(chatDoc);
             }
 
-            void sendMedia(String type, String url, long duration) {
+            void sendMedia(String type, String base64Data, long duration) {
                 if (currentChatId.isEmpty() || otherUid.isEmpty()) return;
                 Map<String, Object> msg = new HashMap<>();
                 msg.put("type", type);
-                msg.put("url", url);
+                msg.put("data", base64Data);
                 msg.put("duration", duration);
                 msg.put("sender", myUid);
                 msg.put("timestamp", System.currentTimeMillis());
@@ -898,14 +919,112 @@ public class MassActivity extends Activity {
 
             void uploadImage(Uri uri) {
                 if (currentChatId.isEmpty()) return;
-                toast("جاري رفع الصورة...");
-                StorageReference ref = FirebaseStorage.getInstance().getReference()
-                        .child("chats/" + currentChatId + "/img_" + System.currentTimeMillis() + ".jpg");
-                ref.putFile(uri)
-                    .addOnSuccessListener(ts -> ref.getDownloadUrl()
-                        .addOnSuccessListener(u -> sendMedia("image", u.toString(), 0))
-                        .addOnFailureListener(e -> toast("فشل رابط الرفع: " + e.getMessage())))
-                    .addOnFailureListener(e -> toast("فشل الرفع: " + e.getMessage()));
+                toast("جاري معالجة الصورة...");
+                new Thread(() -> {
+                    try {
+                        final String b64 = encodeImage(uri, 1280, 640 * 1024, false);
+                        act.runOnUiThread(() -> sendMedia("image", b64, 0));
+                    } catch (Exception e) {
+                        act.runOnUiThread(() -> toast("فشل معالجة الصورة: " + e.getMessage()));
+                    }
+                }).start();
+            }
+
+            // يضغط الصورة ويحوّلها إلى Base64 لتُحفظ داخل Firestore (حد المستند 1MB)
+            String encodeImage(Uri uri, int maxSide, int maxBytes, boolean square) throws Exception {
+                BitmapFactory.Options o = new BitmapFactory.Options();
+                o.inJustDecodeBounds = true;
+                java.io.InputStream is0 = act.getContentResolver().openInputStream(uri);
+                BitmapFactory.decodeStream(is0, null, o);
+                if (is0 != null) is0.close();
+                int sample = 1;
+                while (Math.max(o.outWidth, o.outHeight) / sample > maxSide * 2) sample *= 2;
+                BitmapFactory.Options o2 = new BitmapFactory.Options();
+                o2.inSampleSize = sample;
+                java.io.InputStream is1 = act.getContentResolver().openInputStream(uri);
+                Bitmap bmp = BitmapFactory.decodeStream(is1, null, o2);
+                if (is1 != null) is1.close();
+                if (bmp == null) throw new Exception("صورة غير صالحة");
+
+                if (Build.VERSION.SDK_INT >= 24) {
+                    try {
+                        java.io.InputStream is2 = act.getContentResolver().openInputStream(uri);
+                        int ori = new android.media.ExifInterface(is2).getAttributeInt(
+                                android.media.ExifInterface.TAG_ORIENTATION, android.media.ExifInterface.ORIENTATION_NORMAL);
+                        if (is2 != null) is2.close();
+                        float deg = ori == android.media.ExifInterface.ORIENTATION_ROTATE_90 ? 90
+                                : ori == android.media.ExifInterface.ORIENTATION_ROTATE_180 ? 180
+                                : ori == android.media.ExifInterface.ORIENTATION_ROTATE_270 ? 270 : 0;
+                        if (deg != 0) {
+                            android.graphics.Matrix m = new android.graphics.Matrix();
+                            m.postRotate(deg);
+                            bmp = Bitmap.createBitmap(bmp, 0, 0, bmp.getWidth(), bmp.getHeight(), m, true);
+                        }
+                    } catch (Exception ignore) { }
+                }
+                if (square) {
+                    int side = Math.min(bmp.getWidth(), bmp.getHeight());
+                    bmp = Bitmap.createBitmap(bmp, (bmp.getWidth() - side) / 2, (bmp.getHeight() - side) / 2, side, side);
+                }
+                float sc = Math.min(1f, (float) maxSide / Math.max(bmp.getWidth(), bmp.getHeight()));
+                if (sc < 1f) bmp = Bitmap.createScaledBitmap(bmp, Math.round(bmp.getWidth() * sc), Math.round(bmp.getHeight() * sc), true);
+
+                for (int round = 0; round < 6; round++) {
+                    for (int q = 85; q >= 30; q -= 10) {
+                        java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+                        bmp.compress(Bitmap.CompressFormat.JPEG, q, bos);
+                        byte[] out = bos.toByteArray();
+                        if (out.length <= maxBytes) return android.util.Base64.encodeToString(out, android.util.Base64.NO_WRAP);
+                    }
+                    bmp = Bitmap.createScaledBitmap(bmp, Math.max(1, Math.round(bmp.getWidth() * 0.75f)), Math.max(1, Math.round(bmp.getHeight() * 0.75f)), true);
+                }
+                throw new Exception("الصورة كبيرة جداً");
+            }
+
+            // ============ صورة الملف الشخصي (داخل Firestore) ============
+            void pickProfilePhoto() {
+                pendingImageCallback = uri -> saveProfilePhoto(uri);
+                Intent i = new Intent(Intent.ACTION_GET_CONTENT);
+                i.setType("image/*");
+                try {
+                    act.startActivityForResult(Intent.createChooser(i, "اختر صورة"), REQ_PICK_IMAGE);
+                } catch (Exception e) { toast("لا توجد تطبيقات لعرض الصور"); }
+            }
+
+            void saveProfilePhoto(Uri uri) {
+                toast("جاري حفظ الصورة...");
+                new Thread(() -> {
+                    try {
+                        final String b64 = encodeImage(uri, 320, 60 * 1024, true);
+                        act.runOnUiThread(() -> db.collection("users").document(myUid).update("photo", b64)
+                            .addOnSuccessListener(a -> { userPhoto = b64; fillProfile(); toast("تم تحديث الصورة"); })
+                            .addOnFailureListener(er -> toast("فشل: " + er.getMessage())));
+                    } catch (Exception e) {
+                        act.runOnUiThread(() -> toast("فشل معالجة الصورة: " + e.getMessage()));
+                    }
+                }).start();
+            }
+
+            void applyPhotoTo(TextView t) {
+                if (t == null || photoBmp == null) return;
+                androidx.core.graphics.drawable.RoundedBitmapDrawable d =
+                        androidx.core.graphics.drawable.RoundedBitmapDrawableFactory.create(act.getResources(), photoBmp);
+                d.setCircular(true);
+                t.setBackground(d);
+                t.setText("");
+            }
+
+            void applyProfilePhoto() {
+                if (userPhoto == null || userPhoto.isEmpty()) { photoBmp = null; shownPhoto = ""; return; }
+                if (!userPhoto.equals(shownPhoto)) {
+                    try {
+                        byte[] b = android.util.Base64.decode(userPhoto, android.util.Base64.DEFAULT);
+                        photoBmp = BitmapFactory.decodeByteArray(b, 0, b.length);
+                        shownPhoto = userPhoto;
+                    } catch (Exception e) { photoBmp = null; return; }
+                }
+                applyPhotoTo(tv("pAvatarText"));
+                applyPhotoTo(tv("sxAvatar"));
             }
 
             // ============ تسجيل الصوت ============
@@ -931,7 +1050,8 @@ public class MassActivity extends Activity {
                     recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
                     recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
                     recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
-                    recorder.setAudioEncodingBitRate(64000);
+                    recorder.setAudioEncodingBitRate(32000);
+                    recorder.setAudioChannels(1);
                     recorder.setAudioSamplingRate(44100);
                     recorder.setOutputFile(audioFile.getAbsolutePath());
                     recorder.prepare();
@@ -946,6 +1066,7 @@ public class MassActivity extends Activity {
                             if (!isRecording) return;
                             long s = (System.currentTimeMillis() - recordStart) / 1000;
                             tv("recTimer").setText(String.format(Locale.getDefault(), "%d:%02d", s / 60, s % 60));
+                            if (s >= 150) { stopRecordAndSend(); return; }
                             recHandler.postDelayed(this, 500);
                         }
                     };
@@ -991,14 +1112,26 @@ public class MassActivity extends Activity {
 
             void uploadAudio(File f, long dur) {
                 if (currentChatId.isEmpty()) return;
-                toast("جاري رفع الصوت...");
-                StorageReference ref = FirebaseStorage.getInstance().getReference()
-                        .child("chats/" + currentChatId + "/voice_" + System.currentTimeMillis() + ".m4a");
-                ref.putFile(Uri.fromFile(f))
-                    .addOnSuccessListener(ts -> ref.getDownloadUrl()
-                        .addOnSuccessListener(u -> { sendMedia("audio", u.toString(), dur); f.delete(); })
-                        .addOnFailureListener(e -> toast("فشل: " + e.getMessage())))
-                    .addOnFailureListener(e -> toast("فشل الرفع: " + e.getMessage()));
+                toast("جاري إرسال الصوت...");
+                new Thread(() -> {
+                    try {
+                        java.io.FileInputStream fi = new java.io.FileInputStream(f);
+                        java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+                        byte[] buf = new byte[8192]; int n;
+                        while ((n = fi.read(buf)) > 0) bo.write(buf, 0, n);
+                        fi.close();
+                        byte[] bytes = bo.toByteArray();
+                        if (bytes.length > 650 * 1024) {
+                            f.delete();
+                            act.runOnUiThread(() -> toast("التسجيل طويل جداً"));
+                            return;
+                        }
+                        final String b64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP);
+                        act.runOnUiThread(() -> { sendMedia("audio", b64, dur); f.delete(); });
+                    } catch (Exception e) {
+                        act.runOnUiThread(() -> toast("فشل: " + e.getMessage()));
+                    }
+                }).start();
             }
 
             // ============ باقي الوظائف ============
@@ -1171,7 +1304,7 @@ public class MassActivity extends Activity {
                         .setNegativeButton("إلغاء", null).show();
                 }
                 else if (id.equals("pEdit") || id.equals("pBioRow")) openEdit();
-                else if (id.equals("pPhoto")) toast("اختيار صورة (يتطلب Firebase Storage)");
+                else if (id.equals("pPhoto")) pickProfilePhoto();
                 else if (id.equals("pCover")) {
                     new AlertDialog.Builder(act).setTitle("لون الغلاف")
                         .setItems(new String[]{"كحلي", "بنفسجي", "أخضر", "برتقالي", "رمادي", "ذهبي"}, (d, w) -> {
