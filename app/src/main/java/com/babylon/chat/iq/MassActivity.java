@@ -195,11 +195,28 @@ public class MassActivity extends Activity {
                         }
                     }
                 }
+                if (x instanceof TextView) tintIcons((TextView) x);
                 if (x instanceof ViewGroup) {
                     ViewGroup g = (ViewGroup) x;
                     for (int i = 0; i < g.getChildCount(); i++) style(g.getChildAt(i));
                 }
             }
+            // تلوين أيقونات الـ vector (drawableStart/End...) بنفس لون النص الحالي
+            void tintIcons(TextView T) {
+                android.graphics.drawable.Drawable[] ds = T.getCompoundDrawablesRelative();
+                for (android.graphics.drawable.Drawable d : ds) {
+                    if (d != null) d.mutate().setColorFilter(T.getCurrentTextColor(), android.graphics.PorterDuff.Mode.SRC_IN);
+                }
+            }
+            // نص + أيقونة vector بدل الإيموجي
+            void setLabel(String id, String label, int iconRes) {
+                TextView T = tv(id);
+                T.setText(label);
+                T.setCompoundDrawablePadding(dp(6));
+                T.setCompoundDrawablesRelativeWithIntrinsicBounds(iconRes, 0, 0, 0);
+                tintIcons(T);
+            }
+            int icon(String name, int size) { return act.getResources().getIdentifier(name + "_" + size, "drawable", act.getPackageName()); }
             void setOn(View b, boolean on, String offTag) {
                 b.setBackgroundColor(Color.TRANSPARENT);
                 b.setTag(on ? "gold" : offTag);
@@ -210,7 +227,7 @@ public class MassActivity extends Activity {
                 v("pvBox").setBackgroundColor(cChatBg());
                 ((View) v("pCoverTxt").getParent()).setBackgroundColor(coverColor);
                 tv("themeDescription").setText(dark ? "الوضع الليلي مفعّل" : "الوضع النهاري مفعّل");
-                tv("settingsThemeToggle").setText(dark ? "☀ نهاري" : "🌙 ليلي");
+                setLabel("settingsThemeToggle", dark ? "نهاري" : "ليلي", icon(dark ? "ic_sun" : "ic_moon", 16));
                 buildThemeStrip();
                 setNav(curPage);
             }
@@ -332,7 +349,7 @@ public class MassActivity extends Activity {
                 tv("otherHeaderName").setText(name);
                 tv("otherHeaderUser").setText("@" + username);
                 tv("otherBioDisplay").setText("");
-                tv("otherBlockBtn").setText("⛔  حظر");
+                setLabel("otherBlockBtn", "حظر", icon("ic_block", 16));
                 String back = curPage;
                 show("otherUserProfileView");
                 prevPage = back;
@@ -610,7 +627,7 @@ public class MassActivity extends Activity {
                     switch (it.getItemId()) {
                         case 1:
                             replyText = raw.length() > 40 ? raw.substring(0, 40) + "…" : raw;
-                            tv("replyLabel").setText("↩ الرد على الرسالة");
+                            setLabel("replyLabel", "الرد على الرسالة", icon("ic_reply", 16));
                             tv("replyPreviewText").setText(replyText);
                             vis("replyPreviewBar", true);
                             et("messageInput").requestFocus();
@@ -623,7 +640,7 @@ public class MassActivity extends Activity {
                         case 3:
                             editing = b;
                             replyText = null;
-                            tv("replyLabel").setText("✎ تعديل الرسالة");
+                            setLabel("replyLabel", "تعديل الرسالة", icon("ic_edit", 16));
                             tv("replyPreviewText").setText(raw);
                             vis("replyPreviewBar", true);
                             et("messageInput").setText(raw);
@@ -898,7 +915,7 @@ public class MassActivity extends Activity {
                 else if (id.equals("otherGiftBtn")) toast("متجر الهدايا");
                 else if (id.equals("otherBlockBtn")) {
                     blocked = !blocked;
-                    tv("otherBlockBtn").setText(blocked ? "✔  إلغاء الحظر" : "⛔  حظر");
+                    setLabel("otherBlockBtn", blocked ? "إلغاء الحظر" : "حظر", icon(blocked ? "ic_check" : "ic_block", 16));
                     toast(blocked ? "تم حظر " + otherName : "تم إلغاء الحظر");
                 }
                 else if (id.equals("otherMoreBtn")) {

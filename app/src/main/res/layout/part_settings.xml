@@ -87,7 +87,8 @@
 						android:layout_width="38dp"
 						android:layout_height="38dp"
 						android:gravity="center_horizontal|center_vertical"
-						android:text="🌓"
+						android:text=""
+						android:drawableStart="@drawable/ic_theme_20"
 						android:textSize="18sp"
 						android:textColor="#FFFFFF"
 						android:tag="ic:#F59E0B" />
@@ -118,7 +119,9 @@
 						android:layout_width="wrap_content"
 						android:layout_height="34dp"
 						android:gravity="center_horizontal|center_vertical"
-						android:text="🌙 ليلي"
+						android:text="ليلي"
+						android:drawableStart="@drawable/ic_moon_16"
+						android:drawablePadding="6dp"
 						android:textSize="13sp"
 						android:minWidth="70dp"
 						android:paddingStart="12dp"
@@ -142,7 +145,8 @@
 						android:layout_width="38dp"
 						android:layout_height="38dp"
 						android:gravity="center_horizontal|center_vertical"
-						android:text="🎨"
+						android:text=""
+						android:drawableStart="@drawable/ic_palette_20"
 						android:textSize="18sp"
 						android:textColor="#FFFFFF"
 						android:tag="ic:#3B82F6" />
@@ -186,7 +190,8 @@
 						android:layout_width="38dp"
 						android:layout_height="38dp"
 						android:gravity="center_horizontal|center_vertical"
-						android:text="🔔"
+						android:text=""
+						android:drawableStart="@drawable/ic_bell_20"
 						android:textSize="18sp"
 						android:textColor="#FFFFFF"
 						android:tag="ic:#EF4444" />
@@ -244,7 +249,8 @@
 						android:layout_width="38dp"
 						android:layout_height="38dp"
 						android:gravity="center_horizontal|center_vertical"
-						android:text="⭐"
+						android:text=""
+						android:drawableStart="@drawable/ic_star_20"
 						android:textSize="18sp"
 						android:textColor="#FFFFFF"
 						android:tag="ic:#F59E0B" />
@@ -288,7 +294,8 @@
 						android:layout_width="38dp"
 						android:layout_height="38dp"
 						android:gravity="center_horizontal|center_vertical"
-						android:text="🎁"
+						android:text=""
+						android:drawableStart="@drawable/ic_gift_20"
 						android:textSize="18sp"
 						android:textColor="#FFFFFF"
 						android:tag="ic:#EC4899" />
@@ -346,7 +353,8 @@
 						android:layout_width="38dp"
 						android:layout_height="38dp"
 						android:gravity="center_horizontal|center_vertical"
-						android:text="🔗"
+						android:text=""
+						android:drawableStart="@drawable/ic_link_20"
 						android:textSize="18sp"
 						android:textColor="#FFFFFF"
 						android:tag="ic:#0EA5E9" />
@@ -411,7 +419,8 @@
 						android:layout_width="38dp"
 						android:layout_height="38dp"
 						android:gravity="center_horizontal|center_vertical"
-						android:text="🛡"
+						android:text=""
+						android:drawableStart="@drawable/ic_shield_20"
 						android:textSize="18sp"
 						android:textColor="#FFFFFF"
 						android:tag="ic:#10B981" />
@@ -460,7 +469,8 @@
 						android:layout_width="38dp"
 						android:layout_height="38dp"
 						android:gravity="center_horizontal|center_vertical"
-						android:text="⎋"
+						android:text=""
+						android:drawableStart="@drawable/ic_logout_20"
 						android:textSize="18sp"
 						android:textColor="#FFFFFF"
 						android:tag="ic:#DC2626" />
@@ -497,7 +507,8 @@
 						android:layout_width="38dp"
 						android:layout_height="38dp"
 						android:gravity="center_horizontal|center_vertical"
-						android:text="🗑"
+						android:text=""
+						android:drawableStart="@drawable/ic_trash_20"
 						android:textSize="18sp"
 						android:textColor="#FFFFFF"
 						android:tag="ic:#7F1D1D" />
@@ -549,7 +560,8 @@
 				android:layout_width="52dp"
 				android:layout_height="match_parent"
 				android:gravity="center_horizontal|center_vertical"
-				android:text="→"
+				android:text=""
+				android:drawableStart="@drawable/ic_arrow_back_24"
 				android:textSize="24sp"
 				android:tag="t" />
 			<TextView
@@ -601,7 +613,8 @@
 							android:layout_width="38dp"
 							android:layout_height="38dp"
 							android:gravity="center_horizontal|center_vertical"
-							android:text="🔑"
+							android:text=""
+							android:drawableStart="@drawable/ic_key_20"
 							android:textSize="18sp"
 							android:textColor="#FFFFFF"
 							android:tag="ic:#10B981" />
@@ -689,7 +702,8 @@
 							android:layout_width="38dp"
 							android:layout_height="38dp"
 							android:gravity="center_horizontal|center_vertical"
-							android:text="🛡"
+							android:text=""
+							android:drawableStart="@drawable/ic_shield_20"
 							android:textSize="18sp"
 							android:textColor="#FFFFFF"
 							android:tag="ic:#64748B" />
@@ -867,7 +881,8 @@
 							android:layout_width="38dp"
 							android:layout_height="38dp"
 							android:gravity="center_horizontal|center_vertical"
-							android:text="🗑"
+							android:text=""
+							android:drawableStart="@drawable/ic_trash_20"
 							android:textSize="18sp"
 							android:textColor="#FFFFFF"
 							android:tag="ic:#8B5CF6" />
@@ -911,7 +926,8 @@
 							android:layout_width="38dp"
 							android:layout_height="38dp"
 							android:gravity="center_horizontal|center_vertical"
-							android:text="🗑"
+							android:text=""
+							android:drawableStart="@drawable/ic_trash_20"
 							android:textSize="18sp"
 							android:textColor="#FFFFFF"
 							android:tag="ic:#DC2626" />
@@ -1011,7 +1027,8 @@
 				android:layout_width="52dp"
 				android:layout_height="match_parent"
 				android:gravity="center_horizontal|center_vertical"
-				android:text="→"
+				android:text=""
+				android:drawableStart="@drawable/ic_arrow_back_24"
 				android:textSize="24sp"
 				android:tag="t" />
 			<TextView
@@ -1053,7 +1070,8 @@
 							android:id="@+id/textview800"
 							android:layout_width="44dp"
 							android:layout_height="wrap_content"
-							android:text="🔔"
+							android:text=""
+							android:drawableStart="@drawable/ic_bell_30"
 							android:textSize="26sp"
 							android:tag="g" />
 						<LinearLayout
@@ -1246,7 +1264,8 @@
 				android:layout_width="52dp"
 				android:layout_height="match_parent"
 				android:gravity="center_horizontal|center_vertical"
-				android:text="→"
+				android:text=""
+				android:drawableStart="@drawable/ic_arrow_back_24"
 				android:textSize="24sp"
 				android:tag="t" />
 			<TextView
@@ -1290,7 +1309,9 @@
 						android:layout_height="wrap_content"
 						android:layout_marginTop="8dp"
 						android:padding="10dp"
-						android:text="رسالة مرسلة\n12:01 ✓✓"
+						android:text="رسالة مرسلة\n12:01"
+						android:drawableEnd="@drawable/ic_check_double_16"
+						android:drawablePadding="6dp"
 						android:textSize="15sp"
 						android:layout_gravity="end"
 						android:tag="bubMine" />

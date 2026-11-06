@@ -38,7 +38,8 @@
 				android:layout_width="44dp"
 				android:layout_height="44dp"
 				android:gravity="center_horizontal|center_vertical"
-				android:text="◉"
+				android:text=""
+				android:drawableStart="@drawable/ic_stories_24"
 				android:textSize="20sp"
 				android:tag="t" />
 			<TextView
@@ -46,7 +47,8 @@
 				android:layout_width="44dp"
 				android:layout_height="44dp"
 				android:gravity="center_horizontal|center_vertical"
-				android:text="🔍"
+				android:text=""
+				android:drawableStart="@drawable/ic_search_22"
 				android:textSize="19sp"
 				android:tag="t" />
 		</LinearLayout>
@@ -123,7 +125,8 @@
 				android:layout_height="56dp"
 				android:layout_margin="16dp"
 				android:gravity="center_horizontal|center_vertical"
-				android:text="👥"
+				android:text=""
+				android:drawableStart="@drawable/ic_group_24"
 				android:textSize="22sp"
 				android:layout_gravity="bottom|start"
 				android:elevation="6dp"
@@ -148,7 +151,8 @@
 						android:layout_width="52dp"
 						android:layout_height="match_parent"
 						android:gravity="center_horizontal|center_vertical"
-						android:text="→"
+						android:text=""
+						android:drawableStart="@drawable/ic_arrow_back_24"
 						android:textSize="24sp"
 						android:tag="t" />
 					<TextView
@@ -217,7 +221,8 @@
 					android:id="@+id/navChatsIc"
 					android:layout_width="wrap_content"
 					android:layout_height="wrap_content"
-					android:text="💬"
+					android:text=""
+					android:drawableStart="@drawable/ic_chat_22"
 					android:textSize="20sp"
 					android:tag="m" />
 				<TextView
@@ -239,7 +244,8 @@
 					android:id="@+id/navSettingsIc"
 					android:layout_width="wrap_content"
 					android:layout_height="wrap_content"
-					android:text="⚙"
+					android:text=""
+					android:drawableStart="@drawable/ic_settings_22"
 					android:textSize="20sp"
 					android:tag="m" />
 				<TextView
@@ -261,7 +267,8 @@
 					android:id="@+id/navProfileIc"
 					android:layout_width="wrap_content"
 					android:layout_height="wrap_content"
-					android:text="👤"
+					android:text=""
+					android:drawableStart="@drawable/ic_user_22"
 					android:textSize="20sp"
 					android:tag="m" />
 				<TextView
@@ -294,7 +301,8 @@
 				android:layout_width="50dp"
 				android:layout_height="match_parent"
 				android:gravity="center_horizontal|center_vertical"
-				android:text="→"
+				android:text=""
+				android:drawableStart="@drawable/ic_arrow_back_24"
 				android:textSize="24sp"
 				android:tag="t" />
 			<LinearLayout
@@ -342,7 +350,8 @@
 				android:layout_width="46dp"
 				android:layout_height="match_parent"
 				android:gravity="center_horizontal|center_vertical"
-				android:text="⋮"
+				android:text=""
+				android:drawableStart="@drawable/ic_more_22"
 				android:textSize="24sp"
 				android:tag="t" />
 		</LinearLayout>
@@ -377,7 +386,8 @@
 					android:layout_width="44dp"
 					android:layout_height="44dp"
 					android:gravity="center_horizontal|center_vertical"
-					android:text="✕"
+					android:text=""
+					android:drawableStart="@drawable/ic_close_22"
 					android:textSize="20sp"
 					android:tag="t" />
 			</LinearLayout>
@@ -422,7 +432,9 @@
 					android:id="@+id/replyLabel"
 					android:layout_width="wrap_content"
 					android:layout_height="wrap_content"
-					android:text="↩ الرد على الرسالة"
+					android:text="الرد على الرسالة"
+					android:drawableStart="@drawable/ic_reply_16"
+					android:drawablePadding="6dp"
 					android:textSize="12sp"
 					android:textStyle="bold"
 					android:tag="g" />
@@ -441,7 +453,8 @@
 				android:layout_width="40dp"
 				android:layout_height="40dp"
 				android:gravity="center_horizontal|center_vertical"
-				android:text="✕"
+				android:text=""
+				android:drawableStart="@drawable/ic_close_20"
 				android:textSize="18sp"
 				android:tag="m" />
 		</LinearLayout>
@@ -472,7 +485,8 @@
 				android:layout_width="42dp"
 				android:layout_height="44dp"
 				android:gravity="center_horizontal|center_vertical"
-				android:text="📎"
+				android:text=""
+				android:drawableStart="@drawable/ic_attach_22"
 				android:textSize="20sp"
 				android:tag="m" />
 			<TextView
@@ -480,7 +494,8 @@
 				android:layout_width="42dp"
 				android:layout_height="44dp"
 				android:gravity="center_horizontal|center_vertical"
-				android:text="🎤"
+				android:text=""
+				android:drawableStart="@drawable/ic_mic_22"
 				android:textSize="20sp"
 				android:tag="m" />
 			<TextView
@@ -488,7 +503,8 @@
 				android:layout_width="44dp"
 				android:layout_height="44dp"
 				android:gravity="center_horizontal|center_vertical"
-				android:text="➤"
+				android:text=""
+				android:drawableStart="@drawable/ic_send_22"
 				android:textSize="22sp"
 				android:rotation="180"
 				android:tag="g" />
