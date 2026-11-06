@@ -1,42 +1,74 @@
 package com.babylon.chat.iq;
 
-import android.animation.*;
-import android.app.*;
 import android.app.Activity;
-import android.content.*;
+import android.app.AlertDialog;
+import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.graphics.*;
-import android.graphics.drawable.*;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Color;
+import android.graphics.Outline;
+import android.graphics.drawable.GradientDrawable;
 import android.media.MediaPlayer;
 import android.media.MediaRecorder;
 import android.net.Uri;
-import android.os.*;
-import android.provider.MediaStore;
-import android.text.*;
-import android.text.style.*;
-import android.view.*;
-import android.view.View.*;
-import android.view.animation.*;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.text.Editable;
+import android.text.SpannableStringBuilder;
+import android.text.TextUtils;
+import android.text.TextWatcher;
+import android.text.style.ForegroundColorSpan;
+import android.text.style.RelativeSizeSpan;
+import android.view.Gravity;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.ViewOutlineProvider;
+import android.view.Window;
+import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
-import android.widget.*;
-import com.babylon.chat.iq.databinding.*;
+import android.widget.ArrayAdapter;
+import android.widget.EditText;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.PopupMenu;
+import android.widget.ScrollView;
+import android.widget.SeekBar;
+import android.widget.Spinner;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import com.babylon.chat.iq.databinding.MassBinding;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
-import com.google.firebase.database.ChildEventListener;
-import com.google.firebase.database.DataSnapshot;
-import com.google.firebase.database.DatabaseError;
-import com.google.firebase.database.DatabaseReference;
-import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.firestore.DocumentChange;
+import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
+import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
+
 import java.io.File;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 public class MassActivity extends Activity {
 
@@ -44,17 +76,15 @@ public class MassActivity extends Activity {
     private FirebaseAuth mAuth;
     private FirebaseUser currentUser;
     private FirebaseFirestore db;
-    private FirebaseDatabase rtdb;
     private String myUid = "";
 
-    private DatabaseReference currentChatRef;
-    private ChildEventListener currentChatListener;
+    // --- للمحادثة الحالية ---
+    private ListenerRegistration messagesListener;
     private String currentChatId = "";
     private String otherUid = "";
+    private final java.util.Set<String> renderedMsgIds = new java.util.HashSet<>();
 
-    private ListenerRegistration chatsListener;
-
-    // للتعامل مع نتائج اختيار الصورة وتسجيل الصوت
+    // --- لاختيار الصور / إذن الميكروفون ---
     private java.util.function.Consumer<Uri> pendingImageCallback = null;
     private Runnable pendingMicCallback = null;
     private static final int REQ_PICK_IMAGE = 1001;
@@ -69,7 +99,6 @@ public class MassActivity extends Activity {
         mAuth = FirebaseAuth.getInstance();
         currentUser = mAuth.getCurrentUser();
         db = FirebaseFirestore.getInstance();
-        rtdb = FirebaseDatabase.getInstance();
 
         if (currentUser == null) {
             startActivity(new Intent(this, Main2Activity.class));
@@ -84,9 +113,7 @@ public class MassActivity extends Activity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (currentChatRef != null && currentChatListener != null)
-            currentChatRef.removeEventListener(currentChatListener);
-        if (chatsListener != null) chatsListener.remove();
+        if (messagesListener != null) messagesListener.remove();
     }
 
     @Override
@@ -108,7 +135,7 @@ public class MassActivity extends Activity {
                 pendingMicCallback = null;
                 if (cb != null) cb.run();
             } else {
-                Toast.makeText(this, "يجب منح إذن الميكروفون لتسجيل الصوت", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "يجب منح إذن الميكروفون", Toast.LENGTH_SHORT).show();
                 pendingMicCallback = null;
             }
         }
@@ -120,10 +147,9 @@ public class MassActivity extends Activity {
 
         class UI {
             SharedPreferences sp = act.getSharedPreferences("babylon_ui", MODE_PRIVATE);
-            Handler h = new Handler(Looper.getMainLooper());
             boolean dark = sp.getBoolean("dark", false);
             int fontSp = sp.getInt("font", 15);
-            int radius = sp.getInt("radius", 16); // زوايا احترافية افتراضية
+            int radius = sp.getInt("radius", 16);
             int chatBgIdx = sp.getInt("chatBg", 0);
             int coverColor = sp.getInt("cover", 0xFF1B2A4A);
             boolean unreadOnly = false, muted = false, blocked = false;
@@ -131,7 +157,7 @@ public class MassActivity extends Activity {
             String replyText = null, otherName = "", otherUser = "";
             TextView editing = null;
 
-            // الصوت
+            // ===== تسجيل الصوت =====
             MediaRecorder recorder = null;
             File audioFile = null;
             boolean isRecording = false;
@@ -151,7 +177,6 @@ public class MassActivity extends Activity {
             int[] covers = {0xFF1B2A4A, 0xFF3B2A4A, 0xFF0F5132, 0xFF7C2D12, 0xFF334155, 0xFFB8891A};
 
             ArrayList<String[]> chatData = new ArrayList<>();
-
             String userName = "", userUsername = "", userBio = "", userGov = "", userEmail = "", userJoin = "";
 
             int dp(float d) { return (int) (d * act.getResources().getDisplayMetrics().density + 0.5f); }
@@ -208,28 +233,20 @@ public class MassActivity extends Activity {
                         else if (k.equals("redo")) { x.setBackground(shape(0, 12, cRed())); if (T != null) T.setTextColor(cRed()); }
                         else if (k.equals("circ")) {
                             GradientDrawable g = new GradientDrawable();
-                            g.setShape(GradientDrawable.OVAL);
-                            g.setColor(cGold());
-                            x.setBackground(g);
+                            g.setShape(GradientDrawable.OVAL); g.setColor(cGold()); x.setBackground(g);
                         } else if (k.equals("circRed")) {
                             GradientDrawable g = new GradientDrawable();
-                            g.setShape(GradientDrawable.OVAL);
-                            g.setColor(cRed());
-                            x.setBackground(g);
+                            g.setShape(GradientDrawable.OVAL); g.setColor(cRed()); x.setBackground(g);
                         } else if (k.equals("ring")) {
                             GradientDrawable g = new GradientDrawable();
-                            g.setShape(GradientDrawable.OVAL);
-                            g.setColor(cSf());
-                            g.setStroke(dp(2.5f), cGold());
+                            g.setShape(GradientDrawable.OVAL); g.setColor(cSf()); g.setStroke(dp(2.5f), cGold());
                             x.setBackground(g);
                             if (T != null) T.setTextColor(cGold());
                         } else if (k.equals("bubMine")) {
-                            x.setBackground(shape(cMine(), radius, 0));
-                            x.setElevation(dp(1));
+                            x.setBackground(shape(cMine(), radius, 0)); x.setElevation(dp(1));
                             if (T != null) T.setTextColor(dark ? 0xFFFFFFFF : 0xFF17212B);
                         } else if (k.equals("bubOther")) {
-                            x.setBackground(shape(cOther(), radius, dark ? 0 : 0xFFE1E7EF));
-                            x.setElevation(dp(1));
+                            x.setBackground(shape(cOther(), radius, dark ? 0 : 0xFFE1E7EF)); x.setElevation(dp(1));
                             if (T != null) T.setTextColor(cText());
                         } else if (k.startsWith("ic:")) x.setBackground(shape(Color.parseColor(k.substring(3)), 12, 0));
                         else if (k.startsWith("cover:")) x.setBackgroundColor(Color.parseColor(k.substring(6)));
@@ -255,6 +272,7 @@ public class MassActivity extends Activity {
                     if (d != null) d.mutate().setColorFilter(T.getCurrentTextColor(), android.graphics.PorterDuff.Mode.SRC_IN);
                 }
             }
+            int icon(String name, int size) { return act.getResources().getIdentifier(name + "_" + size, "drawable", act.getPackageName()); }
             void setLabel(String id, String label, int iconRes) {
                 TextView T = tv(id);
                 T.setText(label);
@@ -262,7 +280,6 @@ public class MassActivity extends Activity {
                 T.setCompoundDrawablesRelativeWithIntrinsicBounds(iconRes, 0, 0, 0);
                 tintIcons(T);
             }
-            int icon(String name, int size) { return act.getResources().getIdentifier(name + "_" + size, "drawable", act.getPackageName()); }
             void setOn(View b, boolean on, String offTag) {
                 b.setBackgroundColor(Color.TRANSPARENT);
                 b.setTag(on ? "gold" : offTag);
@@ -280,8 +297,7 @@ public class MassActivity extends Activity {
             }
 
             void show(String p) {
-                prevPage = curPage;
-                curPage = p;
+                prevPage = curPage; curPage = p;
                 for (String page : pages) vis(page, page.equals(p));
                 boolean home = p.equals("homeView");
                 vis("mainHeader", home);
@@ -320,7 +336,6 @@ public class MassActivity extends Activity {
                     });
             }
             String safe(String s) { return s != null ? s : ""; }
-
             void fillProfile() {
                 String letter = userName.length() > 0 ? userName.substring(0, 1).toUpperCase() : "؟";
                 tv("pAvatarText").setText(letter);
@@ -352,8 +367,7 @@ public class MassActivity extends Activity {
                 if (n.length() == 0) { toast("اكتب اسم العرض"); return; }
                 if (u.length() < 5 || !u.matches("[A-Za-z0-9_]+")) {
                     tv("modalUserError").setText("اسم المستخدم 5 أحرف إنجليزية فأكثر");
-                    vis("modalUserError", true);
-                    return;
+                    vis("modalUserError", true); return;
                 }
                 db.collection("users").whereEqualTo("username", u).limit(1).get()
                     .addOnCompleteListener(task -> {
@@ -361,8 +375,7 @@ public class MassActivity extends Activity {
                             String takenBy = task.getResult().getDocuments().get(0).getId();
                             if (!takenBy.equals(myUid) && !u.equals(userUsername)) {
                                 tv("modalUserError").setText("اسم المستخدم محجوز");
-                                vis("modalUserError", true);
-                                return;
+                                vis("modalUserError", true); return;
                             }
                         }
                         Map<String, Object> updates = new HashMap<>();
@@ -394,8 +407,7 @@ public class MassActivity extends Activity {
 
             // ============ Firebase: chats ============
             void loadChats() {
-                if (chatsListener != null) chatsListener.remove();
-                chatsListener = db.collection("chats")
+                db.collection("chats")
                     .whereArrayContains("participants", myUid)
                     .addSnapshotListener((snapshots, e) -> {
                         if (e != null || snapshots == null) return;
@@ -430,8 +442,7 @@ public class MassActivity extends Activity {
                                     for (int i = 0; i < chatData.size(); i++) {
                                         if (chatData.get(i)[4].equals(fOtherId)) {
                                             chatData.set(i, new String[]{oName, lastMsg, lastTime, "0", fOtherId});
-                                            found = true;
-                                            break;
+                                            found = true; break;
                                         }
                                     }
                                     if (!found) chatData.add(new String[]{oName, lastMsg, lastTime, "0", fOtherId});
@@ -526,8 +537,9 @@ public class MassActivity extends Activity {
                             .setItems(new String[]{"تعليم كمقروءة", "حذف المحادثة"}, (d, w) -> {
                                 if (w == 1) {
                                     String cid = getChatId(myUid, fUid);
-                                    db.collection("chats").document(cid).delete();
-                                    rtdb.getReference("messages").child(cid).removeValue();
+                                    // حذف المحادثة كاملة (subcollection messages تُحذف يدوياً أو عبر Cloud Function)
+                                    deleteChatMessages(cid, () ->
+                                        db.collection("chats").document(cid).delete());
                                 }
                             }).show();
                         return true;
@@ -546,6 +558,16 @@ public class MassActivity extends Activity {
                 }
             }
 
+            // حذف كل الرسائل داخل subcollection (batch)
+            void deleteChatMessages(String chatId, Runnable onDone) {
+                db.collection("chats").document(chatId).collection("messages")
+                    .get().addOnSuccessListener(qs -> {
+                        com.google.firebase.firestore.WriteBatch batch = db.batch();
+                        for (QueryDocumentSnapshot d : qs) batch.delete(d.getReference());
+                        batch.commit().addOnCompleteListener(t -> { if (onDone != null) onDone.run(); });
+                    }).addOnFailureListener(e -> { if (onDone != null) onDone.run(); });
+            }
+
             void setFilter(boolean un) {
                 unreadOnly = un;
                 setOn(v("fltAll"), !un, "goldo");
@@ -557,6 +579,7 @@ public class MassActivity extends Activity {
                 return u1.compareTo(u2) < 0 ? u1 + "_" + u2 : u2 + "_" + u1;
             }
 
+            // ============ Firebase: فتح المحادثة ============
             void openChat(String name, String uid) {
                 otherUid = uid; otherName = name; curChat = name;
                 blocked = false; muted = false;
@@ -564,12 +587,12 @@ public class MassActivity extends Activity {
                 tv("chatAvatar").setText(name.length() > 0 ? name.substring(0, 1) : "?");
                 tv("chatSub").setText("متصل");
                 ((LinearLayout) v("messagesArea")).removeAllViews();
+                renderedMsgIds.clear();
                 cancelReply();
                 vis("chatSearchPanel", false);
                 vis("recordingBar", false);
 
-                if (currentChatRef != null && currentChatListener != null)
-                    currentChatRef.removeEventListener(currentChatListener);
+                if (messagesListener != null) messagesListener.remove();
 
                 currentChatId = getChatId(myUid, uid);
                 loadMessages(currentChatId);
@@ -577,47 +600,49 @@ public class MassActivity extends Activity {
             }
 
             void loadMessages(String chatId) {
-                currentChatRef = rtdb.getReference("messages").child(chatId);
-                currentChatListener = new ChildEventListener() {
-                    @Override
-                    public void onChildAdded(DataSnapshot snapshot, String prev) {
-                        String type = snapshot.child("type").getValue(String.class);
-                        if (type == null) type = "text";
-                        String text = snapshot.child("text").getValue(String.class);
-                        String url = snapshot.child("url").getValue(String.class);
-                        String sender = snapshot.child("sender").getValue(String.class);
-                        Long time = snapshot.child("timestamp").getValue(Long.class);
-                        Long dur = snapshot.child("duration").getValue(Long.class);
-                        if (text == null && url == null) return;
-                        boolean mine = myUid.equals(sender);
-                        String timeStr = new SimpleDateFormat("h:mm", Locale.getDefault())
-                                .format(new Date(time != null ? time : System.currentTimeMillis()));
+                messagesListener = db.collection("chats").document(chatId).collection("messages")
+                    .orderBy("timestamp", Query.Direction.ASCENDING)
+                    .addSnapshotListener((snapshots, e) -> {
+                        if (e != null || snapshots == null) return;
+                        for (DocumentChange dc : snapshots.getDocumentChanges()) {
+                            if (dc.getType() == DocumentChange.Type.ADDED) {
+                                DocumentSnapshot doc = dc.getDocument();
+                                if (!doc.exists()) continue;
+                                String id = doc.getId();
+                                if (renderedMsgIds.contains(id)) continue;
+                                renderedMsgIds.add(id);
 
-                        if (type.equals("image") && url != null) addImageMsg(url, mine, timeStr);
-                        else if (type.equals("audio") && url != null) addAudioMsg(url, dur != null ? dur : 0, mine, timeStr);
-                        else if (text != null) addMsg(text, mine, timeStr);
-                        scrollDown();
-                    }
-                    @Override public void onChildChanged(DataSnapshot s, String p) { }
-                    @Override public void onChildRemoved(DataSnapshot s) { }
-                    @Override public void onChildMoved(DataSnapshot s, String p) { }
-                    @Override public void onCancelled(DatabaseError e) { }
-                };
-                currentChatRef.addChildEventListener(currentChatListener);
+                                String type = doc.getString("type");
+                                if (type == null) type = "text";
+                                String text = doc.getString("text");
+                                String url = doc.getString("url");
+                                String sender = doc.getString("sender");
+                                Long time = doc.getLong("timestamp");
+                                Long dur = doc.getLong("duration");
+                                boolean mine = myUid.equals(sender);
+                                String timeStr = new SimpleDateFormat("h:mm", Locale.getDefault())
+                                        .format(new Date(time != null ? time : System.currentTimeMillis()));
+
+                                if (type.equals("image") && url != null) addImageMsg(url, mine, timeStr);
+                                else if (type.equals("audio") && url != null) addAudioMsg(url, dur != null ? dur : 0, mine, timeStr);
+                                else if (text != null) addMsg(text, mine, timeStr);
+                                scrollDown();
+                            }
+                        }
+                    });
             }
 
             void closeChat() {
                 hideKb();
                 vis("chatView", false);
-                if (currentChatRef != null && currentChatListener != null)
-                    currentChatRef.removeEventListener(currentChatListener);
-                currentChatRef = null; currentChatListener = null;
+                if (messagesListener != null) { messagesListener.remove(); messagesListener = null; }
                 currentChatId = ""; otherUid = "";
+                renderedMsgIds.clear();
                 if (mediaPlayer != null) { try { mediaPlayer.release(); } catch (Exception e) {} mediaPlayer = null; }
                 buildChats(); buildStories();
             }
 
-            // رسالة نصية
+            // ============ إضافة عناصر للعرض ============
             TextView addMsg(String text, final boolean mine, String time) {
                 final TextView b = new TextView(act);
                 b.setTag(mine ? "bubMine" : "bubOther");
@@ -644,7 +669,6 @@ public class MassActivity extends Activity {
                 b.setText(sb);
             }
 
-            // رسالة صورة
             void addImageMsg(String url, boolean mine, String time) {
                 FrameLayout frame = new FrameLayout(act);
                 int size = Math.min(dp(220), (int) (act.getResources().getDisplayMetrics().widthPixels * 0.68f));
@@ -668,13 +692,10 @@ public class MassActivity extends Activity {
                 frame.addView(img);
                 loadImageAsync(img, url);
                 TextView t = new TextView(act);
-                t.setText(time);
-                t.setTextSize(10);
-                t.setTextColor(0xFFFFFFFF);
+                t.setText(time); t.setTextSize(10); t.setTextColor(0xFFFFFFFF);
                 t.setPadding(dp(6), dp(2), dp(6), dp(2));
                 GradientDrawable tg = new GradientDrawable();
-                tg.setColor(0x99000000);
-                tg.setCornerRadius(dp(8));
+                tg.setColor(0x99000000); tg.setCornerRadius(dp(8));
                 t.setBackground(tg);
                 FrameLayout.LayoutParams tlp = new FrameLayout.LayoutParams(-2, -2);
                 tlp.gravity = Gravity.BOTTOM | Gravity.END;
@@ -688,7 +709,6 @@ public class MassActivity extends Activity {
                 ((LinearLayout) v("messagesArea")).addView(frame);
             }
 
-            // رسالة صوتية
             void addAudioMsg(String url, long durationMs, boolean mine, String time) {
                 LinearLayout box = new LinearLayout(act);
                 box.setOrientation(LinearLayout.HORIZONTAL);
@@ -706,7 +726,6 @@ public class MassActivity extends Activity {
                 play.setTextSize(18);
                 play.setGravity(Gravity.CENTER);
                 play.setLayoutParams(new LinearLayout.LayoutParams(dp(44), dp(44)));
-                play.setTag(mine ? "bubMine" : "bubOther");
 
                 LinearLayout center = new LinearLayout(act);
                 center.setOrientation(LinearLayout.VERTICAL);
@@ -716,13 +735,10 @@ public class MassActivity extends Activity {
                 TextView durTv = new TextView(act);
                 durTv.setText(formatDuration(durationMs));
                 durTv.setTextSize(fontSp);
-                durTv.setTag(mine ? "bubMine" : "bubOther");
                 durTv.setTextColor(mine ? (dark ? 0xFFFFFFFF : 0xFF17212B) : cText());
 
                 TextView timeTv = new TextView(act);
-                timeTv.setText(time);
-                timeTv.setTextSize(10);
-                timeTv.setTextColor(0xFF8696A7);
+                timeTv.setText(time); timeTv.setTextSize(10); timeTv.setTextColor(0xFF8696A7);
 
                 center.addView(durTv); center.addView(timeTv);
 
@@ -746,19 +762,14 @@ public class MassActivity extends Activity {
 
             void playAudio(String url, TextView btn) {
                 try {
-                    if (mediaPlayer != null) {
-                        mediaPlayer.release();
-                        mediaPlayer = null;
-                    }
+                    if (mediaPlayer != null) { mediaPlayer.release(); mediaPlayer = null; }
                     mediaPlayer = new MediaPlayer();
                     mediaPlayer.setAudioStreamType(android.media.AudioManager.STREAM_MUSIC);
                     mediaPlayer.setDataSource(url);
                     mediaPlayer.prepareAsync();
                     mediaPlayer.setOnPreparedListener(mp -> { mp.start(); btn.setText("⏸"); });
                     mediaPlayer.setOnCompletionListener(mp -> { btn.setText("▶"); });
-                } catch (Exception e) {
-                    toast("فشل تشغيل الصوت");
-                }
+                } catch (Exception e) { toast("فشل تشغيل الصوت"); }
             }
 
             void loadImageAsync(final ImageView img, final String url) {
@@ -766,8 +777,7 @@ public class MassActivity extends Activity {
                     try {
                         java.net.URL u = new java.net.URL(url);
                         java.net.HttpURLConnection conn = (java.net.HttpURLConnection) u.openConnection();
-                        conn.setDoInput(true);
-                        conn.connect();
+                        conn.setDoInput(true); conn.connect();
                         java.io.InputStream is = conn.getInputStream();
                         BitmapFactory.Options opts = new BitmapFactory.Options();
                         opts.inSampleSize = 2;
@@ -817,15 +827,12 @@ public class MassActivity extends Activity {
                 pm.show();
             }
 
-            void cancelReply() {
-                replyText = null; editing = null;
-                vis("replyPreviewBar", false);
-            }
+            void cancelReply() { replyText = null; editing = null; vis("replyPreviewBar", false); }
             void scrollDown() {
                 v("messagesScroll").post(() -> ((ScrollView) v("messagesScroll")).fullScroll(View.FOCUS_DOWN));
             }
 
-            // ============ إرسال النصوص والوسائط ============
+            // ============ إرسال النصوص ============
             void send() {
                 String t = txt("messageInput");
                 if (t.length() == 0) return;
@@ -841,38 +848,20 @@ public class MassActivity extends Activity {
                     return;
                 }
 
-                DatabaseReference ref = rtdb.getReference("messages").child(currentChatId).push();
                 Map<String, Object> msg = new HashMap<>();
                 msg.put("type", "text");
                 msg.put("text", fullText);
                 msg.put("sender", myUid);
                 msg.put("timestamp", System.currentTimeMillis());
-                ref.setValue(msg);
+                db.collection("chats").document(currentChatId).collection("messages")
+                    .add(msg);
 
-                Map<String, Object> chatDoc = new HashMap<>();
-                chatDoc.put("participants", Arrays.asList(myUid, otherUid));
-                chatDoc.put("lastMessage", fullText);
-                chatDoc.put("lastMessageAt", System.currentTimeMillis());
-                chatDoc.put("lastSender", myUid);
-                db.collection("chats").document(currentChatId).set(chatDoc);
-
+                updateChatMeta(fullText);
                 et("messageInput").setText("");
                 cancelReply();
             }
 
-            void sendMedia(String type, String url, long duration) {
-                if (currentChatId.isEmpty() || otherUid.isEmpty()) return;
-                DatabaseReference ref = rtdb.getReference("messages").child(currentChatId).push();
-                Map<String, Object> msg = new HashMap<>();
-                msg.put("type", type);
-                msg.put("url", url);
-                msg.put("duration", duration);
-                msg.put("sender", myUid);
-                msg.put("timestamp", System.currentTimeMillis());
-                ref.setValue(msg);
-
-                String preview = type.equals("image") ? "📷 صورة"
-                        : type.equals("audio") ? "🎤 رسالة صوتية" : "";
+            void updateChatMeta(String preview) {
                 Map<String, Object> chatDoc = new HashMap<>();
                 chatDoc.put("participants", Arrays.asList(myUid, otherUid));
                 chatDoc.put("lastMessage", preview);
@@ -881,7 +870,23 @@ public class MassActivity extends Activity {
                 db.collection("chats").document(currentChatId).set(chatDoc);
             }
 
-            // ============ اختيار صورة ورفعها ============
+            void sendMedia(String type, String url, long duration) {
+                if (currentChatId.isEmpty() || otherUid.isEmpty()) return;
+                Map<String, Object> msg = new HashMap<>();
+                msg.put("type", type);
+                msg.put("url", url);
+                msg.put("duration", duration);
+                msg.put("sender", myUid);
+                msg.put("timestamp", System.currentTimeMillis());
+                db.collection("chats").document(currentChatId).collection("messages")
+                    .add(msg);
+
+                String preview = type.equals("image") ? "📷 صورة"
+                        : type.equals("audio") ? "🎤 رسالة صوتية" : "";
+                updateChatMeta(preview);
+            }
+
+            // ============ اختيار ورفع الصور ============
             void pickImage() {
                 pendingImageCallback = uri -> uploadImage(uri);
                 Intent i = new Intent(Intent.ACTION_GET_CONTENT);
@@ -903,7 +908,7 @@ public class MassActivity extends Activity {
                     .addOnFailureListener(e -> toast("فشل الرفع: " + e.getMessage()));
             }
 
-            // ============ تسجيل الصوت وإرساله ============
+            // ============ تسجيل الصوت ============
             void toggleRecording() {
                 if (!isRecording) startRecord();
                 else stopRecordAndSend();
@@ -949,8 +954,7 @@ public class MassActivity extends Activity {
                     tintIcons(tv("btnMic"));
                 } catch (Exception e) {
                     toast("فشل بدء التسجيل: " + e.getMessage());
-                    recorder = null;
-                    isRecording = false;
+                    recorder = null; isRecording = false;
                 }
             }
 
@@ -997,6 +1001,7 @@ public class MassActivity extends Activity {
                     .addOnFailureListener(e -> toast("فشل الرفع: " + e.getMessage()));
             }
 
+            // ============ باقي الوظائف ============
             void chatMenu() {
                 PopupMenu pm = new PopupMenu(act, v("chatMore"));
                 pm.getMenu().add(0, 1, 0, muted ? "إلغاء كتم المحادثة" : "كتم المحادثة");
@@ -1006,8 +1011,11 @@ public class MassActivity extends Activity {
                     if (it.getItemId() == 1) { muted = !muted; toast(muted ? "تم كتم المحادثة" : "تم إلغاء الكتم"); }
                     else if (it.getItemId() == 2) { vis("chatSearchPanel", true); et("chatMessageSearchInput").requestFocus(); }
                     else {
-                        if (!currentChatId.isEmpty()) rtdb.getReference("messages").child(currentChatId).removeValue();
-                        ((LinearLayout) v("messagesArea")).removeAllViews();
+                        if (!currentChatId.isEmpty()) {
+                            deleteChatMessages(currentChatId, null);
+                            ((LinearLayout) v("messagesArea")).removeAllViews();
+                            renderedMsgIds.clear();
+                        }
                         toast("تم مسح المحادثة");
                     }
                     return true;
@@ -1018,8 +1026,7 @@ public class MassActivity extends Activity {
             void searchInChat(String q) {
                 LinearLayout a = (LinearLayout) v("messagesArea");
                 q = q.trim().toLowerCase();
-                int found = 0;
-                View first = null;
+                int found = 0; View first = null;
                 for (int i = 0; i < a.getChildCount(); i++) {
                     View c = a.getChildAt(i);
                     boolean hit = q.length() > 0 && String.valueOf(c.getContentDescription()).toLowerCase().contains(q);
@@ -1085,9 +1092,7 @@ public class MassActivity extends Activity {
                 for (int i = 0; i < themeNames.length; i++) {
                     final int idx = i;
                     TextView c = new TextView(act);
-                    c.setText(themeNames[i]);
-                    c.setTextSize(13);
-                    c.setGravity(Gravity.CENTER);
+                    c.setText(themeNames[i]); c.setTextSize(13); c.setGravity(Gravity.CENTER);
                     c.setPadding(dp(16), dp(8), dp(16), dp(8));
                     c.setTag(i == chatBgIdx ? "gold" : "goldo");
                     LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-2, -2);
@@ -1150,7 +1155,6 @@ public class MassActivity extends Activity {
                     }).setNegativeButton("إلغاء", null).show();
             }
 
-            // ============ معالج النقرات ============
             void click(String id) {
                 if (id.equals("hdrStories")) toast("القصص");
                 else if (id.equals("mainSearchBtn")) { et("searchInput").setText(""); show("searchView"); et("searchInput").requestFocus(); }
@@ -1166,7 +1170,6 @@ public class MassActivity extends Activity {
                         .setPositiveButton("إنشاء", (d, w) -> toast("إنشاء المجموعات قيد التطوير"))
                         .setNegativeButton("إلغاء", null).show();
                 }
-                // profile
                 else if (id.equals("pEdit") || id.equals("pBioRow")) openEdit();
                 else if (id.equals("pPhoto")) toast("اختيار صورة (يتطلب Firebase Storage)");
                 else if (id.equals("pCover")) {
@@ -1184,7 +1187,6 @@ public class MassActivity extends Activity {
                 }
                 else if (id.equals("editBack") || id.equals("btnCancelEdit")) show("profileView");
                 else if (id.equals("btnSaveProfile")) saveProfile();
-                // other profile (بدون نجوم وهدايا)
                 else if (id.equals("otherBack")) show(prevPage);
                 else if (id.equals("otherMsgBtn")) openChat(otherName, otherUid);
                 else if (id.equals("otherBlockBtn")) {
@@ -1206,7 +1208,6 @@ public class MassActivity extends Activity {
                     });
                     pm.show();
                 }
-                // settings
                 else if (id.equals("settingsThemeToggle")) {
                     dark = !dark;
                     sp.edit().putBoolean("dark", dark).apply();
@@ -1229,7 +1230,6 @@ public class MassActivity extends Activity {
                         currentUser.delete().addOnCompleteListener(t -> logout());
                     }
                 });
-                // privacy
                 else if (id.equals("itemChangePass")) {
                     if (currentUser != null && currentUser.getEmail() != null) {
                         mAuth.sendPasswordResetEmail(currentUser.getEmail())
@@ -1252,12 +1252,10 @@ public class MassActivity extends Activity {
                 else if (id.equals("itemAbout")) new AlertDialog.Builder(act).setTitle("حول Babylon Chat")
                     .setMessage("تطبيق المحادثات العربي\nمحادثات، مكالمات، قصص.")
                     .setPositiveButton("حسناً", null).show();
-                // notif
                 else if (id.equals("pushOnBtn")) { sp.edit().putBoolean("push", true).apply(); setOnOff("push", true); }
                 else if (id.equals("pushOffBtn")) { sp.edit().putBoolean("push", false).apply(); setOnOff("push", false); }
                 else if (id.equals("soundOnBtn")) { sp.edit().putBoolean("sound", true).apply(); setOnOff("sound", true); }
                 else if (id.equals("soundOffBtn")) { sp.edit().putBoolean("sound", false).apply(); setOnOff("sound", false); }
-                // chat
                 else if (id.equals("chatBack")) closeChat();
                 else if (id.equals("chatUserInfo")) { hideKb(); vis("chatView", false); openOther(curChat, otherUser, otherUid); }
                 else if (id.equals("chatMore")) chatMenu();
@@ -1276,7 +1274,6 @@ public class MassActivity extends Activity {
                 }
             }
 
-            // ============ التهيئة ============
             void init() {
                 v("root").setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
 
@@ -1371,7 +1368,6 @@ public class MassActivity extends Activity {
         UI ui = new UI();
         ui.init();
 
-        // ======= شريط حالة وتنقّل شفافان مع Insets =======
         Window w = getWindow();
         w.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS
                 | WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
