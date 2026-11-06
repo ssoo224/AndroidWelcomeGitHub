@@ -104,7 +104,7 @@ public class MassActivity extends Activity {
         myUid = currentUser.getUid();
 
         initializeLogic();
-        
+
         // جعل جميع الخطوط عريضة بعد تهيئة الواجهة
         makeAllTextBold(getWindow().getDecorView().getRootView());
     }
@@ -241,10 +241,9 @@ public class MassActivity extends Activity {
                             x.setElevation(dp(4));
                         }
                         else if (k.equals("icon_box_bg")) {
-                            x.setBackground(shape(0xFFFFF7E6, 12, 0)); // لون ذهبي فاتح جداً
+                            x.setBackground(shape(0xFFFFF7E6, 12, 0));
                         }
                         else if (k.equals("cover_gradient")) {
-                            // إنشاء تدرج لوني يطابق الصورة
                             GradientDrawable g = new GradientDrawable(
                                 GradientDrawable.Orientation.TL_BR,
                                 new int[]{0xFFD49A52, 0xFF5F738C, 0xFFE4E9F2}
@@ -317,9 +316,17 @@ public class MassActivity extends Activity {
 
             void applyTheme() {
                 style(v("root"));
-                v("pvBox").setBackgroundColor(cChatBg());
-                ((View) v("pCoverTxt").getParent()).setBackgroundColor(coverColor);
-                tv("themeDescription").setText(dark ? "الوضع الليلي مفعّل" : "الوضع النهاري مفعّل");
+                View pvBox = v("pvBox");
+                if (pvBox != null) pvBox.setBackgroundColor(cChatBg());
+                // ✅ تم إزالة استدعاء pCoverTxt (غير موجود في التصميم الجديد)
+                View coverView = v("frame_layout642");
+                if (coverView != null) {
+                    // نترك الغلاف المتدرج من XML، لا نغير لونه هنا
+                }
+                TextView themeDesc = tv("themeDescription");
+                if (themeDesc != null) {
+                    themeDesc.setText(dark ? "الوضع الليلي مفعّل" : "الوضع النهاري مفعّل");
+                }
                 setLabel("settingsThemeToggle", dark ? "نهاري" : "ليلي", icon(dark ? "ic_sun" : "ic_moon", 16));
                 buildThemeStrip();
                 setNav(curPage);
@@ -335,28 +342,35 @@ public class MassActivity extends Activity {
                 setNav(p);
                 hideKb();
             }
-            
+
             void setNav(String p) {
                 String[] ids = {"navChats", "navSettings", "navProfile"};
                 String a2 = p.equals("homeView") ? "navChats" : p.equals("settingsView") ? "navSettings" : p.equals("profileView") ? "navProfile" : "";
                 for (String id : ids) {
                     boolean on = id.equals(a2);
-                    tv(id + "Ic").setTag(on ? "g" : "m");
-                    tv(id + "Tx").setTag(on ? "g" : "m");
+                    TextView ic = tv(id + "Ic");
+                    TextView tx = tv(id + "Tx");
+                    if (ic != null) ic.setTag(on ? "g" : "m");
+                    if (tx != null) tx.setTag(on ? "g" : "m");
                     View vv = v(id);
-                    if (on) {
-                        // شكل الحبة الذهبية للعنصر النشط
-                        vv.setBackground(shape(0xFFFFF7E6, 24, 0));
-                        LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) vv.getLayoutParams();
-                        lp.setMargins(dp(8), dp(8), dp(8), dp(8));
-                        vv.setLayoutParams(lp);
-                    } else {
-                        vv.setBackgroundColor(Color.TRANSPARENT);
-                        LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) vv.getLayoutParams();
-                        lp.setMargins(0, 0, 0, 0);
-                        vv.setLayoutParams(lp);
+                    if (vv != null) {
+                        if (on) {
+                            vv.setBackground(shape(0xFFFFF7E6, 24, 0));
+                            LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) vv.getLayoutParams();
+                            if (lp != null) {
+                                lp.setMargins(dp(8), dp(8), dp(8), dp(8));
+                                vv.setLayoutParams(lp);
+                            }
+                        } else {
+                            vv.setBackgroundColor(Color.TRANSPARENT);
+                            LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) vv.getLayoutParams();
+                            if (lp != null) {
+                                lp.setMargins(0, 0, 0, 0);
+                                vv.setLayoutParams(lp);
+                            }
+                        }
+                        style(vv);
                     }
-                    style(v(id));
                 }
             }
 
@@ -371,45 +385,58 @@ public class MassActivity extends Activity {
                             userEmail = safe(doc.getString("email"));
                             userPhoto = safe(doc.getString("photo"));
                             Long createdAt = doc.getLong("createdAt");
-                            
+
                             if (userName.isEmpty()) userName = "Mohammed";
                             if (userUsername.isEmpty()) userUsername = "mohamed";
                             if (userBio.isEmpty()) userBio = "الشارع مالتي منو كال ملك عام";
                             if (userGov.isEmpty()) userGov = "المثنى";
                             if (userEmail.isEmpty()) userEmail = "hamodeygame45@gmail.com";
                             if (createdAt == null) createdAt = System.currentTimeMillis();
-                            
+
                             userJoin = new SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(new Date(createdAt));
                             fillProfile();
                         }
                     });
             }
             String safe(String s) { return s != null ? s : ""; }
-            
+
             void fillProfile() {
                 String letter = userName.length() > 0 ? userName.substring(0, 1).toUpperCase() : "؟";
-                tv("pAvatarText").setText(letter);
-                tv("sxAvatar").setText(letter);
-                tv("pHeaderName").setText(userName);
-                tv("sxName").setText(userName);
-                tv("pHeaderUser").setText(userUsername.length() > 0 ? "@" + userUsername : "");
-                tv("sxUser").setText(userUsername.length() > 0 ? "@" + userUsername : "");
-                tv("pBioDisplay").setText(userBio.length() > 0 ? userBio : "أضف نبذة عن نفسك");
-                tv("sxBio").setText(userBio.length() > 0 ? userBio : "أضف نبذة عن نفسك");
-                tv("pGovDisplay").setText(userGov);
-                tv("pEmailDisplay").setText(userEmail);
-                tv("pJoinDisplay").setText(userJoin);
-                
-                // تنسيق تاريخ الانضمام ليطابق الصورة (اختياري)
-                try {
-                    Date date = new SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).parse(userJoin);
-                    String formattedDate = new SimpleDateFormat("MMMM yyyy", new Locale("ar")).format(date);
-                    tv("pJoinDisplay").setText(formattedDate);
-                } catch (Exception ignored) {}
-                
+                TextView pAv = tv("pAvatarText");
+                if (pAv != null) pAv.setText(letter);
+                TextView sxAv = tv("sxAvatar");
+                if (sxAv != null) sxAv.setText(letter);
+                // ✅ إزالة علامة "✓" النصية لأنها أصبحت أيقونة منفصلة
+                TextView pName = tv("pHeaderName");
+                if (pName != null) pName.setText(userName);
+                TextView sxName = tv("sxName");
+                if (sxName != null) sxName.setText(userName);
+                TextView pUser = tv("pHeaderUser");
+                if (pUser != null) pUser.setText(userUsername.length() > 0 ? "@" + userUsername : "");
+                TextView sxUser = tv("sxUser");
+                if (sxUser != null) sxUser.setText(userUsername.length() > 0 ? "@" + userUsername : "");
+                TextView pBio = tv("pBioDisplay");
+                if (pBio != null) pBio.setText(userBio.length() > 0 ? userBio : "أضف نبذة عن نفسك");
+                TextView sxBio = tv("sxBio");
+                if (sxBio != null) sxBio.setText(userBio.length() > 0 ? userBio : "أضف نبذة عن نفسك");
+                TextView pGov = tv("pGovDisplay");
+                if (pGov != null) pGov.setText(userGov);
+                TextView pEmail = tv("pEmailDisplay");
+                if (pEmail != null) pEmail.setText(userEmail);
+                TextView pJoin = tv("pJoinDisplay");
+                if (pJoin != null) {
+                    try {
+                        Date date = new SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).parse(userJoin);
+                        String formattedDate = new SimpleDateFormat("MMMM yyyy", new Locale("ar")).format(date);
+                        pJoin.setText(formattedDate);
+                    } catch (Exception ignored) {
+                        pJoin.setText(userJoin);
+                    }
+                }
+
                 applyProfilePhoto();
             }
-            
+
             void openEdit() {
                 et("modalNameInput").setText(userName);
                 et("modalUsernameInput").setText(userUsername);
@@ -419,7 +446,7 @@ public class MassActivity extends Activity {
                 vis("modalUserError", false);
                 show("editProfileView");
             }
-            
+
             void saveProfile() {
                 String n = txt("modalNameInput");
                 String u = txt("modalUsernameInput").replace("@", "");
@@ -456,10 +483,14 @@ public class MassActivity extends Activity {
             void openOther(String name, String username, String uid) {
                 otherName = name; otherUser = username; otherUid = uid;
                 blocked = false;
-                tv("otherAvatarText").setText(name.length() > 0 ? name.substring(0, 1) : "?");
-                tv("otherHeaderName").setText(name);
-                tv("otherHeaderUser").setText("@" + username);
-                tv("otherBioDisplay").setText("");
+                TextView oAv = tv("otherAvatarText");
+                if (oAv != null) oAv.setText(name.length() > 0 ? name.substring(0, 1) : "?");
+                TextView oName = tv("otherHeaderName");
+                if (oName != null) oName.setText(name);
+                TextView oUser = tv("otherHeaderUser");
+                if (oUser != null) oUser.setText("@" + username);
+                TextView oBio = tv("otherBioDisplay");
+                if (oBio != null) oBio.setText("");
                 setLabel("otherBlockBtn", "حظر", icon("ic_block", 16));
                 String back = curPage;
                 show("otherUserProfileView");
@@ -515,6 +546,7 @@ public class MassActivity extends Activity {
 
             void buildStories() {
                 LinearLayout bar = (LinearLayout) v("storiesBar");
+                if (bar == null) return;
                 bar.removeAllViews();
                 for (int i = 0; i <= chatData.size() && i < 8; i++) {
                     final String nm = i == 0 ? "قصتي" : chatData.get(i - 1)[0];
@@ -544,10 +576,14 @@ public class MassActivity extends Activity {
 
             void buildChats() {
                 LinearLayout list = (LinearLayout) v("chatList");
+                if (list == null) return;
                 list.removeAllViews();
                 int unreadChats = 0;
                 for (String[] c : chatData) if (!c[3].equals("0")) unreadChats++;
-                tv("fltUnread").setText("غير المقروءة" + (unreadChats > 0 ? " (" + unreadChats + ")" : ""));
+                TextView fltUnread = tv("fltUnread");
+                if (fltUnread != null) {
+                    fltUnread.setText("غير المقروءة" + (unreadChats > 0 ? " (" + unreadChats + ")" : ""));
+                }
                 for (String[] c : chatData) {
                     if (unreadOnly && c[3].equals("0")) continue;
                     LinearLayout row = new LinearLayout(act);
@@ -642,10 +678,14 @@ public class MassActivity extends Activity {
             void openChat(String name, String uid) {
                 otherUid = uid; otherName = name; curChat = name;
                 blocked = false; muted = false;
-                tv("chatTitle").setText(name);
-                tv("chatAvatar").setText(name.length() > 0 ? name.substring(0, 1) : "?");
-                tv("chatSub").setText("متصل");
-                ((LinearLayout) v("messagesArea")).removeAllViews();
+                TextView chatTitle = tv("chatTitle");
+                if (chatTitle != null) chatTitle.setText(name);
+                TextView chatAv = tv("chatAvatar");
+                if (chatAv != null) chatAv.setText(name.length() > 0 ? name.substring(0, 1) : "?");
+                TextView chatSub = tv("chatSub");
+                if (chatSub != null) chatSub.setText("متصل");
+                LinearLayout msgArea = (LinearLayout) v("messagesArea");
+                if (msgArea != null) msgArea.removeAllViews();
                 renderedMsgIds.clear();
                 cancelReply();
                 vis("chatSearchPanel", false);
@@ -715,11 +755,12 @@ public class MassActivity extends Activity {
                 b.setLayoutParams(lp);
                 setMsg(b, text, mine, time);
                 b.setOnLongClickListener(x -> { msgMenu(b, mine); return true; });
-                ((LinearLayout) v("messagesArea")).addView(b);
+                LinearLayout msgArea = (LinearLayout) v("messagesArea");
+                if (msgArea != null) msgArea.addView(b);
                 style(b);
                 return b;
             }
-            
+
             void setMsg(TextView b, String text, boolean mine, String time) {
                 b.setContentDescription(text);
                 SpannableStringBuilder sb = new SpannableStringBuilder(text);
@@ -768,7 +809,8 @@ public class MassActivity extends Activity {
                     Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
                     try { act.startActivity(i); } catch (Exception e) { toast("لا يمكن فتح الصورة"); }
                 });
-                ((LinearLayout) v("messagesArea")).addView(frame);
+                LinearLayout msgArea = (LinearLayout) v("messagesArea");
+                if (msgArea != null) msgArea.addView(frame);
             }
 
             void addAudioMsg(String url, long durationMs, boolean mine, String time) {
@@ -815,7 +857,8 @@ public class MassActivity extends Activity {
                 play.setOnClickListener(v -> playAudio(url, play));
                 box.setOnClickListener(v -> playAudio(url, play));
 
-                ((LinearLayout) v("messagesArea")).addView(box);
+                LinearLayout msgArea = (LinearLayout) v("messagesArea");
+                if (msgArea != null) msgArea.addView(box);
                 style(box);
             }
 
@@ -900,7 +943,8 @@ public class MassActivity extends Activity {
                             et("messageInput").requestFocus();
                             break;
                         case 4:
-                            ((LinearLayout) v("messagesArea")).removeView(b);
+                            LinearLayout msgArea = (LinearLayout) v("messagesArea");
+                            if (msgArea != null) msgArea.removeView(b);
                             break;
                     }
                     return true;
@@ -910,7 +954,10 @@ public class MassActivity extends Activity {
 
             void cancelReply() { replyText = null; editing = null; vis("replyPreviewBar", false); }
             void scrollDown() {
-                v("messagesScroll").post(() -> ((ScrollView) v("messagesScroll")).fullScroll(View.FOCUS_DOWN));
+                View ms = v("messagesScroll");
+                if (ms != null) {
+                    ms.post(() -> ((ScrollView) v("messagesScroll")).fullScroll(View.FOCUS_DOWN));
+                }
             }
 
             void send() {
@@ -1212,6 +1259,7 @@ public class MassActivity extends Activity {
 
             void searchInChat(String q) {
                 LinearLayout a = (LinearLayout) v("messagesArea");
+                if (a == null) return;
                 q = q.trim().toLowerCase();
                 int found = 0; View first = null;
                 for (int i = 0; i < a.getChildCount(); i++) {
@@ -1227,6 +1275,7 @@ public class MassActivity extends Activity {
             void searchUsers(String q) {
                 String cleanQ = q.replace("@", "").trim().toLowerCase();
                 LinearLayout res = (LinearLayout) v("searchResults");
+                if (res == null) return;
                 res.removeAllViews();
                 if (cleanQ.length() < 3) { tv("searchHint").setText("اكتب 3 أحرف على الأقل"); return; }
                 db.collection("users").orderBy("username").startAt(cleanQ).endAt(cleanQ + "\uf8ff")
@@ -1276,6 +1325,7 @@ public class MassActivity extends Activity {
 
             void buildThemeStrip() {
                 LinearLayout s = (LinearLayout) v("themeStrip");
+                if (s == null) return;
                 s.removeAllViews();
                 for (int i = 0; i < themeNames.length; i++) {
                     final int idx = i;
@@ -1301,9 +1351,11 @@ public class MassActivity extends Activity {
                 tv("pvOther").setTextSize(fontSp);
                 tv("pvMine").setTextSize(fontSp);
                 LinearLayout a = (LinearLayout) v("messagesArea");
-                for (int i = 0; i < a.getChildCount(); i++) {
-                    View c = a.getChildAt(i);
-                    if (c instanceof TextView) ((TextView) c).setTextSize(fontSp);
+                if (a != null) {
+                    for (int i = 0; i < a.getChildCount(); i++) {
+                        View c = a.getChildAt(i);
+                        if (c instanceof TextView) ((TextView) c).setTextSize(fontSp);
+                    }
                 }
                 style(v("pvBox"));
                 style(a);
@@ -1366,7 +1418,8 @@ public class MassActivity extends Activity {
                         .setItems(new String[]{"كحلي", "بنفسجي", "أخضر", "برتقالي", "رمادي", "ذهبي"}, (d, w) -> {
                             coverColor = covers[w];
                             sp.edit().putInt("cover", coverColor).apply();
-                            ((View) v("pCoverTxt").getParent()).setBackgroundColor(coverColor);
+                            View coverView = v("frame_layout642");
+                            if (coverView != null) coverView.setBackgroundColor(coverColor);
                         }).show();
                 }
                 else if (id.equals("pUserRow")) {
@@ -1479,15 +1532,17 @@ public class MassActivity extends Activity {
                 }
 
                 Spinner sg = (Spinner) v("modalGovInput");
-                sg.setAdapter(new ArrayAdapter<String>(act, android.R.layout.simple_spinner_dropdown_item, govs) {
-                    @Override
-                    public View getView(int pos, View cv, ViewGroup parent) {
-                        TextView t = (TextView) super.getView(pos, cv, parent);
-                        t.setTextColor(cText());
-                        t.setTypeface(null, android.graphics.Typeface.BOLD);
-                        return t;
-                    }
-                });
+                if (sg != null) {
+                    sg.setAdapter(new ArrayAdapter<String>(act, android.R.layout.simple_spinner_dropdown_item, govs) {
+                        @Override
+                        public View getView(int pos, View cv, ViewGroup parent) {
+                            TextView t = (TextView) super.getView(pos, cv, parent);
+                            t.setTextColor(cText());
+                            t.setTypeface(null, android.graphics.Typeface.BOLD);
+                            return t;
+                        }
+                    });
+                }
 
                 View.OnClickListener L = x -> click(act.getResources().getResourceEntryName(x.getId()));
                 String[] ids = {"hdrStories", "mainSearchBtn", "searchBack", "fltAll", "fltUnread",
@@ -1517,30 +1572,34 @@ public class MassActivity extends Activity {
                 });
 
                 SeekBar fr = (SeekBar) v("fontRange"), rr = (SeekBar) v("radiusRange");
-                fr.setProgress(fontSp - 12);
-                rr.setProgress(radius);
-                tv("fontVal").setText("" + fontSp);
-                tv("radiusVal").setText("" + radius);
-                fr.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-                    public void onProgressChanged(SeekBar s, int p, boolean u) {
-                        fontSp = 12 + p;
-                        tv("fontVal").setText("" + fontSp);
-                        sp.edit().putInt("font", fontSp).apply();
-                        applyBubbles();
-                    }
-                    public void onStartTrackingTouch(SeekBar s) { }
-                    public void onStopTrackingTouch(SeekBar s) { }
-                });
-                rr.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-                    public void onProgressChanged(SeekBar s, int p, boolean u) {
-                        radius = p;
-                        tv("radiusVal").setText("" + p);
-                        sp.edit().putInt("radius", p).apply();
-                        applyBubbles();
-                    }
-                    public void onStartTrackingTouch(SeekBar s) { }
-                    public void onStopTrackingTouch(SeekBar s) { }
-                });
+                if (fr != null) {
+                    fr.setProgress(fontSp - 12);
+                    fr.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                        public void onProgressChanged(SeekBar s, int p, boolean u) {
+                            fontSp = 12 + p;
+                            tv("fontVal").setText("" + fontSp);
+                            sp.edit().putInt("font", fontSp).apply();
+                            applyBubbles();
+                        }
+                        public void onStartTrackingTouch(SeekBar s) { }
+                        public void onStopTrackingTouch(SeekBar s) { }
+                    });
+                }
+                if (rr != null) {
+                    rr.setProgress(radius);
+                    rr.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                        public void onProgressChanged(SeekBar s, int p, boolean u) {
+                            radius = p;
+                            tv("radiusVal").setText("" + p);
+                            sp.edit().putInt("radius", p).apply();
+                            applyBubbles();
+                        }
+                        public void onStartTrackingTouch(SeekBar s) { }
+                        public void onStopTrackingTouch(SeekBar s) { }
+                    });
+                }
+                if (fr != null) tv("fontVal").setText("" + fontSp);
+                if (rr != null) tv("radiusVal").setText("" + radius);
 
                 setSeg("segLastSeen", sp.getBoolean("hideLast", false));
                 setSeg("segAvatar", sp.getBoolean("hideAv", false));
