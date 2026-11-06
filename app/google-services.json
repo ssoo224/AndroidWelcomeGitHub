@@ -9,7 +9,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:1022301130899:android:f384a37f10cb49efb6bd66",
         "android_client_info": {
-          "package_name": "com.babylon.chat"
+          "package_name": "com.babylon.chat.iq"
         }
       },
       "oauth_client": [],
