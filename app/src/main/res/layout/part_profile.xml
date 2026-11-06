@@ -1,0 +1,868 @@
+<FrameLayout
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	xmlns:app="http://schemas.android.com/apk/res-auto"
+	xmlns:tools="http://schemas.android.com/tools"
+	android:id="@+id/partProfile"
+	android:layout_width="match_parent"
+	android:layout_height="match_parent"
+	android:layoutDirection="rtl">
+	<ScrollView
+		android:id="@+id/profileView"
+		android:layout_width="match_parent"
+		android:layout_height="match_parent"
+		android:visibility="gone"
+		android:tag="bg">
+		<LinearLayout
+			android:id="@+id/linear641"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:paddingBottom="24dp"
+			android:orientation="vertical">
+			<FrameLayout
+				android:id="@+id/frame_layout642"
+				android:layout_width="match_parent"
+				android:layout_height="130dp"
+				android:tag="cover:#1B2A4A">
+				<TextView
+					android:id="@+id/pCoverTxt"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:text="✦ ✧ ✦ ✧ ✦"
+					android:textSize="28sp"
+					android:textColor="#FFFFFF"
+					android:layout_gravity="center_horizontal|center_vertical" />
+			</FrameLayout>
+			<LinearLayout
+				android:id="@+id/linear643"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:gravity="center_horizontal"
+				android:orientation="vertical"
+				android:layout_marginTop="-44dp">
+				<TextView
+					android:id="@+id/pAvatarText"
+					android:layout_width="88dp"
+					android:layout_height="88dp"
+					android:gravity="center_horizontal|center_vertical"
+					android:textSize="34sp"
+					android:textStyle="bold"
+					android:textColor="#17212B"
+					android:tag="circ" />
+				<TextView
+					android:id="@+id/pHeaderName"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:layout_marginTop="8dp"
+					android:textSize="20sp"
+					android:textStyle="bold"
+					android:tag="t" />
+				<TextView
+					android:id="@+id/pHeaderStatus"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:layout_marginTop="2dp"
+					android:textSize="12sp"
+					android:tag="green" />
+				<LinearLayout
+					android:id="@+id/linear644"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:layout_marginTop="12dp"
+					android:orientation="horizontal">
+					<TextView
+						android:id="@+id/pEdit"
+						android:layout_width="wrap_content"
+						android:layout_height="38dp"
+						android:gravity="center_horizontal|center_vertical"
+						android:text="✎  تعديل"
+						android:textSize="13sp"
+						android:paddingStart="16dp"
+						android:paddingEnd="16dp"
+						android:layout_marginStart="4dp"
+						android:layout_marginEnd="4dp"
+						android:tag="goldo" />
+					<TextView
+						android:id="@+id/pPhoto"
+						android:layout_width="wrap_content"
+						android:layout_height="38dp"
+						android:gravity="center_horizontal|center_vertical"
+						android:text="📷  الصورة"
+						android:textSize="13sp"
+						android:paddingStart="16dp"
+						android:paddingEnd="16dp"
+						android:layout_marginStart="4dp"
+						android:layout_marginEnd="4dp"
+						android:tag="goldo" />
+					<TextView
+						android:id="@+id/pCover"
+						android:layout_width="wrap_content"
+						android:layout_height="38dp"
+						android:gravity="center_horizontal|center_vertical"
+						android:text="🎨  الغلاف"
+						android:textSize="13sp"
+						android:paddingStart="16dp"
+						android:paddingEnd="16dp"
+						android:layout_marginStart="4dp"
+						android:layout_marginEnd="4dp"
+						android:tag="goldo" />
+				</LinearLayout>
+			</LinearLayout>
+			<LinearLayout
+				android:id="@+id/linear645"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="14dp"
+				android:orientation="vertical"
+				android:tag="card"
+				android:layout_marginStart="12dp"
+				android:layout_marginEnd="12dp">
+				<LinearLayout
+					android:id="@+id/pBioRow"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:padding="12dp"
+					android:gravity="center_vertical"
+					android:orientation="horizontal">
+					<TextView
+						android:id="@+id/textview648"
+						android:layout_width="32dp"
+						android:layout_height="wrap_content"
+						android:text="≡"
+						android:textSize="18sp"
+						android:tag="g" />
+					<LinearLayout
+						android:id="@+id/linear646"
+						android:layout_width="0dp"
+						android:layout_height="wrap_content"
+						android:orientation="vertical"
+						android:layout_weight="1">
+						<TextView
+							android:id="@+id/pBioDisplay"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="أضف نبذة عن نفسك"
+							android:textSize="15sp"
+							android:tag="t" />
+						<TextView
+							android:id="@+id/textview649"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="النبذة التعريفية"
+							android:textSize="11.5sp"
+							android:tag="m" />
+					</LinearLayout>
+				</LinearLayout>
+				<View
+					android:id="@+id/view647"
+					android:layout_width="match_parent"
+					android:layout_height="1dp"
+					android:tag="line" />
+				<LinearLayout
+					android:id="@+id/pUserRow"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:padding="12dp"
+					android:gravity="center_vertical"
+					android:orientation="horizontal">
+					<TextView
+						android:id="@+id/textview650"
+						android:layout_width="32dp"
+						android:layout_height="wrap_content"
+						android:text="@"
+						android:textSize="18sp"
+						android:tag="g" />
+					<LinearLayout
+						android:id="@+id/linear648"
+						android:layout_width="0dp"
+						android:layout_height="wrap_content"
+						android:orientation="vertical"
+						android:layout_weight="1">
+						<TextView
+							android:id="@+id/pHeaderUser"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:textSize="15sp"
+							android:tag="t" />
+						<TextView
+							android:id="@+id/textview651"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="اسم المستخدم (اضغط للنسخ)"
+							android:textSize="11.5sp"
+							android:tag="m" />
+					</LinearLayout>
+				</LinearLayout>
+				<View
+					android:id="@+id/view649"
+					android:layout_width="match_parent"
+					android:layout_height="1dp"
+					android:tag="line" />
+				<LinearLayout
+					android:id="@+id/pGovRow"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:padding="12dp"
+					android:gravity="center_vertical"
+					android:orientation="horizontal">
+					<TextView
+						android:id="@+id/textview652"
+						android:layout_width="32dp"
+						android:layout_height="wrap_content"
+						android:text="📍"
+						android:textSize="18sp"
+						android:tag="g" />
+					<LinearLayout
+						android:id="@+id/linear650"
+						android:layout_width="0dp"
+						android:layout_height="wrap_content"
+						android:orientation="vertical"
+						android:layout_weight="1">
+						<TextView
+							android:id="@+id/pGovDisplay"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:textSize="15sp"
+							android:tag="t" />
+						<TextView
+							android:id="@+id/textview653"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="المحافظة"
+							android:textSize="11.5sp"
+							android:tag="m" />
+					</LinearLayout>
+				</LinearLayout>
+				<View
+					android:id="@+id/view651"
+					android:layout_width="match_parent"
+					android:layout_height="1dp"
+					android:tag="line" />
+				<LinearLayout
+					android:id="@+id/pJoinRow"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:padding="12dp"
+					android:gravity="center_vertical"
+					android:orientation="horizontal">
+					<TextView
+						android:id="@+id/textview654"
+						android:layout_width="32dp"
+						android:layout_height="wrap_content"
+						android:text="📅"
+						android:textSize="18sp"
+						android:tag="g" />
+					<LinearLayout
+						android:id="@+id/linear652"
+						android:layout_width="0dp"
+						android:layout_height="wrap_content"
+						android:orientation="vertical"
+						android:layout_weight="1">
+						<TextView
+							android:id="@+id/pJoinDisplay"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:textSize="15sp"
+							android:tag="t" />
+						<TextView
+							android:id="@+id/textview655"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="تاريخ الانضمام"
+							android:textSize="11.5sp"
+							android:tag="m" />
+					</LinearLayout>
+				</LinearLayout>
+				<View
+					android:id="@+id/view653"
+					android:layout_width="match_parent"
+					android:layout_height="1dp"
+					android:tag="line" />
+				<LinearLayout
+					android:id="@+id/pEmailRow"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:padding="12dp"
+					android:gravity="center_vertical"
+					android:orientation="horizontal">
+					<TextView
+						android:id="@+id/textview656"
+						android:layout_width="32dp"
+						android:layout_height="wrap_content"
+						android:text="✉"
+						android:textSize="18sp"
+						android:tag="g" />
+					<LinearLayout
+						android:id="@+id/linear654"
+						android:layout_width="0dp"
+						android:layout_height="wrap_content"
+						android:orientation="vertical"
+						android:layout_weight="1">
+						<TextView
+							android:id="@+id/pEmailDisplay"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:textSize="15sp"
+							android:tag="t" />
+						<TextView
+							android:id="@+id/textview657"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="البريد الإلكتروني (ظاهر لك فقط)"
+							android:textSize="11.5sp"
+							android:tag="m" />
+					</LinearLayout>
+				</LinearLayout>
+			</LinearLayout>
+			<LinearLayout
+				android:id="@+id/linear655"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="14dp"
+				android:orientation="horizontal"
+				android:layout_marginStart="12dp"
+				android:layout_marginEnd="12dp">
+				<TextView
+					android:id="@+id/pTabStoriesBtn"
+					android:layout_width="0dp"
+					android:layout_height="42dp"
+					android:gravity="center_horizontal|center_vertical"
+					android:text="🕘  قصصي"
+					android:textSize="14sp"
+					android:textStyle="bold"
+					android:layout_weight="1"
+					android:tag="gold" />
+				<TextView
+					android:id="@+id/pTabGiftsBtn"
+					android:layout_width="0dp"
+					android:layout_height="42dp"
+					android:gravity="center_horizontal|center_vertical"
+					android:text="🎁  الهدايا"
+					android:textSize="14sp"
+					android:textStyle="bold"
+					android:layout_weight="1"
+					android:tag="m" />
+			</LinearLayout>
+			<LinearLayout
+				android:id="@+id/pTabStories"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:padding="12dp"
+				android:orientation="vertical">
+				<LinearLayout
+					android:id="@+id/myStoriesGrid"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:orientation="horizontal" />
+				<TextView
+					android:id="@+id/myStoriesEmpty"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:layout_marginTop="8dp"
+					android:text="ما عندك قصص. اضغط على صورتك حتى تنشر."
+					android:textSize="13sp"
+					android:tag="m" />
+			</LinearLayout>
+			<LinearLayout
+				android:id="@+id/pTabGifts"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:padding="12dp"
+				android:orientation="vertical"
+				android:visibility="gone">
+				<LinearLayout
+					android:id="@+id/myGiftsGrid"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:orientation="horizontal" />
+				<TextView
+					android:id="@+id/myGiftsEmpty"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:layout_marginTop="8dp"
+					android:text="ما عندك هدايا للحين 🎁"
+					android:textSize="13sp"
+					android:tag="m" />
+			</LinearLayout>
+		</LinearLayout>
+	</ScrollView>
+	<ScrollView
+		android:id="@+id/otherUserProfileView"
+		android:layout_width="match_parent"
+		android:layout_height="match_parent"
+		android:visibility="gone"
+		android:tag="bg">
+		<LinearLayout
+			android:id="@+id/linear656"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:paddingBottom="24dp"
+			android:orientation="vertical">
+			<FrameLayout
+				android:id="@+id/frame_layout657"
+				android:layout_width="match_parent"
+				android:layout_height="130dp"
+				android:tag="cover:#3B2A4A">
+				<TextView
+					android:id="@+id/otherBack"
+					android:layout_width="52dp"
+					android:layout_height="52dp"
+					android:gravity="center_horizontal|center_vertical"
+					android:text="→"
+					android:textSize="24sp"
+					android:textColor="#FFFFFF"
+					android:tag="wh" />
+				<TextView
+					android:id="@+id/otherMoreBtn"
+					android:layout_width="52dp"
+					android:layout_height="52dp"
+					android:gravity="center_horizontal|center_vertical"
+					android:text="⋮"
+					android:textSize="24sp"
+					android:textColor="#FFFFFF"
+					android:layout_gravity="end"
+					android:tag="wh" />
+			</FrameLayout>
+			<LinearLayout
+				android:id="@+id/linear658"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:gravity="center_horizontal"
+				android:orientation="vertical"
+				android:layout_marginTop="-44dp">
+				<TextView
+					android:id="@+id/otherAvatarText"
+					android:layout_width="88dp"
+					android:layout_height="88dp"
+					android:gravity="center_horizontal|center_vertical"
+					android:textSize="34sp"
+					android:textStyle="bold"
+					android:textColor="#17212B"
+					android:tag="circ" />
+				<TextView
+					android:id="@+id/otherHeaderName"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:layout_marginTop="8dp"
+					android:textSize="20sp"
+					android:textStyle="bold"
+					android:tag="t" />
+				<TextView
+					android:id="@+id/otherHeaderStatus"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:layout_marginTop="2dp"
+					android:textSize="12sp"
+					android:tag="m" />
+				<LinearLayout
+					android:id="@+id/linear659"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:layout_marginTop="12dp"
+					android:orientation="horizontal">
+					<TextView
+						android:id="@+id/otherMsgBtn"
+						android:layout_width="wrap_content"
+						android:layout_height="38dp"
+						android:gravity="center_horizontal|center_vertical"
+						android:text="💬  رسالة"
+						android:textSize="13sp"
+						android:paddingStart="18dp"
+						android:paddingEnd="18dp"
+						android:layout_marginStart="4dp"
+						android:layout_marginEnd="4dp"
+						android:tag="gold" />
+					<TextView
+						android:id="@+id/otherStarsBtn"
+						android:layout_width="wrap_content"
+						android:layout_height="38dp"
+						android:gravity="center_horizontal|center_vertical"
+						android:text="⭐  نجوم"
+						android:textSize="13sp"
+						android:paddingStart="14dp"
+						android:paddingEnd="14dp"
+						android:layout_marginStart="4dp"
+						android:layout_marginEnd="4dp"
+						android:tag="goldo" />
+					<TextView
+						android:id="@+id/otherGiftBtn"
+						android:layout_width="wrap_content"
+						android:layout_height="38dp"
+						android:gravity="center_horizontal|center_vertical"
+						android:text="🎁  هدية"
+						android:textSize="13sp"
+						android:paddingStart="14dp"
+						android:paddingEnd="14dp"
+						android:layout_marginStart="4dp"
+						android:layout_marginEnd="4dp"
+						android:tag="goldo" />
+					<TextView
+						android:id="@+id/otherBlockBtn"
+						android:layout_width="wrap_content"
+						android:layout_height="38dp"
+						android:gravity="center_horizontal|center_vertical"
+						android:text="⛔  حظر"
+						android:textSize="13sp"
+						android:paddingStart="14dp"
+						android:paddingEnd="14dp"
+						android:layout_marginStart="4dp"
+						android:layout_marginEnd="4dp"
+						android:tag="redo" />
+				</LinearLayout>
+			</LinearLayout>
+			<LinearLayout
+				android:id="@+id/linear660"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="14dp"
+				android:orientation="vertical"
+				android:tag="card"
+				android:layout_marginStart="12dp"
+				android:layout_marginEnd="12dp">
+				<LinearLayout
+					android:id="@+id/otherBioRow"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:padding="12dp"
+					android:gravity="center_vertical"
+					android:orientation="horizontal">
+					<TextView
+						android:id="@+id/textview658"
+						android:layout_width="32dp"
+						android:layout_height="wrap_content"
+						android:text="≡"
+						android:textSize="18sp"
+						android:tag="g" />
+					<LinearLayout
+						android:id="@+id/linear661"
+						android:layout_width="0dp"
+						android:layout_height="wrap_content"
+						android:orientation="vertical"
+						android:layout_weight="1">
+						<TextView
+							android:id="@+id/otherBioDisplay"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:textSize="15sp"
+							android:tag="t" />
+						<TextView
+							android:id="@+id/textview659"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="النبذة التعريفية"
+							android:textSize="11.5sp"
+							android:tag="m" />
+					</LinearLayout>
+				</LinearLayout>
+				<View
+					android:id="@+id/view662"
+					android:layout_width="match_parent"
+					android:layout_height="1dp"
+					android:tag="line" />
+				<LinearLayout
+					android:id="@+id/otherUserRow"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:padding="12dp"
+					android:gravity="center_vertical"
+					android:orientation="horizontal">
+					<TextView
+						android:id="@+id/textview660"
+						android:layout_width="32dp"
+						android:layout_height="wrap_content"
+						android:text="@"
+						android:textSize="18sp"
+						android:tag="g" />
+					<LinearLayout
+						android:id="@+id/linear663"
+						android:layout_width="0dp"
+						android:layout_height="wrap_content"
+						android:orientation="vertical"
+						android:layout_weight="1">
+						<TextView
+							android:id="@+id/otherHeaderUser"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:textSize="15sp"
+							android:tag="t" />
+						<TextView
+							android:id="@+id/textview661"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="اسم المستخدم"
+							android:textSize="11.5sp"
+							android:tag="m" />
+					</LinearLayout>
+				</LinearLayout>
+				<View
+					android:id="@+id/view664"
+					android:layout_width="match_parent"
+					android:layout_height="1dp"
+					android:tag="line" />
+				<LinearLayout
+					android:id="@+id/otherGovRow"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:padding="12dp"
+					android:gravity="center_vertical"
+					android:orientation="horizontal">
+					<TextView
+						android:id="@+id/textview662"
+						android:layout_width="32dp"
+						android:layout_height="wrap_content"
+						android:text="📍"
+						android:textSize="18sp"
+						android:tag="g" />
+					<LinearLayout
+						android:id="@+id/linear665"
+						android:layout_width="0dp"
+						android:layout_height="wrap_content"
+						android:orientation="vertical"
+						android:layout_weight="1">
+						<TextView
+							android:id="@+id/otherGovDisplay"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:textSize="15sp"
+							android:tag="t" />
+						<TextView
+							android:id="@+id/textview663"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="المحافظة"
+							android:textSize="11.5sp"
+							android:tag="m" />
+					</LinearLayout>
+				</LinearLayout>
+				<View
+					android:id="@+id/view666"
+					android:layout_width="match_parent"
+					android:layout_height="1dp"
+					android:tag="line" />
+				<LinearLayout
+					android:id="@+id/otherJoinRow"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:padding="12dp"
+					android:gravity="center_vertical"
+					android:orientation="horizontal">
+					<TextView
+						android:id="@+id/textview664"
+						android:layout_width="32dp"
+						android:layout_height="wrap_content"
+						android:text="📅"
+						android:textSize="18sp"
+						android:tag="g" />
+					<LinearLayout
+						android:id="@+id/linear667"
+						android:layout_width="0dp"
+						android:layout_height="wrap_content"
+						android:orientation="vertical"
+						android:layout_weight="1">
+						<TextView
+							android:id="@+id/otherJoinDisplay"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:textSize="15sp"
+							android:tag="t" />
+						<TextView
+							android:id="@+id/textview665"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="تاريخ الانضمام"
+							android:textSize="11.5sp"
+							android:tag="m" />
+					</LinearLayout>
+				</LinearLayout>
+			</LinearLayout>
+			<TextView
+				android:id="@+id/textview666"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="16dp"
+				android:text="القصص المثبتة"
+				android:textSize="14sp"
+				android:textStyle="bold"
+				android:tag="t"
+				android:layout_marginStart="16dp" />
+			<TextView
+				android:id="@+id/otherStoriesEmpty"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="8dp"
+				android:text="لا توجد قصص مثبتة"
+				android:textSize="13sp"
+				android:tag="m"
+				android:layout_marginStart="16dp" />
+		</LinearLayout>
+	</ScrollView>
+	<LinearLayout
+		android:id="@+id/editProfileView"
+		android:layout_width="match_parent"
+		android:layout_height="match_parent"
+		android:orientation="vertical"
+		android:visibility="gone"
+		android:tag="bg">
+		<LinearLayout
+			android:id="@+id/linear668"
+			android:layout_width="match_parent"
+			android:layout_height="64dp"
+			android:gravity="center_vertical"
+			android:orientation="horizontal"
+			android:tag="sf"
+			android:elevation="3dp">
+			<TextView
+				android:id="@+id/editBack"
+				android:layout_width="52dp"
+				android:layout_height="match_parent"
+				android:gravity="center_horizontal|center_vertical"
+				android:text="→"
+				android:textSize="24sp"
+				android:tag="t" />
+			<LinearLayout
+				android:id="@+id/linear669"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:orientation="vertical">
+				<TextView
+					android:id="@+id/textview667"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:text="تعديل البيانات الشخصية"
+					android:textSize="17sp"
+					android:textStyle="bold"
+					android:tag="t" />
+				<TextView
+					android:id="@+id/textview668"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:text="حدّث معلومات ملفك الشخصي"
+					android:textSize="12sp"
+					android:tag="m" />
+			</LinearLayout>
+		</LinearLayout>
+		<ScrollView
+			android:id="@+id/vscroll42"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent">
+			<LinearLayout
+				android:id="@+id/linear670"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="12dp"
+				android:padding="14dp"
+				android:orientation="vertical"
+				android:tag="card"
+				android:layout_marginStart="12dp"
+				android:layout_marginEnd="12dp">
+				<TextView
+					android:id="@+id/textview669"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:layout_marginTop="12dp"
+					android:layout_marginBottom="4dp"
+					android:text="اسم العرض"
+					android:textSize="12sp"
+					android:tag="m" />
+				<EditText
+					android:id="@+id/modalNameInput"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:textSize="14sp"
+					android:hint="الإسم"
+					android:singleLine="true"
+					android:inputType="textPersonName"
+					android:minHeight="48dp"
+					android:paddingStart="14dp"
+					android:paddingEnd="14dp"
+					android:tag="inp" />
+				<TextView
+					android:id="@+id/textview670"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:layout_marginTop="12dp"
+					android:layout_marginBottom="4dp"
+					android:text="اسم المستخدم (\@)"
+					android:textSize="12sp"
+					android:tag="m" />
+				<EditText
+					android:id="@+id/modalUsernameInput"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:textSize="14sp"
+					android:hint="username"
+					android:singleLine="true"
+					android:minHeight="48dp"
+					android:paddingStart="14dp"
+					android:paddingEnd="14dp"
+					android:tag="inp"
+					android:textDirection="ltr" />
+				<TextView
+					android:id="@+id/modalUserError"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:textSize="12sp"
+					android:tag="red"
+					android:visibility="gone" />
+				<TextView
+					android:id="@+id/textview671"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:layout_marginTop="12dp"
+					android:layout_marginBottom="4dp"
+					android:text="النبذة التعريفية (البايو)"
+					android:textSize="12sp"
+					android:tag="m" />
+				<EditText
+					android:id="@+id/modalBioInput"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:paddingTop="10dp"
+					android:textSize="14sp"
+					android:hint="اكتب نبذة عن نفسك..."
+					android:gravity="top|start"
+					android:inputType="textMultiLine"
+					android:minHeight="48dp"
+					android:paddingStart="14dp"
+					android:paddingEnd="14dp"
+					android:tag="inp"
+					android:minLines="3"
+					android:maxLength="120" />
+				<TextView
+					android:id="@+id/textview672"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:layout_marginTop="12dp"
+					android:layout_marginBottom="4dp"
+					android:text="المحافظة"
+					android:textSize="12sp"
+					android:tag="m" />
+				<Spinner
+					android:id="@+id/modalGovInput"
+					android:layout_width="match_parent"
+					android:layout_height="48dp"
+					android:spinnerMode="dropdown"
+					android:tag="inp" />
+				<TextView
+					android:id="@+id/btnSaveProfile"
+					android:layout_width="match_parent"
+					android:layout_height="48dp"
+					android:layout_marginTop="18dp"
+					android:gravity="center_horizontal|center_vertical"
+					android:text="حفظ التغييرات"
+					android:textSize="15sp"
+					android:textStyle="bold"
+					android:tag="gold" />
+				<TextView
+					android:id="@+id/btnCancelEdit"
+					android:layout_width="match_parent"
+					android:layout_height="48dp"
+					android:layout_marginTop="10dp"
+					android:gravity="center_horizontal|center_vertical"
+					android:text="إلغاء"
+					android:textSize="15sp"
+					android:textStyle="bold"
+					android:tag="goldo" />
+			</LinearLayout>
+		</ScrollView>
+	</LinearLayout>
+</FrameLayout>
