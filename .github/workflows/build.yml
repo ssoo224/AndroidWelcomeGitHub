@@ -22,9 +22,6 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Cache Gradle packages
         uses: actions/cache@v4
         with:
@@ -43,7 +40,6 @@ jobs:
             chmod +x ./gradlew
           else
             echo "❌ ERROR: gradlew is missing!"
-            echo "تأكد من رفعه إلى المسار الرئيسي في المستودع."
             exit 1
           fi
 
@@ -55,7 +51,7 @@ jobs:
           fi
           echo "✅ google-services.json found."
 
-      # محاولة البناء
+      # البناء
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace --no-daemon --parallel
 
