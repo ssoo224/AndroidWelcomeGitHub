@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    name: Build Debug & Release APK
+    name: Build Debug APK
     runs-on: ubuntu-latest
 
     steps:
@@ -22,11 +22,8 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      # إعداد متغيرات بيئة أندرويد الأساسية
-      - name: Setup Android SDK Environment
-        run: |
-          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
       - name: Cache Gradle packages
         uses: actions/cache@v4
@@ -38,6 +35,18 @@ jobs:
           restore-keys: |
             gradle-${{ runner.os }}-
 
+      # التحقق من مكان gradlew وإعطائه صلاحية التنفيذ
+      - name: Verify and Grant Permission to gradlew
+        run: |
+          if [ -f "./gradlew" ]; then
+            echo "✅ Found gradlew in root."
+            chmod +x ./gradlew
+          else
+            echo "❌ ERROR: gradlew is missing!"
+            echo "تأكد من رفعه إلى المسار الرئيسي في المستودع."
+            exit 1
+          fi
+
       - name: Verify google-services.json
         run: |
           if [ ! -f app/google-services.json ]; then
@@ -46,29 +55,14 @@ jobs:
           fi
           echo "✅ google-services.json found."
 
-      - name: Grant execute permission to gradlew
-        run: chmod +x ./gradlew
-
-      # سيقوم Gradle تلقائياً بتحميل أي مكونات ناقصة في الـ SDK
+      # محاولة البناء
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace
-
-      - name: Build Release APK (unsigned)
-        run: ./gradlew assembleRelease --stacktrace
-        continue-on-error: true
+        run: ./gradlew assembleDebug --stacktrace --no-daemon --parallel
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: babylon-chat-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 30
-
-      - name: Upload Release APK
-        uses: actions/upload-artifact@v4
-        if: success()
-        with:
-          name: babylon-chat-release-apk
-          path: app/build/outputs/apk/release/*.apk
-          retention-days: 30
-        continue-on-error: true
