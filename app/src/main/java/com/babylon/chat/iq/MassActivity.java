@@ -688,6 +688,7 @@ public class MassActivity extends Activity {
                 EditText caption=(EditText)content.findViewById(R.id.storyCaptionInput);
                 final int[] duration={24};
                 TextView[] chips={(TextView)content.findViewById(R.id.storyDuration24),(TextView)content.findViewById(R.id.storyDuration12),(TextView)content.findViewById(R.id.storyDuration6)};
+                chips[0].setSelected(true);
                 for(int i=0;i<chips.length;i++){final int val=i==0?24:i==1?12:6;final TextView chip=chips[i];chip.setOnClickListener(x->{duration[0]=val;for(TextView c:chips){c.setSelected(c==chip);c.setTextColor(c==chip?0xFF17212B:0xFFE2E8F0);}});}
                 close.setOnClickListener(x->d.dismiss());
                 pick.setOnClickListener(x->{pendingImageCallback=uri->{pick.setText("تم اختيار الوسائط");storyDraftUri=uri;};Intent i=new Intent(Intent.ACTION_GET_CONTENT);i.setType("image/*");try{act.startActivityForResult(Intent.createChooser(i,"اختر صورة للقصة"),REQ_PICK_IMAGE);}catch(Exception ex){toast("تعذر فتح معرض الصور");}});
