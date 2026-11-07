@@ -90,6 +90,12 @@ public class MassActivity extends Activity {
     private static final int REQ_PICK_IMAGE = 1001;
     private static final int REQ_MIC_PERM = 1002;
 
+    // ===== إيماءات شريط القصص =====
+    private boolean storiesVisible = false;
+    private float swipeStartY = 0f;
+    private float swipeStartX = 0f;
+    private boolean swipeTracking = false;
+
     @Override
     protected void onCreate(Bundle _savedInstanceState) {
         super.onCreate(_savedInstanceState);
@@ -221,6 +227,98 @@ public class MassActivity extends Activity {
                 Toast.makeText(this, "يجب منح إذن الميكروفون", Toast.LENGTH_SHORT).show();
                 pendingMicCallback = null;
             }
+        }
+    }
+
+    // ==================== إيماءات شريط القصص (سحب الشاشة) ====================
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+        try {
+            if (binding != null) trackStorySwipe(ev);
+        } catch (Throwable ignored) { }
+        return super.dispatchTouchEvent(ev);
+    }
+
+    private void trackStorySwipe(MotionEvent ev) {
+        if (binding == null) return;
+        if (binding.homeView.getVisibility() != View.VISIBLE) return;
+        if (binding.chatView.getVisibility() == View.VISIBLE) return;
+        if (binding.searchView.getVisibility() == View.VISIBLE) return;
+
+        switch (ev.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                swipeStartY = ev.getRawY();
+                swipeStartX = ev.getRawX();
+                swipeTracking = true;
+                break;
+            case MotionEvent.ACTION_MOVE:
+                if (!swipeTracking) return;
+                float dy = ev.getRawY() - swipeStartY;
+                float dx = ev.getRawX() - swipeStartX;
+                float threshold = 60f * getResources().getDisplayMetrics().density;
+                if (Math.abs(dy) < threshold || Math.abs(dy) < Math.abs(dx) * 1.4f) return;
+
+                // اسمح بالإيماءة فقط حين تكون قائمة المحادثات في الأعلى
+                if (binding.vscroll39.getScrollY() > 5) return;
+
+                if (dy > 0 && !storiesVisible) {
+                    setStoriesVisible(true);
+                    swipeTracking = false;
+                } else if (dy < 0 && storiesVisible) {
+                    setStoriesVisible(false);
+                    swipeTracking = false;
+                }
+                break;
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+                swipeTracking = false;
+                break;
+        }
+    }
+
+    private void setStoriesVisible(boolean visible) {
+        if (storiesVisible == visible) return;
+        storiesVisible = visible;
+        if (binding == null) return;
+
+        View stories = binding.storiesScroll;
+        View handle = binding.storyGestureHandle;
+        View hdrAvatar = binding.hdrProfileAvatar;
+        float density = getResources().getDisplayMetrics().density;
+        float offset = -30f * density;
+
+        if (visible) {
+            stories.setVisibility(View.VISIBLE);
+            stories.setAlpha(0f);
+            stories.setTranslationY(offset);
+            stories.animate().alpha(1f).translationY(0f)
+                    .setDuration(240)
+                    .setInterpolator(new android.view.animation.DecelerateInterpolator(2f))
+                    .start();
+            handle.setVisibility(View.VISIBLE);
+            hdrAvatar.animate().alpha(0f).scaleX(0.4f).scaleY(0.4f)
+                    .setDuration(180)
+                    .withEndAction(() -> hdrAvatar.setVisibility(View.GONE))
+                    .start();
+        } else {
+            stories.animate().alpha(0f).translationY(offset)
+                    .setDuration(200)
+                    .setInterpolator(new android.view.animation.AccelerateInterpolator(1.5f))
+                    .withEndAction(() -> {
+                        stories.setVisibility(View.GONE);
+                        stories.setAlpha(1f);
+                        stories.setTranslationY(0f);
+                    }).start();
+            handle.setVisibility(View.GONE);
+            hdrAvatar.setVisibility(View.VISIBLE);
+            hdrAvatar.setAlpha(0f);
+            hdrAvatar.setScaleX(0.4f);
+            hdrAvatar.setScaleY(0.4f);
+            hdrAvatar.animate().alpha(1f).scaleX(1f).scaleY(1f)
+                    .setDuration(220)
+                    .setInterpolator(new android.view.animation.OvershootInterpolator(1.5f))
+                    .start();
         }
     }
 
@@ -693,6 +791,7 @@ public class MassActivity extends Activity {
                 try { setNav(curPage); } catch (Throwable ignored) { }
                 polishProfile();
                 try { buildStories(); } catch (Throwable ignored) { }
+                try { buildChats(); } catch (Throwable ignored) { }
                 try { shineTitle(); } catch (Throwable ignored) { }
                 try {
                     Window w = act.getWindow();
@@ -1080,16 +1179,10 @@ public class MassActivity extends Activity {
             }
 
             void setupStoryGestures() {
-                View handle=v("storyGestureHandle"), scroll=v("storiesScroll");
-                if (handle==null || scroll==null) return;
-                handle.setOnClickListener(x -> {
-                    boolean visible=scroll.getVisibility()==View.VISIBLE;
-                    if (visible) scroll.animate().alpha(0f).setDuration(120).withEndAction(() -> scroll.setVisibility(View.GONE)).start();
-                    else { scroll.setAlpha(0f); scroll.setVisibility(View.VISIBLE); scroll.animate().alpha(1f).setDuration(180).start(); }
-                });
-                handle.setOnTouchListener(new View.OnTouchListener(){ float y; public boolean onTouch(View v,android.view.MotionEvent e){
-                    if(e.getAction()==android.view.MotionEvent.ACTION_DOWN){y=e.getY();return true;}
-                    if(e.getAction()==android.view.MotionEvent.ACTION_UP){float dy=e.getY()-y;if(Math.abs(dy)>dp(18)){boolean hide=dy<0;if(hide){scroll.animate().alpha(0f).setDuration(120).withEndAction(()->scroll.setVisibility(View.GONE)).start();}else{scroll.setVisibility(View.VISIBLE);scroll.setAlpha(0f);scroll.animate().alpha(1f).setDuration(180).start();}}return true;} return true; }});
+                View handle = v("storyGestureHandle");
+                if (handle != null) {
+                    handle.setOnClickListener(x -> setStoriesVisible(!storiesVisible));
+                }
             }
 
             void styleSheetDialog(Dialog dialog, View content, boolean full) {
@@ -1205,6 +1298,7 @@ public class MassActivity extends Activity {
 
                             userJoin = new SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(new Date(createdAt));
                             try { fillProfile(); } catch (Throwable ignored) { }
+                            try { buildStories(); } catch (Throwable ignored) { }
                         }
                     })
                     .addOnFailureListener(e -> { });
@@ -1295,6 +1389,7 @@ public class MassActivity extends Activity {
                             .addOnSuccessListener(a -> {
                                 userName = n; userUsername = u; userBio = bio; userGov = gov;
                                 try { fillProfile(); } catch (Throwable ignored) { }
+                                try { buildStories(); } catch (Throwable ignored) { }
                                 toast("تم حفظ التغييرات");
                                 show("profileView");
                             })
@@ -1399,31 +1494,22 @@ public class MassActivity extends Activity {
                     });
             }
 
-            // دالة القصص (مع خاصية الإخفاء التلقائي)
+            // ===== شريط القصص: لا يتحكم بالظهور، ويعرض صورة المستخدم في "قصتي" =====
             void buildStories() {
                 LinearLayout bar = (LinearLayout) v("storiesBar");
-                View scrollView = v("storiesScroll");
-                View gestureHandle = v("storyGestureHandle");
-
-                if (chatData == null || chatData.isEmpty()) {
-                    if (scrollView != null) scrollView.setVisibility(View.GONE);
-                    if (gestureHandle != null) gestureHandle.setVisibility(View.GONE);
-                    return;
-                } else {
-                    if (scrollView != null) scrollView.setVisibility(View.VISIBLE);
-                    if (gestureHandle != null) gestureHandle.setVisibility(View.VISIBLE);
-                }
-
                 if (bar == null) return;
                 bar.removeAllViews();
-                for (int i = 0; i <= chatData.size() && i < 8; i++) {
+                if (chatData == null) chatData = new ArrayList<>();
+
+                int total = Math.min(8, 1 + chatData.size());
+                for (int i = 0; i < total; i++) {
                     final String nm = i == 0 ? "قصتي" : chatData.get(i - 1)[0];
                     LinearLayout c = new LinearLayout(act);
                     c.setOrientation(LinearLayout.VERTICAL);
                     c.setGravity(Gravity.CENTER_HORIZONTAL);
                     c.setPadding(dp(6), 0, dp(6), 0);
                     FrameLayout ringBox = new FrameLayout(act);
-                    
+
                     int ringSize = (i == 0) ? 74 : 64;
                     int holeSize = ringSize - 5;
                     int avatarSize = ringSize - 10;
@@ -1442,21 +1528,20 @@ public class MassActivity extends Activity {
                         @Override public void onViewAttachedToWindow(View v1) { }
                         @Override public void onViewDetachedFromWindow(View v1) { rot.cancel(); }
                     });
-                    
+
                     View hole = new View(act);
                     GradientDrawable hg = new GradientDrawable(); hg.setShape(GradientDrawable.OVAL); hg.setColor(cBg());
                     hole.setBackground(hg);
                     ringBox.addView(hole, new FrameLayout.LayoutParams(dp(holeSize), dp(holeSize), Gravity.CENTER));
-                    
+
                     TextView r = new TextView(act);
-                    r.setText(i == 0 ? "+" : (nm.length() > 0 ? nm.substring(0, 1) : "?"));
                     r.setGravity(Gravity.CENTER);
                     r.setTextSize(24);
                     r.setTypeface(null, android.graphics.Typeface.BOLD);
                     r.setTextColor(0xFFFFFFFF);
                     r.setTag("avatar");
                     ringBox.addView(r, new FrameLayout.LayoutParams(dp(avatarSize), dp(avatarSize), Gravity.CENTER));
-                    
+
                     TextView n = new TextView(act);
                     n.setText(nm.length() > 8 ? nm.substring(0, 8) : nm);
                     n.setTextSize(12f);
@@ -1465,10 +1550,22 @@ public class MassActivity extends Activity {
                     n.setPadding(0, dp(7), 0, 0);
                     c.addView(ringBox, new LinearLayout.LayoutParams(dp(ringSize), dp(ringSize)));
                     c.addView(n);
-                    c.setOnClickListener(x -> { if (nm.equals("قصتي")) showStoryComposer(); else showStoryViewer(nm); });
+                    c.setOnClickListener(x -> { if (i == 0) showStoryComposer(); else showStoryViewer(nm); });
                     bar.addView(c);
                     style(c);
-                    r.setTextColor(0xFFFFFFFF);
+
+                    // صورة المستخدم أو الحرف الأول في "قصتي"
+                    if (i == 0) {
+                        if (photoBmp != null && !photoBmp.isRecycled()) {
+                            r.setText("");
+                            applyPhotoTo(r);
+                        } else {
+                            r.setText(userName.length() > 0 ? userName.substring(0, 1).toUpperCase() : "؟");
+                        }
+                    } else {
+                        r.setText(nm.length() > 0 ? nm.substring(0, 1) : "?");
+                    }
+
                     c.setAlpha(0f); c.setTranslationY(dp(12));
                     c.animate().alpha(1f).translationY(0f).setStartDelay(i * 60L).setDuration(480).start();
                 }
@@ -1493,7 +1590,7 @@ public class MassActivity extends Activity {
                     row.setOrientation(LinearLayout.HORIZONTAL);
                     row.setGravity(Gravity.CENTER_VERTICAL);
                     row.setPadding(dp(12), dp(14), dp(12), dp(14));
-                    row.setBackground(shape(0xFFFFFFFF, 24, 0));
+                    row.setBackground(shape(cSf(), 24, 0));
                     row.setElevation(dp(3));
                     
                     LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2);
@@ -1518,9 +1615,9 @@ public class MassActivity extends Activity {
                     mid.setLayoutParams(mp);
 
                     TextView nm = new TextView(act);
-                    nm.setText(c[0]); nm.setTextSize(17f); nm.setTypeface(null, android.graphics.Typeface.BOLD); nm.setTextColor(0xFF17212B);
+                    nm.setText(c[0]); nm.setTextSize(17f); nm.setTypeface(null, android.graphics.Typeface.BOLD); nm.setTextColor(cText());
                     TextView ls = new TextView(act);
-                    ls.setText(c[1]); ls.setTextSize(14); ls.setTextColor(0xFF8C99AB);
+                    ls.setText(c[1]); ls.setTextSize(14); ls.setTextColor(cMuted());
                     ls.setPadding(0, dp(4), 0, 0);
                     ls.setSingleLine(true); ls.setEllipsize(TextUtils.TruncateAt.END);
                     mid.addView(nm); mid.addView(ls);
@@ -1530,7 +1627,7 @@ public class MassActivity extends Activity {
                     end.setGravity(Gravity.CENTER_HORIZONTAL);
 
                     TextView tm = new TextView(act);
-                    tm.setText(c[2]); tm.setTextSize(12); tm.setTextColor(0xFF8C99AB);
+                    tm.setText(c[2]); tm.setTextSize(12); tm.setTextColor(cMuted());
                     end.addView(tm);
                     
                     if (!c[3].equals("0")) {
@@ -1562,7 +1659,7 @@ public class MassActivity extends Activity {
                     e.setGravity(Gravity.CENTER);
                     e.setTypeface(null, android.graphics.Typeface.BOLD);
                     e.setPadding(0, dp(60), 0, dp(60));
-                    e.setTextColor(0xFF8C99AB);
+                    e.setTextColor(cMuted());
                     list.addView(e);
                 }
             }
@@ -2064,7 +2161,7 @@ public class MassActivity extends Activity {
                     try {
                         final String b64 = encodeImage(uri, 320, 60 * 1024, true);
                         act.runOnUiThread(() -> db.collection("users").document(myUid).update("photo", b64)
-                            .addOnSuccessListener(a -> { userPhoto = b64; try { fillProfile(); } catch (Throwable ignored) {} toast("تم تحديث الصورة"); })
+                            .addOnSuccessListener(a -> { userPhoto = b64; try { fillProfile(); } catch (Throwable ignored) {} try { buildStories(); } catch (Throwable ignored) {} toast("تم تحديث الصورة"); })
                             .addOnFailureListener(er -> toast("فشل: " + er.getMessage())));
                     } catch (Exception e) {
                         act.runOnUiThread(() -> toast("فشل معالجة الصورة: " + e.getMessage()));
