@@ -1,90 +1,73 @@
 package com.babylon.chat.iq;
 
-import android.animation.*;
 import android.app.*;
-import android.app.Activity;
-import android.app.DialogFragment;
-import android.app.Fragment;
-import android.app.FragmentManager;
-import android.content.*;
-import android.content.res.*;
-import android.graphics.*;
-import android.graphics.drawable.*;
-import android.media.*;
-import android.net.*;
-import android.os.*;
-import android.text.*;
-import android.text.style.*;
-import android.util.*;
-import android.view.*;
-import android.view.View.*;
-import android.view.animation.*;
-import android.webkit.*;
+import android.os.Bundle;
+import android.view.View;
+import android.view.Window;
+import android.view.WindowManager;
 import android.widget.*;
-import android.widget.ArrayAdapter;
-import android.widget.Spinner;
-import com.babylon.chat.iq.databinding.*;
-import java.io.*;
-import java.text.*;
-import java.util.*;
-import java.util.regex.*;
-import org.json.*;
+import android.content.SharedPreferences;
 
 public class PartProfileActivity extends Activity {
-	
-	private PartProfileBinding binding;
-	
-	@Override
-	protected void onCreate(Bundle _savedInstanceState) {
-		super.onCreate(_savedInstanceState);
-		binding = PartProfileBinding.inflate(getLayoutInflater());
-		setContentView(binding.getRoot());
-		initialize(_savedInstanceState);
-		initializeLogic();
-	}
-	
-	private void initialize(Bundle _savedInstanceState) {
-	}
-	
-	private void initializeLogic() {
-		android.view.Window w = getWindow();
-		w.clearFlags(android.view.WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS
-		| android.view.WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
-		w.addFlags(android.view.WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
-		w.setStatusBarColor(0x00000000);
-		w.setNavigationBarColor(0x00000000);
-		
-		if (android.os.Build.VERSION.SDK_INT >= 29) {
-			w.setNavigationBarContrastEnforced(false);
-			w.setStatusBarContrastEnforced(false);
-		}
-		
-		// لون الخلفية خلف كل شريط (غيّره إذا غيّرت الخلفية)
-		int topBg = 0xFFF1F4F9;
-		int botBg = 0xFFEEF2F9;
-		boolean topLight = (0.299 * ((topBg >> 16) & 255) + 0.587 * ((topBg >> 8) & 255) + 0.114 * (topBg & 255)) > 150;
-		boolean botLight = (0.299 * ((botBg >> 16) & 255) + 0.587 * ((botBg >> 8) & 255) + 0.114 * (botBg & 255)) > 150;
-		
-		int flags = android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-		| android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-		| android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
-		if (android.os.Build.VERSION.SDK_INT >= 23 && topLight) {
-			flags |= android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
-		}
-		if (android.os.Build.VERSION.SDK_INT >= 26 && botLight) {
-			flags |= android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
-		}
-		w.getDecorView().setSystemUiVisibility(flags);
-		
-		final android.view.View rootView = findViewById(R.id.root);
-		rootView.setOnApplyWindowInsetsListener(new android.view.View.OnApplyWindowInsetsListener() {
-			@Override
-			public android.view.WindowInsets onApplyWindowInsets(android.view.View v, android.view.WindowInsets insets) {
-				v.setPadding(0, insets.getSystemWindowInsetTop(), 0, insets.getSystemWindowInsetBottom());
-				return insets;
-			}
-		});
-		rootView.requestApplyInsets();
-	}
-	
-}
+    private PartProfileBinding binding;
+    private SharedPreferences prefs;
+    private View profile, other, edit;
+    private EditText nameInput, usernameInput, bioInput, govInput;
+
+    @Override protected void onCreate(Bundle state) {
+        super.onCreate(state);
+        binding = PartProfileBinding.inflate(getLayoutInflater());
+        setContentView(binding.getRoot());
+        prefs = getSharedPreferences("babylon_profile", MODE_PRIVATE);
+        initializeLogic();
+    }
+
+    private <T extends View> T v(int id) { return (T)findViewById(id); }
+    private void show(View target) {
+        profile.setVisibility(target == profile ? View.VISIBLE : View.GONE);
+        other.setVisibility(target == other ? View.VISIBLE : View.GONE);
+        edit.setVisibility(target == edit ? View.VISIBLE : View.GONE);
+    }
+    private String value(EditText e) { return e.getText() == null ? "" : e.getText().toString().trim(); }
+    private void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_SHORT).show(); }
+
+    private void initializeLogic() {
+        Window w=getWindow();
+        w.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS|WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
+        w.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+        w.setStatusBarColor(0xFFF1F4F9); w.setNavigationBarColor(0xFFEEF2F9);
+        if (android.os.Build.VERSION.SDK_INT>=29) { w.setNavigationBarContrastEnforced(false); w.setStatusBarContrastEnforced(false); }
+        profile=v(R.id.profileView); other=v(R.id.otherUserProfileView); edit=v(R.id.editProfileView);
+        show(profile);
+        nameInput=v(R.id.modalNameInput); usernameInput=v(R.id.modalUsernameInput); bioInput=v(R.id.modalBioInput); govInput=v(R.id.modalGovInput);
+        String name=prefs.getString("name", "محمد");
+        String username=prefs.getString("username", "babylon_user");
+        String bio=prefs.getString("bio", "مرحباً بك في Babylon Chat");
+        String gov=prefs.getString("gov", "" );
+        ((TextView)v(R.id.pHeaderName)).setText(name); ((TextView)v(R.id.pHeaderUser)).setText("@"+username);
+        ((TextView)v(R.id.pBioDisplay)).setText(bio.isEmpty()?"لم تتم إضافة نبذة بعد":bio);
+        ((TextView)v(R.id.pGovDisplay)).setText(gov.isEmpty()?"غير محدد":gov);
+        nameInput.setText(name); usernameInput.setText(username); bioInput.setText(bio); govInput.setText(gov);
+        v(R.id.pEdit).setOnClickListener(x->{ nameInput.setText(((TextView)v(R.id.pHeaderName)).getText()); usernameInput.setText(prefs.getString("username", "babylon_user")); bioInput.setText(prefs.getString("bio", "مرحباً بك في Babylon Chat")); govInput.setText(prefs.getString("gov", "")); show(edit); });
+        v(R.id.editBack).setOnClickListener(x->show(profile));
+        v(R.id.btnCancelEdit).setOnClickListener(x->show(profile));
+        v(R.id.btnSaveProfile).setOnClickListener(x->{
+            String n=value(nameInput), u=value(usernameInput).replace("@", "").replace(" ", ""), b=value(bioInput), g=value(govInput);
+            if(n.isEmpty()){nameInput.setError("اكتب اسم العرض");return;}
+            if(u.isEmpty()){usernameInput.setError("اكتب اسم المستخدم");return;}
+            prefs.edit().putString("name",n).putString("username",u).putString("bio",b).putString("gov",g).apply();
+            ((TextView)v(R.id.pHeaderName)).setText(n); ((TextView)v(R.id.pHeaderUser)).setText("@"+u);
+            ((TextView)v(R.id.pBioDisplay)).setText(b.isEmpty()?"لم تتم إضافة نبذة بعد":b); ((TextView)v(R.id.pGovDisplay)).setText(g.isEmpty()?"غير محدد":g);
+            show(profile); toast("تم حفظ بيانات الملف الشخصي");
+        });
+        v(R.id.pTabStoriesBtn).setOnClickListener(x->{v(R.id.pTabStories).setVisibility(View.VISIBLE);v(R.id.pTabGifts).setVisibility(View.GONE);});
+        v(R.id.pTabGiftsBtn).setOnClickListener(x->{v(R.id.pTabStories).setVisibility(View.GONE);v(R.id.pTabGifts).setVisibility(View.VISIBLE);});
+        v(R.id.otherBack).setOnClickListener(x->show(profile));
+        v(R.id.otherMsgBtn).setOnClickListener(x->toast("افتح المحادثة لإرسال رسالة"));
+        v(R.id.otherStarsBtn).setOnClickListener(x->toast("ميزة النجوم غير مربوطة بخدمة بعد"));
+        v(R.id.otherGiftBtn).setOnClickListener(x->toast("ميزة الهدايا غير مربوطة بخدمة بعد"));
+        v(R.id.otherBlockBtn).setOnClickListener(x->new AlertDialog.Builder(this).setMessage("هل تريد حظر هذا المستخدم؟").setNegativeButton("إلغاء",null).setPositiveButton("حظر",(d,k)->toast("تم تنفيذ طلب الحظر محلياً")).show());
+        v(R.id.pPhoto).setOnClickListener(x->toast("اربط هذا الزر بمنتقي الصور لتغيير الصورة الشخصية"));
+        v(R.id.pCover).setOnClickListener(x->toast("اربط هذا الزر بمنتقي الصور لتغيير الغلاف"));
+    }
+}
