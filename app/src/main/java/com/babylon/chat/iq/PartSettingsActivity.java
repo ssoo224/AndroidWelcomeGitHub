@@ -10,13 +10,14 @@ import android.widget.*;
 import android.content.SharedPreferences;
 
 public class PartSettingsActivity extends Activity {
-    private SharedPreferences prefs;
+private SharedPreferences prefs;
     private View main, privacy, notifications, chat;
     private void toast(String s){Toast.makeText(this,s,Toast.LENGTH_SHORT).show();}
     private <T extends View> T v(int id){return (T)findViewById(id);}
     private void show(View page){main.setVisibility(page==main?View.VISIBLE:View.GONE);privacy.setVisibility(page==privacy?View.VISIBLE:View.GONE);notifications.setVisibility(page==notifications?View.VISIBLE:View.GONE);chat.setVisibility(page==chat?View.VISIBLE:View.GONE);}
     private void togglePair(int onId,int offId,boolean on){View a=v(onId),b=v(offId);a.setAlpha(on?1f:.48f);b.setAlpha(on?.48f:1f);a.setSelected(on);b.setSelected(!on);}
-    @Override protected void onCreate(Bundle state){super.onCreate(state);setContentView(R.layout.part_settings);prefs=getSharedPreferences("babylon_settings",MODE_PRIVATE);initializeLogic();}
+    @Override protected void onCreate(Bundle state){super.onCreate(state);
+        setContentView(R.layout.part_settings);prefs=getSharedPreferences("babylon_settings",MODE_PRIVATE);initializeLogic();}
     private void initializeLogic(){
         Window w=getWindow();w.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS|WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);w.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);w.setStatusBarColor(0xFFF1F4F9);w.setNavigationBarColor(0xFFEEF2F9);if(android.os.Build.VERSION.SDK_INT>=29){w.setNavigationBarContrastEnforced(false);w.setStatusBarContrastEnforced(false);}
         main=v(R.id.settingsView);privacy=v(R.id.privacySettingsView);notifications=v(R.id.notificationSettingsView);chat=v(R.id.chatSettingsView);show(main);

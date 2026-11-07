@@ -2,6 +2,7 @@ package com.babylon.chat.iq;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.Dialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -13,6 +14,7 @@ import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.Outline;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.ColorDrawable;
 import android.media.MediaPlayer;
 import android.media.MediaRecorder;
 import android.net.Uri;
@@ -250,7 +252,6 @@ public class MassActivity extends Activity {
             String replyText = null, otherName = "", otherUser = "";
             TextView editing = null;
             boolean tabStories = true;
-            int chatSearchFilter = 0; // 0 all, 1 my messages, 2 other messages
 
             MediaRecorder recorder = null;
             File audioFile = null;
@@ -259,6 +260,10 @@ public class MassActivity extends Activity {
             Handler recHandler = new Handler(Looper.getMainLooper());
             Runnable recTick = null;
             MediaPlayer mediaPlayer = null;
+            Uri storyDraftUri = null;
+            String chatSearchFilter = "all";
+            final ArrayList<View> chatSearchHits = new ArrayList<>();
+            int chatSearchHitIndex = 0;
 
             String[] pages = {"homeView", "searchView", "profileView", "otherUserProfileView",
                     "settingsView", "privacySettingsView", "notificationSettingsView",
@@ -335,6 +340,14 @@ public class MassActivity extends Activity {
                         else if (k.equals("white_card")) {
                             x.setBackground(shape(0xFFFFFFFF, 16, 0));
                             x.setElevation(dp(4));
+                        }
+                        else if (k.equals("settings_hero")) {
+                            GradientDrawable hero = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                                    new int[]{dark ? 0xFF26344A : 0xFFFFF4D4, dark ? 0xFF17212B : 0xFFE9F3FC});
+                            hero.setCornerRadius(dp(24));
+                            hero.setStroke(dp(1), dark ? 0x334B5D73 : 0x22B8861B);
+                            x.setBackground(hero);
+                            x.setElevation(dp(3));
                         }
                         else if (k.equals("icon_box_bg")) {
                             x.setBackground(shape(0xFFFFF7E6, 12, 0));
@@ -530,8 +543,6 @@ public class MassActivity extends Activity {
                     quick("pPhoto", "ic_camera");
                     quick("pCover", "ic_palette");
                     actBtn("otherMsgBtn", 0);
-                    actBtn("otherStarsBtn", 1);
-                    actBtn("otherGiftBtn", 1);
                     actBtn("otherBlockBtn", 2);
                     int[] icn = {648, 650, 652, 654, 656, 658, 660, 662, 664};
                     for (int n : icn) {
@@ -545,8 +556,7 @@ public class MassActivity extends Activity {
                         t.setTextSize(17);
                         t.setTextColor(cGold());
                     }
-                    setTab(v("pTabStoriesBtn"), tabStories);
-                    setTab(v("pTabGiftsBtn"), !tabStories);
+                    setTab(v("pTabStoriesBtn"), true);
                 } catch (Throwable ignored) { }
             }
 
@@ -589,14 +599,131 @@ public class MassActivity extends Activity {
             }
 
             void show(String p) {
+                if (p == null) return;
                 prevPage = curPage; curPage = p;
-                for (String page : pages) vis(page, page.equals(p));
+                View target = v(p);
+                for (String page : pages) {
+                    View pageView = v(page);
+                    if (pageView == null) continue;
+                    if (page.equals(p)) {
+                        pageView.setVisibility(View.VISIBLE);
+                        pageView.setAlpha(0f);
+                        pageView.setTranslationY(dp(10));
+                        pageView.animate().alpha(1f).translationY(0f).setDuration(190).setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
+                    } else {
+                        pageView.animate().cancel();
+                        pageView.setVisibility(View.GONE);
+                        pageView.setAlpha(1f);
+                        pageView.setTranslationY(0f);
+                    }
+                }
                 boolean home = p.equals("homeView");
                 vis("mainHeader", home);
                 vis("newGroupFab", home);
                 vis("bottomNav", home || p.equals("settingsView") || p.equals("profileView"));
                 setNav(p);
                 hideKb();
+            }
+
+            void setupSwipeNavigation() {
+                View[] surfaces = {v("homeView"), v("settingsView"), v("profileView"), v("chatView"), v("privacySettingsView"), v("notificationSettingsView"), v("chatSettingsView")};
+                for (View surface : surfaces) {
+                    if (surface == null) continue;
+                    surface.setClickable(true);
+                    surface.setOnTouchListener(new View.OnTouchListener() {
+                        float sx, sy;
+                        public boolean onTouch(View view, android.view.MotionEvent ev) {
+                            if (ev.getAction() == android.view.MotionEvent.ACTION_DOWN) { sx=ev.getX(); sy=ev.getY(); return false; }
+                            if (ev.getAction() == android.view.MotionEvent.ACTION_UP) {
+                                float dx=ev.getX()-sx, dy=ev.getY()-sy;
+                                if (Math.abs(dx)>dp(86) && Math.abs(dx)>Math.abs(dy)*1.35f) {
+                                    String page=curPage;
+                                    if (page.equals("chatView")) { if (dx>0) closeChat(); return false; }
+                                    if (page.equals("privacySettingsView") || page.equals("notificationSettingsView") || page.equals("chatSettingsView")) { if (dx>0) show("settingsView"); return false; }
+                                    if (dx<0) {
+                                        if (page.equals("homeView")) show("settingsView");
+                                        else if (page.equals("settingsView")) { loadMyProfile(); show("profileView"); }
+                                    } else {
+                                        if (page.equals("profileView")) show("settingsView");
+                                        else if (page.equals("settingsView")) show("homeView");
+                                    }
+                                }
+                            }
+                            return false;
+                        }
+                    });
+                }
+            }
+
+            void setupStoryGestures() {
+                View handle=v("storyGestureHandle"), scroll=v("storiesScroll");
+                if (handle==null || scroll==null) return;
+                handle.setOnClickListener(x -> {
+                    boolean visible=scroll.getVisibility()==View.VISIBLE;
+                    if (visible) scroll.animate().alpha(0f).setDuration(120).withEndAction(() -> scroll.setVisibility(View.GONE)).start();
+                    else { scroll.setAlpha(0f); scroll.setVisibility(View.VISIBLE); scroll.animate().alpha(1f).setDuration(180).start(); }
+                });
+                handle.setOnTouchListener(new View.OnTouchListener(){ float y; public boolean onTouch(View v,android.view.MotionEvent e){
+                    if(e.getAction()==android.view.MotionEvent.ACTION_DOWN){y=e.getY();return true;}
+                    if(e.getAction()==android.view.MotionEvent.ACTION_UP){float dy=e.getY()-y;if(Math.abs(dy)>dp(18)){boolean hide=dy<0;if(hide){scroll.animate().alpha(0f).setDuration(120).withEndAction(()->scroll.setVisibility(View.GONE)).start();}else{scroll.setVisibility(View.VISIBLE);scroll.setAlpha(0f);scroll.animate().alpha(1f).setDuration(180).start();}}return true;} return true; }});
+            }
+
+            void styleSheetDialog(Dialog dialog, View content, boolean full) {
+                dialog.setContentView(content);
+                android.view.Window win=dialog.getWindow();
+                if(win!=null){win.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));win.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);WindowManager.LayoutParams lp=win.getAttributes();lp.dimAmount=.62f;lp.width=WindowManager.LayoutParams.MATCH_PARENT;lp.height=full?WindowManager.LayoutParams.MATCH_PARENT:WindowManager.LayoutParams.WRAP_CONTENT;lp.gravity=full?Gravity.CENTER:Gravity.BOTTOM;win.setAttributes(lp);}
+                dialog.show();
+                if(win!=null){win.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));win.setLayout(WindowManager.LayoutParams.MATCH_PARENT,full?WindowManager.LayoutParams.MATCH_PARENT:WindowManager.LayoutParams.WRAP_CONTENT);}
+                content.setAlpha(0f);content.setTranslationY(dp(full?12:28));content.animate().alpha(1f).translationY(0f).setDuration(220).setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
+            }
+
+            void showStoryComposer() {
+                storyDraftUri = null;
+                final Dialog d=new Dialog(act);
+                View content=act.getLayoutInflater().inflate(R.layout.native_story_composer,null,false);
+                styleSheetDialog(d,content,false);
+                TextView close=(TextView)content.findViewById(R.id.storyCancel);
+                TextView pick=(TextView)content.findViewById(R.id.storyMediaPick);
+                TextView publish=(TextView)content.findViewById(R.id.storyPublish);
+                EditText caption=(EditText)content.findViewById(R.id.storyCaptionInput);
+                final int[] duration={24};
+                TextView[] chips={(TextView)content.findViewById(R.id.storyDuration24),(TextView)content.findViewById(R.id.storyDuration12),(TextView)content.findViewById(R.id.storyDuration6)};
+                for(int i=0;i<chips.length;i++){final int val=i==0?24:i==1?12:6;final TextView chip=chips[i];chip.setOnClickListener(x->{duration[0]=val;for(TextView c:chips){c.setSelected(c==chip);c.setTextColor(c==chip?0xFF17212B:0xFFE2E8F0);}});}
+                close.setOnClickListener(x->d.dismiss());
+                pick.setOnClickListener(x->{pendingImageCallback=uri->{pick.setText("تم اختيار الوسائط");storyDraftUri=uri;};Intent i=new Intent(Intent.ACTION_GET_CONTENT);i.setType("image/*");try{act.startActivityForResult(Intent.createChooser(i,"اختر صورة للقصة"),REQ_PICK_IMAGE);}catch(Exception ex){toast("تعذر فتح معرض الصور");}});
+                publish.setOnClickListener(x->{String text=caption.getText().toString().trim();if(text.isEmpty()&&storyDraftUri==null){toast("أضف وصفاً أو صورة للقصة");return;}toast("واجهة القصة جاهزة؛ نشر القصص يحتاج مسار قصص في قاعدة البيانات الحالية");d.dismiss();});
+            }
+
+            void showStoryViewer(String name) {
+                final Dialog d=new Dialog(act);
+                View content=act.getLayoutInflater().inflate(R.layout.native_story_viewer,null,false);
+                styleSheetDialog(d,content,true);
+                TextView nm=(TextView)content.findViewById(R.id.storyViewerName);TextView av=(TextView)content.findViewById(R.id.storyViewerAvatar);
+                nm.setText(name);av.setText(name.length()>0?name.substring(0,1):"؟");
+                content.findViewById(R.id.storyViewerClose).setOnClickListener(x->d.dismiss());
+                content.setOnTouchListener(new View.OnTouchListener(){float x0,y0;public boolean onTouch(View v,android.view.MotionEvent e){if(e.getAction()==0){x0=e.getX();y0=e.getY();return true;}if(e.getAction()==1){if(Math.abs(e.getX()-x0)>dp(55)||Math.abs(e.getY()-y0)>dp(55))d.dismiss();return true;}return true;}});
+            }
+
+            void showCoverPicker(boolean otherProfile) {
+                final Dialog d=new Dialog(act);View content=act.getLayoutInflater().inflate(R.layout.native_cover_picker,null,false);styleSheetDialog(d,content,false);
+                int[] colors={0xFF1B2A4A,0xFF3B2A4A,0xFF0F5132,0xFF7C2D12,0xFF334155,0xFFB8891A};
+                for(int i=0;i<6;i++){final int ix=i;int id=act.getResources().getIdentifier("coverColor"+i,"id",act.getPackageName());View sw=content.findViewById(id);if(sw!=null)sw.setOnClickListener(x->{coverColor=colors[ix];sp.edit().putInt(otherProfile?"otherCover":"cover",coverColor).apply();View cv=v(otherProfile?"frame_layout657":"frame_layout642");if(cv!=null)cv.setBackgroundColor(coverColor);d.dismiss();});}
+                content.findViewById(R.id.coverPickerCancel).setOnClickListener(x->d.dismiss());
+            }
+
+            void showAvatarActions() {
+                final Dialog d=new Dialog(act);
+                View content=act.getLayoutInflater().inflate(R.layout.native_avatar_gallery,null,false);
+                styleSheetDialog(d,content,true);
+                ImageView image=(ImageView)content.findViewById(R.id.avatarGalleryImage);
+                TextView initial=(TextView)content.findViewById(R.id.avatarGalleryInitial);
+                if(photoBmp!=null){image.setImageBitmap(photoBmp);initial.setVisibility(View.GONE);}else{image.setVisibility(View.GONE);initial.setText(userName.length()>0?userName.substring(0,1):"؟");}
+                content.findViewById(R.id.avatarGalleryClose).setOnClickListener(x->d.dismiss());
+                content.findViewById(R.id.avatarGalleryChoose).setOnClickListener(x->{d.dismiss();pickProfilePhoto();});
+                content.findViewById(R.id.avatarGalleryDelete).setOnClickListener(x->{
+                    if(userPhoto==null||userPhoto.isEmpty()){toast("لا توجد صورة لحذفها");return;}
+                    db.collection("users").document(myUid).update("photo","").addOnSuccessListener(a->{userPhoto="";shownPhoto="";photoBmp=null;fillProfile();toast("تم حذف الصورة الشخصية");d.dismiss();}).addOnFailureListener(e->toast("تعذر حذف الصورة: "+e.getMessage()));
+                });
             }
 
             void setNav(String p) {
@@ -626,6 +753,7 @@ public class MassActivity extends Activity {
                             }
                         }
                         style(vv);
+                        vv.animate().scaleX(on ? 1.035f : 1f).scaleY(on ? 1.035f : 1f).setDuration(150).start();
                     }
                 }
             }
@@ -834,7 +962,7 @@ public class MassActivity extends Activity {
                     n.setTag("m");
                     n.setPadding(0, dp(4), 0, 0);
                     c.addView(r); c.addView(n);
-                    c.setOnClickListener(x -> toast(nm.equals("قصتي") ? "نشر قصة جديدة" : "عرض قصة " + nm));
+                    c.setOnClickListener(x -> { if (nm.equals("قصتي")) showStoryComposer(); else showStoryViewer(nm); });
                     bar.addView(c);
                     style(c);
                 }
@@ -1030,6 +1158,7 @@ public class MassActivity extends Activity {
                 lp.setMargins(0, dp(3), 0, dp(3));
                 b.setLayoutParams(lp);
                 setMsg(b, text, mine, time);
+                b.setTag(mine ? "mine" : "other");
                 b.setOnLongClickListener(x -> { msgMenu(b, mine); return true; });
                 LinearLayout msgArea = (LinearLayout) v("messagesArea");
                 if (msgArea != null) msgArea.addView(b);
@@ -1068,6 +1197,7 @@ public class MassActivity extends Activity {
                 img.setLayoutParams(new FrameLayout.LayoutParams(-1, -1));
                 img.setScaleType(ImageView.ScaleType.CENTER_CROP);
                 frame.addView(img);
+                frame.setTag(mine ? "mine" : "other");
                 loadImageAsync(img, url);
                 TextView t = new TextView(act);
                 t.setText(time); t.setTextSize(10); t.setTextColor(0xFFFFFFFF);
@@ -1129,6 +1259,7 @@ public class MassActivity extends Activity {
                 wave.setTextSize(14);
                 wave.setTextColor(mine ? (dark ? 0xFFB0C4DE : 0xFF6B8E23) : cGold());
                 box.addView(play); box.addView(center); box.addView(wave);
+                box.setTag(mine ? "mine" : "other");
 
                 play.setOnClickListener(v -> playAudio(url, play));
                 box.setOnClickListener(v -> playAudio(url, play));
@@ -1189,53 +1320,34 @@ public class MassActivity extends Activity {
             }
 
             void msgMenu(final TextView b, final boolean mine) {
-                View content = getLayoutInflater().inflate(R.layout.native_message_actions, null, false);
-                AlertDialog dialog = new AlertDialog.Builder(act).setView(content).create();
+                final Dialog d = new Dialog(act);
+                View content = act.getLayoutInflater().inflate(R.layout.native_message_actions, null, false);
+                styleSheetDialog(d, content, false);
                 View editAction = content.findViewById(R.id.msgActionEdit);
-                if (editAction != null) editAction.setVisibility(mine ? View.VISIBLE : View.GONE);
-                content.findViewById(R.id.msgActionReply).setOnClickListener(x -> { dialog.dismiss(); performMsgAction(1, b); });
-                content.findViewById(R.id.msgActionCopy).setOnClickListener(x -> { dialog.dismiss(); performMsgAction(2, b); });
-                if (editAction != null) editAction.setOnClickListener(x -> { dialog.dismiss(); performMsgAction(3, b); });
-                content.findViewById(R.id.msgActionDelete).setOnClickListener(x -> { dialog.dismiss(); performMsgAction(4, b); });
-                dialog.show();
-            }
-
-            void performMsgAction(int action, final TextView b) {
+                if (editAction != null && !mine) editAction.setVisibility(View.GONE);
                 String raw = String.valueOf(b.getContentDescription());
-                switch (action) {
-                    case 1:
-                        replyText = raw.length() > 40 ? raw.substring(0, 40) + "…" : raw;
-                        setLabel("replyLabel", "الرد على الرسالة", icon("ic_reply", 16));
-                        TextView rp = tv("replyPreviewText");
-                        if (rp != null) rp.setText(replyText);
-                        vis("replyPreviewBar", true);
-                        EditText mi = et("messageInput");
-                        if (mi != null) mi.requestFocus();
-                        break;
-                    case 2:
-                        ClipboardManager cm = (ClipboardManager) act.getSystemService(Context.CLIPBOARD_SERVICE);
-                        cm.setPrimaryClip(ClipData.newPlainText("msg", raw));
-                        toast("تم نسخ الرسالة");
-                        break;
-                    case 3:
-                        editing = b; replyText = null;
-                        setLabel("replyLabel", "تعديل الرسالة", icon("ic_edit", 16));
-                        TextView rp2 = tv("replyPreviewText");
-                        if (rp2 != null) rp2.setText(raw);
-                        vis("replyPreviewBar", true);
-                        EditText mi2 = et("messageInput");
-                        if (mi2 != null) { mi2.setText(raw); mi2.setSelection(raw.length()); mi2.requestFocus(); }
-                        break;
-                    case 4:
-                        new AlertDialog.Builder(act).setTitle("حذف الرسالة؟")
-                                .setMessage("سيتم حذف الرسالة من العرض الحالي.")
-                                .setNegativeButton("إلغاء", null)
-                                .setPositiveButton("حذف", (d, w) -> {
-                                    LinearLayout msgArea = (LinearLayout) v("messagesArea");
-                                    if (msgArea != null) msgArea.removeView(b);
-                                }).show();
-                        break;
-                }
+                content.findViewById(R.id.msgActionReply).setOnClickListener(x -> {
+                    replyText = raw.length() > 40 ? raw.substring(0, 40) + "…" : raw;
+                    setLabel("replyLabel", "الرد على الرسالة", icon("ic_reply", 16));
+                    TextView rp = tv("replyPreviewText"); if (rp != null) rp.setText(replyText);
+                    vis("replyPreviewBar", true); EditText mi = et("messageInput"); if (mi != null) mi.requestFocus(); d.dismiss();
+                });
+                content.findViewById(R.id.msgActionCopy).setOnClickListener(x -> {
+                    ClipboardManager cm = (ClipboardManager) act.getSystemService(Context.CLIPBOARD_SERVICE);
+                    cm.setPrimaryClip(ClipData.newPlainText("msg", raw)); toast("تم نسخ الرسالة"); d.dismiss();
+                });
+                if (editAction != null) editAction.setOnClickListener(x -> {
+                    editing = b; replyText = null; setLabel("replyLabel", "تعديل الرسالة", icon("ic_edit", 16));
+                    TextView rp = tv("replyPreviewText"); if (rp != null) rp.setText(raw);
+                    vis("replyPreviewBar", true); EditText mi = et("messageInput"); if (mi != null) { mi.setText(raw); mi.setSelection(raw.length()); mi.requestFocus(); } d.dismiss();
+                });
+                content.findViewById(R.id.msgActionDelete).setOnClickListener(x -> {
+                    LinearLayout msgArea = (LinearLayout) v("messagesArea"); if (msgArea != null) msgArea.removeView(b); d.dismiss();
+                });
+                content.findViewById(R.id.msgActionCancel).setOnClickListener(x -> d.dismiss());
+                int[] reactions = {R.id.msgReactLaugh,R.id.msgReactHeart,R.id.msgReactLike,R.id.msgReactSad,R.id.msgReactSpark};
+                String[] emojis = {"😂","❤️","👍","😭","✨"};
+                for (int i=0;i<reactions.length;i++){final String emoji=emojis[i];content.findViewById(reactions[i]).setOnClickListener(x->{toast("تفاعل " + emoji);d.dismiss();});}
             }
 
             void cancelReply() { replyText = null; editing = null; vis("replyPreviewBar", false); }
@@ -1554,40 +1666,40 @@ public class MassActivity extends Activity {
                 pm.show();
             }
 
+            void setChatSearchFilter() {
+                String[] ids={"csFilterAll","csFilterMine","csFilterOther"};
+                String[] values={"all","mine","other"};
+                for(int i=0;i<ids.length;i++){TextView t=tv(ids[i]);if(t!=null){boolean active=chatSearchFilter.equals(values[i]);t.setSelected(active);t.setTextColor(active?0xFF17212B:0xFFE2E8F0);}}
+            }
+
             void searchInChat(String q) {
                 LinearLayout a = (LinearLayout) v("messagesArea");
                 if (a == null) return;
                 q = q.trim().toLowerCase();
-                int found = 0; View first = null;
+                chatSearchHits.clear();
                 for (int i = 0; i < a.getChildCount(); i++) {
                     View c = a.getChildAt(i);
-                    Object tag = c.getTag();
-                    boolean senderAllowed = chatSearchFilter == 0
-                            || (chatSearchFilter == 1 && "bubMine".equals(tag))
-                            || (chatSearchFilter == 2 && "bubOther".equals(tag));
-                    boolean hit = q.length() > 0 && senderAllowed
-                            && String.valueOf(c.getContentDescription()).toLowerCase().contains(q);
-                    c.setAlpha(q.length() == 0 || (senderAllowed && (q.length() == 0 || hit)) ? 1f : 0.3f);
-                    if (hit) { found++; if (first == null) first = c; }
+                    String tag = String.valueOf(c.getTag());
+                    boolean sender = chatSearchFilter.equals("all") || (chatSearchFilter.equals("mine") && tag.equals("mine")) || (chatSearchFilter.equals("other") && tag.equals("other"));
+                    boolean hit = sender && (q.length() == 0 || String.valueOf(c.getContentDescription()).toLowerCase().contains(q));
+                    c.setAlpha(hit ? 1f : 0.24f);
+                    if (hit && q.length() > 0) chatSearchHits.add(c);
                 }
+                chatSearchHitIndex = 0;
                 TextView csc = tv("csCount");
-                if (csc != null) csc.setText(q.length() == 0 ? "" : (found + " نتيجة"));
-                View ms = v("messagesScroll");
-                if (first != null && ms != null) ((ScrollView) ms).smoothScrollTo(0, first.getTop());
+                if (csc != null) csc.setText(q.length() == 0 ? "" : (chatSearchHits.size() + " نتيجة"));
+                vis("csNav", !chatSearchHits.isEmpty());
+                if (!chatSearchHits.isEmpty()) navigateChatSearch(0);
             }
 
-            void setChatSearchFilter(int filter) {
-                chatSearchFilter = filter;
-                String[] ids = {"csFilterAll", "csFilterMine", "csFilterOther"};
-                for (int i = 0; i < ids.length; i++) {
-                    View chip = v(ids[i]);
-                    if (chip != null) {
-                        chip.setBackground(i == filter ? shape(goldA(dark ? 0x26 : 0x24), 14, goldA(0x33)) : null);
-                        chip.setAlpha(i == filter ? 1f : 0.72f);
-                    }
-                }
-                EditText query = et("chatMessageSearchInput");
-                searchInChat(query == null ? "" : query.getText().toString());
+            void navigateChatSearch(int direction) {
+                if (chatSearchHits.isEmpty()) return;
+                chatSearchHitIndex = (chatSearchHitIndex + direction + chatSearchHits.size()) % chatSearchHits.size();
+                View target = chatSearchHits.get(chatSearchHitIndex);
+                View ms = v("messagesScroll");
+                if (target != null && ms instanceof ScrollView) ((ScrollView) ms).smoothScrollTo(0, target.getTop());
+                TextView csc = tv("csCount");
+                if (csc != null) csc.setText((chatSearchHitIndex + 1) + " / " + chatSearchHits.size());
             }
 
             void searchUsers(String q) {
@@ -1722,7 +1834,7 @@ public class MassActivity extends Activity {
             }
 
             void click(String id) {
-                if (id.equals("hdrStories")) HtmlNativePages.showStoryComposer(act);
+                if (id.equals("hdrStories")) showStoryComposer();
                 else if (id.equals("mainSearchBtn")) {
                     EditText si = et("searchInput");
                     if (si != null) { si.setText(""); show("searchView"); si.requestFocus(); }
@@ -1732,9 +1844,6 @@ public class MassActivity extends Activity {
                 else if (id.equals("navProfile") || id.equals("sxHero")) { loadMyProfile(); show("profileView"); }
                 else if (id.equals("fltAll")) setFilter(false);
                 else if (id.equals("fltUnread")) setFilter(true);
-                else if (id.equals("csFilterAll")) setChatSearchFilter(0);
-                else if (id.equals("csFilterMine")) setChatSearchFilter(1);
-                else if (id.equals("csFilterOther")) setChatSearchFilter(2);
                 else if (id.equals("newGroupFab")) {
                     final EditText e = new EditText(act);
                     e.setHint("اسم المجموعة");
@@ -1744,14 +1853,7 @@ public class MassActivity extends Activity {
                 }
                 else if (id.equals("pEdit") || id.equals("pBioRow")) openEdit();
                 else if (id.equals("pPhoto")) pickProfilePhoto();
-                else if (id.equals("pCover")) {
-                    HtmlNativePages.showCoverPicker(act, selectedColor -> {
-                        coverColor = selectedColor;
-                        sp.edit().putInt("cover", coverColor).apply();
-                        View coverView = v("frame_layout642");
-                        if (coverView != null) coverView.setBackgroundColor(coverColor);
-                    });
-                }
+                else if (id.equals("pCover")) showCoverPicker(false);
                 else if (id.equals("pUserRow")) {
                     ClipboardManager cm = (ClipboardManager) act.getSystemService(Context.CLIPBOARD_SERVICE);
                     TextView pu = tv("pHeaderUser");
@@ -1762,15 +1864,10 @@ public class MassActivity extends Activity {
                 else if (id.equals("btnSaveProfile")) saveProfile();
                 else if (id.equals("otherBack")) show(prevPage);
                 else if (id.equals("pTabStoriesBtn")) {
-                    tabStories = true; vis("pTabStories", true); vis("pTabGifts", false);
-                    setTab(v("pTabStoriesBtn"), true); setTab(v("pTabGiftsBtn"), false);
+                    tabStories = true;
+                    vis("pTabStories", true);
+                    setTab(v("pTabStoriesBtn"), true);
                 }
-                else if (id.equals("pTabGiftsBtn")) {
-                    tabStories = false; vis("pTabStories", false); vis("pTabGifts", true);
-                    setTab(v("pTabStoriesBtn"), false); setTab(v("pTabGiftsBtn"), true);
-                }
-                else if (id.equals("otherStarsBtn")) toast("إهداء نجوم إلى " + otherName);
-                else if (id.equals("otherGiftBtn")) toast("متجر الهدايا");
                 else if (id.equals("otherMsgBtn")) openChat(otherName, otherUid);
                 else if (id.equals("otherBlockBtn")) {
                     blocked = !blocked;
@@ -1844,8 +1941,13 @@ public class MassActivity extends Activity {
                 else if (id.equals("chatBack")) closeChat();
                 else if (id.equals("chatUserInfo")) { hideKb(); vis("chatView", false); openOther(curChat, otherUser, otherUid); }
                 else if (id.equals("chatMore")) chatMenu();
+                else if (id.equals("csFilterAll")) { chatSearchFilter="all"; setChatSearchFilter(); searchInChat(txt("chatMessageSearchInput")); }
+                else if (id.equals("csFilterMine")) { chatSearchFilter="mine"; setChatSearchFilter(); searchInChat(txt("chatMessageSearchInput")); }
+                else if (id.equals("csFilterOther")) { chatSearchFilter="other"; setChatSearchFilter(); searchInChat(txt("chatMessageSearchInput")); }
+                else if (id.equals("csPrev")) navigateChatSearch(-1);
+                else if (id.equals("csNext")) navigateChatSearch(1);
                 else if (id.equals("csX")) {
-                    vis("chatSearchPanel", false);
+                    chatSearchFilter="all"; setChatSearchFilter(); vis("csNav", false);
                     EditText cs = et("chatMessageSearchInput");
                     if (cs != null) cs.setText("");
                     searchInChat("");
@@ -1910,13 +2012,13 @@ public class MassActivity extends Activity {
                 String[] ids = {"hdrStories", "mainSearchBtn", "searchBack", "fltAll", "fltUnread",
                         "newGroupFab", "navChats", "navSettings", "navProfile", "pEdit", "pPhoto", "pCover",
                         "pBioRow", "pUserRow", "editBack", "btnCancelEdit", "btnSaveProfile", "otherBack",
-                        "otherMsgBtn", "otherStarsBtn", "otherGiftBtn", "pTabStoriesBtn", "pTabGiftsBtn", "otherBlockBtn", "otherMoreBtn", "settingsThemeToggle", "sxHero",
+                        "otherMsgBtn", "pTabStoriesBtn", "otherBlockBtn", "otherMoreBtn", "settingsThemeToggle", "sxHero",
                         "itemChatSettings", "itemNotif", "itemPrivacy", "privacyBack", "notifBack",
                         "chatSetBack", "itemShare", "itemLogout", "itemDelete", "itemChangePass",
                         "itemChangeEmail", "itemBlocked", "segLastSeen_show", "segLastSeen_hide",
                         "segAvatar_show", "segAvatar_hide", "itemClearCache", "itemWipe", "itemAbout",
                         "pushOnBtn", "pushOffBtn", "soundOnBtn", "soundOffBtn", "chatBack", "chatUserInfo",
-                        "chatMore", "csX", "csFilterAll", "csFilterMine", "csFilterOther", "replyCancel", "btnSend", "btnMic", "btnAttach", "recSend", "recCancel"};
+                        "chatMore", "csX", "csFilterAll", "csFilterMine", "csFilterOther", "csPrev", "csNext", "replyCancel", "btnSend", "btnMic", "btnAttach", "recSend", "recCancel"};
                 for (String id : ids) {
                     View x = v(id);
                     if (x != null) x.setOnClickListener(L);
@@ -1972,6 +2074,10 @@ public class MassActivity extends Activity {
                 if (fr != null) { TextView fv = tv("fontVal"); if (fv != null) fv.setText("" + fontSp); }
                 if (rr != null) { TextView rv = tv("radiusVal"); if (rv != null) rv.setText("" + radius); }
 
+                setupSwipeNavigation();
+                setupStoryGestures();
+                View ownAvatar = v("pAvatarText");
+                if (ownAvatar != null) ownAvatar.setOnClickListener(x -> showAvatarActions());
                 setSeg("segLastSeen", sp.getBoolean("hideLast", false));
                 setSeg("segAvatar", sp.getBoolean("hideAv", false));
                 setOnOff("push", sp.getBoolean("push", true));

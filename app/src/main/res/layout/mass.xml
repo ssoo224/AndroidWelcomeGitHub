@@ -1,575 +1,91 @@
-<FrameLayout
-	xmlns:android="http://schemas.android.com/apk/res/android"
-	xmlns:app="http://schemas.android.com/apk/res-auto"
-	xmlns:tools="http://schemas.android.com/tools"
-	android:id="@+id/root"
-	android:layout_width="match_parent"
-	android:layout_height="match_parent"
-	android:background="#F4F6FA"
-	android:layoutDirection="rtl"
-	android:fitsSystemWindows="true"
-	android:tag="bg">
-	<LinearLayout
-		android:id="@+id/mainPage"
-		android:layout_width="match_parent"
-		android:layout_height="match_parent"
-		android:orientation="vertical"
-		android:tag="bg">
-		<LinearLayout
-			android:id="@+id/mainHeader"
-			android:layout_width="match_parent"
-			android:layout_height="64dp"
-			android:gravity="center_vertical"
-			android:orientation="horizontal"
-			android:paddingStart="16dp"
-			android:paddingEnd="16dp"
-			android:tag="bg">
-			<TextView
-				android:id="@+id/textview621"
-				android:layout_width="0dp"
-				android:layout_height="wrap_content"
-				android:text="Babylon Chat"
-				android:textSize="23sp"
-				android:textStyle="bold"
-				android:layout_weight="1"
-				android:tag="g" />
-			<TextView
-				android:id="@+id/hdrStories"
-				android:layout_width="42dp"
-				android:layout_height="42dp"
-				android:gravity="center_horizontal|center_vertical"
-				android:text=""
-				android:drawableStart="@drawable/ic_stories_24"
-				android:textSize="20sp"
-				android:layout_marginStart="8dp"
-				android:elevation="2dp"
-				android:tag="card t" />
-			<TextView
-				android:id="@+id/mainSearchBtn"
-				android:layout_width="42dp"
-				android:layout_height="42dp"
-				android:gravity="center_horizontal|center_vertical"
-				android:text=""
-				android:drawableStart="@drawable/ic_search_22"
-				android:textSize="19sp"
-				android:layout_marginStart="8dp"
-				android:elevation="2dp"
-				android:tag="card t" />
+<?xml version='1.0' encoding='UTF-8'?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" xmlns:tools="http://schemas.android.com/tools" android:id="@+id/root" android:layout_width="match_parent" android:layout_height="match_parent" android:layoutDirection="rtl" android:fitsSystemWindows="true" android:tag="bg">
+	<LinearLayout android:id="@+id/mainPage" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:tag="bg">
+		<LinearLayout android:id="@+id/mainHeader" android:layout_width="match_parent" android:layout_height="62dp" android:gravity="center_vertical" android:orientation="horizontal" android:paddingStart="16dp" android:paddingEnd="16dp" android:tag="bg">
+			<TextView android:id="@+id/textview621" android:layout_width="0dp" android:layout_height="wrap_content" android:text="Babylon Chat" android:textSize="23sp" android:textStyle="bold" android:layout_weight="1" android:tag="g"/>
+			<TextView android:id="@+id/hdrStories" android:layout_width="42dp" android:layout_height="42dp" android:gravity="center_horizontal|center_vertical" android:text="" android:drawableStart="@drawable/ic_stories_24" android:textSize="20sp" android:layout_marginStart="8dp" android:elevation="2dp" android:tag="card t"/>
+			<TextView android:id="@+id/mainSearchBtn" android:layout_width="42dp" android:layout_height="42dp" android:gravity="center_horizontal|center_vertical" android:text="" android:drawableStart="@drawable/ic_search_22" android:textSize="19sp" android:layout_marginStart="8dp" android:elevation="2dp" android:tag="card t"/>
 		</LinearLayout>
-		<FrameLayout
-			android:id="@+id/pagesHost"
-			android:layout_width="match_parent"
-			android:layout_height="0dp"
-			android:layout_weight="1">
-			<LinearLayout
-				android:id="@+id/homeView"
-				android:layout_width="match_parent"
-				android:layout_height="match_parent"
-				android:orientation="vertical">
-				<HorizontalScrollView
-					android:id="@+id/storiesScroll"
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:scrollbars="none">
-					<LinearLayout
-						android:id="@+id/storiesBar"
-						android:layout_width="wrap_content"
-						android:layout_height="wrap_content"
-						android:paddingStart="14dp"
-						android:paddingEnd="14dp"
-						android:paddingTop="12dp"
-						android:paddingBottom="10dp"
-						android:orientation="horizontal" />
+		<FrameLayout android:id="@+id/pagesHost" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+			<LinearLayout android:id="@+id/homeView" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical">
+				<HorizontalScrollView android:id="@+id/storiesScroll" android:layout_width="match_parent" android:layout_height="wrap_content" android:scrollbars="none">
+					<LinearLayout android:id="@+id/storiesBar" android:layout_width="wrap_content" android:layout_height="wrap_content" android:paddingStart="14dp" android:paddingEnd="14dp" android:paddingTop="12dp" android:paddingBottom="10dp" android:orientation="horizontal"/>
 				</HorizontalScrollView>
-				<LinearLayout
-					android:id="@+id/chatFilters"
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:paddingTop="4dp"
-					android:paddingBottom="12dp"
-					android:orientation="horizontal"
-					android:paddingStart="16dp"
-					android:paddingEnd="16dp">
-					<TextView
-						android:id="@+id/fltAll"
-						android:layout_width="wrap_content"
-						android:layout_height="38dp"
-						android:gravity="center_horizontal|center_vertical"
-						android:text="الكل"
-						android:textSize="13sp"
-						android:textStyle="bold"
-						android:minWidth="76dp"
-						android:paddingStart="18dp"
-						android:paddingEnd="18dp"
-						android:tag="gold" />
-					<TextView
-						android:id="@+id/fltUnread"
-						android:layout_width="wrap_content"
-						android:layout_height="38dp"
-						android:gravity="center_horizontal|center_vertical"
-						android:text="غير المقروءة"
-						android:textSize="13sp"
-						android:textStyle="bold"
-						android:paddingStart="18dp"
-						android:paddingEnd="18dp"
-						android:layout_marginStart="8dp"
-						android:tag="goldo" />
+				<View android:id="@+id/storyGestureHandle" android:layout_width="38dp" android:layout_height="4dp" android:layout_gravity="center_horizontal" android:layout_margin_top="2dp" android:layout_margin_bottom="7dp" android:background="@drawable/bg_gesture_handle" android:contentDescription="اسحب لإظهار أو إخفاء القصص"/><LinearLayout android:id="@+id/chatFilters" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingTop="4dp" android:paddingBottom="12dp" android:orientation="horizontal" android:paddingStart="16dp" android:paddingEnd="16dp">
+					<TextView android:id="@+id/fltAll" android:layout_width="wrap_content" android:layout_height="38dp" android:gravity="center_horizontal|center_vertical" android:text="الكل" android:textSize="13sp" android:textStyle="bold" android:minWidth="76dp" android:paddingStart="18dp" android:paddingEnd="18dp" android:tag="gold"/>
+					<TextView android:id="@+id/fltUnread" android:layout_width="wrap_content" android:layout_height="38dp" android:gravity="center_horizontal|center_vertical" android:text="غير المقروءة" android:textSize="13sp" android:textStyle="bold" android:paddingStart="18dp" android:paddingEnd="18dp" android:layout_marginStart="8dp" android:tag="goldo"/>
 				</LinearLayout>
-				<ScrollView
-					android:id="@+id/vscroll39"
-					android:layout_width="match_parent"
-					android:layout_height="match_parent"
-					android:fillViewport="true">
-					<LinearLayout
-						android:id="@+id/chatList"
-						android:layout_width="match_parent"
-						android:layout_height="wrap_content"
-						android:paddingStart="6dp"
-						android:paddingEnd="6dp"
-						android:paddingTop="2dp"
-						android:paddingBottom="96dp"
-						android:clipToPadding="false"
-						android:orientation="vertical" />
+				<ScrollView android:id="@+id/vscroll39" android:layout_width="match_parent" android:layout_height="match_parent" android:fillViewport="true">
+					<LinearLayout android:id="@+id/chatList" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingStart="6dp" android:paddingEnd="6dp" android:paddingTop="2dp" android:paddingBottom="96dp" android:clipToPadding="false" android:orientation="vertical"/>
 				</ScrollView>
 			</LinearLayout>
-			<TextView
-				android:id="@+id/newGroupFab"
-				android:layout_width="56dp"
-				android:layout_height="56dp"
-				android:layout_margin="16dp"
-				android:gravity="center_horizontal|center_vertical"
-				android:text=""
-				android:drawableStart="@drawable/ic_group_24"
-				android:textSize="22sp"
-				android:textColor="#FFFFFF"
-				android:layout_gravity="bottom|left"
-				android:elevation="8dp"
-				android:tag="circ" />
-			<LinearLayout
-				android:id="@+id/searchView"
-				android:layout_width="match_parent"
-				android:layout_height="match_parent"
-				android:orientation="vertical"
-				android:visibility="gone"
-				android:tag="bg">
-				<LinearLayout
-					android:id="@+id/linear605"
-					android:layout_width="match_parent"
-					android:layout_height="56dp"
-					android:gravity="center_vertical"
-					android:orientation="horizontal"
-					android:tag="sf"
-					android:elevation="3dp">
-					<TextView
-						android:id="@+id/searchBack"
-						android:layout_width="52dp"
-						android:layout_height="match_parent"
-						android:gravity="center_horizontal|center_vertical"
-						android:text=""
-						android:drawableStart="@drawable/ic_arrow_back_24"
-						android:textSize="24sp"
-						android:tag="t" />
-					<TextView
-						android:id="@+id/textview622"
-						android:layout_width="wrap_content"
-						android:layout_height="wrap_content"
-						android:text="بحث المستخدمين"
-						android:textSize="18sp"
-						android:textStyle="bold"
-						android:tag="t" />
+			<TextView android:id="@+id/newGroupFab" android:layout_width="56dp" android:layout_height="56dp" android:layout_margin="16dp" android:gravity="center_horizontal|center_vertical" android:text="" android:drawableStart="@drawable/ic_group_24" android:textSize="22sp" android:textColor="#FFFFFF" android:layout_gravity="bottom|left" android:elevation="8dp" android:tag="circ"/>
+			<LinearLayout android:id="@+id/searchView" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:visibility="gone" android:tag="bg">
+				<LinearLayout android:id="@+id/linear605" android:layout_width="match_parent" android:layout_height="56dp" android:gravity="center_vertical" android:orientation="horizontal" android:tag="sf" android:elevation="3dp">
+					<TextView android:id="@+id/searchBack" android:layout_width="52dp" android:layout_height="match_parent" android:gravity="center_horizontal|center_vertical" android:text="" android:drawableStart="@drawable/ic_arrow_back_24" android:textSize="24sp" android:tag="t"/>
+					<TextView android:id="@+id/textview622" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="بحث المستخدمين" android:textSize="18sp" android:textStyle="bold" android:tag="t"/>
 				</LinearLayout>
-				<LinearLayout
-					android:id="@+id/linear606"
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:padding="12dp"
-					android:orientation="vertical">
-					<EditText
-						android:id="@+id/searchInput"
-						android:layout_width="match_parent"
-						android:layout_height="wrap_content"
-						android:textSize="14sp"
-						android:hint="ابحث بـ \@username"
-						android:singleLine="true"
-						android:minHeight="48dp"
-						android:paddingStart="14dp"
-						android:paddingEnd="14dp"
-						android:tag="inp"
-						android:textDirection="ltr" />
-					<TextView
-						android:id="@+id/searchHint"
-						android:layout_width="wrap_content"
-						android:layout_height="wrap_content"
-						android:layout_marginTop="6dp"
-						android:text="اكتب 3 أحرف على الأقل"
-						android:textSize="12sp"
-						android:tag="m" />
+				<LinearLayout android:id="@+id/linear606" android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="12dp" android:orientation="vertical">
+					<EditText android:id="@+id/searchInput" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="14sp" android:hint="ابحث بـ \@username" android:singleLine="true" android:minHeight="48dp" android:paddingStart="14dp" android:paddingEnd="14dp" android:tag="inp" android:textDirection="ltr"/>
+					<TextView android:id="@+id/searchHint" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:text="اكتب 3 أحرف على الأقل" android:textSize="12sp" android:tag="m"/>
 				</LinearLayout>
-				<ScrollView
-					android:id="@+id/vscroll40"
-					android:layout_width="match_parent"
-					android:layout_height="match_parent">
-					<LinearLayout
-						android:id="@+id/searchResults"
-						android:layout_width="match_parent"
-						android:layout_height="wrap_content"
-						android:orientation="vertical" />
+				<ScrollView android:id="@+id/vscroll40" android:layout_width="match_parent" android:layout_height="match_parent">
+					<LinearLayout android:id="@+id/searchResults" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"/>
 				</ScrollView>
 			</LinearLayout>
 		</FrameLayout>
-		<LinearLayout
-			android:id="@+id/bottomNav"
-			android:layout_width="match_parent"
-			android:layout_height="wrap_content"
-			android:orientation="vertical"
-			android:tag="sf"
-			android:elevation="8dp">
-			<View
-				android:id="@+id/bottomNavLine"
-				android:layout_width="match_parent"
-				android:layout_height="1dp"
-				android:tag="line" />
-			<LinearLayout
-				android:id="@+id/bottomNavRow"
-				android:layout_width="match_parent"
-				android:layout_height="64dp"
-				android:gravity="center_vertical"
-				android:orientation="horizontal"
-				android:paddingStart="10dp"
-				android:paddingEnd="10dp"
-				android:paddingTop="6dp"
-				android:paddingBottom="6dp">
-			<LinearLayout
-				android:id="@+id/navChats"
-				android:layout_width="0dp"
-				android:layout_height="52dp"
-				android:layout_weight="1"
-				android:layout_marginStart="3.5dp"
-				android:layout_marginEnd="3.5dp"
-				android:gravity="center_horizontal|center_vertical"
-				android:orientation="vertical"
-				android:clickable="true"
-				android:focusable="true">
-				<TextView
-					android:id="@+id/navChatsIc"
-					android:layout_width="34dp"
-					android:layout_height="28dp"
-					android:gravity="center_horizontal|center_vertical"
-					android:text=""
-					android:drawableStart="@drawable/ic_chat_22"
-					android:textSize="20sp"
-					android:tag="m" />
-				<TextView
-					android:id="@+id/navChatsTx"
-					android:layout_width="wrap_content"
-					android:layout_height="wrap_content"
-					android:layout_marginTop="2dp"
-					android:text="المحادثات"
-					android:textSize="10.5sp"
-					android:textStyle="bold"
-					android:tag="m" />
+		<LinearLayout android:id="@+id/bottomNav" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:tag="sf" android:elevation="8dp">
+			<View android:id="@+id/bottomNavLine" android:layout_width="match_parent" android:layout_height="1dp" android:tag="line"/>
+			<LinearLayout android:id="@+id/bottomNavRow" android:layout_width="match_parent" android:layout_height="68dp" android:gravity="center_vertical" android:orientation="horizontal" android:paddingStart="10dp" android:paddingEnd="10dp" android:paddingTop="6dp" android:paddingBottom="6dp">
+			<LinearLayout android:id="@+id/navChats" android:layout_width="0dp" android:layout_height="52dp" android:layout_weight="1" android:layout_marginStart="3.5dp" android:layout_marginEnd="3.5dp" android:gravity="center_horizontal|center_vertical" android:orientation="vertical" android:clickable="true" android:focusable="true">
+				<TextView android:id="@+id/navChatsIc" android:layout_width="34dp" android:layout_height="28dp" android:gravity="center_horizontal|center_vertical" android:text="" android:drawableStart="@drawable/ic_chat_22" android:textSize="20sp" android:tag="m"/>
+				<TextView android:id="@+id/navChatsTx" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="المحادثات" android:textSize="10.5sp" android:textStyle="bold" android:tag="m"/>
 			</LinearLayout>
-			<LinearLayout
-				android:id="@+id/navSettings"
-				android:layout_width="0dp"
-				android:layout_height="52dp"
-				android:layout_weight="1"
-				android:layout_marginStart="3.5dp"
-				android:layout_marginEnd="3.5dp"
-				android:gravity="center_horizontal|center_vertical"
-				android:orientation="vertical"
-				android:clickable="true"
-				android:focusable="true">
-				<TextView
-					android:id="@+id/navSettingsIc"
-					android:layout_width="34dp"
-					android:layout_height="28dp"
-					android:gravity="center_horizontal|center_vertical"
-					android:text=""
-					android:drawableStart="@drawable/ic_settings_22"
-					android:textSize="20sp"
-					android:tag="m" />
-				<TextView
-					android:id="@+id/navSettingsTx"
-					android:layout_width="wrap_content"
-					android:layout_height="wrap_content"
-					android:layout_marginTop="2dp"
-					android:text="الإعدادات"
-					android:textSize="10.5sp"
-					android:textStyle="bold"
-					android:tag="m" />
+			<LinearLayout android:id="@+id/navSettings" android:layout_width="0dp" android:layout_height="52dp" android:layout_weight="1" android:layout_marginStart="3.5dp" android:layout_marginEnd="3.5dp" android:gravity="center_horizontal|center_vertical" android:orientation="vertical" android:clickable="true" android:focusable="true">
+				<TextView android:id="@+id/navSettingsIc" android:layout_width="34dp" android:layout_height="28dp" android:gravity="center_horizontal|center_vertical" android:text="" android:drawableStart="@drawable/ic_settings_22" android:textSize="20sp" android:tag="m"/>
+				<TextView android:id="@+id/navSettingsTx" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="الإعدادات" android:textSize="10.5sp" android:textStyle="bold" android:tag="m"/>
 			</LinearLayout>
-			<LinearLayout
-				android:id="@+id/navProfile"
-				android:layout_width="0dp"
-				android:layout_height="52dp"
-				android:layout_weight="1"
-				android:layout_marginStart="3.5dp"
-				android:layout_marginEnd="3.5dp"
-				android:gravity="center_horizontal|center_vertical"
-				android:orientation="vertical"
-				android:clickable="true"
-				android:focusable="true">
-				<TextView
-					android:id="@+id/navProfileIc"
-					android:layout_width="34dp"
-					android:layout_height="28dp"
-					android:gravity="center_horizontal|center_vertical"
-					android:text=""
-					android:drawableStart="@drawable/ic_user_22"
-					android:textSize="20sp"
-					android:tag="m" />
-				<TextView
-					android:id="@+id/navProfileTx"
-					android:layout_width="wrap_content"
-					android:layout_height="wrap_content"
-					android:layout_marginTop="2dp"
-					android:text="الملف الشخصي"
-					android:textSize="10.5sp"
-					android:textStyle="bold"
-					android:tag="m" />
+			<LinearLayout android:id="@+id/navProfile" android:layout_width="0dp" android:layout_height="52dp" android:layout_weight="1" android:layout_marginStart="3.5dp" android:layout_marginEnd="3.5dp" android:gravity="center_horizontal|center_vertical" android:orientation="vertical" android:clickable="true" android:focusable="true">
+				<TextView android:id="@+id/navProfileIc" android:layout_width="34dp" android:layout_height="28dp" android:gravity="center_horizontal|center_vertical" android:text="" android:drawableStart="@drawable/ic_user_22" android:textSize="20sp" android:tag="m"/>
+				<TextView android:id="@+id/navProfileTx" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="الملف الشخصي" android:textSize="10.5sp" android:textStyle="bold" android:tag="m"/>
 			</LinearLayout>
 			</LinearLayout>
-		</LinearLayout>
+		<View android:id="@+id/appGestureBar" android:layout_width="42dp" android:layout_height="4dp" android:layout_gravity="center_horizontal" android:layout_margin_top="0dp" android:layout_margin_bottom="7dp" android:background="@drawable/bg_gesture_handle"/></LinearLayout>
 	</LinearLayout>
-	<LinearLayout
-		android:id="@+id/chatView"
-		android:layout_width="match_parent"
-		android:layout_height="match_parent"
-		android:orientation="vertical"
-		android:visibility="gone"
-		android:tag="bg">
-		<LinearLayout
-			android:id="@+id/linear607"
-			android:layout_width="match_parent"
-			android:layout_height="58dp"
-			android:gravity="center_vertical"
-			android:orientation="horizontal"
-			android:tag="sf"
-			android:elevation="3dp">
-			<TextView
-				android:id="@+id/chatBack"
-				android:layout_width="50dp"
-				android:layout_height="match_parent"
-				android:gravity="center_horizontal|center_vertical"
-				android:text=""
-				android:drawableStart="@drawable/ic_arrow_back_24"
-				android:textSize="24sp"
-				android:tag="t" />
-			<LinearLayout
-				android:id="@+id/chatUserInfo"
-				android:layout_width="0dp"
-				android:layout_height="match_parent"
-				android:gravity="center_vertical"
-				android:orientation="horizontal"
-				android:layout_weight="1">
-				<TextView
-					android:id="@+id/chatAvatar"
-					android:layout_width="42dp"
-					android:layout_height="42dp"
-					android:gravity="center_horizontal|center_vertical"
-					android:text="؟"
-					android:textSize="18sp"
-					android:textStyle="bold"
-					android:textColor="#17212B"
-					android:tag="circ" />
-				<LinearLayout
-					android:id="@+id/linear608"
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:orientation="vertical"
-					android:layout_marginStart="10dp">
-					<TextView
-						android:id="@+id/chatTitle"
-						android:layout_width="wrap_content"
-						android:layout_height="wrap_content"
-						android:text="المحادثة"
-						android:textSize="16sp"
-						android:textStyle="bold"
-						android:tag="t" />
-					<TextView
-						android:id="@+id/chatSub"
-						android:layout_width="wrap_content"
-						android:layout_height="wrap_content"
-						android:text="غير متصل"
-						android:textSize="12sp"
-						android:tag="m" />
+	<LinearLayout android:id="@+id/chatView" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:visibility="gone" android:tag="bg">
+		<LinearLayout android:id="@+id/linear607" android:layout_width="match_parent" android:layout_height="60dp" android:gravity="center_vertical" android:orientation="horizontal" android:tag="sf" android:elevation="3dp">
+			<TextView android:id="@+id/chatBack" android:layout_width="50dp" android:layout_height="match_parent" android:gravity="center_horizontal|center_vertical" android:text="" android:drawableStart="@drawable/ic_arrow_back_24" android:textSize="24sp" android:tag="t"/>
+			<LinearLayout android:id="@+id/chatUserInfo" android:layout_width="0dp" android:layout_height="match_parent" android:gravity="center_vertical" android:orientation="horizontal" android:layout_weight="1">
+				<TextView android:id="@+id/chatAvatar" android:layout_width="42dp" android:layout_height="42dp" android:gravity="center_horizontal|center_vertical" android:text="؟" android:textSize="18sp" android:textStyle="bold" android:textColor="#17212B" android:tag="circ"/>
+				<LinearLayout android:id="@+id/linear608" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:layout_marginStart="10dp">
+					<TextView android:id="@+id/chatTitle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="المحادثة" android:textSize="16sp" android:textStyle="bold" android:tag="t"/>
+					<TextView android:id="@+id/chatSub" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="غير متصل" android:textSize="12sp" android:tag="m"/>
 				</LinearLayout>
 			</LinearLayout>
-			<TextView
-				android:id="@+id/chatMore"
-				android:layout_width="46dp"
-				android:layout_height="match_parent"
-				android:gravity="center_horizontal|center_vertical"
-				android:text=""
-				android:drawableStart="@drawable/ic_more_22"
-				android:textSize="24sp"
-				android:tag="t" />
+			<TextView android:id="@+id/chatMore" android:layout_width="46dp" android:layout_height="match_parent" android:gravity="center_horizontal|center_vertical" android:text="" android:drawableStart="@drawable/ic_more_22" android:textSize="24sp" android:tag="t"/>
 		</LinearLayout>
-		<LinearLayout
-			android:id="@+id/chatSearchPanel"
-			android:layout_width="match_parent"
-			android:layout_height="wrap_content"
-			android:padding="10dp"
-			android:orientation="vertical"
-			android:visibility="gone"
-			android:tag="sf">
-			<LinearLayout
-				android:id="@+id/linear609"
-				android:layout_width="match_parent"
-				android:layout_height="wrap_content"
-				android:gravity="center_vertical"
-				android:orientation="horizontal">
-				<EditText
-					android:id="@+id/chatMessageSearchInput"
-					android:layout_width="0dp"
-					android:layout_height="wrap_content"
-					android:textSize="14sp"
-					android:hint="ابحث في هذه المحادثة..."
-					android:singleLine="true"
-					android:layout_weight="1"
-					android:minHeight="48dp"
-					android:paddingStart="14dp"
-					android:paddingEnd="14dp"
-					android:tag="inp" />
-				<TextView
-					android:id="@+id/csX"
-					android:layout_width="44dp"
-					android:layout_height="44dp"
-					android:gravity="center_horizontal|center_vertical"
-					android:text=""
-					android:drawableStart="@drawable/ic_close_22"
-					android:textSize="20sp"
-					android:tag="t" />
+		<LinearLayout android:id="@+id/chatSearchPanel" android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="10dp" android:orientation="vertical" android:visibility="gone" android:tag="sf">
+			<LinearLayout android:id="@+id/linear609" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
+				<EditText android:id="@+id/chatMessageSearchInput" android:layout_width="0dp" android:layout_height="wrap_content" android:textSize="14sp" android:hint="ابحث في هذه المحادثة..." android:singleLine="true" android:layout_weight="1" android:minHeight="48dp" android:paddingStart="14dp" android:paddingEnd="14dp" android:tag="inp"/>
+				<TextView android:id="@+id/csX" android:layout_width="44dp" android:layout_height="44dp" android:gravity="center_horizontal|center_vertical" android:text="" android:drawableStart="@drawable/ic_close_22" android:textSize="20sp" android:tag="t"/>
 			</LinearLayout>
-			<LinearLayout
-				android:id="@+id/csFilterRow"
-				android:layout_width="match_parent"
-				android:layout_height="wrap_content"
-				android:orientation="horizontal"
-				android:gravity="center_vertical"
-				android:layout_marginTop="6dp">
-				<TextView android:id="@+id/csFilterAll" android:layout_width="0dp" android:layout_height="34dp" android:layout_weight="1" android:gravity="center" android:text="الكل" android:textSize="12sp" android:textStyle="bold" android:background="@drawable/bg_tab_active" android:tag="t" />
-				<TextView android:id="@+id/csFilterMine" android:layout_width="0dp" android:layout_height="34dp" android:layout_weight="1" android:gravity="center" android:text="رسائلي" android:textSize="12sp" android:textStyle="bold" android:tag="m" />
-				<TextView android:id="@+id/csFilterOther" android:layout_width="0dp" android:layout_height="34dp" android:layout_weight="1" android:gravity="center" android:text="من الآخرين" android:textSize="12sp" android:textStyle="bold" android:tag="m" />
-			</LinearLayout>
-			<TextView
-				android:id="@+id/csCount"
-				android:layout_width="wrap_content"
-				android:layout_height="wrap_content"
-				android:layout_marginTop="4dp"
-				android:textSize="12sp"
-				android:tag="m" />
-		</LinearLayout>
-		<ScrollView
-			android:id="@+id/messagesScroll"
-			android:layout_width="match_parent"
-			android:layout_height="0dp"
-			android:layout_weight="1"
-			android:fillViewport="true"
-			android:tag="chatbg">
-			<LinearLayout
-				android:id="@+id/messagesArea"
-				android:layout_width="match_parent"
-				android:layout_height="wrap_content"
-				android:padding="10dp"
-				android:orientation="vertical" />
+			<LinearLayout android:id="@+id/csFilters" android:layout_width="match_parent" android:layout_height="38dp" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginTop="7dp"><TextView android:id="@+id/csFilterAll" android:layout_width="0dp" android:layout_height="34dp" android:layout_weight="1" android:gravity="center" android:text="الكل" android:textSize="12sp" android:textStyle="bold" android:textColor="#17212B" android:background="@drawable/bg_native_chip" android:selected="true"/><TextView android:id="@+id/csFilterMine" android:layout_width="0dp" android:layout_height="34dp" android:layout_weight="1" android:gravity="center" android:text="رسائلي" android:textSize="12sp" android:textStyle="bold" android:textColor="#E2E8F0" android:background="@drawable/bg_native_chip"/><TextView android:id="@+id/csFilterOther" android:layout_width="0dp" android:layout_height="34dp" android:layout_weight="1" android:gravity="center" android:text="من الآخرين" android:textSize="12sp" android:textStyle="bold" android:textColor="#E2E8F0" android:background="@drawable/bg_native_chip"/></LinearLayout><TextView android:id="@+id/csCount" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:textSize="12sp" android:tag="m"/>
+		<LinearLayout android:id="@+id/csNav" android:layout_width="match_parent" android:layout_height="36dp" android:gravity="center_vertical" android:orientation="horizontal" android:visibility="gone"><TextView android:id="@+id/csPrev" android:layout_width="0dp" android:layout_height="32dp" android:layout_weight="1" android:gravity="center" android:text="↑ السابق" android:textColor="#E8C45B" android:textSize="12sp"/><TextView android:id="@+id/csNext" android:layout_width="0dp" android:layout_height="32dp" android:layout_weight="1" android:gravity="center" android:text="التالي ↓" android:textColor="#E8C45B" android:textSize="12sp"/></LinearLayout></LinearLayout>
+		<ScrollView android:id="@+id/messagesScroll" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:fillViewport="true" android:tag="chatbg">
+			<LinearLayout android:id="@+id/messagesArea" android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="10dp" android:orientation="vertical"/>
 		</ScrollView>
-		<LinearLayout
-			android:id="@+id/replyPreviewBar"
-			android:layout_width="match_parent"
-			android:layout_height="wrap_content"
-			android:padding="8dp"
-			android:gravity="center_vertical"
-			android:orientation="horizontal"
-			android:visibility="gone"
-			android:tag="sf">
-			<LinearLayout
-				android:id="@+id/linear610"
-				android:layout_width="0dp"
-				android:layout_height="wrap_content"
-				android:orientation="vertical"
-				android:layout_weight="1">
-				<TextView
-					android:id="@+id/replyLabel"
-					android:layout_width="wrap_content"
-					android:layout_height="wrap_content"
-					android:text="الرد على الرسالة"
-					android:drawableStart="@drawable/ic_reply_16"
-					android:drawablePadding="6dp"
-					android:textSize="12sp"
-					android:textStyle="bold"
-					android:tag="g" />
-				<TextView
-					android:id="@+id/replyPreviewText"
-					android:layout_width="wrap_content"
-					android:layout_height="wrap_content"
-					android:text="..."
-					android:textSize="13sp"
-					android:tag="m"
-					android:maxLines="1"
-					android:ellipsize="end" />
+		<LinearLayout android:id="@+id/replyPreviewBar" android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="8dp" android:gravity="center_vertical" android:orientation="horizontal" android:visibility="gone" android:tag="sf">
+			<LinearLayout android:id="@+id/linear610" android:layout_width="0dp" android:layout_height="wrap_content" android:orientation="vertical" android:layout_weight="1">
+				<TextView android:id="@+id/replyLabel" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="الرد على الرسالة" android:drawableStart="@drawable/ic_reply_16" android:drawablePadding="6dp" android:textSize="12sp" android:textStyle="bold" android:tag="g"/>
+				<TextView android:id="@+id/replyPreviewText" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="..." android:textSize="13sp" android:tag="m" android:maxLines="1" android:ellipsize="end"/>
 			</LinearLayout>
-			<TextView
-				android:id="@+id/replyCancel"
-				android:layout_width="40dp"
-				android:layout_height="40dp"
-				android:gravity="center_horizontal|center_vertical"
-				android:text=""
-				android:drawableStart="@drawable/ic_close_20"
-				android:textSize="18sp"
-				android:tag="m" />
+			<TextView android:id="@+id/replyCancel" android:layout_width="40dp" android:layout_height="40dp" android:gravity="center_horizontal|center_vertical" android:text="" android:drawableStart="@drawable/ic_close_20" android:textSize="18sp" android:tag="m"/>
 		</LinearLayout>
-		<LinearLayout
-			android:id="@+id/textInputBar"
-			android:layout_width="match_parent"
-			android:layout_height="wrap_content"
-			android:padding="8dp"
-			android:gravity="bottom"
-			android:orientation="horizontal"
-			android:tag="sf"
-			android:elevation="6dp">
-			<EditText
-				android:id="@+id/messageInput"
-				android:layout_width="0dp"
-				android:layout_height="wrap_content"
-				android:textSize="15sp"
-				android:hint="اكتب رسالتك..."
-				android:layout_weight="1"
-				android:inputType="textMultiLine|textCapSentences"
-				android:minHeight="44dp"
-				android:maxHeight="120dp"
-				android:paddingStart="14dp"
-				android:paddingEnd="14dp"
-				android:tag="inp" />
-			<TextView
-				android:id="@+id/btnAttach"
-				android:layout_width="42dp"
-				android:layout_height="44dp"
-				android:gravity="center_horizontal|center_vertical"
-				android:text=""
-				android:drawableStart="@drawable/ic_attach_22"
-				android:textSize="20sp"
-				android:tag="m" />
-			<TextView
-				android:id="@+id/btnMic"
-				android:layout_width="42dp"
-				android:layout_height="44dp"
-				android:gravity="center_horizontal|center_vertical"
-				android:text=""
-				android:drawableStart="@drawable/ic_mic_22"
-				android:textSize="20sp"
-				android:tag="m" />
-			<TextView
-				android:id="@+id/btnSend"
-				android:layout_width="44dp"
-				android:layout_height="44dp"
-				android:gravity="center_horizontal|center_vertical"
-				android:text=""
-				android:drawableStart="@drawable/ic_send_22"
-				android:textSize="22sp"
-				android:rotation="180"
-				android:tag="g" />
+		<LinearLayout android:id="@+id/recordingBar" android:layout_width="match_parent" android:layout_height="54dp" android:orientation="horizontal" android:gravity="center_vertical" android:paddingStart="14dp" android:paddingEnd="14dp" android:visibility="gone" android:background="#17212B" android:tag="sf"><View android:layout_width="9dp" android:layout_height="9dp" android:background="#EF4444" android:layout_marginEnd="9dp"/><TextView android:id="@+id/recTimer" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="جاري التسجيل 0:00" android:textColor="#FCA5A5" android:textSize="14sp" android:textStyle="bold"/><TextView android:id="@+id/recCancel" android:layout_width="44dp" android:layout_height="42dp" android:gravity="center" android:text="إلغاء" android:textColor="#FCA5A5" android:textSize="12sp"/><TextView android:id="@+id/recSend" android:layout_width="58dp" android:layout_height="42dp" android:gravity="center" android:text="إرسال" android:textColor="#17212B" android:textStyle="bold" android:background="@drawable/bg_button"/></LinearLayout><LinearLayout android:id="@+id/textInputBar" android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="8dp" android:gravity="bottom" android:orientation="horizontal" android:tag="sf" android:elevation="6dp">
+			<EditText android:id="@+id/messageInput" android:layout_width="0dp" android:layout_height="wrap_content" android:textSize="15sp" android:hint="اكتب رسالتك..." android:layout_weight="1" android:inputType="textMultiLine|textCapSentences" android:minHeight="44dp" android:maxHeight="120dp" android:paddingStart="14dp" android:paddingEnd="14dp" android:tag="inp"/>
+			<TextView android:id="@+id/btnAttach" android:layout_width="42dp" android:layout_height="44dp" android:gravity="center_horizontal|center_vertical" android:text="" android:drawableStart="@drawable/ic_attach_22" android:textSize="20sp" android:tag="m"/>
+			<TextView android:id="@+id/btnMic" android:layout_width="42dp" android:layout_height="44dp" android:gravity="center_horizontal|center_vertical" android:text="" android:drawableStart="@drawable/ic_mic_22" android:textSize="20sp" android:tag="m"/>
+			<TextView android:id="@+id/btnSend" android:layout_width="44dp" android:layout_height="44dp" android:gravity="center_horizontal|center_vertical" android:text="" android:drawableStart="@drawable/ic_send_22" android:textSize="22sp" android:rotation="180" android:tag="g"/>
 		</LinearLayout>
 	</LinearLayout>
 </FrameLayout>
