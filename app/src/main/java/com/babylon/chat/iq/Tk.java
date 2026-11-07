@@ -143,6 +143,14 @@ public final class Tk {
         return ld;
     }
 
+    /** ظل ذهبي ناعم (rgba(212,175,55,.25)) على Android 9+؛ الأقدم يبقى بظل افتراضي. */
+    public static void goldShadow(View v) {
+        if (android.os.Build.VERSION.SDK_INT >= 28) {
+            v.setOutlineAmbientShadowColor(0x66D4AF37);
+            v.setOutlineSpotShadowColor(0xFFD4AF37);
+        }
+    }
+
     public static boolean handle(String tag, View x, TextView t, boolean dark) {
         if (tag.equals("homepat")) { x.setBackground(pattern(x, dark, pageBg(dark))); return true; }
         if (tag.equals("chatpat")) { x.setBackground(pattern(x, dark, dark ? 0xFF17212B : 0xFFEEF2F8)); return true; }
@@ -157,8 +165,66 @@ public final class Tk {
             x.setBackground(shape(dark ? 0xFF1E2A38 : 0xFFFFFFFF, dp(x, 24), dark ? 0x14FFFFFF : 0xFFE3E9F1, dp(x, 1)));
             return true;
         }
-        if (tag.equals("composer")) {        // مدخل الرسائل العائم
-            x.setBackground(shape(dark ? 0xFF17212B : 0xFFFFFFFF, dp(x, 24), dark ? 0x14FFFFFF : 0xFFE3E9F1, dp(x, 1)));
+        if (tag.equals("composer")) {        // #textInputBar: بطاقة radius 14 + حد 1dp (--cr-card / --cr-line)
+            x.setBackground(shape(dark ? 0xFF1E2A38 : 0xFFFFFFFF, dp(x, 14), dark ? 0x14FFFFFF : 0xFFE1E8F1, dp(x, 1)));
+            return true;
+        }
+        if (tag.equals("cinp")) {            // #messageInput.msg-editable: radius 10 ، عند التركيز حد #c9cfd8
+            GradientDrawable idle = shape(dark ? 0x1A7F8CA0 : 0xFFF1F5FA, dp(x, 10), 0x00000000, 0);
+            idle.setStroke(dpi(x, 1), 0x00000000);
+            GradientDrawable focus = shape(dark ? 0x297F8CA0 : 0xFFFFFFFF, dp(x, 10), 0xFFC9CFD8, dp(x, 1));
+            android.graphics.drawable.StateListDrawable sl = new android.graphics.drawable.StateListDrawable();
+            sl.addState(new int[]{android.R.attr.state_focused}, focus);
+            sl.addState(new int[]{}, idle);
+            x.setBackground(sl);
+            if (t != null) {
+                t.setTextColor(dark ? 0xFFF1F5F9 : 0xFF17212B);
+                t.setHintTextColor(dark ? 0xFF8A9AAB : 0xFF8B98A8);
+            }
+            return true;
+        }
+        if (tag.equals("sendbtn")) {         // زر الإرسال: 40dp ، radius 15/15/7/15 ، تدرج #e9c957→#c59b24 ، سهم أبيض
+            float a = dp(x, 15), b = dp(x, 7);
+            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE9C957, 0xFFC59B24});
+            g.setCornerRadii(new float[]{a, a, a, a, b, b, a, a});   // TL, TR, BR, BL
+            x.setBackground(g);
+            x.setElevation(dp(x, 3));
+            goldShadow(x);
+            if (t != null) t.setTextColor(0xFFFFFFFF);
+            return true;
+        }
+        if (tag.equals("recbar")) {          // .recording-bar: سطح البطاقة + خط علوي 1dp
+            android.graphics.drawable.LayerDrawable ld = new android.graphics.drawable.LayerDrawable(
+                    new android.graphics.drawable.Drawable[]{
+                            new android.graphics.drawable.ColorDrawable(dark ? 0x14FFFFFF : 0xFFE5EAF1),
+                            new android.graphics.drawable.ColorDrawable(surface(dark))});
+            ld.setLayerInset(1, 0, dpi(x, 1), 0, 0);
+            x.setBackground(ld);
+            return true;
+        }
+        if (tag.equals("recgold12")) {       // .rec-left: مربع ذهبي radius 12 (إلغاء / تشغيل)
+            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE8C85D, 0xFFC29D30});
+            g.setCornerRadius(dp(x, 12));
+            x.setBackground(g);
+            x.setElevation(dp(x, 3));
+            goldShadow(x);
+            return true;
+        }
+        if (tag.equals("recgoldc")) {        // .record-stop-btn / .record-send-btn: دائرة ذهبية 42dp
+            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE8C85D, 0xFFC29D30});
+            g.setShape(GradientDrawable.OVAL);
+            x.setBackground(g);
+            x.setElevation(dp(x, 3));
+            goldShadow(x);
+            if (t != null) t.setTextColor(0xFFFFFFFF);
+            return true;
+        }
+        if (tag.equals("recsend")) {         // سهم إرسال الصوت بلون الحبر #17212b (مثل HTML)
+            if (t != null) t.setTextColor(0xFF17212B);
+            return true;
+        }
+        if (tag.equals("recwave")) {
+            if (x instanceof VoiceWaveView) ((VoiceWaveView) x).setColor(gold(dark));
             return true;
         }
         if (tag.equals("fab")) {
