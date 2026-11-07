@@ -215,6 +215,16 @@
 						android:orientation="vertical" />
 				</ScrollView>
 			</LinearLayout>
+			<!-- Native conversion of the HTML profile page -->
+			<include
+				layout="@layout/part_profile"
+				android:layout_width="match_parent"
+				android:layout_height="match_parent" />
+			<!-- Native conversion of the HTML settings pages -->
+			<include
+				layout="@layout/part_settings"
+				android:layout_width="match_parent"
+				android:layout_height="match_parent" />
 		</FrameLayout>
 		<LinearLayout
 			android:id="@+id/bottomNav"
