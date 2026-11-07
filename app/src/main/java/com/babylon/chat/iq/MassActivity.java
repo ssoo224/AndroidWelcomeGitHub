@@ -746,7 +746,7 @@ public class MassActivity extends Activity {
             }
 
             void setupPressAnimations() {
-                String[] ids = {"newGroupFab", "fltAll", "fltUnread", "hdrStories", "mainSearchBtn", "navChats", "navSettings", "navProfile", "chatBack", "chatMore", "btnSend", "btnMic", "btnAttach", "pEdit", "pPhoto", "pCover", "otherMsgBtn", "otherBlockBtn", "privacyBack", "settingsThemeToggle"};
+                String[] ids = {"newGroupFab", "fltAll", "fltUnread", "hdrProfileAvatar", "mainSearchBtn", "navChats", "navSettings", "navProfile", "chatBack", "chatMore", "btnSend", "btnMic", "btnAttach", "pEdit", "pPhoto", "pCover", "otherMsgBtn", "otherBlockBtn", "privacyBack", "settingsThemeToggle"};
                 for (String id : ids) {
                     View view = v(id);
                     if (view == null) continue;
@@ -1215,6 +1215,8 @@ public class MassActivity extends Activity {
                 String letter = userName.length() > 0 ? userName.substring(0, 1).toUpperCase() : "؟";
                 TextView pAv = tv("pAvatarText");
                 if (pAv != null) pAv.setText(letter);
+                TextView hdrAv = tv("hdrProfileAvatar");
+                if (hdrAv != null) hdrAv.setText(letter);
                 TextView pSt = tv("pHeaderStatus");
                 if (pSt != null) pSt.setText("●  متصل الآن");
                 TextView sxAv = tv("sxAvatar");
@@ -1397,8 +1399,21 @@ public class MassActivity extends Activity {
                     });
             }
 
+            // دالة القصص (مع خاصية الإخفاء التلقائي)
             void buildStories() {
                 LinearLayout bar = (LinearLayout) v("storiesBar");
+                View scrollView = v("storiesScroll");
+                View gestureHandle = v("storyGestureHandle");
+
+                if (chatData == null || chatData.isEmpty()) {
+                    if (scrollView != null) scrollView.setVisibility(View.GONE);
+                    if (gestureHandle != null) gestureHandle.setVisibility(View.GONE);
+                    return;
+                } else {
+                    if (scrollView != null) scrollView.setVisibility(View.VISIBLE);
+                    if (gestureHandle != null) gestureHandle.setVisibility(View.VISIBLE);
+                }
+
                 if (bar == null) return;
                 bar.removeAllViews();
                 for (int i = 0; i <= chatData.size() && i < 8; i++) {
@@ -1474,7 +1489,6 @@ public class MassActivity extends Activity {
                     if (hiddenChats.contains(getChatId(myUid, c[4]))) continue;
                     if (unreadOnly && c[3].equals("0")) continue;
                     
-                    // Updated Chat List Card (White Floating)
                     LinearLayout row = new LinearLayout(act);
                     row.setOrientation(LinearLayout.HORIZONTAL);
                     row.setGravity(Gravity.CENTER_VERTICAL);
@@ -1729,7 +1743,7 @@ public class MassActivity extends Activity {
                 animateMessageIn(frame);
             }
 
-            // Updated Audio Message Design
+            // تصميم الرسالة الصوتية المطابق للصورة
             void addAudioMsg(String url, long durationMs, boolean mine, String time) {
                 LinearLayout box = new LinearLayout(act);
                 box.setOrientation(LinearLayout.HORIZONTAL);
@@ -2078,6 +2092,7 @@ public class MassActivity extends Activity {
                 }
                 applyPhotoTo(tv("pAvatarText"));
                 applyPhotoTo(tv("sxAvatar"));
+                applyPhotoTo(tv("hdrProfileAvatar"));
             }
 
             void toggleRecording() {
@@ -2218,7 +2233,6 @@ public class MassActivity extends Activity {
                 sheet.addView(cancel, new LinearLayout.LayoutParams(-1, dp(44))); cancel.setOnClickListener(x -> d.dismiss());
                 styleSheetDialog(d, sheet, false);
             }
-
 
             void setChatSearchFilter() {
                 String[] ids={"csFilterAll","csFilterMine","csFilterOther"};
@@ -2388,7 +2402,7 @@ public class MassActivity extends Activity {
             }
 
             void click(String id) {
-                if (id.equals("hdrStories")) showStoryComposer();
+                if (id.equals("hdrProfileAvatar")) showStoryComposer();
                 else if (id.equals("mainSearchBtn")) {
                     EditText si = et("searchInput");
                     if (si != null) { si.setText(""); show("searchView"); si.requestFocus(); }
@@ -2563,7 +2577,7 @@ public class MassActivity extends Activity {
                         click(act.getResources().getResourceEntryName(x.getId()));
                     } catch (Throwable ignored) { }
                 };
-                String[] ids = {"hdrStories", "mainSearchBtn", "searchBack", "fltAll", "fltUnread",
+                String[] ids = {"hdrProfileAvatar", "mainSearchBtn", "searchBack", "fltAll", "fltUnread",
                         "newGroupFab", "navChats", "navSettings", "navProfile", "pEdit", "pPhoto", "pCover",
                         "pBioRow", "pUserRow", "editBack", "btnCancelEdit", "btnSaveProfile", "otherBack",
                         "otherMsgBtn", "pTabStoriesBtn", "otherBlockBtn", "otherMoreBtn", "settingsThemeToggle", "sxHero",

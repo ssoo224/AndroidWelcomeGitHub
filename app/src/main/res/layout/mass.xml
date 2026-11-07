@@ -1,10 +1,11 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" xmlns:tools="http://schemas.android.com/tools" android:id="@+id/root" android:layout_width="match_parent" android:layout_height="match_parent" android:layoutDirection="rtl" android:fitsSystemWindows="true" android:tag="bg">
 	<LinearLayout android:id="@+id/mainPage" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:tag="bg">
-		<LinearLayout android:id="@+id/mainHeader" android:layout_width="match_parent" android:layout_height="62dp" android:gravity="center_vertical" android:orientation="horizontal" android:paddingStart="16dp" android:paddingEnd="16dp" android:tag="bg">
+		<LinearLayout android:id="@+id/mainHeader" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal" android:paddingStart="16dp" android:paddingEnd="16dp" android:paddingTop="8dp" android:paddingBottom="8dp" android:tag="bg">
 			<TextView android:id="@+id/textview621" android:layout_width="0dp" android:layout_height="wrap_content" android:text="Babylon Chat" android:textSize="23sp" android:textStyle="bold" android:layout_weight="1" android:tag="g"/>
-			<TextView android:id="@+id/hdrStories" android:layout_width="42dp" android:layout_height="42dp" android:gravity="center_horizontal|center_vertical" android:text="" android:drawableStart="@drawable/ic_stories_24" android:textSize="20sp" android:layout_marginStart="8dp" android:elevation="2dp" android:tag="card t"/>
-			<TextView android:id="@+id/mainSearchBtn" android:layout_width="42dp" android:layout_height="42dp" android:gravity="center_horizontal|center_vertical" android:text="" android:drawableStart="@drawable/ic_search_22" android:textSize="19sp" android:layout_marginStart="8dp" android:elevation="2dp" android:tag="card t"/>
+			<!-- صورتك في الهيدر -->
+			<TextView android:id="@+id/hdrProfileAvatar" android:layout_width="42dp" android:layout_height="42dp" android:gravity="center_horizontal|center_vertical" android:text="M" android:textSize="18sp" android:textStyle="bold" android:textColor="#FFFFFF" android:layout_marginEnd="8dp" android:elevation="2dp" android:tag="avatar"/>
+			<TextView android:id="@+id/mainSearchBtn" android:layout_width="42dp" android:layout_height="42dp" android:gravity="center_horizontal|center_vertical" android:text="" android:drawableStart="@drawable/ic_search_22" android:textSize="19sp" android:elevation="2dp" android:tag="card t"/>
 		</LinearLayout>
 		<FrameLayout android:id="@+id/pagesHost" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
 			<LinearLayout android:id="@+id/homeView" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical">
@@ -54,9 +55,7 @@
 		<View android:id="@+id/appGestureBar" android:layout_width="42dp" android:layout_height="4dp" android:layout_gravity="center_horizontal" android:layout_marginTop="0dp" android:layout_marginBottom="7dp" android:background="@drawable/bg_gesture_handle" android:contentDescription="مقبض إيماءات التطبيق"/></LinearLayout>
 	</LinearLayout>
 	
-    <!-- ========================================== -->
-    <!-- تصميم المحادثة (Chat View) تم تعديله ليكون عائماً -->
-    <!-- ========================================== -->
+    <!-- تصميم المحادثة (Chat View) - الهيدر العائم -->
     <LinearLayout android:id="@+id/chatView" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:visibility="gone" android:tag="bg">
 		<LinearLayout android:id="@+id/linear607" android:layout_width="match_parent" android:layout_height="66dp" android:layout_marginStart="12dp" android:layout_marginEnd="12dp" android:layout_marginTop="8dp" android:gravity="center_vertical" android:orientation="horizontal" android:tag="roomhdr" android:elevation="8dp">
 			<TextView android:id="@+id/chatBack" android:layout_width="40dp" android:layout_height="40dp" android:gravity="center_horizontal|center_vertical" android:text="" android:drawableStart="@drawable/ic_arrow_back_24" android:textSize="24sp" android:tag="t ibtn" android:layout_marginStart="8dp"/>
