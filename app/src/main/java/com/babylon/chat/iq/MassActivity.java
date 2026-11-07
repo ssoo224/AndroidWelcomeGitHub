@@ -309,12 +309,12 @@ public class MassActivity extends Activity {
                 return g;
             }
 
-            int cBg() { return dark ? 0xFF0F172A : 0xFFF0F2F5; }
+            int cBg() { return dark ? 0xFF0E1621 : 0xFFF4F6FA; }
             int cSf() { return dark ? 0xFF17212B : 0xFFFFFFFF; }
             int cBorder() { return dark ? 0xFF344256 : 0xFFE1E7EF; }
             int cText() { return dark ? 0xFFF1F5F9 : 0xFF17212B; }
             int cMuted() { return dark ? 0xFFA5B2C2 : 0xFF708094; }
-            int cGold() { return dark ? 0xFFE4C45B : 0xFFC29D30; }
+            int cGold() { return dark ? 0xFFE4C45B : 0xFFC99A1C; }
             int cRed() { return dark ? 0xFFFB7185 : 0xFFDC2626; }
             int cMine() { return dark ? 0xFF2B5278 : 0xFFD9FDD3; }
             int cOther() { return dark ? 0xFF182533 : 0xFFFFFFFF; }
@@ -332,12 +332,17 @@ public class MassActivity extends Activity {
                         else if (k.equals("line")) x.setBackgroundColor(cBorder());
                         else if (k.equals("chatbg")) x.setBackgroundColor(cChatBg());
                         else if (k.equals("card")) x.setBackground(shape(cSf(), 18, cBorder()));
-                        else if (k.equals("row")) x.setBackground(shape(cSf(), 20, 0));
+                        else if (k.equals("row")) {
+                            android.graphics.drawable.StateListDrawable sl = new android.graphics.drawable.StateListDrawable();
+                            sl.addState(new int[]{android.R.attr.state_pressed}, shape(dark ? 0xFF1D2A38 : 0xFFE8EDF4, 18, 0));
+                            sl.addState(new int[]{}, shape(0, 18, 0));
+                            x.setBackground(sl);
+                        }
                         else if (k.equals("badge")) {
-                            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE2B83F, 0xFFB8861B});
+                            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE8C85D, 0xFFCBA843});
                             g.setCornerRadius(dp(11));
                             x.setBackground(g);
-                            if (T != null) T.setTextColor(0xFFFFFFFF);
+                            if (T != null) T.setTextColor(0xFF292216);
                         } else if (k.equals("avatar")) {
                             GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{dark ? 0xFFF0D77A : 0xFFE8C25A, dark ? 0xFFC9A227 : 0xFFB88A1C});
                             g.setShape(GradientDrawable.OVAL);
@@ -371,11 +376,21 @@ public class MassActivity extends Activity {
                             if (T != null) { T.setTextColor(cText()); T.setHintTextColor(cMuted()); }
                         }
                         else if (k.equals("gold")) {
-                            x.setBackground(shape(cGold(), rad(x), 0));
                             boolean chip = x.getId() == R.id.fltAll || x.getId() == R.id.fltUnread;
-                            if (T != null) T.setTextColor(chip ? (dark ? 0xFF1B1B1B : 0xFFFFFFFF) : 0xFF17212B);
+                            if (chip) {
+                                GradientDrawable cg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE8C85D, 0xFFCBA843});
+                                cg.setCornerRadius(dp(19)); x.setBackground(cg); x.setElevation(dp(3));
+                                if (T != null) T.setTextColor(0xFF292216);
+                            } else {
+                                x.setBackground(shape(cGold(), rad(x), 0));
+                                if (T != null) T.setTextColor(0xFF17212B);
+                            }
                         }
-                        else if (k.equals("goldo")) { x.setBackground(shape(0, rad(x), cGold())); if (T != null) T.setTextColor(cGold()); }
+                        else if (k.equals("goldo")) {
+                            boolean chip = x.getId() == R.id.fltAll || x.getId() == R.id.fltUnread;
+                            if (chip) { x.setBackground(shape(dark ? 0xFF1D2A38 : 0xFFE8EDF4, 19, 0)); x.setElevation(0); if (T != null) T.setTextColor(cMuted()); }
+                            else { x.setBackground(shape(0, rad(x), cGold())); if (T != null) T.setTextColor(cGold()); }
+                        }
                         else if (k.equals("redo")) { x.setBackground(shape(0, 12, cRed())); if (T != null) T.setTextColor(cRed()); }
                         else if (k.equals("circ")) {
                             GradientDrawable g = new GradientDrawable();
@@ -389,15 +404,33 @@ public class MassActivity extends Activity {
                             g.setShape(GradientDrawable.OVAL); g.setColor(cSf()); g.setStroke(dp(2.5f), cGold());
                             x.setBackground(g);
                             if (T != null) T.setTextColor(cGold());
-                        } else if (k.equals("bubMine")) {
-                            x.setBackground(shape(cMine(), radius, 0)); x.setElevation(dp(1));
-                            if (T != null) T.setTextColor(dark ? 0xFFFFFFFF : 0xFF17212B);
+                        } else if (k.equals("bubMine") || k.equals("mine")) {
+                            bubble(x, T, true);
                         } else if (k.equals("bubOther") || k.equals("other")) {
-                            x.setBackground(shape(cOther(), radius, dark ? 0 : 0xFFE1E7EF)); x.setElevation(dp(1));
-                            if (T != null) T.setTextColor(cText());
-                        } else if (k.equals("mine")) {
-                            x.setBackground(shape(cMine(), radius, 0)); x.setElevation(dp(1));
-                            if (T != null) T.setTextColor(dark ? 0xFFFFFFFF : 0xFF17212B);
+                            bubble(x, T, false);
+                        } else if (k.equals("roomhdr")) {
+                            GradientDrawable hg = new GradientDrawable(); hg.setColor(cSf());
+                            hg.setCornerRadii(new float[]{0, 0, 0, 0, dp(22), dp(22), dp(22), dp(22)});
+                            x.setBackground(hg); x.setElevation(dp(6));
+                        } else if (k.equals("ibtn")) {
+                            x.setBackground(shape(0x1F7F8CA0, 14, 0));
+                        } else if (k.equals("composer")) {
+                            x.setBackground(shape(cSf(), 14, cBorder())); x.setElevation(dp(3));
+                        } else if (k.equals("nav")) {
+                            GradientDrawable ng = new GradientDrawable(); ng.setColor(dark ? cSf() : 0xFFFBF6E8);
+                            ng.setCornerRadii(new float[]{dp(22), dp(22), dp(22), dp(22), 0, 0, 0, 0});
+                            x.setBackground(ng); x.setElevation(dp(8));
+                        } else if (k.equals("fab")) {
+                            GradientDrawable fg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE8C85D, 0xFFB98B20});
+                            fg.setShape(GradientDrawable.OVAL); x.setBackground(fg); x.setElevation(dp(8));
+                            if (T != null) T.setTextColor(0xFFFFFFFF);
+                        } else if (k.equals("send")) {
+                            GradientDrawable sg2 = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE8C85D, 0xFFB98B20});
+                            sg2.setCornerRadius(dp(13)); x.setBackground(sg2);
+                            if (T != null) T.setTextColor(0xFFFFFFFF);
+                        } else if (k.equals("inp2")) {
+                            x.setBackground(shape(0x1F7F8CA0, 10, 0));
+                            if (T != null) { T.setTextColor(cText()); T.setHintTextColor(cMuted()); }
                         } else if (k.startsWith("ic:")) x.setBackground(shape(Color.parseColor(k.substring(3)), 12, 0));
                         else if (k.startsWith("cover:")) x.setBackgroundColor(Color.parseColor(k.substring(6)));
                         else if (T != null) {
@@ -417,6 +450,64 @@ public class MassActivity extends Activity {
                 }
             }
             int goldA(int a) { return (cGold() & 0x00FFFFFF) | (a << 24); }
+
+            // ===== تصميم Babylon: الفقاعات والمؤثرات =====
+            void bubble(View x, TextView T, boolean mine) {
+                float r = radius;
+                GradientDrawable g;
+                if (mine) {
+                    g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE8C85D, dark ? 0xFFB98B20 : 0xFFCBA843});
+                    g.setCornerRadii(new float[]{dp(r), dp(r), dp(r), dp(r), dp(6), dp(6), dp(r), dp(r)});
+                    if (T != null) T.setTextColor(0xFF292216);
+                } else {
+                    g = new GradientDrawable();
+                    g.setColor(cSf());
+                    g.setStroke(dp(1), dark ? 0x12FFFFFF : 0x1416202B);
+                    g.setCornerRadii(new float[]{dp(r), dp(r), dp(r), dp(r), dp(r), dp(r), dp(6), dp(6)});
+                    if (T != null) T.setTextColor(cText());
+                }
+                x.setBackground(g);
+                x.setElevation(dp(2));
+            }
+
+            void popIn(View b) {
+                b.setScaleX(.4f); b.setScaleY(.4f);
+                b.animate().scaleX(1f).scaleY(1f).setDuration(380).setInterpolator(new android.view.animation.OvershootInterpolator(2.2f)).start();
+            }
+
+            void addReaction(TextView b, String emoji) {
+                SpannableStringBuilder sb = new SpannableStringBuilder(b.getText());
+                sb.append("  ").append(emoji);
+                b.setText(sb);
+                b.setScaleX(.9f); b.setScaleY(.9f);
+                b.animate().scaleX(1f).scaleY(1f).setDuration(350).setInterpolator(new android.view.animation.OvershootInterpolator(3f)).start();
+            }
+
+            android.animation.ValueAnimator shineAnim;
+            void shineTitle() {
+                final TextView t = tv("textview621");
+                if (t == null) return;
+                if (shineAnim != null) shineAnim.cancel();
+                t.post(() -> {
+                    float w = Math.max(1f, t.getPaint().measureText(t.getText().toString()));
+                    final android.graphics.LinearGradient lg = new android.graphics.LinearGradient(0, 0, w, 0,
+                            new int[]{cGold(), 0xFFE8C85D, cGold()}, null, android.graphics.Shader.TileMode.MIRROR);
+                    t.getPaint().setShader(lg);
+                    final android.animation.ValueAnimator an = android.animation.ValueAnimator.ofFloat(0, w * 2);
+                    an.setDuration(5000); an.setRepeatCount(android.animation.ValueAnimator.INFINITE);
+                    an.setInterpolator(new android.view.animation.LinearInterpolator());
+                    an.addUpdateListener(u -> {
+                        android.graphics.Matrix m = new android.graphics.Matrix();
+                        m.setTranslate((float) u.getAnimatedValue(), 0);
+                        lg.setLocalMatrix(m); t.invalidate();
+                    });
+                    shineAnim = an; an.start();
+                    t.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+                        @Override public void onViewAttachedToWindow(View v1) { }
+                        @Override public void onViewDetachedFromWindow(View v1) { an.cancel(); }
+                    });
+                });
+            }
 
             // نصف قطر الزاوية: كبسولة للأزرار القصيرة (فلاتر المحادثات) وإلا 12
             float rad(View x) {
@@ -605,10 +696,12 @@ public class MassActivity extends Activity {
                 try { buildThemeStrip(); } catch (Throwable ignored) { }
                 try { setNav(curPage); } catch (Throwable ignored) { }
                 polishProfile();
+                try { buildStories(); } catch (Throwable ignored) { }
+                try { shineTitle(); } catch (Throwable ignored) { }
                 try {
                     Window w = act.getWindow();
                     w.setNavigationBarColor(dark ? 0xFF0E1621 : 0xFFFFFFFF);
-                    w.setStatusBarColor(dark ? 0xFF0E1621 : 0xFFF0F2F5);
+                    w.setStatusBarColor(dark ? 0xFF0E1621 : 0xFFF4F6FA);
                     if (Build.VERSION.SDK_INT >= 26) {
                         int flags = dark ? 0 : (View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
                         w.getDecorView().setSystemUiVisibility(flags);
@@ -644,14 +737,20 @@ public class MassActivity extends Activity {
                 hideKb();
             }
 
-            void animateMessageIn(View view) {
+            void animateMessageIn(final View view) {
                 if (view == null) return;
-                try { view.startAnimation(android.view.animation.AnimationUtils.loadAnimation(act, R.anim.bb_message_enter)); }
-                catch (Throwable ignored) { }
+                try {
+                    view.setAlpha(0f); view.setScaleX(.85f); view.setScaleY(.85f); view.setTranslationY(dp(10));
+                    view.post(() -> {
+                        view.setPivotX(view.getWidth() / 2f); view.setPivotY(view.getHeight());
+                        view.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f).setDuration(320)
+                                .setInterpolator(new android.view.animation.OvershootInterpolator(1.1f)).start();
+                    });
+                } catch (Throwable ignored) { view.setAlpha(1f); view.setScaleX(1f); view.setScaleY(1f); view.setTranslationY(0f); }
             }
 
             void setupPressAnimations() {
-                String[] ids = {"navChats", "navSettings", "navProfile", "chatBack", "chatMore", "btnSend", "btnMic", "btnAttach", "pEdit", "pPhoto", "pCover", "otherMsgBtn", "otherBlockBtn", "privacyBack", "settingsThemeToggle"};
+                String[] ids = {"newGroupFab", "fltAll", "fltUnread", "hdrStories", "mainSearchBtn", "navChats", "navSettings", "navProfile", "chatBack", "chatMore", "btnSend", "btnMic", "btnAttach", "pEdit", "pPhoto", "pCover", "otherMsgBtn", "otherBlockBtn", "privacyBack", "settingsThemeToggle"};
                 for (String id : ids) {
                     View view = v(id);
                     if (view == null) continue;
@@ -1312,23 +1411,47 @@ public class MassActivity extends Activity {
                     c.setOrientation(LinearLayout.VERTICAL);
                     c.setGravity(Gravity.CENTER_HORIZONTAL);
                     c.setPadding(dp(6), 0, dp(6), 0);
+                    FrameLayout ringBox = new FrameLayout(act);
+                    final View spin = new View(act);
+                    GradientDrawable sg = new GradientDrawable();
+                    sg.setShape(GradientDrawable.OVAL);
+                    sg.setGradientType(GradientDrawable.SWEEP_GRADIENT);
+                    sg.setColors(new int[]{cGold(), 0xFFFFF3B0, cGold()});
+                    spin.setBackground(sg);
+                    ringBox.addView(spin, new FrameLayout.LayoutParams(dp(64), dp(64)));
+                    final android.animation.ObjectAnimator rot = android.animation.ObjectAnimator.ofFloat(spin, "rotation", 0f, 360f);
+                    rot.setDuration(6000); rot.setRepeatCount(android.animation.ValueAnimator.INFINITE);
+                    rot.setInterpolator(new android.view.animation.LinearInterpolator()); rot.start();
+                    spin.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+                        @Override public void onViewAttachedToWindow(View v1) { }
+                        @Override public void onViewDetachedFromWindow(View v1) { rot.cancel(); }
+                    });
+                    View hole = new View(act);
+                    GradientDrawable hg = new GradientDrawable(); hg.setShape(GradientDrawable.OVAL); hg.setColor(cBg());
+                    hole.setBackground(hg);
+                    ringBox.addView(hole, new FrameLayout.LayoutParams(dp(59), dp(59), Gravity.CENTER));
                     TextView r = new TextView(act);
                     r.setText(i == 0 ? "+" : (nm.length() > 0 ? nm.substring(0, 1) : "?"));
                     r.setGravity(Gravity.CENTER);
                     r.setTextSize(20);
                     r.setTypeface(null, android.graphics.Typeface.BOLD);
-                    r.setTag("ring");
-                    r.setLayoutParams(new LinearLayout.LayoutParams(dp(60), dp(60)));
+                    r.setTextColor(0xFFFFFFFF);
+                    r.setTag("avatar");
+                    ringBox.addView(r, new FrameLayout.LayoutParams(dp(54), dp(54), Gravity.CENTER));
                     TextView n = new TextView(act);
                     n.setText(nm.length() > 8 ? nm.substring(0, 8) : nm);
-                    n.setTextSize(11);
+                    n.setTextSize(11.5f);
                     n.setTypeface(null, android.graphics.Typeface.BOLD);
                     n.setTag("m");
-                    n.setPadding(0, dp(4), 0, 0);
-                    c.addView(r); c.addView(n);
+                    n.setPadding(0, dp(7), 0, 0);
+                    c.addView(ringBox, new LinearLayout.LayoutParams(dp(64), dp(64)));
+                    c.addView(n);
                     c.setOnClickListener(x -> { if (nm.equals("قصتي")) showStoryComposer(); else showStoryViewer(nm); });
                     bar.addView(c);
                     style(c);
+                    r.setTextColor(0xFFFFFFFF);
+                    c.setAlpha(0f); c.setTranslationY(dp(12));
+                    c.animate().alpha(1f).translationY(0f).setStartDelay(i * 60L).setDuration(480).start();
                 }
             }
 
@@ -1349,13 +1472,12 @@ public class MassActivity extends Activity {
                     LinearLayout row = new LinearLayout(act);
                     row.setOrientation(LinearLayout.HORIZONTAL);
                     row.setGravity(Gravity.CENTER_VERTICAL);
-                    row.setPadding(dp(13), dp(11), dp(13), dp(11));
+                    row.setPadding(dp(10), dp(11), dp(10), dp(11));
                     row.setTag("row");
-                    row.setElevation(dp(2));
                     row.setMinimumHeight(dp(78));
                     final boolean hasUnread = !c[3].equals("0");
                     LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2);
-                    rp.setMargins(dp(12), dp(5), dp(12), dp(5));
+                    rp.setMargins(dp(12), 0, dp(12), 0);
                     row.setLayoutParams(rp);
                     TextView av = new TextView(act);
                     av.setText(c[0].length() > 0 ? c[0].substring(0, 1) : "?");
@@ -1392,15 +1514,28 @@ public class MassActivity extends Activity {
                         LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(-2, -2);
                         bl.topMargin = dp(6);
                         end.addView(b, bl);
+                        popIn(b);
                     }
                     row.addView(av); row.addView(mid); row.addView(end);
                     final String fName = c[0], fUid = c[4];
                     row.setOnClickListener(x -> openChat(fName, fUid));
                     row.setOnLongClickListener(x -> { showChatActions(fName, fUid); return true; });
+                    row.setOnTouchListener((tv0, ev) -> {
+                        if (ev.getAction() == android.view.MotionEvent.ACTION_DOWN) tv0.animate().scaleX(.985f).scaleY(.985f).setDuration(90).start();
+                        else if (ev.getAction() == android.view.MotionEvent.ACTION_UP || ev.getAction() == android.view.MotionEvent.ACTION_CANCEL)
+                            tv0.animate().scaleX(1f).scaleY(1f).setDuration(150).start();
+                        return false;
+                    });
+                    if (list.getChildCount() > 0) {
+                        View dv = new View(act); dv.setTag("line");
+                        LinearLayout.LayoutParams dl = new LinearLayout.LayoutParams(-1, dp(1));
+                        dl.setMargins(dp(100), 0, dp(24), 0); dv.setLayoutParams(dl);
+                        list.addView(dv); style(dv);
+                    }
                     list.addView(row);
                     row.setAlpha(0f);
-                    row.setTranslationY(dp(7));
-                    row.animate().alpha(1f).translationY(0f).setStartDelay(Math.min(180, list.getChildCount() * 18L)).setDuration(190).setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
+                    row.setTranslationY(dp(12));
+                    row.animate().alpha(1f).translationY(0f).setStartDelay(Math.min(400, list.getChildCount() * 25L)).setDuration(420).setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
                     style(row);
                 }
                 if (list.getChildCount() == 0) {
@@ -1455,7 +1590,13 @@ public class MassActivity extends Activity {
 
                 currentChatId = getChatId(myUid, uid);
                 loadMessages(currentChatId);
-                vis("chatView", true);
+                View cvw = v("chatView");
+                if (cvw != null) {
+                    cvw.animate().cancel();
+                    cvw.setVisibility(View.VISIBLE);
+                    cvw.setTranslationX(-act.getResources().getDisplayMetrics().widthPixels);
+                    cvw.animate().translationX(0f).setDuration(320).setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).start();
+                }
             }
 
             void loadMessages(String chatId) {
@@ -1496,7 +1637,13 @@ public class MassActivity extends Activity {
 
             void closeChat() {
                 hideKb();
-                vis("chatView", false);
+                final View cvw = v("chatView");
+                if (cvw != null && cvw.getVisibility() == View.VISIBLE) {
+                    cvw.animate().cancel();
+                    cvw.animate().translationX(-act.getResources().getDisplayMetrics().widthPixels).setDuration(260)
+                            .setInterpolator(new android.view.animation.DecelerateInterpolator())
+                            .withEndAction(() -> { cvw.setVisibility(View.GONE); cvw.setTranslationX(0f); }).start();
+                } else vis("chatView", false);
                 if (messagesListener != null) { messagesListener.remove(); messagesListener = null; }
                 currentChatId = ""; otherUid = "";
                 renderedMsgIds.clear();
@@ -1532,7 +1679,7 @@ public class MassActivity extends Activity {
                 int s = sb.length();
                 sb.append("\n" + time + (mine ? "  ✓✓" : ""));
                 sb.setSpan(new RelativeSizeSpan(0.7f), s, sb.length(), 0);
-                sb.setSpan(new ForegroundColorSpan(0xFF8696A7), s, sb.length(), 0);
+                sb.setSpan(new ForegroundColorSpan(mine ? 0xB3292216 : 0xFF8696A7), s, sb.length(), 0);
                 b.setText(sb);
             }
 
@@ -1710,7 +1857,7 @@ public class MassActivity extends Activity {
                 content.findViewById(R.id.msgActionCancel).setOnClickListener(x -> d.dismiss());
                 int[] reactions = {R.id.msgReactLaugh,R.id.msgReactHeart,R.id.msgReactLike,R.id.msgReactSad,R.id.msgReactSpark};
                 String[] emojis = {"😂","❤️","👍","😭","✨"};
-                for (int i=0;i<reactions.length;i++){final String emoji=emojis[i];content.findViewById(reactions[i]).setOnClickListener(x->{toast("تفاعل " + emoji);d.dismiss();});}
+                for (int i=0;i<reactions.length;i++){final String emoji=emojis[i];content.findViewById(reactions[i]).setOnClickListener(x->{ addReaction(b, emoji); d.dismiss(); });}
             }
 
             void showMessageDeleteChoices(TextView messageView, boolean mine) {
