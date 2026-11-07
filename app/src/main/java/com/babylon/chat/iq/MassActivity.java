@@ -283,6 +283,8 @@ public class MassActivity extends Activity {
             String userName = "", userUsername = "", userBio = "", userGov = "", userEmail = "", userJoin = "";
             String userPhoto = "", shownPhoto = "";
             Bitmap photoBmp = null;
+            String otherPhoto = "";
+            Bitmap otherPhotoBmp = null;
 
             int dp(float d) { return (int) (d * act.getResources().getDisplayMetrics().density + 0.5f); }
             View v(String n) { return act.findViewById(act.getResources().getIdentifier(n, "id", act.getPackageName())); }
@@ -746,89 +748,210 @@ public class MassActivity extends Activity {
             }
 
             void setupProfileMotion() {
-                final View avatar = v("pAvatarText");
-                final ScrollView profile = (ScrollView) v("profileView");
+                setupAvatarPull("pAvatarText", "pHeaderName", false);
+                setupAvatarPull("otherAvatarText", "otherHeaderName", true);
+            }
+
+            void setupAvatarPull(String avatarId, String nameId, boolean otherProfile) {
+                final View avatar = v(avatarId);
                 if (avatar == null) return;
+                final int screenW = act.getResources().getDisplayMetrics().widthPixels;
+                final int startSize = dp(108);
                 final int[] start = new int[2];
                 final float[] down = new float[2];
-                final Dialog[] expandDialog = new Dialog[1];
-                final FrameLayout[] overlayRoot = new FrameLayout[1];
-                final ImageView[] expandedImage = new ImageView[1];
-                final TextView[] expandedInitial = new TextView[1];
-                final TextView[] expandedName = new TextView[1];
                 final float[] progress = {0f};
                 final boolean[] dragging = {false};
-                final float density = act.getResources().getDisplayMetrics().density;
-                final int screenW = act.getResources().getDisplayMetrics().widthPixels;
-                int sbId=act.getResources().getIdentifier("status_bar_height","dimen","android");
-                final int statusBarHeight=sbId>0?act.getResources().getDimensionPixelSize(sbId):0;
-                Runnable closeExpanded = () -> {
-                    if (expandDialog[0] == null) return;
-                    final Dialog old = expandDialog[0];
-                    View img = expandedImage[0];
-                    if (img != null) img.animate().scaleX(.18f).scaleY(.18f).alpha(.65f).setDuration(180).withEndAction(() -> { try { old.dismiss(); } catch (Exception ignored) {} }).start();
-                    else old.dismiss();
-                    expandDialog[0]=null; overlayRoot[0]=null; expandedImage[0]=null; expandedInitial[0]=null; expandedName[0]=null; progress[0]=0f;
+                final Dialog[] dialog = {null};
+                final FrameLayout[] overlay = {null};
+                final ImageView[] image = {null};
+                final TextView[] initial = {null};
+                final TextView[] name = {null};
+                final int sbId = act.getResources().getIdentifier("status_bar_height", "dimen", "android");
+                final int statusBar = sbId > 0 ? act.getResources().getDimensionPixelSize(sbId) : 0;
+
+                java.util.function.Supplier<Bitmap> currentBitmap = () -> otherProfile ? otherPhotoBmp : photoBmp;
+                java.util.function.Supplier<String> currentName = () -> otherProfile ? otherName : userName;
+
+                Runnable close = () -> {
+                    if (dialog[0] == null) return;
+                    Dialog old = dialog[0];
+                    FrameLayout oldRoot = overlay[0];
+                    if (oldRoot != null) {
+                        oldRoot.animate().alpha(0f).setDuration(150).withEndAction(() -> {
+                            try { old.dismiss(); } catch (Exception ignored) { }
+                        }).start();
+                    } else old.dismiss();
+                    dialog[0] = null; overlay[0] = null; image[0] = null;
+                    initial[0] = null; name[0] = null; progress[0] = 0f;
                 };
-                // Java-native equivalent of the HTML pull-to-expand avatar transition.
-                class ExpandUpdater { void update(float p) {
-                    progress[0]=Math.max(0f,Math.min(1f,p)); if(expandDialog[0]==null||expandedImage[0]==null)return;
-                    float v=progress[0]; int size=(int)(dp(108)+(screenW-dp(108))*v); int left=(screenW-size)/2; int top=(int)((start[1]-statusBarHeight)*(1f-v));
-                    FrameLayout.LayoutParams lp=(FrameLayout.LayoutParams)expandedImage[0].getLayoutParams();lp.width=size;lp.height=size;lp.leftMargin=left;lp.topMargin=top;lp.gravity=Gravity.TOP|Gravity.LEFT;expandedImage[0].setLayoutParams(lp);
-                    if(expandedInitial[0]!=null){FrameLayout.LayoutParams ilp=(FrameLayout.LayoutParams)expandedInitial[0].getLayoutParams();ilp.width=size;ilp.height=size;ilp.leftMargin=left;ilp.topMargin=top;ilp.gravity=Gravity.TOP|Gravity.LEFT;expandedInitial[0].setLayoutParams(ilp);expandedInitial[0].setTextSize(size/act.getResources().getDisplayMetrics().density*.36f);}
-                    expandedImage[0].setScaleX(1f);expandedImage[0].setScaleY(1f);expandedImage[0].setAlpha(1f);
-                    expandedImage[0].setClipToOutline(true); final float radius=dp(54)*(1f-v); expandedImage[0].setOutlineProvider(new ViewOutlineProvider(){public void getOutline(View view,android.graphics.Outline outline){outline.setRoundRect(0,0,view.getWidth(),view.getHeight(),radius);}});
-                    expandedName[0].setAlpha(Math.max(0f,Math.min(1f,(v-.55f)/.4f)));
-                    overlayRoot[0].setBackgroundColor(0xE90A101B);
-                }}
-                final ExpandUpdater updater = new ExpandUpdater();
-                Runnable ensureExpanded = () -> {
-                    if (expandDialog[0] != null) return;
+
+                class Updater {
+                    void update(float raw) {
+                        float p = Math.max(0f, Math.min(1f, raw));
+                        progress[0] = p;
+                        if (dialog[0] == null || image[0] == null) return;
+                        int size = (int) (startSize + (screenW - startSize) * p);
+                        int left = (screenW - size) / 2;
+                        int top = (int) ((start[1] - statusBar) * (1f - p));
+                        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) image[0].getLayoutParams();
+                        lp.width = size; lp.height = size; lp.leftMargin = left; lp.topMargin = top;
+                        lp.gravity = Gravity.TOP | Gravity.LEFT;
+                        image[0].setLayoutParams(lp);
+                        float radius = dp(54) * (1f - p);
+                        android.view.ViewOutlineProvider outline = new android.view.ViewOutlineProvider() {
+                            @Override public void getOutline(View view, android.graphics.Outline out) {
+                                out.setRoundRect(0, 0, view.getWidth(), view.getHeight(), radius);
+                            }
+                        };
+                        image[0].setOutlineProvider(outline);
+                        image[0].setClipToOutline(true);
+                        if (initial[0] != null) {
+                            FrameLayout.LayoutParams ilp = (FrameLayout.LayoutParams) initial[0].getLayoutParams();
+                            ilp.width = size; ilp.height = size; ilp.leftMargin = left; ilp.topMargin = top;
+                            ilp.gravity = Gravity.TOP | Gravity.LEFT;
+                            initial[0].setLayoutParams(ilp);
+                            initial[0].setTextSize(size / act.getResources().getDisplayMetrics().density * .34f);
+                            initial[0].setOutlineProvider(outline);
+                            initial[0].setClipToOutline(true);
+                        }
+                        if (name[0] != null) {
+                            name[0].setAlpha(Math.max(0f, Math.min(1f, (p - .52f) / .40f)));
+                            name[0].setTranslationY(dp(16) * (1f - p));
+                        }
+                        if (overlay[0] != null) {
+                            overlay[0].setBackgroundColor(dark ? 0xE90A101B : 0xE9F8FAFC);
+                        }
+                    }
+                }
+                final Updater updater = new Updater();
+
+                Runnable ensure = () -> {
+                    if (dialog[0] != null) return;
                     Dialog d = new Dialog(act);
                     FrameLayout frame = new FrameLayout(act);
-                    frame.setBackgroundColor(0xE90A101B);
-                    ImageView image = new ImageView(act); image.setScaleType(ImageView.ScaleType.CENTER_CROP);
-                    if (photoBmp != null) image.setImageBitmap(photoBmp); else image.setImageDrawable(avatar.getBackground());
-                    FrameLayout.LayoutParams ip = new FrameLayout.LayoutParams(dp(108),dp(108),Gravity.TOP|Gravity.LEFT);
-                    frame.addView(image,ip);
-                    TextView initial = new TextView(act); initial.setGravity(Gravity.CENTER); initial.setText(avatar instanceof TextView ? ((TextView)avatar).getText() : "؟"); initial.setTextColor(avatar instanceof TextView ? ((TextView)avatar).getCurrentTextColor() : Color.WHITE); initial.setTypeface(null,android.graphics.Typeface.BOLD); initial.setTextSize(39); initial.setVisibility(photoBmp==null?View.VISIBLE:View.GONE); initial.setBackground(avatar.getBackground()); frame.addView(initial,new FrameLayout.LayoutParams(dp(108),dp(108),Gravity.TOP|Gravity.LEFT));
-                    TextView nm = new TextView(act); nm.setText(userName); nm.setTextColor(Color.WHITE); nm.setTextSize(24); nm.setTypeface(null,android.graphics.Typeface.BOLD); nm.setPadding(dp(18),0,dp(18),0); nm.setAlpha(0f);
-                    FrameLayout.LayoutParams np = new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM|Gravity.LEFT); np.bottomMargin=dp(26); frame.addView(nm,np);
-                    d.setContentView(frame); d.setCancelable(false);
-                    Window win=d.getWindow(); if(win!=null){win.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));win.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);WindowManager.LayoutParams lp=win.getAttributes();lp.dimAmount=0f;lp.width=WindowManager.LayoutParams.MATCH_PARENT;lp.height=WindowManager.LayoutParams.MATCH_PARENT;lp.gravity=Gravity.TOP|Gravity.LEFT;win.setAttributes(lp);}
-                    d.show(); if(win!=null){win.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));win.setLayout(WindowManager.LayoutParams.MATCH_PARENT,WindowManager.LayoutParams.MATCH_PARENT);}
+                    frame.setBackgroundColor(dark ? 0xE90A101B : 0xE9F8FAFC);
+                    Bitmap bmp = currentBitmap.get();
+                    ImageView img = new ImageView(act);
+                    img.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                    if (bmp != null && !bmp.isRecycled()) img.setImageBitmap(bmp);
+                    else img.setImageDrawable(avatar.getBackground());
+                    FrameLayout.LayoutParams ip = new FrameLayout.LayoutParams(startSize, startSize, Gravity.TOP | Gravity.LEFT);
+                    frame.addView(img, ip);
+
+                    TextView letter = new TextView(act);
+                    letter.setGravity(Gravity.CENTER);
+                    letter.setText(avatar instanceof TextView ? ((TextView) avatar).getText() : "؟");
+                    letter.setTextColor(avatar instanceof TextView ? ((TextView) avatar).getCurrentTextColor() : Color.WHITE);
+                    letter.setTypeface(null, android.graphics.Typeface.BOLD);
+                    letter.setTextSize(39);
+                    letter.setVisibility(bmp == null ? View.VISIBLE : View.GONE);
+                    letter.setBackground(avatar.getBackground());
+                    frame.addView(letter, new FrameLayout.LayoutParams(startSize, startSize, Gravity.TOP | Gravity.LEFT));
+
+                    TextView title = new TextView(act);
+                    title.setText(currentName.get());
+                    title.setTextColor(dark ? Color.WHITE : 0xFF17212B);
+                    title.setTextSize(24);
+                    title.setTypeface(null, android.graphics.Typeface.BOLD);
+                    title.setGravity(Gravity.CENTER);
+                    title.setPadding(dp(18), 0, dp(18), 0);
+                    title.setAlpha(0f);
+                    FrameLayout.LayoutParams np = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+                    np.bottomMargin = dp(30);
+                    frame.addView(title, np);
+
+                    d.setContentView(frame);
+                    d.setCancelable(false);
+                    Window win = d.getWindow();
+                    if (win != null) {
+                        win.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+                        win.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN);
+                        WindowManager.LayoutParams wp = win.getAttributes();
+                        wp.dimAmount = 0f; wp.width = WindowManager.LayoutParams.MATCH_PARENT;
+                        wp.height = WindowManager.LayoutParams.MATCH_PARENT; wp.gravity = Gravity.TOP | Gravity.LEFT;
+                        win.setAttributes(wp);
+                    }
+                    d.show();
+                    if (win != null) {
+                        win.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+                        win.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT);
+                    }
                     avatar.getLocationOnScreen(start);
-                    expandDialog[0]=d;overlayRoot[0]=frame;expandedImage[0]=image;expandedInitial[0]=initial;expandedName[0]=nm;
-                    frame.setOnClickListener(x->{if(progress[0]>.8f)closeExpanded.run();});
-                    image.setOnTouchListener(new View.OnTouchListener(){float y0;public boolean onTouch(View target,MotionEvent ev){
-                        if(ev.getAction()==MotionEvent.ACTION_DOWN){y0=ev.getRawY();return true;}
-                        if(ev.getAction()==MotionEvent.ACTION_MOVE){float dy=ev.getRawY()-y0;if(dy<0)updater.update(Math.max(0f,1f+dy/Math.max(dp(240),screenW*.65f)));return true;}
-                        if(ev.getAction()==MotionEvent.ACTION_UP||ev.getAction()==MotionEvent.ACTION_CANCEL){float total=ev.getRawY()-y0;if(Math.abs(total)<dp(12)&&progress[0]>.8f)closeExpanded.run();else if(progress[0]<.55f)closeExpanded.run();else updater.update(1f);return true;}return true;
-                    }});
+                    dialog[0] = d; overlay[0] = frame; image[0] = img; initial[0] = letter; name[0] = title;
+                    frame.setOnClickListener(vw -> { if (progress[0] > .72f) close.run(); });
+                    frame.setOnTouchListener(new View.OnTouchListener() {
+                        float y0;
+                        @Override public boolean onTouch(View target, MotionEvent ev) {
+                            if (ev.getAction() == MotionEvent.ACTION_DOWN) { y0 = ev.getRawY(); return true; }
+                            if (ev.getAction() == MotionEvent.ACTION_MOVE) {
+                                float dy = ev.getRawY() - y0;
+                                if (dy < 0) updater.update(Math.max(0f, 1f + dy / Math.max(dp(240), screenW * .62f)));
+                                return true;
+                            }
+                            if (ev.getAction() == MotionEvent.ACTION_UP || ev.getAction() == MotionEvent.ACTION_CANCEL) {
+                                float total = ev.getRawY() - y0;
+                                if (progress[0] < .45f || total < -dp(28) || Math.abs(total) < dp(10)) close.run();
+                                else {
+                                    android.animation.ValueAnimator a = android.animation.ValueAnimator.ofFloat(progress[0], 1f);
+                                    a.setDuration(190); a.setInterpolator(new android.view.animation.DecelerateInterpolator());
+                                    a.addUpdateListener(v -> updater.update((Float) v.getAnimatedValue())); a.start();
+                                }
+                                return true;
+                            }
+                            return true;
+                        }
+                    });
                     updater.update(0f);
                 };
-                avatar.setOnTouchListener((target,event)->{
-                    switch(event.getAction()){
-                        case MotionEvent.ACTION_DOWN: down[0]=event.getRawX();down[1]=event.getRawY();dragging[0]=false;target.animate().scaleX(1.025f).scaleY(1.025f).setDuration(90).start();return true;
+
+                avatar.setOnTouchListener((target, event) -> {
+                    switch (event.getAction()) {
+                        case MotionEvent.ACTION_DOWN:
+                            down[0] = event.getRawX(); down[1] = event.getRawY(); dragging[0] = false;
+                            target.animate().scaleX(1.025f).scaleY(1.025f).setDuration(90).start();
+                            return true;
                         case MotionEvent.ACTION_MOVE:
-                            float dy=event.getRawY()-down[1],dx=event.getRawX()-down[0];
-                            if(dy>dp(8)&&Math.abs(dy)>Math.abs(dx)*1.1f){if(!dragging[0]){dragging[0]=true;ensureExpanded.run();}updater.update(Math.min(1f,dy/Math.max(dp(280),screenW*.72f)));return true;}return true;
+                            float dy = event.getRawY() - down[1];
+                            float dx = event.getRawX() - down[0];
+                            if (dy > dp(7) && Math.abs(dy) > Math.abs(dx) * 1.05f) {
+                                if (!dragging[0]) { dragging[0] = true; ensure.run(); }
+                                updater.update(Math.min(1f, dy / Math.max(dp(270), screenW * .70f)));
+                            }
+                            return true;
                         case MotionEvent.ACTION_UP:
                         case MotionEvent.ACTION_CANCEL:
-                            target.animate().scaleX(1f).scaleY(1f).setDuration(150).start();
-                            if(dragging[0]){
-                                if(progress[0]>=.45f){
-                                    final float from=progress[0];
-                                    android.animation.ValueAnimator settle=android.animation.ValueAnimator.ofFloat(from,1f);settle.setDuration(210);settle.setInterpolator(new android.view.animation.DecelerateInterpolator());
-                                    settle.addUpdateListener(a->updater.update((Float)a.getAnimatedValue()));settle.start();
-                                    if(expandedName[0]!=null)expandedName[0].setAlpha(1f);
-                                } else closeExpanded.run();
+                            target.animate().scaleX(1f).scaleY(1f).setDuration(140).start();
+                            if (dragging[0]) {
+                                if (progress[0] >= .42f) {
+                                    android.animation.ValueAnimator a = android.animation.ValueAnimator.ofFloat(progress[0], 1f);
+                                    a.setDuration(210); a.setInterpolator(new android.view.animation.DecelerateInterpolator());
+                                    a.addUpdateListener(v -> updater.update((Float) v.getAnimatedValue())); a.start();
+                                } else close.run();
+                            } else if (event.getAction() == MotionEvent.ACTION_UP) {
+                                if (otherProfile) showOtherAvatarActions(); else showAvatarActions();
                             }
-                            else if(event.getAction()==MotionEvent.ACTION_UP) showAvatarActions();
-                            dragging[0]=false;return true;
+                            dragging[0] = false;
+                            return true;
                     }
                     return true;
                 });
+            }
+
+            void showOtherAvatarActions() {
+                final Dialog d = new Dialog(act);
+                View content = act.getLayoutInflater().inflate(R.layout.native_avatar_gallery, null, false);
+                styleSheetDialog(d, content, true);
+                ImageView image = (ImageView) content.findViewById(R.id.avatarGalleryImage);
+                TextView initial = (TextView) content.findViewById(R.id.avatarGalleryInitial);
+                if (otherPhotoBmp != null && !otherPhotoBmp.isRecycled()) {
+                    image.setImageBitmap(otherPhotoBmp); initial.setVisibility(View.GONE);
+                } else {
+                    image.setVisibility(View.GONE);
+                    initial.setText(otherName.length() > 0 ? otherName.substring(0, 1) : "؟");
+                }
+                content.findViewById(R.id.avatarGalleryDelete).setVisibility(View.GONE);
+                content.findViewById(R.id.avatarGalleryChoose).setVisibility(View.GONE);
+                content.findViewById(R.id.avatarGalleryClose).setOnClickListener(x -> d.dismiss());
             }
 
             void setupSwipeNavigation() {
@@ -1084,19 +1207,52 @@ public class MassActivity extends Activity {
 
             void openOther(String name, String username, String uid) {
                 otherName = name; otherUser = username; otherUid = uid;
+                otherPhoto = ""; otherPhotoBmp = null;
                 blocked = false;
                 TextView oAv = tv("otherAvatarText");
-                if (oAv != null) oAv.setText(name.length() > 0 ? name.substring(0, 1) : "?");
-                TextView oName = tv("otherHeaderName");
-                if (oName != null) oName.setText(name);
-                TextView oUser = tv("otherHeaderUser");
-                if (oUser != null) oUser.setText("@" + username);
-                TextView oBio = tv("otherBioDisplay");
-                if (oBio != null) oBio.setText("");
+                if (oAv != null) { oAv.setText(name.length() > 0 ? name.substring(0, 1) : "؟"); oAv.setBackground(shape(cGold(), 54, cBg())); }
+                TextView oName = tv("otherHeaderName"); if (oName != null) oName.setText(name);
+                TextView oUser = tv("otherHeaderUser"); if (oUser != null) oUser.setText("@" + username);
+                TextView oBio = tv("otherBioDisplay"); if (oBio != null) oBio.setText("");
+                TextView oGov = tv("otherGovDisplay"); if (oGov != null) oGov.setText("");
+                TextView oJoin = tv("otherJoinDisplay"); if (oJoin != null) oJoin.setText("");
                 setLabel("otherBlockBtn", "حظر", icon("ic_block", 16));
                 String back = curPage;
-                show("otherUserProfileView");
-                prevPage = back;
+                show("otherUserProfileView"); prevPage = back;
+                db.collection("users").document(uid).get().addOnSuccessListener(doc -> {
+                    if (!doc.exists() || !uid.equals(otherUid)) return;
+                    String n = safe(doc.getString("name")); if (!n.isEmpty()) otherName = n;
+                    String un = safe(doc.getString("username")); if (!un.isEmpty()) otherUser = un;
+                    otherPhoto = safe(doc.getString("photo"));
+                    String bio = safe(doc.getString("bio"));
+                    String gov = safe(doc.getString("gov"));
+                    Long created = doc.getLong("createdAt");
+                    if (oName != null) oName.setText(otherName);
+                    if (oUser != null) oUser.setText("@" + otherUser);
+                    if (oBio != null) oBio.setText(bio);
+                    if (oGov != null) { oGov.setText(gov); vis("otherGovRow", !gov.isEmpty()); }
+                    if (oJoin != null && created != null) { oJoin.setText(new SimpleDateFormat("MMMM yyyy", new Locale("ar")).format(new Date(created))); vis("otherJoinRow", true); }
+                    applyOtherPhoto();
+                }).addOnFailureListener(e -> { });
+            }
+
+            void applyOtherPhoto() {
+                TextView avatar = tv("otherAvatarText");
+                if (avatar == null) return;
+                if (otherPhoto == null || otherPhoto.isEmpty()) {
+                    otherPhotoBmp = null;
+                    avatar.setText(otherName.length() > 0 ? otherName.substring(0, 1) : "؟");
+                    avatar.setBackground(shape(cGold(), 54, cBg()));
+                    return;
+                }
+                try {
+                    byte[] bytes = android.util.Base64.decode(otherPhoto, android.util.Base64.DEFAULT);
+                    otherPhotoBmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+                    if (otherPhotoBmp != null) {
+                        androidx.core.graphics.drawable.RoundedBitmapDrawable d = androidx.core.graphics.drawable.RoundedBitmapDrawableFactory.create(act.getResources(), otherPhotoBmp);
+                        d.setCircular(true); avatar.setBackground(d); avatar.setText("");
+                    }
+                } catch (Exception e) { otherPhotoBmp = null; }
             }
 
             void loadChats() {
@@ -1549,14 +1705,45 @@ public class MassActivity extends Activity {
                 });
                 content.findViewById(R.id.msgActionDelete).setOnClickListener(x -> {
                     d.dismiss();
-                    showNativeConfirm("حذف الرسالة", "هل تريد حذف هذه الرسالة من العرض؟", "حذف", () -> {
-                        LinearLayout msgArea = (LinearLayout) v("messagesArea"); if (msgArea != null) msgArea.removeView(b);
-                    });
+                    showMessageDeleteChoices(b, mine);
                 });
                 content.findViewById(R.id.msgActionCancel).setOnClickListener(x -> d.dismiss());
                 int[] reactions = {R.id.msgReactLaugh,R.id.msgReactHeart,R.id.msgReactLike,R.id.msgReactSad,R.id.msgReactSpark};
                 String[] emojis = {"😂","❤️","👍","😭","✨"};
                 for (int i=0;i<reactions.length;i++){final String emoji=emojis[i];content.findViewById(reactions[i]).setOnClickListener(x->{toast("تفاعل " + emoji);d.dismiss();});}
+            }
+
+            void showMessageDeleteChoices(TextView messageView, boolean mine) {
+                final Dialog dialog = new Dialog(act);
+                View content = act.getLayoutInflater().inflate(R.layout.native_message_delete_dialog, null, false);
+                dialog.setContentView(content);
+                Window window = dialog.getWindow();
+                if (window != null) {
+                    window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+                    window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+                    WindowManager.LayoutParams lp = window.getAttributes(); lp.dimAmount = .68f;
+                    lp.width = WindowManager.LayoutParams.MATCH_PARENT; lp.height = WindowManager.LayoutParams.WRAP_CONTENT;
+                    lp.gravity = Gravity.CENTER; window.setAttributes(lp);
+                }
+                TextView all = (TextView) content.findViewById(R.id.messageDeleteForAll);
+                if (!mine) all.setVisibility(View.GONE);
+                content.findViewById(R.id.messageDeleteCancel).setOnClickListener(vw -> dialog.dismiss());
+                content.findViewById(R.id.messageDeleteForMe).setOnClickListener(vw -> {
+                    dialog.dismiss(); LinearLayout area = (LinearLayout) v("messagesArea");
+                    if (area != null) area.removeView(messageView);
+                    toast("تم إخفاء الرسالة من العرض");
+                });
+                all.setOnClickListener(vw -> {
+                    dialog.dismiss();
+                    // This app's current message renderer does not retain a Firestore document id on the view.
+                    // Do not claim server deletion; remove only the visible row until ids are wired end-to-end.
+                    LinearLayout area = (LinearLayout) v("messagesArea");
+                    if (area != null) area.removeView(messageView);
+                    toast("تمت إزالة الرسالة من العرض؛ الحذف لدى الجميع يحتاج ربط معرّف الرسالة");
+                });
+                dialog.show();
+                if (window != null) window.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.WRAP_CONTENT);
+                content.startAnimation(android.view.animation.AnimationUtils.loadAnimation(act, R.anim.bb_sheet_enter));
             }
 
             void cancelReply() { replyText = null; editing = null; vis("replyPreviewBar", false); }
@@ -1848,24 +2035,36 @@ public class MassActivity extends Activity {
             }
 
             void chatMenu() {
-                View cm = v("chatMore");
-                if (cm == null) return;
-                PopupMenu pm = new PopupMenu(act, cm);
-                pm.getMenu().add(0, 1, 0, muted ? "إلغاء كتم المحادثة" : "كتم المحادثة");
-                pm.getMenu().add(0, 2, 1, "البحث عن رسالة");
-                pm.getMenu().add(0, 3, 2, "مسح المحادثة");
-                pm.setOnMenuItemClickListener(it -> {
-                    if (it.getItemId() == 1) { muted = !muted; toast(muted ? "تم كتم المحادثة" : "تم إلغاء الكتم"); }
-                    else if (it.getItemId() == 2) {
-                        vis("chatSearchPanel", true);
-                        EditText et1 = et("chatMessageSearchInput");
-                        if (et1 != null) et1.requestFocus();
-                    }
-                    else showClearConversationConfirm();
-                    return true;
-                });
-                pm.show();
+                View anchor = v("chatMore");
+                if (anchor == null) return;
+                final Dialog d = new Dialog(act);
+                LinearLayout sheet = new LinearLayout(act);
+                sheet.setOrientation(LinearLayout.VERTICAL);
+                sheet.setPadding(dp(18), dp(16), dp(18), dp(12));
+                sheet.setBackground(shape(cSf(), 22, cBorder()));
+                TextView heading = new TextView(act); heading.setText("خيارات المحادثة"); heading.setTextColor(cGold());
+                heading.setTextSize(17); heading.setTypeface(null, android.graphics.Typeface.BOLD); heading.setPadding(dp(8), dp(4), dp(8), dp(12));
+                sheet.addView(heading, new LinearLayout.LayoutParams(-1, -2));
+                String[] labels = {muted ? "إلغاء كتم المحادثة" : "كتم المحادثة", "البحث عن رسالة", "مسح المحادثة"};
+                int[] colors = {cText(), cText(), cRed()};
+                for (int i = 0; i < labels.length; i++) {
+                    final int action = i;
+                    TextView item = new TextView(act); item.setText(labels[i]); item.setTextColor(colors[i]); item.setTextSize(15);
+                    item.setGravity(Gravity.CENTER_VERTICAL); item.setPadding(dp(14), 0, dp(14), 0); item.setMinHeight(dp(50));
+                    item.setBackground(shape(dark ? 0xFF202C3A : 0xFFF3F5F8, 13, 0));
+                    LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(-1, dp(50)); ip.bottomMargin = dp(8); sheet.addView(item, ip);
+                    item.setOnClickListener(x -> {
+                        d.dismiss();
+                        if (action == 0) { muted = !muted; toast(muted ? "تم كتم المحادثة" : "تم إلغاء الكتم"); }
+                        else if (action == 1) { vis("chatSearchPanel", true); EditText input = et("chatMessageSearchInput"); if (input != null) { input.requestFocus(); ((InputMethodManager) act.getSystemService(Context.INPUT_METHOD_SERVICE)).showSoftInput(input, InputMethodManager.SHOW_IMPLICIT); } }
+                        else showClearConversationConfirm();
+                    });
+                }
+                TextView cancel = new TextView(act); cancel.setText("إلغاء"); cancel.setTextColor(cGold()); cancel.setTextSize(14); cancel.setGravity(Gravity.CENTER); cancel.setMinHeight(dp(44));
+                sheet.addView(cancel, new LinearLayout.LayoutParams(-1, dp(44))); cancel.setOnClickListener(x -> d.dismiss());
+                styleSheetDialog(d, sheet, false);
             }
+
 
             void setChatSearchFilter() {
                 String[] ids={"csFilterAll","csFilterMine","csFilterOther"};
