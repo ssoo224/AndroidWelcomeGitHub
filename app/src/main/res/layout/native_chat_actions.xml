@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="18dp" android:layoutDirection="rtl" android:background="@drawable/bg_native_dialog">
-<TextView android:id="@+id/chatActionTitle" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="المحادثة" android:textColor="#F5D47B" android:textSize="17sp" android:textStyle="bold" android:padding="8dp"/>
-<TextView android:id="@+id/chatActionRead" android:layout_width="match_parent" android:layout_height="48dp" android:gravity="center_vertical" android:paddingStart="14dp" android:text="تعليم كمقروءة" android:textColor="#F1F5F9" android:textSize="15sp"/>
-<TextView android:id="@+id/chatActionDelete" android:layout_width="match_parent" android:layout_height="48dp" android:gravity="center_vertical" android:paddingStart="14dp" android:text="حذف المحادثة" android:textColor="#F87171" android:textSize="15sp" android:textStyle="bold"/>
-<TextView android:id="@+id/chatActionCancel" android:layout_width="match_parent" android:layout_height="46dp" android:gravity="center" android:text="إلغاء" android:textColor="#F5D47B" android:textSize="14sp" android:textStyle="bold" android:background="@drawable/bg_native_cancel_button"/>
-</LinearLayout>
