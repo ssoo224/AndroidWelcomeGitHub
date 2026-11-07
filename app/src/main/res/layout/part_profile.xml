@@ -5,6 +5,7 @@
 	android:id="@+id/partProfile"
 	android:layout_width="match_parent"
 	android:layout_height="match_parent"
+	android:background="#F5F7FB"
 	android:layoutDirection="rtl">
 	<ScrollView
 		android:id="@+id/profileView"
@@ -21,7 +22,7 @@
 			<FrameLayout
 				android:id="@+id/frame_layout642"
 				android:layout_width="match_parent"
-				android:layout_height="176dp"
+				android:layout_height="188dp"
 				android:tag="cover:#1B2A4A">
 				<TextView
 					android:id="@+id/pCoverTxt"
@@ -42,8 +43,8 @@
 				android:layout_marginTop="-59dp">
 				<TextView
 					android:id="@+id/pAvatarText"
-					android:layout_width="104dp"
-					android:layout_height="104dp"
+					android:layout_width="112dp"
+					android:layout_height="112dp"
 					android:gravity="center_horizontal|center_vertical"
 					android:textSize="38sp"
 					android:textStyle="bold"
@@ -456,7 +457,7 @@
 			<FrameLayout
 				android:id="@+id/frame_layout657"
 				android:layout_width="match_parent"
-				android:layout_height="176dp"
+				android:layout_height="188dp"
 				android:tag="cover:#3B2A4A">
 				<TextView
 					android:id="@+id/otherBack"

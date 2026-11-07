@@ -250,6 +250,7 @@ public class MassActivity extends Activity {
             String replyText = null, otherName = "", otherUser = "";
             TextView editing = null;
             boolean tabStories = true;
+            int chatSearchFilter = 0; // 0 all, 1 my messages, 2 other messages
 
             MediaRecorder recorder = null;
             File audioFile = null;
@@ -1188,49 +1189,53 @@ public class MassActivity extends Activity {
             }
 
             void msgMenu(final TextView b, final boolean mine) {
-                PopupMenu pm = new PopupMenu(act, b);
-                pm.getMenu().add(0, 1, 0, "رد");
-                pm.getMenu().add(0, 2, 1, "نسخ");
-                if (mine) pm.getMenu().add(0, 3, 2, "تعديل");
-                pm.getMenu().add(0, 4, 3, "حذف");
-                pm.setOnMenuItemClickListener(it -> {
-                    String raw = String.valueOf(b.getContentDescription());
-                    switch (it.getItemId()) {
-                        case 1:
-                            replyText = raw.length() > 40 ? raw.substring(0, 40) + "…" : raw;
-                            setLabel("replyLabel", "الرد على الرسالة", icon("ic_reply", 16));
-                            TextView rp = tv("replyPreviewText");
-                            if (rp != null) rp.setText(replyText);
-                            vis("replyPreviewBar", true);
-                            EditText mi = et("messageInput");
-                            if (mi != null) mi.requestFocus();
-                            break;
-                        case 2:
-                            ClipboardManager cm = (ClipboardManager) act.getSystemService(Context.CLIPBOARD_SERVICE);
-                            cm.setPrimaryClip(ClipData.newPlainText("msg", raw));
-                            toast("تم نسخ الرسالة");
-                            break;
-                        case 3:
-                            editing = b; replyText = null;
-                            setLabel("replyLabel", "تعديل الرسالة", icon("ic_edit", 16));
-                            TextView rp2 = tv("replyPreviewText");
-                            if (rp2 != null) rp2.setText(raw);
-                            vis("replyPreviewBar", true);
-                            EditText mi2 = et("messageInput");
-                            if (mi2 != null) {
-                                mi2.setText(raw);
-                                mi2.setSelection(raw.length());
-                                mi2.requestFocus();
-                            }
-                            break;
-                        case 4:
-                            LinearLayout msgArea = (LinearLayout) v("messagesArea");
-                            if (msgArea != null) msgArea.removeView(b);
-                            break;
-                    }
-                    return true;
-                });
-                pm.show();
+                View content = getLayoutInflater().inflate(R.layout.native_message_actions, null, false);
+                AlertDialog dialog = new AlertDialog.Builder(act).setView(content).create();
+                View editAction = content.findViewById(R.id.msgActionEdit);
+                if (editAction != null) editAction.setVisibility(mine ? View.VISIBLE : View.GONE);
+                content.findViewById(R.id.msgActionReply).setOnClickListener(x -> { dialog.dismiss(); performMsgAction(1, b); });
+                content.findViewById(R.id.msgActionCopy).setOnClickListener(x -> { dialog.dismiss(); performMsgAction(2, b); });
+                if (editAction != null) editAction.setOnClickListener(x -> { dialog.dismiss(); performMsgAction(3, b); });
+                content.findViewById(R.id.msgActionDelete).setOnClickListener(x -> { dialog.dismiss(); performMsgAction(4, b); });
+                dialog.show();
+            }
+
+            void performMsgAction(int action, final TextView b) {
+                String raw = String.valueOf(b.getContentDescription());
+                switch (action) {
+                    case 1:
+                        replyText = raw.length() > 40 ? raw.substring(0, 40) + "…" : raw;
+                        setLabel("replyLabel", "الرد على الرسالة", icon("ic_reply", 16));
+                        TextView rp = tv("replyPreviewText");
+                        if (rp != null) rp.setText(replyText);
+                        vis("replyPreviewBar", true);
+                        EditText mi = et("messageInput");
+                        if (mi != null) mi.requestFocus();
+                        break;
+                    case 2:
+                        ClipboardManager cm = (ClipboardManager) act.getSystemService(Context.CLIPBOARD_SERVICE);
+                        cm.setPrimaryClip(ClipData.newPlainText("msg", raw));
+                        toast("تم نسخ الرسالة");
+                        break;
+                    case 3:
+                        editing = b; replyText = null;
+                        setLabel("replyLabel", "تعديل الرسالة", icon("ic_edit", 16));
+                        TextView rp2 = tv("replyPreviewText");
+                        if (rp2 != null) rp2.setText(raw);
+                        vis("replyPreviewBar", true);
+                        EditText mi2 = et("messageInput");
+                        if (mi2 != null) { mi2.setText(raw); mi2.setSelection(raw.length()); mi2.requestFocus(); }
+                        break;
+                    case 4:
+                        new AlertDialog.Builder(act).setTitle("حذف الرسالة؟")
+                                .setMessage("سيتم حذف الرسالة من العرض الحالي.")
+                                .setNegativeButton("إلغاء", null)
+                                .setPositiveButton("حذف", (d, w) -> {
+                                    LinearLayout msgArea = (LinearLayout) v("messagesArea");
+                                    if (msgArea != null) msgArea.removeView(b);
+                                }).show();
+                        break;
+                }
             }
 
             void cancelReply() { replyText = null; editing = null; vis("replyPreviewBar", false); }
@@ -1556,14 +1561,33 @@ public class MassActivity extends Activity {
                 int found = 0; View first = null;
                 for (int i = 0; i < a.getChildCount(); i++) {
                     View c = a.getChildAt(i);
-                    boolean hit = q.length() > 0 && String.valueOf(c.getContentDescription()).toLowerCase().contains(q);
-                    c.setAlpha(q.length() == 0 || hit ? 1f : 0.3f);
+                    Object tag = c.getTag();
+                    boolean senderAllowed = chatSearchFilter == 0
+                            || (chatSearchFilter == 1 && "bubMine".equals(tag))
+                            || (chatSearchFilter == 2 && "bubOther".equals(tag));
+                    boolean hit = q.length() > 0 && senderAllowed
+                            && String.valueOf(c.getContentDescription()).toLowerCase().contains(q);
+                    c.setAlpha(q.length() == 0 || (senderAllowed && (q.length() == 0 || hit)) ? 1f : 0.3f);
                     if (hit) { found++; if (first == null) first = c; }
                 }
                 TextView csc = tv("csCount");
                 if (csc != null) csc.setText(q.length() == 0 ? "" : (found + " نتيجة"));
                 View ms = v("messagesScroll");
                 if (first != null && ms != null) ((ScrollView) ms).smoothScrollTo(0, first.getTop());
+            }
+
+            void setChatSearchFilter(int filter) {
+                chatSearchFilter = filter;
+                String[] ids = {"csFilterAll", "csFilterMine", "csFilterOther"};
+                for (int i = 0; i < ids.length; i++) {
+                    View chip = v(ids[i]);
+                    if (chip != null) {
+                        chip.setBackground(i == filter ? shape(goldA(dark ? 0x26 : 0x24), 14, goldA(0x33)) : null);
+                        chip.setAlpha(i == filter ? 1f : 0.72f);
+                    }
+                }
+                EditText query = et("chatMessageSearchInput");
+                searchInChat(query == null ? "" : query.getText().toString());
             }
 
             void searchUsers(String q) {
@@ -1698,7 +1722,7 @@ public class MassActivity extends Activity {
             }
 
             void click(String id) {
-                if (id.equals("hdrStories")) toast("القصص");
+                if (id.equals("hdrStories")) HtmlNativePages.showStoryComposer(act);
                 else if (id.equals("mainSearchBtn")) {
                     EditText si = et("searchInput");
                     if (si != null) { si.setText(""); show("searchView"); si.requestFocus(); }
@@ -1708,6 +1732,9 @@ public class MassActivity extends Activity {
                 else if (id.equals("navProfile") || id.equals("sxHero")) { loadMyProfile(); show("profileView"); }
                 else if (id.equals("fltAll")) setFilter(false);
                 else if (id.equals("fltUnread")) setFilter(true);
+                else if (id.equals("csFilterAll")) setChatSearchFilter(0);
+                else if (id.equals("csFilterMine")) setChatSearchFilter(1);
+                else if (id.equals("csFilterOther")) setChatSearchFilter(2);
                 else if (id.equals("newGroupFab")) {
                     final EditText e = new EditText(act);
                     e.setHint("اسم المجموعة");
@@ -1718,13 +1745,12 @@ public class MassActivity extends Activity {
                 else if (id.equals("pEdit") || id.equals("pBioRow")) openEdit();
                 else if (id.equals("pPhoto")) pickProfilePhoto();
                 else if (id.equals("pCover")) {
-                    new AlertDialog.Builder(act).setTitle("لون الغلاف")
-                        .setItems(new String[]{"كحلي", "بنفسجي", "أخضر", "برتقالي", "رمادي", "ذهبي"}, (d, w) -> {
-                            coverColor = covers[w];
-                            sp.edit().putInt("cover", coverColor).apply();
-                            View coverView = v("frame_layout642");
-                            if (coverView != null) coverView.setBackgroundColor(coverColor);
-                        }).show();
+                    HtmlNativePages.showCoverPicker(act, selectedColor -> {
+                        coverColor = selectedColor;
+                        sp.edit().putInt("cover", coverColor).apply();
+                        View coverView = v("frame_layout642");
+                        if (coverView != null) coverView.setBackgroundColor(coverColor);
+                    });
                 }
                 else if (id.equals("pUserRow")) {
                     ClipboardManager cm = (ClipboardManager) act.getSystemService(Context.CLIPBOARD_SERVICE);
@@ -1890,7 +1916,7 @@ public class MassActivity extends Activity {
                         "itemChangeEmail", "itemBlocked", "segLastSeen_show", "segLastSeen_hide",
                         "segAvatar_show", "segAvatar_hide", "itemClearCache", "itemWipe", "itemAbout",
                         "pushOnBtn", "pushOffBtn", "soundOnBtn", "soundOffBtn", "chatBack", "chatUserInfo",
-                        "chatMore", "csX", "replyCancel", "btnSend", "btnMic", "btnAttach", "recSend", "recCancel"};
+                        "chatMore", "csX", "csFilterAll", "csFilterMine", "csFilterOther", "replyCancel", "btnSend", "btnMic", "btnAttach", "recSend", "recCancel"};
                 for (String id : ids) {
                     View x = v(id);
                     if (x != null) x.setOnClickListener(L);

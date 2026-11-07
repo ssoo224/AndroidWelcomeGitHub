@@ -5,6 +5,7 @@
 	android:id="@+id/partSettings"
 	android:layout_width="match_parent"
 	android:layout_height="match_parent"
+	android:background="#F5F7FB"
 	android:layoutDirection="rtl">
 
 	<!-- ==================== صفحة الإعدادات الرئيسية ==================== -->
@@ -33,8 +34,8 @@
 				android:elevation="2dp">
 				<TextView
 					android:id="@+id/sxAvatar"
-					android:layout_width="78dp"
-					android:layout_height="78dp"
+					android:layout_width="84dp"
+					android:layout_height="84dp"
 					android:gravity="center"
 					android:textSize="30sp"
 					android:textStyle="bold"

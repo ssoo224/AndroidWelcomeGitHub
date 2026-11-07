@@ -5,6 +5,7 @@
 	android:id="@+id/root"
 	android:layout_width="match_parent"
 	android:layout_height="match_parent"
+	android:background="#F4F6FA"
 	android:layoutDirection="rtl"
 	android:fitsSystemWindows="true"
 	android:tag="bg">
@@ -17,7 +18,7 @@
 		<LinearLayout
 			android:id="@+id/mainHeader"
 			android:layout_width="match_parent"
-			android:layout_height="62dp"
+			android:layout_height="64dp"
 			android:gravity="center_vertical"
 			android:orientation="horizontal"
 			android:paddingStart="16dp"
@@ -215,16 +216,6 @@
 						android:orientation="vertical" />
 				</ScrollView>
 			</LinearLayout>
-			<!-- Native conversion of the HTML profile page -->
-			<include
-				layout="@layout/part_profile"
-				android:layout_width="match_parent"
-				android:layout_height="match_parent" />
-			<!-- Native conversion of the HTML settings pages -->
-			<include
-				layout="@layout/part_settings"
-				android:layout_width="match_parent"
-				android:layout_height="match_parent" />
 		</FrameLayout>
 		<LinearLayout
 			android:id="@+id/bottomNav"
@@ -241,7 +232,7 @@
 			<LinearLayout
 				android:id="@+id/bottomNavRow"
 				android:layout_width="match_parent"
-				android:layout_height="68dp"
+				android:layout_height="64dp"
 				android:gravity="center_vertical"
 				android:orientation="horizontal"
 				android:paddingStart="10dp"
@@ -351,7 +342,7 @@
 		<LinearLayout
 			android:id="@+id/linear607"
 			android:layout_width="match_parent"
-			android:layout_height="60dp"
+			android:layout_height="58dp"
 			android:gravity="center_vertical"
 			android:orientation="horizontal"
 			android:tag="sf"
@@ -450,6 +441,17 @@
 					android:drawableStart="@drawable/ic_close_22"
 					android:textSize="20sp"
 					android:tag="t" />
+			</LinearLayout>
+			<LinearLayout
+				android:id="@+id/csFilterRow"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:orientation="horizontal"
+				android:gravity="center_vertical"
+				android:layout_marginTop="6dp">
+				<TextView android:id="@+id/csFilterAll" android:layout_width="0dp" android:layout_height="34dp" android:layout_weight="1" android:gravity="center" android:text="الكل" android:textSize="12sp" android:textStyle="bold" android:background="@drawable/bg_tab_active" android:tag="t" />
+				<TextView android:id="@+id/csFilterMine" android:layout_width="0dp" android:layout_height="34dp" android:layout_weight="1" android:gravity="center" android:text="رسائلي" android:textSize="12sp" android:textStyle="bold" android:tag="m" />
+				<TextView android:id="@+id/csFilterOther" android:layout_width="0dp" android:layout_height="34dp" android:layout_weight="1" android:gravity="center" android:text="من الآخرين" android:textSize="12sp" android:textStyle="bold" android:tag="m" />
 			</LinearLayout>
 			<TextView
 				android:id="@+id/csCount"
