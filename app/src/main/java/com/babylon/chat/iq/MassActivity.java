@@ -94,13 +94,8 @@ public class MassActivity extends Activity {
     protected void onCreate(Bundle _savedInstanceState) {
         super.onCreate(_savedInstanceState);
 
-        // 1) إعداد معالج الأخطاء العام قبل أي شيء آخر
         setupCrashHandler();
-
-        // 2) عرض الخطأ السابق (إن وجد) قبل البدء
         showLastCrash();
-
-        // 3) إشعار بسيط للتأكد أن onCreate يعمل
         Toast.makeText(this, "جاري فتح MassActivity...", Toast.LENGTH_SHORT).show();
 
         try {
@@ -248,7 +243,7 @@ public class MassActivity extends Activity {
             SharedPreferences sp = act.getSharedPreferences("babylon_ui", MODE_PRIVATE);
             boolean dark = sp.getBoolean("dark", false);
             int fontSp = sp.getInt("font", 15);
-            int radius = sp.getInt("radius", 16);
+            int radius = sp.getInt("radius", 18); // Updated default radius
             int chatBgIdx = sp.getInt("chatBg", 0);
             int coverColor = sp.getInt("cover", 0xFF1B2A4A);
             boolean unreadOnly = false, muted = false, blocked = false;
@@ -334,8 +329,8 @@ public class MassActivity extends Activity {
                         else if (k.equals("card")) x.setBackground(shape(cSf(), 18, cBorder()));
                         else if (k.equals("row")) {
                             android.graphics.drawable.StateListDrawable sl = new android.graphics.drawable.StateListDrawable();
-                            sl.addState(new int[]{android.R.attr.state_pressed}, shape(dark ? 0xFF1D2A38 : 0xFFE8EDF4, 18, 0));
-                            sl.addState(new int[]{}, shape(0, 18, 0));
+                            sl.addState(new int[]{android.R.attr.state_pressed}, shape(dark ? 0xFF1D2A38 : 0xFFE8EDF4, 24, 0));
+                            sl.addState(new int[]{}, shape(0, 24, 0));
                             x.setBackground(sl);
                         }
                         else if (k.equals("badge")) {
@@ -349,8 +344,8 @@ public class MassActivity extends Activity {
                             x.setBackground(g);
                         }
                         else if (k.equals("white_card")) {
-                            x.setBackground(shape(0xFFFFFFFF, 16, 0));
-                            x.setElevation(dp(4));
+                            x.setBackground(shape(0xFFFFFFFF, 24, 0));
+                            x.setElevation(dp(3));
                         }
                         else if (k.equals("settings_hero")) {
                             GradientDrawable hero = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
@@ -409,13 +404,16 @@ public class MassActivity extends Activity {
                         } else if (k.equals("bubOther") || k.equals("other")) {
                             bubble(x, T, false);
                         } else if (k.equals("roomhdr")) {
-                            GradientDrawable hg = new GradientDrawable(); hg.setColor(cSf());
-                            hg.setCornerRadii(new float[]{0, 0, 0, 0, dp(22), dp(22), dp(22), dp(22)});
-                            x.setBackground(hg); x.setElevation(dp(6));
+                            GradientDrawable hg = new GradientDrawable(); 
+                            hg.setColor(cSf());
+                            hg.setCornerRadius(dp(36)); // Floating header
+                            x.setBackground(hg); 
+                            x.setElevation(dp(8));
                         } else if (k.equals("ibtn")) {
                             x.setBackground(shape(0x1F7F8CA0, 14, 0));
                         } else if (k.equals("composer")) {
-                            x.setBackground(shape(cSf(), 14, cBorder())); x.setElevation(dp(3));
+                            x.setBackground(shape(cSf(), 30, cBorder())); // Composer pill
+                            x.setElevation(dp(6));
                         } else if (k.equals("nav")) {
                             GradientDrawable ng = new GradientDrawable(); ng.setColor(dark ? cSf() : 0xFFFBF6E8);
                             ng.setCornerRadii(new float[]{dp(22), dp(22), dp(22), dp(22), 0, 0, 0, 0});
@@ -429,7 +427,7 @@ public class MassActivity extends Activity {
                             sg2.setCornerRadius(dp(13)); x.setBackground(sg2);
                             if (T != null) T.setTextColor(0xFFFFFFFF);
                         } else if (k.equals("inp2")) {
-                            x.setBackground(shape(0x1F7F8CA0, 10, 0));
+                            x.setBackground(shape(dark ? 0xFF1D2A38 : 0xFFF3F5F8, 24, 0)); // Inner input
                             if (T != null) { T.setTextColor(cText()); T.setHintTextColor(cMuted()); }
                         } else if (k.startsWith("ic:")) x.setBackground(shape(Color.parseColor(k.substring(3)), 12, 0));
                         else if (k.startsWith("cover:")) x.setBackgroundColor(Color.parseColor(k.substring(6)));
@@ -453,10 +451,10 @@ public class MassActivity extends Activity {
 
             // ===== تصميم Babylon: الفقاعات والمؤثرات =====
             void bubble(View x, TextView T, boolean mine) {
-                float r = radius;
+                float r = 22f;
                 GradientDrawable g;
                 if (mine) {
-                    g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE8C85D, dark ? 0xFFB98B20 : 0xFFCBA843});
+                    g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE8C85D, 0xFFC9A227});
                     g.setCornerRadii(new float[]{dp(r), dp(r), dp(r), dp(r), dp(6), dp(6), dp(r), dp(r)});
                     if (T != null) T.setTextColor(0xFF292216);
                 } else {
@@ -509,7 +507,6 @@ public class MassActivity extends Activity {
                 });
             }
 
-            // نصف قطر الزاوية: كبسولة للأزرار القصيرة (فلاتر المحادثات) وإلا 12
             float rad(View x) {
                 ViewGroup.LayoutParams lp = x.getLayoutParams();
                 if (lp != null && lp.height > 0) {
@@ -519,7 +516,7 @@ public class MassActivity extends Activity {
                 return 12f;
             }
 
-            // ============ تصميم الملف الشخصي (مطابق للـ HTML) ============
+            // ============ تصميم الملف الشخصي ============
             android.graphics.drawable.Drawable dr(int res, int sizeDp, int color) {
                 if (res == 0) return null;
                 android.graphics.drawable.Drawable d = act.getResources().getDrawable(res).mutate();
@@ -595,7 +592,6 @@ public class MassActivity extends Activity {
                 t.setCompoundDrawablesRelative(null, dr(icon(iconName, 16), 22, cGold()), null, null);
             }
 
-            // kind: 0 ذهبي رئيسي، 1 بطاقة بأيقونة ذهبية، 2 خطر
             void actBtn(String id, int kind) {
                 TextView t = tv(id);
                 if (t == null) return;
@@ -1412,13 +1408,18 @@ public class MassActivity extends Activity {
                     c.setGravity(Gravity.CENTER_HORIZONTAL);
                     c.setPadding(dp(6), 0, dp(6), 0);
                     FrameLayout ringBox = new FrameLayout(act);
+                    
+                    int ringSize = (i == 0) ? 74 : 64;
+                    int holeSize = ringSize - 5;
+                    int avatarSize = ringSize - 10;
+
                     final View spin = new View(act);
                     GradientDrawable sg = new GradientDrawable();
                     sg.setShape(GradientDrawable.OVAL);
                     sg.setGradientType(GradientDrawable.SWEEP_GRADIENT);
                     sg.setColors(new int[]{cGold(), 0xFFFFF3B0, cGold()});
                     spin.setBackground(sg);
-                    ringBox.addView(spin, new FrameLayout.LayoutParams(dp(64), dp(64)));
+                    ringBox.addView(spin, new FrameLayout.LayoutParams(dp(ringSize), dp(ringSize)));
                     final android.animation.ObjectAnimator rot = android.animation.ObjectAnimator.ofFloat(spin, "rotation", 0f, 360f);
                     rot.setDuration(6000); rot.setRepeatCount(android.animation.ValueAnimator.INFINITE);
                     rot.setInterpolator(new android.view.animation.LinearInterpolator()); rot.start();
@@ -1426,25 +1427,28 @@ public class MassActivity extends Activity {
                         @Override public void onViewAttachedToWindow(View v1) { }
                         @Override public void onViewDetachedFromWindow(View v1) { rot.cancel(); }
                     });
+                    
                     View hole = new View(act);
                     GradientDrawable hg = new GradientDrawable(); hg.setShape(GradientDrawable.OVAL); hg.setColor(cBg());
                     hole.setBackground(hg);
-                    ringBox.addView(hole, new FrameLayout.LayoutParams(dp(59), dp(59), Gravity.CENTER));
+                    ringBox.addView(hole, new FrameLayout.LayoutParams(dp(holeSize), dp(holeSize), Gravity.CENTER));
+                    
                     TextView r = new TextView(act);
                     r.setText(i == 0 ? "+" : (nm.length() > 0 ? nm.substring(0, 1) : "?"));
                     r.setGravity(Gravity.CENTER);
-                    r.setTextSize(20);
+                    r.setTextSize(24);
                     r.setTypeface(null, android.graphics.Typeface.BOLD);
                     r.setTextColor(0xFFFFFFFF);
                     r.setTag("avatar");
-                    ringBox.addView(r, new FrameLayout.LayoutParams(dp(54), dp(54), Gravity.CENTER));
+                    ringBox.addView(r, new FrameLayout.LayoutParams(dp(avatarSize), dp(avatarSize), Gravity.CENTER));
+                    
                     TextView n = new TextView(act);
                     n.setText(nm.length() > 8 ? nm.substring(0, 8) : nm);
-                    n.setTextSize(11.5f);
+                    n.setTextSize(12f);
                     n.setTypeface(null, android.graphics.Typeface.BOLD);
                     n.setTag("m");
                     n.setPadding(0, dp(7), 0, 0);
-                    c.addView(ringBox, new LinearLayout.LayoutParams(dp(64), dp(64)));
+                    c.addView(ringBox, new LinearLayout.LayoutParams(dp(ringSize), dp(ringSize)));
                     c.addView(n);
                     c.setOnClickListener(x -> { if (nm.equals("قصتي")) showStoryComposer(); else showStoryViewer(nm); });
                     bar.addView(c);
@@ -1469,42 +1473,52 @@ public class MassActivity extends Activity {
                 for (String[] c : chatData) {
                     if (hiddenChats.contains(getChatId(myUid, c[4]))) continue;
                     if (unreadOnly && c[3].equals("0")) continue;
+                    
+                    // Updated Chat List Card (White Floating)
                     LinearLayout row = new LinearLayout(act);
                     row.setOrientation(LinearLayout.HORIZONTAL);
                     row.setGravity(Gravity.CENTER_VERTICAL);
-                    row.setPadding(dp(10), dp(11), dp(10), dp(11));
-                    row.setTag("row");
-                    row.setMinimumHeight(dp(78));
-                    final boolean hasUnread = !c[3].equals("0");
+                    row.setPadding(dp(12), dp(14), dp(12), dp(14));
+                    row.setBackground(shape(0xFFFFFFFF, 24, 0));
+                    row.setElevation(dp(3));
+                    
                     LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2);
-                    rp.setMargins(dp(12), 0, dp(12), 0);
+                    rp.setMargins(dp(4), dp(6), dp(4), dp(6)); 
                     row.setLayoutParams(rp);
+
                     TextView av = new TextView(act);
                     av.setText(c[0].length() > 0 ? c[0].substring(0, 1) : "?");
                     av.setGravity(Gravity.CENTER);
-                    av.setTextSize(20);
+                    av.setTextSize(22);
                     av.setTypeface(null, android.graphics.Typeface.BOLD);
                     av.setTextColor(0xFFFFFFFF);
-                    av.setTag("avatar");
-                    av.setLayoutParams(new LinearLayout.LayoutParams(dp(56), dp(56)));
+                    GradientDrawable avG = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE8C85D, 0xFFC9A227});
+                    avG.setShape(GradientDrawable.OVAL);
+                    av.setBackground(avG);
+                    av.setLayoutParams(new LinearLayout.LayoutParams(dp(58), dp(58)));
+
                     LinearLayout mid = new LinearLayout(act);
                     mid.setOrientation(LinearLayout.VERTICAL);
                     LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(0, -2, 1f);
                     mp.setMargins(dp(12), 0, dp(12), 0);
                     mid.setLayoutParams(mp);
+
                     TextView nm = new TextView(act);
-                    nm.setText(c[0]); nm.setTextSize(16.5f); nm.setTypeface(null, android.graphics.Typeface.BOLD); nm.setTag("t");
+                    nm.setText(c[0]); nm.setTextSize(17f); nm.setTypeface(null, android.graphics.Typeface.BOLD); nm.setTextColor(0xFF17212B);
                     TextView ls = new TextView(act);
-                    ls.setText(c[1]); ls.setTextSize(14); ls.setTypeface(null, hasUnread ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
-                    ls.setPadding(0, dp(3), 0, 0);
-                    ls.setSingleLine(true); ls.setEllipsize(TextUtils.TruncateAt.END); ls.setTag(hasUnread ? "t" : "m");
+                    ls.setText(c[1]); ls.setTextSize(14); ls.setTextColor(0xFF8C99AB);
+                    ls.setPadding(0, dp(4), 0, 0);
+                    ls.setSingleLine(true); ls.setEllipsize(TextUtils.TruncateAt.END);
                     mid.addView(nm); mid.addView(ls);
+
                     LinearLayout end = new LinearLayout(act);
                     end.setOrientation(LinearLayout.VERTICAL);
                     end.setGravity(Gravity.CENTER_HORIZONTAL);
+
                     TextView tm = new TextView(act);
-                    tm.setText(c[2]); tm.setTextSize(12); tm.setTypeface(null, android.graphics.Typeface.BOLD); tm.setTag(hasUnread ? "g" : "m");
+                    tm.setText(c[2]); tm.setTextSize(12); tm.setTextColor(0xFF8C99AB);
                     end.addView(tm);
+                    
                     if (!c[3].equals("0")) {
                         TextView b = new TextView(act);
                         b.setText(c[3]); b.setTextSize(11); b.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -1516,37 +1530,26 @@ public class MassActivity extends Activity {
                         end.addView(b, bl);
                         popIn(b);
                     }
+
                     row.addView(av); row.addView(mid); row.addView(end);
+                    
                     final String fName = c[0], fUid = c[4];
                     row.setOnClickListener(x -> openChat(fName, fUid));
                     row.setOnLongClickListener(x -> { showChatActions(fName, fUid); return true; });
-                    row.setOnTouchListener((tv0, ev) -> {
-                        if (ev.getAction() == android.view.MotionEvent.ACTION_DOWN) tv0.animate().scaleX(.985f).scaleY(.985f).setDuration(90).start();
-                        else if (ev.getAction() == android.view.MotionEvent.ACTION_UP || ev.getAction() == android.view.MotionEvent.ACTION_CANCEL)
-                            tv0.animate().scaleX(1f).scaleY(1f).setDuration(150).start();
-                        return false;
-                    });
-                    if (list.getChildCount() > 0) {
-                        View dv = new View(act); dv.setTag("line");
-                        LinearLayout.LayoutParams dl = new LinearLayout.LayoutParams(-1, dp(1));
-                        dl.setMargins(dp(100), 0, dp(24), 0); dv.setLayoutParams(dl);
-                        list.addView(dv); style(dv);
-                    }
+                    
+                    row.setAlpha(0f); row.setTranslationY(dp(15));
+                    row.animate().alpha(1f).translationY(0f).setStartDelay(Math.min(400, list.getChildCount() * 30L)).setDuration(400).start();
+                    
                     list.addView(row);
-                    row.setAlpha(0f);
-                    row.setTranslationY(dp(12));
-                    row.animate().alpha(1f).translationY(0f).setStartDelay(Math.min(400, list.getChildCount() * 25L)).setDuration(420).setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
-                    style(row);
                 }
                 if (list.getChildCount() == 0) {
                     TextView e = new TextView(act);
                     e.setText("لا توجد محادثات");
                     e.setGravity(Gravity.CENTER);
                     e.setTypeface(null, android.graphics.Typeface.BOLD);
-                    e.setPadding(0, dp(60), 0, 0);
-                    e.setTag("m");
+                    e.setPadding(0, dp(60), 0, dp(60));
+                    e.setTextColor(0xFF8C99AB);
                     list.addView(e);
-                    style(e);
                 }
             }
 
@@ -1578,7 +1581,7 @@ public class MassActivity extends Activity {
                 TextView chatAv = tv("chatAvatar");
                 if (chatAv != null) chatAv.setText(name.length() > 0 ? name.substring(0, 1) : "?");
                 TextView chatSub = tv("chatSub");
-                if (chatSub != null) chatSub.setText("متصل");
+                if (chatSub != null) chatSub.setText("آخر ظهور كان قريباً");
                 LinearLayout msgArea = (LinearLayout) v("messagesArea");
                 if (msgArea != null) msgArea.removeAllViews();
                 renderedMsgIds.clear();
@@ -1657,14 +1660,13 @@ public class MassActivity extends Activity {
                 b.setTag(mine ? "bubMine" : "bubOther");
                 b.setTextSize(fontSp);
                 b.setTypeface(null, android.graphics.Typeface.BOLD);
-                b.setPadding(dp(12), dp(8), dp(12), dp(6));
+                b.setPadding(dp(14), dp(10), dp(14), dp(8));
                 b.setMaxWidth((int) (act.getResources().getDisplayMetrics().widthPixels * 0.78f));
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
                 lp.gravity = mine ? Gravity.END : Gravity.START;
-                lp.setMargins(0, dp(3), 0, dp(3));
+                lp.setMargins(0, dp(4), 0, dp(4));
                 b.setLayoutParams(lp);
                 setMsg(b, text, mine, time);
-                b.setTag(mine ? "mine" : "other");
                 b.setOnLongClickListener(x -> { msgMenu(b, mine); return true; });
                 LinearLayout msgArea = (LinearLayout) v("messagesArea");
                 if (msgArea != null) msgArea.addView(b);
@@ -1688,7 +1690,7 @@ public class MassActivity extends Activity {
                 int size = Math.min(dp(220), (int) (act.getResources().getDisplayMetrics().widthPixels * 0.68f));
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, size);
                 lp.gravity = mine ? Gravity.END : Gravity.START;
-                lp.setMargins(0, dp(3), 0, dp(3));
+                lp.setMargins(0, dp(4), 0, dp(4));
                 frame.setLayoutParams(lp);
                 frame.setClipToOutline(true);
                 GradientDrawable bg = new GradientDrawable();
@@ -1727,47 +1729,54 @@ public class MassActivity extends Activity {
                 animateMessageIn(frame);
             }
 
+            // Updated Audio Message Design
             void addAudioMsg(String url, long durationMs, boolean mine, String time) {
                 LinearLayout box = new LinearLayout(act);
                 box.setOrientation(LinearLayout.HORIZONTAL);
                 box.setGravity(Gravity.CENTER_VERTICAL);
-                box.setPadding(dp(10), dp(8), dp(14), dp(8));
+                box.setPadding(dp(14), dp(10), dp(14), dp(10));
                 box.setTag(mine ? "bubMine" : "bubOther");
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
                 lp.gravity = mine ? Gravity.END : Gravity.START;
-                lp.setMargins(0, dp(3), 0, dp(3));
+                lp.setMargins(0, dp(4), 0, dp(4));
                 box.setLayoutParams(lp);
-                box.setMinimumWidth(dp(180));
+                box.setMinimumWidth(dp(240));
 
                 TextView play = new TextView(act);
                 play.setText("▶");
-                play.setTextSize(18);
+                play.setTextSize(20);
                 play.setGravity(Gravity.CENTER);
+                play.setTextColor(mine ? 0xFF292216 : cGold());
+                play.setBackground(shape(0xFFFFFFFF, 22, 0));
                 play.setLayoutParams(new LinearLayout.LayoutParams(dp(44), dp(44)));
 
                 LinearLayout center = new LinearLayout(act);
                 center.setOrientation(LinearLayout.VERTICAL);
                 center.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
-                center.setPadding(dp(10), 0, dp(10), 0);
+                center.setPadding(dp(12), 0, dp(12), 0);
 
-                TextView durTv = new TextView(act);
-                durTv.setText(formatDuration(durationMs));
-                durTv.setTextSize(fontSp);
-                durTv.setTypeface(null, android.graphics.Typeface.BOLD);
-                durTv.setTextColor(mine ? (dark ? 0xFFFFFFFF : 0xFF17212B) : cText());
-
-                TextView timeTv = new TextView(act);
-                timeTv.setText(time); timeTv.setTextSize(10); timeTv.setTypeface(null, android.graphics.Typeface.BOLD);
-                timeTv.setTextColor(0xFF8696A7);
-
-                center.addView(durTv); center.addView(timeTv);
+                TextView title = new TextView(act);
+                title.setText("رسالة صوتية");
+                title.setTextSize(12);
+                title.setTypeface(null, android.graphics.Typeface.BOLD);
+                title.setTextColor(mine ? 0xFF292216 : cText());
 
                 TextView wave = new TextView(act);
-                wave.setText("▁▃▂▅▇▆▃▂");
+                wave.setText("▂▅▇▆▃▂▅▇▆▃▂▅▇▆▃▂▅");
                 wave.setTextSize(14);
-                wave.setTextColor(mine ? (dark ? 0xFFB0C4DE : 0xFF6B8E23) : cGold());
-                box.addView(play); box.addView(center); box.addView(wave);
-                box.setTag(mine ? "mine" : "other");
+                wave.setTextColor(mine ? 0xFF292216 : cMuted());
+                
+                TextView timeTv = new TextView(act);
+                timeTv.setText(formatDuration(durationMs) + "  ✓✓");
+                timeTv.setTextSize(10);
+                timeTv.setTextColor(mine ? 0xFF292216 : cMuted());
+
+                center.addView(title);
+                center.addView(wave);
+                center.addView(timeTv);
+
+                box.addView(play);
+                box.addView(center);
 
                 play.setOnClickListener(v -> playAudio(url, play));
                 box.setOnClickListener(v -> playAudio(url, play));
@@ -1882,8 +1891,6 @@ public class MassActivity extends Activity {
                 });
                 all.setOnClickListener(vw -> {
                     dialog.dismiss();
-                    // This app's current message renderer does not retain a Firestore document id on the view.
-                    // Do not claim server deletion; remove only the visible row until ids are wired end-to-end.
                     LinearLayout area = (LinearLayout) v("messagesArea");
                     if (area != null) area.removeView(messageView);
                     toast("تمت إزالة الرسالة من العرض؛ الحذف لدى الجميع يحتاج ربط معرّف الرسالة");
