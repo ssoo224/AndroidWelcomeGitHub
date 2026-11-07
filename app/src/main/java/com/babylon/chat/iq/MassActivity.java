@@ -30,6 +30,10 @@ import android.text.style.ForegroundColorSpan;
 import android.text.style.RelativeSizeSpan;
 import android.view.Gravity;
 import android.view.View;
+import android.widget.CheckBox;
+import android.view.MotionEvent;
+import android.graphics.RectF;
+import android.graphics.Path;
 import android.view.ViewGroup;
 import android.view.ViewOutlineProvider;
 import android.view.Window;
@@ -386,9 +390,12 @@ public class MassActivity extends Activity {
                         } else if (k.equals("bubMine")) {
                             x.setBackground(shape(cMine(), radius, 0)); x.setElevation(dp(1));
                             if (T != null) T.setTextColor(dark ? 0xFFFFFFFF : 0xFF17212B);
-                        } else if (k.equals("bubOther")) {
+                        } else if (k.equals("bubOther") || k.equals("other")) {
                             x.setBackground(shape(cOther(), radius, dark ? 0 : 0xFFE1E7EF)); x.setElevation(dp(1));
                             if (T != null) T.setTextColor(cText());
+                        } else if (k.equals("mine")) {
+                            x.setBackground(shape(cMine(), radius, 0)); x.setElevation(dp(1));
+                            if (T != null) T.setTextColor(dark ? 0xFFFFFFFF : 0xFF17212B);
                         } else if (k.startsWith("ic:")) x.setBackground(shape(Color.parseColor(k.substring(3)), 12, 0));
                         else if (k.startsWith("cover:")) x.setBackgroundColor(Color.parseColor(k.substring(6)));
                         else if (T != null) {
@@ -596,6 +603,15 @@ public class MassActivity extends Activity {
                 try { buildThemeStrip(); } catch (Throwable ignored) { }
                 try { setNav(curPage); } catch (Throwable ignored) { }
                 polishProfile();
+                try {
+                    Window w = act.getWindow();
+                    w.setNavigationBarColor(dark ? 0xFF0E1621 : 0xFFFFFFFF);
+                    w.setStatusBarColor(dark ? 0xFF0E1621 : 0xFFF0F2F5);
+                    if (Build.VERSION.SDK_INT >= 26) {
+                        int flags = dark ? 0 : (View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+                        w.getDecorView().setSystemUiVisibility(flags);
+                    }
+                } catch (Throwable ignored) { }
             }
 
             void show(String p) {
@@ -607,9 +623,10 @@ public class MassActivity extends Activity {
                     if (pageView == null) continue;
                     if (page.equals(p)) {
                         pageView.setVisibility(View.VISIBLE);
-                        pageView.setAlpha(0f);
-                        pageView.setTranslationY(dp(10));
-                        pageView.animate().alpha(1f).translationY(0f).setDuration(190).setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
+                        pageView.clearAnimation();
+                        pageView.startAnimation(android.view.animation.AnimationUtils.loadAnimation(act, R.anim.bb_page_enter));
+                        pageView.setAlpha(1f);
+                        pageView.setTranslationY(0f);
                     } else {
                         pageView.animate().cancel();
                         pageView.setVisibility(View.GONE);
@@ -623,6 +640,195 @@ public class MassActivity extends Activity {
                 vis("bottomNav", home || p.equals("settingsView") || p.equals("profileView"));
                 setNav(p);
                 hideKb();
+            }
+
+            void animateMessageIn(View view) {
+                if (view == null) return;
+                try { view.startAnimation(android.view.animation.AnimationUtils.loadAnimation(act, R.anim.bb_message_enter)); }
+                catch (Throwable ignored) { }
+            }
+
+            void setupPressAnimations() {
+                String[] ids = {"navChats", "navSettings", "navProfile", "chatBack", "chatMore", "btnSend", "btnMic", "btnAttach", "pEdit", "pPhoto", "pCover", "otherMsgBtn", "otherBlockBtn", "privacyBack", "settingsThemeToggle"};
+                for (String id : ids) {
+                    View view = v(id);
+                    if (view == null) continue;
+                    view.setOnTouchListener((target, event) -> {
+                        if (event.getAction() == android.view.MotionEvent.ACTION_DOWN) {
+                            target.animate().scaleX(.96f).scaleY(.96f).setDuration(85).start();
+                        } else if (event.getAction() == android.view.MotionEvent.ACTION_UP || event.getAction() == android.view.MotionEvent.ACTION_CANCEL) {
+                            target.animate().scaleX(1f).scaleY(1f).setDuration(135).setInterpolator(new android.view.animation.OvershootInterpolator(1.15f)).start();
+                        }
+                        return false;
+                    });
+                }
+            }
+
+            void showNativeConfirm(String titleText, String messageText, String confirmText, Runnable action) {
+                final Dialog d = new Dialog(act);
+                View content = act.getLayoutInflater().inflate(R.layout.native_chat_delete_dialog, null, false);
+                d.setContentView(content);
+                Window w = d.getWindow();
+                if (w != null) { w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT)); w.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND); WindowManager.LayoutParams lp=w.getAttributes(); lp.dimAmount=.68f; lp.width=WindowManager.LayoutParams.MATCH_PARENT; lp.height=WindowManager.LayoutParams.WRAP_CONTENT; lp.gravity=Gravity.CENTER; w.setAttributes(lp); }
+                ((TextView)content.findViewById(R.id.deleteDialogTitle)).setText(titleText);
+                ((TextView)content.findViewById(R.id.deleteDialogMessage)).setText(messageText);
+                CheckBox check=(CheckBox)content.findViewById(R.id.deleteDialogBoth); check.setVisibility(View.GONE);
+                TextView ok=(TextView)content.findViewById(R.id.deleteDialogConfirm); ok.setText(confirmText);
+                content.findViewById(R.id.deleteDialogCancel).setOnClickListener(x->d.dismiss());
+                ok.setOnClickListener(x->{d.dismiss();if(action!=null)action.run();});
+                d.show(); if(w!=null)w.setLayout(WindowManager.LayoutParams.MATCH_PARENT,WindowManager.LayoutParams.WRAP_CONTENT);
+                content.startAnimation(android.view.animation.AnimationUtils.loadAnimation(act,R.anim.bb_sheet_enter));
+            }
+
+            void showChatActions(String name, String uid) {
+                final Dialog d=new Dialog(act);
+                View content=act.getLayoutInflater().inflate(R.layout.native_chat_actions,null,false);
+                d.setContentView(content); Window w=d.getWindow();
+                if(w!=null){w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));w.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);WindowManager.LayoutParams lp=w.getAttributes();lp.dimAmount=.62f;lp.width=WindowManager.LayoutParams.MATCH_PARENT;lp.height=WindowManager.LayoutParams.WRAP_CONTENT;lp.gravity=Gravity.BOTTOM;w.setAttributes(lp);}
+                ((TextView)content.findViewById(R.id.chatActionTitle)).setText(name);
+                content.findViewById(R.id.chatActionRead).setOnClickListener(x->{toast("تم تعليم المحادثة كمقروءة");d.dismiss();});
+                content.findViewById(R.id.chatActionDelete).setOnClickListener(x->{d.dismiss();showDeleteChatConfirm(name,uid);});
+                content.findViewById(R.id.chatActionCancel).setOnClickListener(x->d.dismiss());
+                d.show();if(w!=null)w.setLayout(WindowManager.LayoutParams.MATCH_PARENT,WindowManager.LayoutParams.WRAP_CONTENT);
+                content.startAnimation(android.view.animation.AnimationUtils.loadAnimation(act,R.anim.bb_sheet_enter));
+            }
+
+            void showDeleteChatConfirm(String name, String uid) {
+                final String cid = getChatId(myUid, uid);
+                final Dialog d = new Dialog(act);
+                View content = act.getLayoutInflater().inflate(R.layout.native_chat_delete_dialog, null, false);
+                d.setContentView(content);
+                Window w = d.getWindow();
+                if (w != null) {
+                    w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+                    w.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+                    WindowManager.LayoutParams lp = w.getAttributes(); lp.dimAmount = .68f; lp.width = WindowManager.LayoutParams.MATCH_PARENT; lp.height = WindowManager.LayoutParams.WRAP_CONTENT; lp.gravity = Gravity.CENTER; w.setAttributes(lp);
+                }
+                TextView title = (TextView) content.findViewById(R.id.deleteDialogTitle);
+                TextView message = (TextView) content.findViewById(R.id.deleteDialogMessage);
+                CheckBox both = (CheckBox) content.findViewById(R.id.deleteDialogBoth);
+                TextView cancel = (TextView) content.findViewById(R.id.deleteDialogCancel);
+                TextView confirm = (TextView) content.findViewById(R.id.deleteDialogConfirm);
+                title.setText("حذف المحادثة");
+                message.setText("هل تريد حذف المحادثة مع " + name + "؟ لا يمكن التراجع عن هذا الإجراء.");
+                cancel.setOnClickListener(x -> d.dismiss());
+                confirm.setOnClickListener(x -> {
+                    boolean removeForBoth = both.isChecked();
+                    d.dismiss();
+                    if (removeForBoth) {
+                        deleteChatMessages(cid, () -> db.collection("chats").document(cid).delete()
+                            .addOnSuccessListener(ok -> { chatData.removeIf(row -> row.length > 4 && uid.equals(row[4])); buildChats(); toast("تم حذف المحادثة لدى الطرفين"); })
+                            .addOnFailureListener(err -> toast("تعذر حذف المحادثة: " + err.getMessage())));
+                    } else {
+                        java.util.Set<String> hidden = new java.util.HashSet<>(sp.getStringSet("hiddenChats", Collections.emptySet()));
+                        hidden.add(cid); sp.edit().putStringSet("hiddenChats", hidden).apply();
+                        chatData.removeIf(row -> row.length > 4 && uid.equals(row[4])); buildChats(); toast("تم إخفاء المحادثة من جهازك");
+                    }
+                });
+                d.show();
+                if (w != null) w.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.WRAP_CONTENT);
+                content.startAnimation(android.view.animation.AnimationUtils.loadAnimation(act, R.anim.bb_sheet_enter));
+            }
+
+            void showClearConversationConfirm() {
+                if (currentChatId == null || currentChatId.isEmpty()) return;
+                final Dialog d = new Dialog(act);
+                View content = act.getLayoutInflater().inflate(R.layout.native_chat_delete_dialog, null, false);
+                d.setContentView(content);
+                Window w = d.getWindow();
+                if (w != null) { w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT)); w.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND); WindowManager.LayoutParams lp=w.getAttributes(); lp.dimAmount=.68f; lp.width=WindowManager.LayoutParams.MATCH_PARENT; lp.height=WindowManager.LayoutParams.WRAP_CONTENT; lp.gravity=Gravity.CENTER; w.setAttributes(lp); }
+                ((TextView)content.findViewById(R.id.deleteDialogTitle)).setText("مسح المحادثة");
+                ((TextView)content.findViewById(R.id.deleteDialogMessage)).setText("سيتم حذف الرسائل من هذه المحادثة. هل تريد المتابعة؟");
+                CheckBox both=(CheckBox)content.findViewById(R.id.deleteDialogBoth); both.setVisibility(View.GONE);
+                content.findViewById(R.id.deleteDialogCancel).setOnClickListener(x->d.dismiss());
+                content.findViewById(R.id.deleteDialogConfirm).setOnClickListener(x->{String cid=currentChatId;d.dismiss();deleteChatMessages(cid,()->{LinearLayout ma=(LinearLayout)v("messagesArea");if(ma!=null)ma.removeAllViews();renderedMsgIds.clear();toast("تم مسح المحادثة");});});
+                d.show(); if(w!=null)w.setLayout(WindowManager.LayoutParams.MATCH_PARENT,WindowManager.LayoutParams.WRAP_CONTENT); content.startAnimation(android.view.animation.AnimationUtils.loadAnimation(act,R.anim.bb_sheet_enter));
+            }
+
+            void setupProfileMotion() {
+                final View avatar = v("pAvatarText");
+                final ScrollView profile = (ScrollView) v("profileView");
+                if (avatar == null) return;
+                final int[] start = new int[2];
+                final float[] down = new float[2];
+                final Dialog[] expandDialog = new Dialog[1];
+                final FrameLayout[] overlayRoot = new FrameLayout[1];
+                final ImageView[] expandedImage = new ImageView[1];
+                final TextView[] expandedInitial = new TextView[1];
+                final TextView[] expandedName = new TextView[1];
+                final float[] progress = {0f};
+                final boolean[] dragging = {false};
+                final float density = act.getResources().getDisplayMetrics().density;
+                final int screenW = act.getResources().getDisplayMetrics().widthPixels;
+                int sbId=act.getResources().getIdentifier("status_bar_height","dimen","android");
+                final int statusBarHeight=sbId>0?act.getResources().getDimensionPixelSize(sbId):0;
+                Runnable closeExpanded = () -> {
+                    if (expandDialog[0] == null) return;
+                    final Dialog old = expandDialog[0];
+                    View img = expandedImage[0];
+                    if (img != null) img.animate().scaleX(.18f).scaleY(.18f).alpha(.65f).setDuration(180).withEndAction(() -> { try { old.dismiss(); } catch (Exception ignored) {} }).start();
+                    else old.dismiss();
+                    expandDialog[0]=null; overlayRoot[0]=null; expandedImage[0]=null; expandedInitial[0]=null; expandedName[0]=null; progress[0]=0f;
+                };
+                // Java-native equivalent of the HTML pull-to-expand avatar transition.
+                class ExpandUpdater { void update(float p) {
+                    progress[0]=Math.max(0f,Math.min(1f,p)); if(expandDialog[0]==null||expandedImage[0]==null)return;
+                    float v=progress[0]; int size=(int)(dp(108)+(screenW-dp(108))*v); int left=(screenW-size)/2; int top=(int)((start[1]-statusBarHeight)*(1f-v));
+                    FrameLayout.LayoutParams lp=(FrameLayout.LayoutParams)expandedImage[0].getLayoutParams();lp.width=size;lp.height=size;lp.leftMargin=left;lp.topMargin=top;lp.gravity=Gravity.TOP|Gravity.LEFT;expandedImage[0].setLayoutParams(lp);
+                    if(expandedInitial[0]!=null){FrameLayout.LayoutParams ilp=(FrameLayout.LayoutParams)expandedInitial[0].getLayoutParams();ilp.width=size;ilp.height=size;ilp.leftMargin=left;ilp.topMargin=top;ilp.gravity=Gravity.TOP|Gravity.LEFT;expandedInitial[0].setLayoutParams(ilp);expandedInitial[0].setTextSize(size/act.getResources().getDisplayMetrics().density*.36f);}
+                    expandedImage[0].setScaleX(1f);expandedImage[0].setScaleY(1f);expandedImage[0].setAlpha(1f);
+                    expandedImage[0].setClipToOutline(true); final float radius=dp(54)*(1f-v); expandedImage[0].setOutlineProvider(new ViewOutlineProvider(){public void getOutline(View view,android.graphics.Outline outline){outline.setRoundRect(0,0,view.getWidth(),view.getHeight(),radius);}});
+                    expandedName[0].setAlpha(Math.max(0f,Math.min(1f,(v-.55f)/.4f)));
+                    overlayRoot[0].setBackgroundColor(0xE90A101B);
+                }}
+                final ExpandUpdater updater = new ExpandUpdater();
+                Runnable ensureExpanded = () -> {
+                    if (expandDialog[0] != null) return;
+                    Dialog d = new Dialog(act);
+                    FrameLayout frame = new FrameLayout(act);
+                    frame.setBackgroundColor(0xE90A101B);
+                    ImageView image = new ImageView(act); image.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                    if (photoBmp != null) image.setImageBitmap(photoBmp); else image.setImageDrawable(avatar.getBackground());
+                    FrameLayout.LayoutParams ip = new FrameLayout.LayoutParams(dp(108),dp(108),Gravity.TOP|Gravity.LEFT);
+                    frame.addView(image,ip);
+                    TextView initial = new TextView(act); initial.setGravity(Gravity.CENTER); initial.setText(avatar instanceof TextView ? ((TextView)avatar).getText() : "؟"); initial.setTextColor(avatar instanceof TextView ? ((TextView)avatar).getCurrentTextColor() : Color.WHITE); initial.setTypeface(null,android.graphics.Typeface.BOLD); initial.setTextSize(39); initial.setVisibility(photoBmp==null?View.VISIBLE:View.GONE); initial.setBackground(avatar.getBackground()); frame.addView(initial,new FrameLayout.LayoutParams(dp(108),dp(108),Gravity.TOP|Gravity.LEFT));
+                    TextView nm = new TextView(act); nm.setText(userName); nm.setTextColor(Color.WHITE); nm.setTextSize(24); nm.setTypeface(null,android.graphics.Typeface.BOLD); nm.setPadding(dp(18),0,dp(18),0); nm.setAlpha(0f);
+                    FrameLayout.LayoutParams np = new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM|Gravity.LEFT); np.bottomMargin=dp(26); frame.addView(nm,np);
+                    d.setContentView(frame); d.setCancelable(false);
+                    Window win=d.getWindow(); if(win!=null){win.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));win.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);WindowManager.LayoutParams lp=win.getAttributes();lp.dimAmount=0f;lp.width=WindowManager.LayoutParams.MATCH_PARENT;lp.height=WindowManager.LayoutParams.MATCH_PARENT;lp.gravity=Gravity.TOP|Gravity.LEFT;win.setAttributes(lp);}
+                    d.show(); if(win!=null){win.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));win.setLayout(WindowManager.LayoutParams.MATCH_PARENT,WindowManager.LayoutParams.MATCH_PARENT);}
+                    avatar.getLocationOnScreen(start);
+                    expandDialog[0]=d;overlayRoot[0]=frame;expandedImage[0]=image;expandedInitial[0]=initial;expandedName[0]=nm;
+                    frame.setOnClickListener(x->{if(progress[0]>.8f)closeExpanded.run();});
+                    image.setOnTouchListener(new View.OnTouchListener(){float y0;public boolean onTouch(View target,MotionEvent ev){
+                        if(ev.getAction()==MotionEvent.ACTION_DOWN){y0=ev.getRawY();return true;}
+                        if(ev.getAction()==MotionEvent.ACTION_MOVE){float dy=ev.getRawY()-y0;if(dy<0)updater.update(Math.max(0f,1f+dy/Math.max(dp(240),screenW*.65f)));return true;}
+                        if(ev.getAction()==MotionEvent.ACTION_UP||ev.getAction()==MotionEvent.ACTION_CANCEL){float total=ev.getRawY()-y0;if(Math.abs(total)<dp(12)&&progress[0]>.8f)closeExpanded.run();else if(progress[0]<.55f)closeExpanded.run();else updater.update(1f);return true;}return true;
+                    }});
+                    updater.update(0f);
+                };
+                avatar.setOnTouchListener((target,event)->{
+                    switch(event.getAction()){
+                        case MotionEvent.ACTION_DOWN: down[0]=event.getRawX();down[1]=event.getRawY();dragging[0]=false;target.animate().scaleX(1.025f).scaleY(1.025f).setDuration(90).start();return true;
+                        case MotionEvent.ACTION_MOVE:
+                            float dy=event.getRawY()-down[1],dx=event.getRawX()-down[0];
+                            if(dy>dp(8)&&Math.abs(dy)>Math.abs(dx)*1.1f){if(!dragging[0]){dragging[0]=true;ensureExpanded.run();}updater.update(Math.min(1f,dy/Math.max(dp(280),screenW*.72f)));return true;}return true;
+                        case MotionEvent.ACTION_UP:
+                        case MotionEvent.ACTION_CANCEL:
+                            target.animate().scaleX(1f).scaleY(1f).setDuration(150).start();
+                            if(dragging[0]){
+                                if(progress[0]>=.45f){
+                                    final float from=progress[0];
+                                    android.animation.ValueAnimator settle=android.animation.ValueAnimator.ofFloat(from,1f);settle.setDuration(210);settle.setInterpolator(new android.view.animation.DecelerateInterpolator());
+                                    settle.addUpdateListener(a->updater.update((Float)a.getAnimatedValue()));settle.start();
+                                    if(expandedName[0]!=null)expandedName[0].setAlpha(1f);
+                                } else closeExpanded.run();
+                            }
+                            else if(event.getAction()==MotionEvent.ACTION_UP) showAvatarActions();
+                            dragging[0]=false;return true;
+                    }
+                    return true;
+                });
             }
 
             void setupSwipeNavigation() {
@@ -674,7 +880,8 @@ public class MassActivity extends Activity {
                 if(win!=null){win.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));win.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);WindowManager.LayoutParams lp=win.getAttributes();lp.dimAmount=.62f;lp.width=WindowManager.LayoutParams.MATCH_PARENT;lp.height=full?WindowManager.LayoutParams.MATCH_PARENT:WindowManager.LayoutParams.WRAP_CONTENT;lp.gravity=full?Gravity.CENTER:Gravity.BOTTOM;win.setAttributes(lp);}
                 dialog.show();
                 if(win!=null){win.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));win.setLayout(WindowManager.LayoutParams.MATCH_PARENT,full?WindowManager.LayoutParams.MATCH_PARENT:WindowManager.LayoutParams.WRAP_CONTENT);}
-                content.setAlpha(0f);content.setTranslationY(dp(full?12:28));content.animate().alpha(1f).translationY(0f).setDuration(220).setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
+                content.clearAnimation();
+                content.startAnimation(android.view.animation.AnimationUtils.loadAnimation(act, R.anim.bb_sheet_enter));
             }
 
             void showStoryComposer() {
@@ -979,7 +1186,9 @@ public class MassActivity extends Activity {
                 if (fltUnread != null) {
                     fltUnread.setText("غير المقروءة" + (unreadChats > 0 ? " (" + unreadChats + ")" : ""));
                 }
+                java.util.Set<String> hiddenChats = sp.getStringSet("hiddenChats", Collections.emptySet());
                 for (String[] c : chatData) {
+                    if (hiddenChats.contains(getChatId(myUid, c[4]))) continue;
                     if (unreadOnly && c[3].equals("0")) continue;
                     LinearLayout row = new LinearLayout(act);
                     row.setOrientation(LinearLayout.HORIZONTAL);
@@ -1031,18 +1240,11 @@ public class MassActivity extends Activity {
                     row.addView(av); row.addView(mid); row.addView(end);
                     final String fName = c[0], fUid = c[4];
                     row.setOnClickListener(x -> openChat(fName, fUid));
-                    row.setOnLongClickListener(x -> {
-                        new AlertDialog.Builder(act).setTitle(fName)
-                            .setItems(new String[]{"تعليم كمقروءة", "حذف المحادثة"}, (d, w) -> {
-                                if (w == 1) {
-                                    String cid = getChatId(myUid, fUid);
-                                    deleteChatMessages(cid, () ->
-                                        db.collection("chats").document(cid).delete());
-                                }
-                            }).show();
-                        return true;
-                    });
+                    row.setOnLongClickListener(x -> { showChatActions(fName, fUid); return true; });
                     list.addView(row);
+                    row.setAlpha(0f);
+                    row.setTranslationY(dp(7));
+                    row.animate().alpha(1f).translationY(0f).setStartDelay(Math.min(180, list.getChildCount() * 18L)).setDuration(190).setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
                     style(row);
                 }
                 if (list.getChildCount() == 0) {
@@ -1164,6 +1366,7 @@ public class MassActivity extends Activity {
                 LinearLayout msgArea = (LinearLayout) v("messagesArea");
                 if (msgArea != null) msgArea.addView(b);
                 style(b);
+                animateMessageIn(b);
                 return b;
             }
 
@@ -1218,6 +1421,7 @@ public class MassActivity extends Activity {
                 });
                 LinearLayout msgArea = (LinearLayout) v("messagesArea");
                 if (msgArea != null) msgArea.addView(frame);
+                animateMessageIn(frame);
             }
 
             void addAudioMsg(String url, long durationMs, boolean mine, String time) {
@@ -1268,6 +1472,7 @@ public class MassActivity extends Activity {
                 LinearLayout msgArea = (LinearLayout) v("messagesArea");
                 if (msgArea != null) msgArea.addView(box);
                 style(box);
+                animateMessageIn(box);
             }
 
             String formatDuration(long ms) {
@@ -1343,7 +1548,10 @@ public class MassActivity extends Activity {
                     vis("replyPreviewBar", true); EditText mi = et("messageInput"); if (mi != null) { mi.setText(raw); mi.setSelection(raw.length()); mi.requestFocus(); } d.dismiss();
                 });
                 content.findViewById(R.id.msgActionDelete).setOnClickListener(x -> {
-                    LinearLayout msgArea = (LinearLayout) v("messagesArea"); if (msgArea != null) msgArea.removeView(b); d.dismiss();
+                    d.dismiss();
+                    showNativeConfirm("حذف الرسالة", "هل تريد حذف هذه الرسالة من العرض؟", "حذف", () -> {
+                        LinearLayout msgArea = (LinearLayout) v("messagesArea"); if (msgArea != null) msgArea.removeView(b);
+                    });
                 });
                 content.findViewById(R.id.msgActionCancel).setOnClickListener(x -> d.dismiss());
                 int[] reactions = {R.id.msgReactLaugh,R.id.msgReactHeart,R.id.msgReactLike,R.id.msgReactSad,R.id.msgReactSpark};
@@ -1653,15 +1861,7 @@ public class MassActivity extends Activity {
                         EditText et1 = et("chatMessageSearchInput");
                         if (et1 != null) et1.requestFocus();
                     }
-                    else {
-                        if (!currentChatId.isEmpty()) {
-                            deleteChatMessages(currentChatId, null);
-                            LinearLayout ma = (LinearLayout) v("messagesArea");
-                            if (ma != null) ma.removeAllViews();
-                            renderedMsgIds.clear();
-                        }
-                        toast("تم مسح المحادثة");
-                    }
+                    else showClearConversationConfirm();
                     return true;
                 });
                 pm.show();
@@ -2077,6 +2277,8 @@ public class MassActivity extends Activity {
 
                 setupSwipeNavigation();
                 setupStoryGestures();
+                setupPressAnimations();
+                setupProfileMotion();
                 View ownAvatar = v("pAvatarText");
                 if (ownAvatar != null) ownAvatar.setOnClickListener(x -> showAvatarActions());
                 setSeg("segLastSeen", sp.getBoolean("hideLast", false));

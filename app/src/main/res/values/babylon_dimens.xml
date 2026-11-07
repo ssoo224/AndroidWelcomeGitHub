@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="bb_page_gutter">14dp</dimen>
+    <dimen name="bb_card_radius">18dp</dimen>
+    <dimen name="bb_control_radius">12dp</dimen>
+    <dimen name="bb_sheet_radius">26dp</dimen>
+    <dimen name="bb_avatar_size">104dp</dimen>
+    <dimen name="bb_chat_avatar_size">52dp</dimen>
+    <dimen name="bb_nav_height">68dp</dimen>
+    <dimen name="bb_header_height">60dp</dimen>
+</resources>

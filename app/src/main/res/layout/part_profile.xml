@@ -1,8 +1,8 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" xmlns:tools="http://schemas.android.com/tools" android:id="@+id/partProfile" android:layout_width="match_parent" android:layout_height="match_parent" android:layoutDirection="rtl" android:background="#0F172A">
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" xmlns:tools="http://schemas.android.com/tools" android:id="@+id/partProfile" android:layout_width="match_parent" android:layout_height="match_parent" android:layoutDirection="rtl" android:background="@android:color/transparent">
 	<ScrollView android:id="@+id/profileView" android:layout_width="match_parent" android:layout_height="match_parent" android:visibility="gone" android:tag="bg">
 		<LinearLayout android:id="@+id/linear641" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingBottom="24dp" android:orientation="vertical">
-			<FrameLayout android:id="@+id/frame_layout642" android:layout_width="match_parent" android:layout_height="140dp" android:tag="cover:#1B2A4A">
+			<FrameLayout android:id="@+id/frame_layout642" android:layout_width="match_parent" android:layout_height="140dp" android:tag="cover:#1B2A4A" android:background="@drawable/bg_bb_cover">
 				<TextView android:id="@+id/pCoverTxt" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="" android:drawableStart="@drawable/ic_sparkles_32" android:textSize="28sp" android:textColor="#FFFFFF" android:layout_gravity="center_horizontal|center_vertical"/>
 			</FrameLayout>
 			<LinearLayout android:id="@+id/linear643" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_horizontal" android:orientation="vertical" android:layout_marginTop="-59dp">
@@ -15,7 +15,7 @@
 					<TextView android:id="@+id/pCover" android:layout_width="0dp" android:layout_height="72dp" android:gravity="center_horizontal|center_vertical" android:text="الغلاف" android:drawableTop="@drawable/ic_palette_16" android:drawablePadding="6dp" android:textSize="12sp" android:paddingStart="4dp" android:paddingEnd="4dp" android:layout_marginStart="4.5dp" android:layout_marginEnd="4.5dp" android:tag="card g" android:layout_weight="1" android:textStyle="bold"/>
 				</LinearLayout>
 			</LinearLayout>
-			<LinearLayout android:id="@+id/linear645" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="14dp" android:orientation="vertical" android:tag="card" android:layout_marginStart="14dp" android:layout_marginEnd="14dp">
+			<LinearLayout android:id="@+id/linear645" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="14dp" android:orientation="vertical" android:tag="card" android:layout_marginStart="14dp" android:layout_marginEnd="14dp" android:background="@drawable/bg_bb_card">
 				<LinearLayout android:id="@+id/pBioRow" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingStart="16dp" android:paddingEnd="16dp" android:paddingTop="13dp" android:paddingBottom="13dp" android:gravity="center_vertical" android:orientation="horizontal">
 					<TextView android:id="@+id/textview648" android:layout_width="36dp" android:layout_height="36dp" android:text="" android:drawableStart="@drawable/ic_menu_20" android:textSize="17sp" android:tag="g" android:gravity="center_horizontal|center_vertical" android:layout_marginEnd="15dp"/>
 					<LinearLayout android:id="@+id/linear646" android:layout_width="0dp" android:layout_height="wrap_content" android:orientation="vertical" android:layout_weight="1">
@@ -57,7 +57,7 @@
 				</LinearLayout>
 			</LinearLayout>
 			<LinearLayout android:id="@+id/linear655" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:orientation="horizontal" android:layout_marginStart="14dp" android:layout_marginEnd="14dp">
-				<TextView android:id="@+id/pTabStoriesBtn" android:layout_width="match_parent" android:layout_height="46dp" android:gravity="center_horizontal|center_vertical" android:text="قصصي" android:drawableStart="@drawable/ic_history_18" android:drawablePadding="6dp" android:textSize="14sp" android:textStyle="bold" android:layout_weight="0" android:tag="gold" android:background="@drawable/bg_tab_container"/>
+				<TextView android:id="@+id/pTabStoriesBtn" android:layout_width="match_parent" android:layout_height="46dp" android:gravity="center_horizontal|center_vertical" android:text="قصصي" android:drawableStart="@drawable/ic_history_18" android:drawablePadding="6dp" android:textSize="14sp" android:textStyle="bold" android:layout_weight="0" android:tag="gold" android:background="@drawable/bg_bb_selected"/>
 				</LinearLayout>
 			<LinearLayout android:id="@+id/pTabStories" android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="14dp" android:orientation="vertical">
 				<LinearLayout android:id="@+id/myStoriesGrid" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal"/>
@@ -82,7 +82,7 @@
 					</LinearLayout>
 					</LinearLayout>
 			</LinearLayout>
-			<LinearLayout android:id="@+id/linear660" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="14dp" android:orientation="vertical" android:tag="card" android:layout_marginStart="14dp" android:layout_marginEnd="14dp">
+			<LinearLayout android:id="@+id/linear660" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="14dp" android:orientation="vertical" android:tag="card" android:layout_marginStart="14dp" android:layout_marginEnd="14dp" android:background="@drawable/bg_bb_card">
 				<LinearLayout android:id="@+id/otherBioRow" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingStart="16dp" android:paddingEnd="16dp" android:paddingTop="13dp" android:paddingBottom="13dp" android:gravity="center_vertical" android:orientation="horizontal">
 					<TextView android:id="@+id/textview658" android:layout_width="36dp" android:layout_height="36dp" android:text="" android:drawableStart="@drawable/ic_menu_20" android:textSize="17sp" android:tag="g" android:gravity="center_horizontal|center_vertical" android:layout_marginEnd="15dp"/>
 					<LinearLayout android:id="@+id/linear661" android:layout_width="0dp" android:layout_height="wrap_content" android:orientation="vertical" android:layout_weight="1">

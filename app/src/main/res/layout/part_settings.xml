@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" xmlns:tools="http://schemas.android.com/tools" android:id="@+id/partSettings" android:layout_width="match_parent" android:layout_height="match_parent" android:layoutDirection="rtl" android:background="#0F172A">
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" xmlns:tools="http://schemas.android.com/tools" android:id="@+id/partSettings" android:layout_width="match_parent" android:layout_height="match_parent" android:layoutDirection="rtl" android:background="@android:color/transparent">
 
 	<!-- ==================== صفحة الإعدادات الرئيسية ==================== -->
 	<ScrollView android:id="@+id/settingsView" android:layout_width="match_parent" android:layout_height="match_parent" android:visibility="gone" android:tag="bg" android:background="#0F172A">
@@ -16,7 +16,7 @@
 			<!-- قسم التخصيص -->
 			<TextView android:id="@+id/textview743" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:layout_marginBottom="6dp" android:layout_marginStart="18dp" android:text="التخصيص" android:textSize="12sp" android:textStyle="bold" android:tag="m"/>
 
-			<LinearLayout android:id="@+id/linear730" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:tag="card" android:elevation="2dp" android:layout_marginStart="14dp" android:layout_marginEnd="14dp">
+			<LinearLayout android:id="@+id/linear730" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:tag="card" android:elevation="2dp" android:layout_marginStart="14dp" android:layout_marginEnd="14dp" android:background="@drawable/bg_bb_card">
 
 				<LinearLayout android:id="@+id/linear731" android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="14dp" android:gravity="center_vertical" android:orientation="horizontal">
 					<TextView android:id="@+id/textview744" android:layout_width="40dp" android:layout_height="40dp" android:gravity="center" android:text="" android:drawableStart="@drawable/ic_theme_20" android:textSize="18sp" android:textColor="#FFFFFF" android:tag="ic:#F59E0B"/>
@@ -53,7 +53,7 @@
 			<!-- قسم مشاركة التطبيق -->
 			<TextView android:id="@+id/textview759" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:layout_marginBottom="6dp" android:layout_marginStart="18dp" android:text="مشاركة التطبيق" android:textSize="12sp" android:textStyle="bold" android:tag="m"/>
 
-			<LinearLayout android:id="@+id/linear741" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:tag="card" android:elevation="2dp" android:layout_marginStart="14dp" android:layout_marginEnd="14dp">
+			<LinearLayout android:id="@+id/linear741" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:tag="card" android:elevation="2dp" android:layout_marginStart="14dp" android:layout_marginEnd="14dp" android:background="@drawable/bg_bb_card">
 
 				<LinearLayout android:id="@+id/itemShare" android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="14dp" android:gravity="center_vertical" android:orientation="horizontal">
 					<TextView android:id="@+id/textview760" android:layout_width="40dp" android:layout_height="40dp" android:gravity="center" android:text="" android:drawableStart="@drawable/ic_link_20" android:textSize="18sp" android:textColor="#FFFFFF" android:tag="ic:#0EA5E9"/>
@@ -68,7 +68,7 @@
 			<!-- قسم الأمان -->
 			<TextView android:id="@+id/textview764" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:layout_marginBottom="6dp" android:layout_marginStart="18dp" android:text="الأمان" android:textSize="12sp" android:textStyle="bold" android:tag="m"/>
 
-			<LinearLayout android:id="@+id/linear743" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:tag="card" android:elevation="2dp" android:layout_marginStart="14dp" android:layout_marginEnd="14dp">
+			<LinearLayout android:id="@+id/linear743" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:tag="card" android:elevation="2dp" android:layout_marginStart="14dp" android:layout_marginEnd="14dp" android:background="@drawable/bg_bb_card">
 
 				<LinearLayout android:id="@+id/itemPrivacy" android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="14dp" android:gravity="center_vertical" android:orientation="horizontal">
 					<TextView android:id="@+id/textview765" android:layout_width="40dp" android:layout_height="40dp" android:gravity="center" android:text="" android:drawableStart="@drawable/ic_shield_20" android:textSize="18sp" android:textColor="#FFFFFF" android:tag="ic:#10B981"/>
@@ -81,7 +81,7 @@
 			</LinearLayout>
 
 			<!-- خروج / حذف -->
-			<LinearLayout android:id="@+id/linear745" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:orientation="vertical" android:tag="card" android:elevation="2dp" android:layout_marginStart="14dp" android:layout_marginEnd="14dp">
+			<LinearLayout android:id="@+id/linear745" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:orientation="vertical" android:tag="card" android:elevation="2dp" android:layout_marginStart="14dp" android:layout_marginEnd="14dp" android:background="@drawable/bg_bb_card">
 
 				<LinearLayout android:id="@+id/itemLogout" android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="14dp" android:gravity="center_vertical" android:orientation="horizontal">
 					<TextView android:id="@+id/textview768" android:layout_width="40dp" android:layout_height="40dp" android:gravity="center" android:text="" android:drawableStart="@drawable/ic_logout_20" android:textSize="18sp" android:textColor="#FFFFFF" android:tag="ic:#DC2626"/>
@@ -115,7 +115,7 @@
 
 				<TextView android:id="@+id/textview774" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:layout_marginBottom="6dp" android:layout_marginStart="18dp" android:text="الأمان" android:textSize="12sp" android:textStyle="bold" android:tag="m"/>
 
-				<LinearLayout android:id="@+id/linear751" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:tag="card" android:elevation="2dp" android:layout_marginStart="14dp" android:layout_marginEnd="14dp">
+				<LinearLayout android:id="@+id/linear751" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:tag="card" android:elevation="2dp" android:layout_marginStart="14dp" android:layout_marginEnd="14dp" android:background="@drawable/bg_bb_card">
 
 					<LinearLayout android:id="@+id/itemChangePass" android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="14dp" android:gravity="center_vertical" android:orientation="horizontal">
 						<TextView android:id="@+id/textview775" android:layout_width="40dp" android:layout_height="40dp" android:gravity="center" android:text="" android:drawableStart="@drawable/ic_key_20" android:textSize="18sp" android:textColor="#FFFFFF" android:tag="ic:#10B981"/>
@@ -148,7 +148,7 @@
 
 				<TextView android:id="@+id/textview784" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:layout_marginBottom="6dp" android:layout_marginStart="18dp" android:text="من يستطيع رؤية معلوماتي" android:textSize="12sp" android:textStyle="bold" android:tag="m"/>
 
-				<LinearLayout android:id="@+id/linear757" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:tag="card" android:elevation="2dp" android:layout_marginStart="14dp" android:layout_marginEnd="14dp">
+				<LinearLayout android:id="@+id/linear757" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:tag="card" android:elevation="2dp" android:layout_marginStart="14dp" android:layout_marginEnd="14dp" android:background="@drawable/bg_bb_card">
 
 					<LinearLayout android:id="@+id/linear758" android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="14dp" android:gravity="center_vertical" android:orientation="horizontal">
 						<LinearLayout android:id="@+id/linear759" android:layout_width="0dp" android:layout_height="wrap_content" android:orientation="vertical" android:layout_weight="1">
