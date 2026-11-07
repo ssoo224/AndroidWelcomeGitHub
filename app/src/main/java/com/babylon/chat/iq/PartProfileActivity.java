@@ -9,15 +9,13 @@ import android.widget.*;
 import android.content.SharedPreferences;
 
 public class PartProfileActivity extends Activity {
-    private PartProfileBinding binding;
     private SharedPreferences prefs;
     private View profile, other, edit;
     private EditText nameInput, usernameInput, bioInput, govInput;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
-        binding = PartProfileBinding.inflate(getLayoutInflater());
-        setContentView(binding.getRoot());
+        setContentView(R.layout.part_profile);
         prefs = getSharedPreferences("babylon_profile", MODE_PRIVATE);
         initializeLogic();
     }
