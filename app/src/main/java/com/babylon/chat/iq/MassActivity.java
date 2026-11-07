@@ -242,7 +242,7 @@ public class MassActivity extends Activity {
             SharedPreferences sp = act.getSharedPreferences("babylon_ui", MODE_PRIVATE);
             boolean dark = sp.getBoolean("dark", false);
             int fontSp = sp.getInt("font", 15);
-            int radius = sp.getInt("radius", 16);
+            int radius = sp.getInt("radius", 20);
             int chatBgIdx = sp.getInt("chatBg", 0);
             int coverColor = sp.getInt("cover", 0xFF1B2A4A);
             boolean unreadOnly = false, muted = false, blocked = false;
@@ -260,6 +260,116 @@ public class MassActivity extends Activity {
             Handler recHandler = new Handler(Looper.getMainLooper());
             Runnable recTick = null;
             MediaPlayer mediaPlayer = null;
+
+            // ===== الصوتيات / شريط الكتابة (مستنسخة من الـ HTML) =====
+            class VC {
+                String url; long durMs; int idleColor;
+                TextView play, time; SeekBar seek;
+                ArrayList<View> bars = new ArrayList<>();
+                ArrayList<android.animation.ObjectAnimator> anims = new ArrayList<>();
+            }
+            VC activeVC = null;
+            boolean vcReady = false;
+            Handler vcHandler = new Handler(Looper.getMainLooper());
+            Runnable vcTick = null;
+            ArrayList<android.animation.ObjectAnimator> recAnims = new ArrayList<>();
+
+            // زر الإرسال يظهر عند الكتابة فقط؛ وعندها يختفي المرفق والمايك
+            void syncComposer() {
+                EditText mi = et("messageInput");
+                boolean has = mi != null && mi.getText().toString().trim().length() > 0;
+                View send = v("btnSend");
+                if (send != null) {
+                    if (has && send.getVisibility() != View.VISIBLE) {
+                        send.setVisibility(View.VISIBLE);
+                        send.setScaleX(0.6f); send.setScaleY(0.6f); send.setAlpha(0f);
+                        send.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(160).start();
+                    } else if (!has && send.getVisibility() != View.GONE) {
+                        send.animate().cancel();
+                        send.setScaleX(1f); send.setScaleY(1f); send.setAlpha(1f);
+                        send.setVisibility(View.GONE);
+                    }
+                }
+                vis("btnMic", !has);
+                vis("btnAttach", !has);
+            }
+
+            // موجة التسجيل: أعمدة 3dp، فجوة 5dp، ارتفاعات 10/19/23، نبض scaleY بين .45 و1 لمدة 720ms
+            void startRecWave() {
+                stopRecWave();
+                LinearLayout w = (LinearLayout) v("recWave");
+                if (w == null) return;
+                w.removeAllViews();
+                float wdp = act.getResources().getDisplayMetrics().widthPixels / act.getResources().getDisplayMetrics().density;
+                int count = Math.max(12, (int) ((wdp - 150) / 8));
+                long[] delay = {200, 500, 350, 0};
+                for (int i = 0; i < count; i++) {
+                    int n = i + 1;
+                    int h = n % 5 == 0 ? 23 : n % 3 == 0 ? 19 : 10;
+                    View b = new View(act);
+                    b.setBackground(shape(cGold(), 2, 0));
+                    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(3), dp(h));
+                    lp.setMarginEnd(dp(5));
+                    w.addView(b, lp);
+                    android.animation.ObjectAnimator a = android.animation.ObjectAnimator.ofFloat(b, "scaleY", 0.45f, 1f);
+                    a.setDuration(720);
+                    a.setRepeatMode(android.animation.ValueAnimator.REVERSE);
+                    a.setRepeatCount(android.animation.ValueAnimator.INFINITE);
+                    a.setStartDelay(delay[i % 4]);
+                    a.start();
+                    recAnims.add(a);
+                }
+                View dot = v("recDot");
+                if (dot != null) {
+                    android.animation.ObjectAnimator d = android.animation.ObjectAnimator.ofFloat(dot, "alpha", 1f, 0.35f);
+                    d.setDuration(500);
+                    d.setRepeatMode(android.animation.ValueAnimator.REVERSE);
+                    d.setRepeatCount(android.animation.ValueAnimator.INFINITE);
+                    d.start();
+                    recAnims.add(d);
+                }
+            }
+            void stopRecWave() {
+                for (android.animation.ObjectAnimator a : recAnims) a.cancel();
+                recAnims.clear();
+                View dot = v("recDot");
+                if (dot != null) dot.setAlpha(1f);
+            }
+
+            void setVcPlaying(VC vc, boolean on) {
+                for (android.animation.ObjectAnimator a : vc.anims) a.cancel();
+                vc.anims.clear();
+                for (int i = 0; i < vc.bars.size(); i++) {
+                    View b = vc.bars.get(i);
+                    b.setScaleY(1f);
+                    if (on) {
+                        b.setBackground(shape(cGold(), 1, 0));
+                        b.setAlpha(0.95f);
+                        android.animation.ObjectAnimator a = android.animation.ObjectAnimator.ofFloat(b, "scaleY", 1f, 0.5f);
+                        a.setDuration(650);
+                        a.setRepeatMode(android.animation.ValueAnimator.REVERSE);
+                        a.setRepeatCount(android.animation.ValueAnimator.INFINITE);
+                        a.setStartDelay((i + 1) % 3 == 0 ? 300 : 0);
+                        a.start();
+                        vc.anims.add(a);
+                    } else {
+                        b.setBackground(shape(vc.idleColor, 1, 0));
+                        b.setAlpha(1f);
+                    }
+                }
+            }
+            void resetVC(VC vc) {
+                vc.play.setText("▶");
+                setVcPlaying(vc, false);
+                vc.seek.setProgress(0);
+                vc.time.setText(formatDuration(vc.durMs));
+            }
+            void releaseVoice() {
+                vcHandler.removeCallbacksAndMessages(null);
+                if (activeVC != null) { resetVC(activeVC); activeVC = null; }
+                vcReady = false;
+                if (mediaPlayer != null) { try { mediaPlayer.release(); } catch (Exception e) { } mediaPlayer = null; }
+            }
 
             String[] pages = {"homeView", "searchView", "profileView", "otherUserProfileView",
                     "settingsView", "privacySettingsView", "notificationSettingsView",
@@ -393,9 +503,29 @@ public class MassActivity extends Activity {
                             float rr = dp(radius), tl = dp(6);
                             GradientDrawable og = new GradientDrawable();
                             og.setColor(dark ? 0xFF263746 : 0xFFFFFFFF);
+                            og.setStroke(dp(1), cBorder());
                             og.setCornerRadii(new float[]{rr, rr, rr, rr, tl, tl, rr, rr});
                             x.setBackground(og); x.setElevation(dp(1));
                             if (T != null) T.setTextColor(cText());
+                        } else if (k.equals("sendbtn")) {
+                            // زر الإرسال: 40dp، زوايا 15/15/7/15، تدرج ذهبي، سهم أبيض لأعلى
+                            GradientDrawable sg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE9C957, 0xFFC59B24});
+                            float a = dp(15), b2 = dp(7);
+                            sg.setCornerRadii(new float[]{a, a, a, a, b2, b2, a, a});
+                            x.setBackground(sg); x.setElevation(dp(3));
+                            if (T != null) T.setTextColor(0xFFFFFFFF);
+                        } else if (k.equals("recbtn")) {
+                            // زر إلغاء التسجيل: 38dp، زاوية 12، تدرج ذهبي، × أبيض
+                            GradientDrawable rg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE8C85D, 0xFFC29D30});
+                            rg.setCornerRadius(dp(12));
+                            x.setBackground(rg); x.setElevation(dp(3));
+                            if (T != null) T.setTextColor(0xFFFFFFFF);
+                        } else if (k.equals("recsend")) {
+                            // زر إرسال التسجيل: دائرة 42dp ذهبية
+                            GradientDrawable cg2 = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE8C85D, 0xFFC29D30});
+                            cg2.setShape(GradientDrawable.OVAL);
+                            x.setBackground(cg2); x.setElevation(dp(3));
+                            if (T != null) T.setTextColor(0xFF17212B);
                         } else if (k.startsWith("ic:")) {
                             int base = Color.parseColor(k.substring(3));
                             int top = Color.rgb(Color.red(base) + (255 - Color.red(base)) / 4, Color.green(base) + (255 - Color.green(base)) / 4, Color.blue(base) + (255 - Color.blue(base)) / 4);
@@ -1031,6 +1161,10 @@ public class MassActivity extends Activity {
                 cancelReply();
                 vis("chatSearchPanel", false);
                 vis("recordingBar", false);
+                vis("textInputBar", true);
+                stopRecWave();
+                releaseVoice();
+                syncComposer();
 
                 if (messagesListener != null) messagesListener.remove();
 
@@ -1095,7 +1229,8 @@ public class MassActivity extends Activity {
                 if (messagesListener != null) { messagesListener.remove(); messagesListener = null; }
                 currentChatId = ""; otherUid = "";
                 renderedMsgIds.clear();
-                if (mediaPlayer != null) { try { mediaPlayer.release(); } catch (Exception e) {} mediaPlayer = null; }
+                releaseVoice();
+                if (isRecording) cancelRecord();
                 try { buildChats(); } catch (Throwable ignored) { }
                 try { buildStories(); } catch (Throwable ignored) { }
             }
@@ -1105,7 +1240,7 @@ public class MassActivity extends Activity {
                 b.setTag(mine ? "bubMine" : "bubOther");
                 b.setTextSize(fontSp);
                 b.setTypeface(null, android.graphics.Typeface.BOLD);
-                b.setPadding(dp(12), dp(8), dp(12), dp(6));
+                b.setPadding(dp(13), dp(9), dp(13), dp(7));
                 b.setMaxWidth((int) (act.getResources().getDisplayMetrics().widthPixels * 0.78f));
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
                 lp.gravity = mine ? Gravity.END : Gravity.START;
@@ -1171,53 +1306,121 @@ public class MassActivity extends Activity {
                 if (msgArea != null) msgArea.addView(frame);
             }
 
-            void addAudioMsg(String url, long durationMs, boolean mine, String time) {
-                LinearLayout box = new LinearLayout(act);
-                box.setOrientation(LinearLayout.HORIZONTAL);
-                box.setGravity(Gravity.CENTER_VERTICAL);
-                box.setPadding(dp(10), dp(8), dp(14), dp(8));
-                box.setTag(mine ? "bubMine" : "bubOther");
-                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+            void addAudioMsg(final String url, long durationMs, final boolean mine, String time) {
+                final VC vc = new VC();
+                vc.url = url; vc.durMs = durationMs;
+                int maxW = Math.min(dp(270), (int) (act.getResources().getDisplayMetrics().widthPixels * 0.78f));
+                int base = mine ? (dark ? 0xFFFFFFFF : 0xFF17212B) : cText();
+                vc.idleColor = (base & 0x00FFFFFF) | 0x73000000;
+
+                LinearLayout bubble = new LinearLayout(act);
+                bubble.setOrientation(LinearLayout.VERTICAL);
+                bubble.setTag(mine ? "bubMine" : "bubOther");
+                bubble.setContentDescription("رسالة صوتية");
+                bubble.setPadding(dp(8), dp(8), dp(8), dp(5));
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(maxW, -2);
                 lp.gravity = mine ? Gravity.END : Gravity.START;
                 lp.setMargins(0, dp(3), 0, dp(3));
-                box.setLayoutParams(lp);
-                box.setMinimumWidth(dp(180));
+                bubble.setLayoutParams(lp);
 
+                // البطاقة: padding 9/7، زاوية 14، فجوة 8
+                LinearLayout card = new LinearLayout(act);
+                card.setOrientation(LinearLayout.HORIZONTAL);
+                card.setGravity(Gravity.CENTER_VERTICAL);
+                card.setPadding(dp(9), dp(7), dp(9), dp(7));
+                int cardFill = mine ? 0x33FFFFFF : (dark ? 0x0FFFFFFF : 0xFFF8FAFC);
+                int cardLine = mine ? 0x47FFFFFF : (dark ? 0x1FFFFFFF : 0xFFDCE4EE);
+                card.setBackground(shape(cardFill, 14, cardLine));
+
+                // زر التشغيل: 34dp، زاوية 11، تدرج ذهبي
                 TextView play = new TextView(act);
-                play.setText("▶");
-                play.setTextSize(18);
-                play.setGravity(Gravity.CENTER);
-                play.setLayoutParams(new LinearLayout.LayoutParams(dp(44), dp(44)));
+                play.setText("▶"); play.setTextSize(15); play.setGravity(Gravity.CENTER);
+                play.setTextColor(0xFF17212B);
+                GradientDrawable pg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE8C85D, 0xFFC29D30});
+                pg.setCornerRadius(dp(11));
+                play.setBackground(pg); play.setElevation(dp(2));
+                play.setLayoutParams(new LinearLayout.LayoutParams(dp(34), dp(34)));
+                vc.play = play;
 
                 LinearLayout center = new LinearLayout(act);
                 center.setOrientation(LinearLayout.VERTICAL);
-                center.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
-                center.setPadding(dp(10), 0, dp(10), 0);
+                LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, -2, 1f);
+                cp.setMarginStart(dp(8));
+                center.setLayoutParams(cp);
 
-                TextView durTv = new TextView(act);
-                durTv.setText(formatDuration(durationMs));
-                durTv.setTextSize(fontSp);
-                durTv.setTypeface(null, android.graphics.Typeface.BOLD);
-                durTv.setTextColor(mine ? (dark ? 0xFFFFFFFF : 0xFF17212B) : cText());
+                TextView title = new TextView(act);
+                title.setText("رسالة صوتية"); title.setTextSize(11);
+                title.setTypeface(null, android.graphics.Typeface.BOLD);
+                title.setTextColor(base);
+
+                LinearLayout row = new LinearLayout(act);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setGravity(Gravity.CENTER_VERTICAL);
+
+                SeekBar seek = new SeekBar(act);
+                seek.setMax(1000);
+                seek.setPadding(dp(6), 0, dp(6), 0);
+                try {
+                    seek.setProgressTintList(android.content.res.ColorStateList.valueOf(cGold()));
+                    seek.setThumbTintList(android.content.res.ColorStateList.valueOf(cGold()));
+                    seek.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(vc.idleColor));
+                } catch (Throwable ignored) { }
+                seek.setLayoutParams(new LinearLayout.LayoutParams(0, dp(18), 1f));
+                vc.seek = seek;
 
                 TextView timeTv = new TextView(act);
-                timeTv.setText(time); timeTv.setTextSize(10); timeTv.setTypeface(null, android.graphics.Typeface.BOLD);
-                timeTv.setTextColor(0xFF8696A7);
+                timeTv.setText(formatDuration(durationMs)); timeTv.setTextSize(9);
+                timeTv.setTypeface(null, android.graphics.Typeface.BOLD);
+                timeTv.setTextColor(base); timeTv.setAlpha(0.8f);
+                timeTv.setMinWidth(dp(25)); timeTv.setGravity(Gravity.END);
+                vc.time = timeTv;
+                row.addView(seek); row.addView(timeTv);
 
-                center.addView(durTv); center.addView(timeTv);
+                // موجة البطاقة: ارتفاع 16dp، أعمدة 2dp، فجوة 5dp، ارتفاعات 4/6/7/8
+                LinearLayout wave = new LinearLayout(act);
+                wave.setOrientation(LinearLayout.HORIZONTAL);
+                wave.setGravity(Gravity.CENTER_VERTICAL);
+                LinearLayout.LayoutParams wp = new LinearLayout.LayoutParams(-1, dp(16));
+                wp.topMargin = dp(3);
+                wave.setLayoutParams(wp);
+                int count = Math.max(10, (int) ((maxW / act.getResources().getDisplayMetrics().density - 80) / 7));
+                for (int i = 0; i < count; i++) {
+                    int n = i + 1;
+                    int h = n % 5 == 0 ? 8 : n % 4 == 0 ? 6 : n % 3 == 0 ? 7 : 4;
+                    View bar = new View(act);
+                    bar.setBackground(shape(vc.idleColor, 1, 0));
+                    LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(dp(2), dp(h));
+                    bp.setMarginEnd(dp(5));
+                    wave.addView(bar, bp);
+                    vc.bars.add(bar);
+                }
+                center.addView(title); center.addView(row); center.addView(wave);
+                card.addView(play); card.addView(center);
 
-                TextView wave = new TextView(act);
-                wave.setText("▁▃▂▅▇▆▃▂");
-                wave.setTextSize(14);
-                wave.setTextColor(mine ? (dark ? 0xFFB0C4DE : 0xFF6B8E23) : cGold());
-                box.addView(play); box.addView(center); box.addView(wave);
+                TextView meta = new TextView(act);
+                meta.setText(time + (mine ? "  ✓✓" : ""));
+                meta.setTextSize(10); meta.setTypeface(null, android.graphics.Typeface.BOLD);
+                meta.setTextColor(0xFF8696A7); meta.setGravity(Gravity.END);
+                LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-1, -2);
+                mp.topMargin = dp(3);
+                meta.setLayoutParams(mp);
 
-                play.setOnClickListener(v -> playAudio(url, play));
-                box.setOnClickListener(v -> playAudio(url, play));
+                bubble.addView(card); bubble.addView(meta);
+
+                play.setOnClickListener(x -> toggleVoice(vc));
+                seek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+                    public void onProgressChanged(SeekBar sb, int p, boolean user) {
+                        if (user && activeVC == vc && vcReady && mediaPlayer != null) {
+                            try { mediaPlayer.seekTo((int) (p / 1000f * mediaPlayer.getDuration())); } catch (Exception e) { }
+                        }
+                    }
+                    public void onStartTrackingTouch(SeekBar sb) { }
+                    public void onStopTrackingTouch(SeekBar sb) { }
+                });
 
                 LinearLayout msgArea = (LinearLayout) v("messagesArea");
-                if (msgArea != null) msgArea.addView(box);
-                style(box);
+                if (msgArea != null) msgArea.addView(bubble);
+                style(bubble);
             }
 
             String formatDuration(long ms) {
@@ -1225,25 +1428,62 @@ public class MassActivity extends Activity {
                 return String.format(Locale.getDefault(), "%d:%02d", s / 60, s % 60);
             }
 
-            void playAudio(String url, TextView btn) {
+            void toggleVoice(final VC vc) {
                 try {
-                    if (mediaPlayer != null) { mediaPlayer.release(); mediaPlayer = null; }
-                    mediaPlayer = new MediaPlayer();
-                    mediaPlayer.setAudioStreamType(android.media.AudioManager.STREAM_MUSIC);
-                    if (url.startsWith("http")) {
-                        mediaPlayer.setDataSource(url);
+                    if (activeVC == vc && mediaPlayer != null) {
+                        if (!vcReady) return;
+                        if (mediaPlayer.isPlaying()) {
+                            mediaPlayer.pause();
+                            vcHandler.removeCallbacks(vcTick);
+                            vc.play.setText("▶");
+                            setVcPlaying(vc, false);
+                        } else {
+                            mediaPlayer.start();
+                            vc.play.setText("⏸");
+                            setVcPlaying(vc, true);
+                            vcHandler.post(vcTick);
+                        }
+                        return;
+                    }
+                    releaseVoice();
+                    activeVC = vc;
+                    final MediaPlayer mp0 = new MediaPlayer();
+                    mediaPlayer = mp0;
+                    mp0.setAudioStreamType(android.media.AudioManager.STREAM_MUSIC);
+                    if (vc.url.startsWith("http")) {
+                        mp0.setDataSource(vc.url);
                     } else {
-                        File pf = new File(act.getCacheDir(), "play_" + url.length() + "_" + Math.abs(url.hashCode()) + ".m4a");
+                        File pf = new File(act.getCacheDir(), "play_" + vc.url.length() + "_" + Math.abs(vc.url.hashCode()) + ".m4a");
                         if (!pf.exists()) {
-                            byte[] b = android.util.Base64.decode(url, android.util.Base64.DEFAULT);
+                            byte[] b = android.util.Base64.decode(vc.url, android.util.Base64.DEFAULT);
                             java.io.FileOutputStream fo = new java.io.FileOutputStream(pf);
                             fo.write(b); fo.close();
                         }
-                        mediaPlayer.setDataSource(pf.getAbsolutePath());
+                        mp0.setDataSource(pf.getAbsolutePath());
                     }
-                    mediaPlayer.prepareAsync();
-                    mediaPlayer.setOnPreparedListener(mp -> { mp.start(); btn.setText("⏸"); });
-                    mediaPlayer.setOnCompletionListener(mp -> { btn.setText("▶"); });
+                    vcTick = new Runnable() {
+                        @Override public void run() {
+                            if (activeVC != vc || mediaPlayer == null || !vcReady) return;
+                            try {
+                                int pos = mediaPlayer.getCurrentPosition(), dur = mediaPlayer.getDuration();
+                                if (dur > 0) vc.seek.setProgress((int) (pos * 1000L / dur));
+                                vc.time.setText(formatDuration(pos) + " / " + formatDuration(dur));
+                                if (mediaPlayer.isPlaying()) vcHandler.postDelayed(this, 200);
+                            } catch (Exception e) { }
+                        }
+                    };
+                    mp0.setOnPreparedListener(mp -> {
+                        vcReady = true;
+                        mp.start();
+                        vc.play.setText("⏸");
+                        setVcPlaying(vc, true);
+                        vcHandler.post(vcTick);
+                    });
+                    mp0.setOnCompletionListener(mp -> {
+                        vcHandler.removeCallbacks(vcTick);
+                        resetVC(vc);
+                    });
+                    mp0.prepareAsync();
                 } catch (Exception e) { toast("فشل تشغيل الصوت"); }
             }
 
@@ -1527,15 +1767,17 @@ public class MassActivity extends Activity {
                     isRecording = true;
                     recordStart = System.currentTimeMillis();
 
+                    vis("textInputBar", false);
                     vis("recordingBar", true);
+                    startRecWave();
                     TextView rt = tv("recTimer");
-                    if (rt != null) rt.setText("0:00");
+                    if (rt != null) rt.setText("00:00");
                     recTick = new Runnable() {
                         @Override public void run() {
                             if (!isRecording) return;
                             long s = (System.currentTimeMillis() - recordStart) / 1000;
                             TextView rt = tv("recTimer");
-                            if (rt != null) rt.setText(String.format(Locale.getDefault(), "%d:%02d", s / 60, s % 60));
+                            if (rt != null) rt.setText(String.format(Locale.getDefault(), "%02d:%02d", s / 60, s % 60));
                             if (s >= 150) { stopRecordAndSend(); return; }
                             recHandler.postDelayed(this, 500);
                         }
@@ -1558,6 +1800,8 @@ public class MassActivity extends Activity {
                 isRecording = false;
                 if (recTick != null) recHandler.removeCallbacks(recTick);
                 vis("recordingBar", false);
+                vis("textInputBar", true);
+                stopRecWave();
                 TextView mic = tv("btnMic");
                 if (mic != null) { mic.setTextColor(cMuted()); tintIcons(mic); }
 
@@ -1574,6 +1818,8 @@ public class MassActivity extends Activity {
                 isRecording = false;
                 if (recTick != null) recHandler.removeCallbacks(recTick);
                 vis("recordingBar", false);
+                vis("textInputBar", true);
+                stopRecWave();
                 TextView mic = tv("btnMic");
                 if (mic != null) { mic.setTextColor(cMuted()); tintIcons(mic); }
                 if (audioFile != null) audioFile.delete();
@@ -2000,6 +2246,16 @@ public class MassActivity extends Activity {
                         public void afterTextChanged(Editable s) { }
                     });
                 }
+
+                EditText msgIn = et("messageInput");
+                if (msgIn != null) {
+                    msgIn.addTextChangedListener(new TextWatcher() {
+                        public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
+                        public void onTextChanged(CharSequence s, int a, int b, int c) { syncComposer(); }
+                        public void afterTextChanged(Editable s) { }
+                    });
+                }
+                syncComposer();
 
                 SeekBar fr = (SeekBar) v("fontRange");
                 if (fr != null) {
