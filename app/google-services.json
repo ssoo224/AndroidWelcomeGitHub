@@ -1,0 +1,49 @@
+{
+  "project_info": {
+    "project_number": "5683490094",
+    "firebase_url": "https://fatr-60785.firebaseio.com",
+    "project_id": "fatr-60785",
+    "storage_bucket": "fatr-60785.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:5683490094:android:d5ad40b90a80d16aba1ebf",
+        "android_client_info": {
+          "package_name": "com.babylon.chat.iq"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA27enXbL89sDlhu0nHLu8PVIGeEQ3srgY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:5683490094:android:1cd90fdad9596431ba1ebf",
+        "android_client_info": {
+          "package_name": "com.subs.pubg.kr.ig"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA27enXbL89sDlhu0nHLu8PVIGeEQ3srgY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

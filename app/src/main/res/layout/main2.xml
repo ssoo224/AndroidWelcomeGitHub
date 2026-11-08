@@ -1,0 +1,283 @@
+<ScrollView
+ android:scrollbars="none"
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	xmlns:app="http://schemas.android.com/apk/res-auto"
+	xmlns:tools="http://schemas.android.com/tools"
+	android:id="@+id/root"
+	android:layout_width="match_parent"
+	android:layout_height="match_parent"
+	android:background="@drawable/bg_screen"
+	android:fillViewport="true"
+	android:layoutDirection="rtl">
+	<LinearLayout
+		android:id="@+id/linear26"
+		android:layout_width="match_parent"
+		android:layout_height="match_parent"
+		android:paddingLeft="24dp"
+		android:paddingTop="30dp"
+		android:paddingRight="24dp"
+		android:paddingBottom="30dp"
+		android:gravity="center_horizontal|center_vertical"
+		android:orientation="vertical">
+		<LinearLayout
+			android:id="@+id/logo_circle"
+			android:layout_width="100dp"
+			android:layout_height="100dp"
+			android:background="@drawable/bg_logo"
+			android:gravity="center_horizontal|center_vertical"
+			android:orientation="vertical">
+			<ImageView
+				android:id="@+id/logo_img"
+				android:layout_width="40dp"
+				android:layout_height="46dp"
+				android:src="@drawable/logo_vector"
+				android:scaleType="fitCenter"
+				android:translationX="2.0dp" />
+		</LinearLayout>
+		<TextView
+			android:id="@+id/title"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="20dp"
+			android:text="Babylon Chat"
+			android:textSize="24sp"
+			android:textStyle="bold"
+			android:textColor="#A97F1C" />
+		<TextView
+			android:id="@+id/subtitle"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:layout_marginTop="6dp"
+			android:gravity="center_horizontal|center_vertical"
+			android:text="تواصل عبر البريد أو اسم المستخدم بنكهة بابلية أصيلة"
+			android:textSize="13sp"
+			android:textColor="#3F4F63" />
+		<LinearLayout
+			android:id="@+id/tabs"
+			android:layout_width="match_parent"
+			android:layout_height="51dp"
+			android:layout_marginTop="24dp"
+			android:padding="5dp"
+			android:background="@drawable/bg_tab_container"
+			android:orientation="horizontal">
+			<TextView
+				android:id="@+id/tab_login"
+				android:layout_width="0dp"
+				android:layout_height="match_parent"
+				android:background="@drawable/bg_tab_active"
+				android:gravity="center_horizontal|center_vertical"
+				android:text="تسجيل الدخول"
+				android:textStyle="bold"
+				android:textColor="#FFFFFF"
+				android:layout_weight="1"
+				android:textSize="13.33sp" />
+			<TextView
+				android:id="@+id/tab_register"
+				android:layout_width="0dp"
+				android:layout_height="match_parent"
+				android:gravity="center_horizontal|center_vertical"
+				android:text="إنشاء حساب"
+				android:textStyle="bold"
+				android:textColor="#3F4F63"
+				android:layout_weight="1"
+				android:textSize="13.33sp" />
+		</LinearLayout>
+		<LinearLayout
+			android:id="@+id/login_form"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:orientation="vertical"
+			android:visibility="visible">
+			<TextView
+				android:id="@+id/label_user"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="20dp"
+				android:gravity="right"
+				android:text="البريد الإلكتروني أو اسم المستخدم (\@)"
+				android:textSize="12sp"
+				android:textStyle="bold"
+				android:textColor="#6B4F08" />
+			<EditText
+				android:id="@+id/edit_user"
+				android:layout_width="match_parent"
+				android:layout_height="48dp"
+				android:layout_marginTop="5dp"
+				android:paddingLeft="14dp"
+				android:paddingRight="14dp"
+				android:background="@drawable/bg_input"
+				android:gravity="left|center_vertical"
+				android:textSize="14sp"
+				android:textColor="#17212B"
+				android:hint="example\@gmail.com"
+				android:textColorHint="#6B7A8C"
+				android:singleLine="true"
+				android:inputType="textEmailAddress" />
+			<TextView
+				android:id="@+id/label_pass"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="14dp"
+				android:gravity="right"
+				android:text="كلمة المرور"
+				android:textSize="12sp"
+				android:textStyle="bold"
+				android:textColor="#6B4F08" />
+			<EditText
+				android:id="@+id/edit_pass"
+				android:layout_width="match_parent"
+				android:layout_height="48dp"
+				android:layout_marginTop="5dp"
+				android:paddingLeft="14dp"
+				android:paddingRight="14dp"
+				android:background="@drawable/bg_input"
+				android:gravity="left|center_vertical"
+				android:textSize="14sp"
+				android:textColor="#17212B"
+				android:hint="••••••••"
+				android:textColorHint="#6B7A8C"
+				android:singleLine="true"
+				android:inputType="textPassword" />
+			<TextView
+				android:id="@+id/btn_login"
+				android:layout_width="match_parent"
+				android:layout_height="51dp"
+				android:layout_marginTop="22dp"
+				android:background="@drawable/bg_button"
+				android:gravity="center_horizontal|center_vertical"
+				android:text="دخول"
+				android:textSize="15sp"
+				android:textStyle="bold"
+				android:textColor="#FFFFFF"
+				android:focusable="true" />
+			<TextView
+				android:id="@+id/btn_forgot"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="14dp"
+				android:text="نسيت كلمة المرور؟"
+				android:textSize="13sp"
+				android:textColor="#6B4F08"
+				android:layout_gravity="center_horizontal"
+				android:focusable="true" />
+		</LinearLayout>
+		<LinearLayout
+			android:id="@+id/register_form"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:orientation="vertical"
+			android:visibility="gone">
+			<TextView
+				android:id="@+id/label_name"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="20dp"
+				android:gravity="right"
+				android:text="اسم العرض (الاسم الشخصي)"
+				android:textSize="12sp"
+				android:textStyle="bold"
+				android:textColor="#6B4F08" />
+			<EditText
+				android:id="@+id/edit_name"
+				android:layout_width="match_parent"
+				android:layout_height="48dp"
+				android:layout_marginTop="5dp"
+				android:paddingLeft="14dp"
+				android:paddingRight="14dp"
+				android:background="@drawable/bg_input"
+				android:gravity="left|center_vertical"
+				android:textSize="14sp"
+				android:textColor="#17212B"
+				android:hint="Your Name"
+				android:textColorHint="#6B7A8C"
+				android:singleLine="true"
+				android:inputType="textPersonName" />
+			<TextView
+				android:id="@+id/label_username"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="14dp"
+				android:gravity="right"
+				android:text="اسم المستخدم (5 أحرف فأكثر)"
+				android:textSize="12sp"
+				android:textStyle="bold"
+				android:textColor="#6B4F08" />
+			<EditText
+				android:id="@+id/edit_username"
+				android:layout_width="match_parent"
+				android:layout_height="48dp"
+				android:layout_marginTop="5dp"
+				android:paddingLeft="14dp"
+				android:paddingRight="14dp"
+				android:background="@drawable/bg_input"
+				android:gravity="left|center_vertical"
+				android:textSize="14sp"
+				android:textColor="#17212B"
+				android:hint="Username"
+				android:textColorHint="#6B7A8C"
+				android:singleLine="true" />
+			<TextView
+				android:id="@+id/label_email"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="14dp"
+				android:gravity="right"
+				android:text="البريد الإلكتروني"
+				android:textSize="12sp"
+				android:textStyle="bold"
+				android:textColor="#6B4F08" />
+			<EditText
+				android:id="@+id/edit_email"
+				android:layout_width="match_parent"
+				android:layout_height="48dp"
+				android:layout_marginTop="5dp"
+				android:paddingLeft="14dp"
+				android:paddingRight="14dp"
+				android:background="@drawable/bg_input"
+				android:gravity="left|center_vertical"
+				android:textSize="14sp"
+				android:textColor="#17212B"
+				android:hint="example\@gmail.com"
+				android:textColorHint="#6B7A8C"
+				android:singleLine="true"
+				android:inputType="textEmailAddress" />
+			<TextView
+				android:id="@+id/label_reg_pass"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="14dp"
+				android:gravity="right"
+				android:text="كلمة المرور"
+				android:textSize="12sp"
+				android:textStyle="bold"
+				android:textColor="#6B4F08" />
+			<EditText
+				android:id="@+id/edit_reg_pass"
+				android:layout_width="match_parent"
+				android:layout_height="48dp"
+				android:layout_marginTop="5dp"
+				android:paddingLeft="14dp"
+				android:paddingRight="14dp"
+				android:background="@drawable/bg_input"
+				android:gravity="left|center_vertical"
+				android:textSize="14sp"
+				android:textColor="#17212B"
+				android:hint="6 أحرف على الأقل"
+				android:textColorHint="#6B7A8C"
+				android:singleLine="true"
+				android:inputType="textPassword" />
+			<TextView
+				android:id="@+id/btn_register"
+				android:layout_width="match_parent"
+				android:layout_height="51dp"
+				android:layout_marginTop="22dp"
+				android:background="@drawable/bg_button"
+				android:gravity="center_horizontal|center_vertical"
+				android:text="تسجيل حساب جديد"
+				android:textSize="15sp"
+				android:textStyle="bold"
+				android:textColor="#FFFFFF"
+				android:focusable="true" />
+		</LinearLayout>
+	</LinearLayout>
+</ScrollView>
