@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <!-- توهج ذهبي خفيف حول الشعار (96dp) -->
+    <gradient
+        android:type="radial"
+        android:centerX="0.5"
+        android:centerY="0.5"
+        android:gradientRadius="75dp"
+        android:startColor="#4DD6B040"
+        android:centerColor="#4DD6B040"
+        android:endColor="#00D6B040" />
+</shape>

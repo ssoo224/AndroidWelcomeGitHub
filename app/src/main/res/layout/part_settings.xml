@@ -1,0 +1,1511 @@
+<FrameLayout
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	xmlns:app="http://schemas.android.com/apk/res-auto"
+	xmlns:tools="http://schemas.android.com/tools"
+	android:id="@+id/partSettings"
+	android:layout_width="match_parent"
+	android:layout_height="match_parent"
+	android:layoutDirection="rtl">
+
+	<!-- ==================== صفحة الإعدادات الرئيسية ==================== -->
+	<ScrollView
+ android:scrollbars="none"
+		android:id="@+id/settingsView"
+		android:layout_width="match_parent"
+		android:layout_height="match_parent"
+		android:visibility="gone"
+		android:tag="bg">
+		<LinearLayout
+			android:id="@+id/linear729"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:paddingBottom="32dp"
+			android:orientation="vertical">
+
+			<!-- بطاقة المستخدم -->
+			<LinearLayout
+				android:id="@+id/sxHero"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:layout_margin="16dp"
+				android:paddingBottom="22dp"
+				android:gravity="center_horizontal"
+				android:orientation="vertical"
+				android:tag="sxhero">
+				<View
+					android:id="@+id/sxCover"
+					android:layout_width="match_parent"
+					android:layout_height="92dp"
+					android:tag="sxcover" />
+				<TextView
+					android:id="@+id/sxAvatar"
+					android:layout_width="108dp"
+					android:layout_height="108dp"
+					android:layout_marginTop="-54dp"
+					android:gravity="center"
+					android:textSize="35sp"
+					android:textStyle="bold"
+					android:textColor="#FFFFFF"
+					android:elevation="0dp"
+					android:tag="circ" />
+				<TextView
+					android:id="@+id/sxName"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:layout_marginTop="12dp"
+					android:textSize="21sp"
+					android:textStyle="bold"
+					android:tag="t" />
+				<TextView
+					android:id="@+id/sxUser"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:layout_marginTop="2dp"
+					android:textSize="13sp"
+					android:textStyle="bold"
+					android:tag="m"
+					android:textDirection="ltr" />
+				<TextView
+					android:id="@+id/sxBio"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:layout_marginTop="4dp"
+					android:textSize="12sp"
+					android:textStyle="bold"
+					android:tag="m" />
+			</LinearLayout>
+
+			<!-- قسم التخصيص -->
+			<TextView
+				android:id="@+id/textview743"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="16dp"
+				android:layout_marginBottom="6dp"
+				android:layout_marginStart="24dp"
+				android:text="التخصيص"
+				android:textSize="12.5sp"
+				android:textStyle="bold"
+				android:tag="m" />
+
+			<LinearLayout
+				android:id="@+id/linear730"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:orientation="vertical"
+				android:tag="card"
+				android:elevation="0dp"
+				android:layout_marginStart="16dp"
+				android:layout_marginEnd="16dp">
+
+				<LinearLayout
+					android:id="@+id/linear731"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:padding="14dp"
+					android:gravity="center_vertical"
+					android:orientation="horizontal">
+					<TextView
+						android:id="@+id/textview744"
+						android:layout_width="40dp"
+						android:layout_height="40dp"
+						android:gravity="center"
+						android:text=""
+						android:drawableStart="@drawable/ic_theme_20"
+						android:textSize="18sp"
+						android:textColor="#FFFFFF"
+						android:tag="ic:#F59E0B" />
+					<LinearLayout
+						android:id="@+id/linear732"
+						android:layout_width="0dp"
+						android:layout_height="wrap_content"
+						android:orientation="vertical"
+						android:layout_weight="1"
+						android:layout_marginStart="14dp">
+						<TextView
+							android:id="@+id/textview745"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="مظهر التطبيق"
+							android:textSize="15.5sp"
+							android:textStyle="bold"
+							android:tag="t" />
+						<TextView
+							android:id="@+id/themeDescription"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="الوضع النهاري مفعّل"
+							android:textSize="11.5sp"
+							android:textStyle="bold"
+							android:tag="m" />
+					</LinearLayout>
+					<TextView
+						android:id="@+id/settingsThemeToggle"
+						android:layout_width="wrap_content"
+						android:layout_height="36dp"
+						android:gravity="center"
+						android:text="ليلي"
+						android:drawableStart="@drawable/ic_moon_16"
+						android:drawablePadding="6dp"
+						android:textSize="13sp"
+						android:textStyle="bold"
+						android:minWidth="76dp"
+						android:paddingStart="14dp"
+						android:paddingEnd="14dp"
+						android:tag="goldo" />
+				</LinearLayout>
+
+				<View
+					android:id="@+id/view733"
+					android:layout_width="match_parent"
+					android:layout_height="1dp"
+					android:tag="line"
+					android:layout_marginStart="68dp" />
+
+				<LinearLayout
+					android:id="@+id/itemChatSettings"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:padding="14dp"
+					android:gravity="center_vertical"
+					android:orientation="horizontal">
+					<TextView
+						android:id="@+id/textview746"
+						android:layout_width="40dp"
+						android:layout_height="40dp"
+						android:gravity="center"
+						android:text=""
+						android:drawableStart="@drawable/ic_palette_20"
+						android:textSize="18sp"
+						android:textColor="#FFFFFF"
+						android:tag="ic:#3B82F6" />
+					<LinearLayout
+						android:id="@+id/linear734"
+						android:layout_width="0dp"
+						android:layout_height="wrap_content"
+						android:orientation="vertical"
+						android:layout_weight="1"
+						android:layout_marginStart="14dp">
+						<TextView
+							android:id="@+id/textview747"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="المظهر والمحادثات"
+							android:textSize="15.5sp"
+							android:textStyle="bold"
+							android:tag="t" />
+						<TextView
+							android:id="@+id/textview747b"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="الثيم، حجم الخط، خلفية المحادثة"
+							android:textSize="11.5sp"
+							android:textStyle="bold"
+							android:tag="m" />
+					</LinearLayout>
+					<TextView
+						android:id="@+id/textview748"
+						android:layout_width="wrap_content"
+						android:layout_height="wrap_content"
+						android:text="‹"
+						android:textSize="22sp"
+						android:textStyle="bold"
+						android:tag="m" />
+				</LinearLayout>
+
+				<View
+					android:id="@+id/view735"
+					android:layout_width="match_parent"
+					android:layout_height="1dp"
+					android:tag="line"
+					android:layout_marginStart="68dp" />
+
+				<LinearLayout
+					android:id="@+id/itemNotif"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:padding="14dp"
+					android:gravity="center_vertical"
+					android:orientation="horizontal">
+					<TextView
+						android:id="@+id/textview749"
+						android:layout_width="40dp"
+						android:layout_height="40dp"
+						android:gravity="center"
+						android:text=""
+						android:drawableStart="@drawable/ic_bell_20"
+						android:textSize="18sp"
+						android:textColor="#FFFFFF"
+						android:tag="ic:#EF4444" />
+					<LinearLayout
+						android:id="@+id/linear736"
+						android:layout_width="0dp"
+						android:layout_height="wrap_content"
+						android:orientation="vertical"
+						android:layout_weight="1"
+						android:layout_marginStart="14dp">
+						<TextView
+							android:id="@+id/textview750"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="الإشعارات والأصوات"
+							android:textSize="15.5sp"
+							android:textStyle="bold"
+							android:tag="t" />
+						<TextView
+							android:id="@+id/textview750b"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="تحكم بالإشعارات والأصوات"
+							android:textSize="11.5sp"
+							android:textStyle="bold"
+							android:tag="m" />
+					</LinearLayout>
+					<TextView
+						android:id="@+id/textview751"
+						android:layout_width="wrap_content"
+						android:layout_height="wrap_content"
+						android:text="‹"
+						android:textSize="22sp"
+						android:textStyle="bold"
+						android:tag="m" />
+				</LinearLayout>
+			</LinearLayout>
+
+			<!-- قسم مشاركة التطبيق -->
+			<TextView
+				android:id="@+id/textview759"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="16dp"
+				android:layout_marginBottom="6dp"
+				android:layout_marginStart="24dp"
+				android:text="مشاركة التطبيق"
+				android:textSize="12.5sp"
+				android:textStyle="bold"
+				android:tag="m" />
+
+			<LinearLayout
+				android:id="@+id/linear741"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:orientation="vertical"
+				android:tag="card"
+				android:elevation="0dp"
+				android:layout_marginStart="16dp"
+				android:layout_marginEnd="16dp">
+
+				<LinearLayout
+					android:id="@+id/itemShare"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:padding="14dp"
+					android:gravity="center_vertical"
+					android:orientation="horizontal">
+					<TextView
+						android:id="@+id/textview760"
+						android:layout_width="40dp"
+						android:layout_height="40dp"
+						android:gravity="center"
+						android:text=""
+						android:drawableStart="@drawable/ic_link_20"
+						android:textSize="18sp"
+						android:textColor="#FFFFFF"
+						android:tag="ic:#0EA5E9" />
+					<LinearLayout
+						android:id="@+id/linear742"
+						android:layout_width="0dp"
+						android:layout_height="wrap_content"
+						android:orientation="vertical"
+						android:layout_weight="1"
+						android:layout_marginStart="14dp">
+						<TextView
+							android:id="@+id/textview761"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="مشاركة رابط التحميل"
+							android:textSize="15.5sp"
+							android:textStyle="bold"
+							android:tag="t" />
+						<TextView
+							android:id="@+id/textview762"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="رابط يفتح صفحة تحميل التطبيق"
+							android:textSize="11.5sp"
+							android:textStyle="bold"
+							android:tag="m" />
+					</LinearLayout>
+					<TextView
+						android:id="@+id/textview763"
+						android:layout_width="wrap_content"
+						android:layout_height="wrap_content"
+						android:text="‹"
+						android:textSize="22sp"
+						android:textStyle="bold"
+						android:tag="m" />
+				</LinearLayout>
+			</LinearLayout>
+
+			<!-- قسم الأمان -->
+			<TextView
+				android:id="@+id/textview764"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="16dp"
+				android:layout_marginBottom="6dp"
+				android:layout_marginStart="24dp"
+				android:text="الأمان"
+				android:textSize="12.5sp"
+				android:textStyle="bold"
+				android:tag="m" />
+
+			<LinearLayout
+				android:id="@+id/linear743"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:orientation="vertical"
+				android:tag="card"
+				android:elevation="0dp"
+				android:layout_marginStart="16dp"
+				android:layout_marginEnd="16dp">
+
+				<LinearLayout
+					android:id="@+id/itemPrivacy"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:padding="14dp"
+					android:gravity="center_vertical"
+					android:orientation="horizontal">
+					<TextView
+						android:id="@+id/textview765"
+						android:layout_width="40dp"
+						android:layout_height="40dp"
+						android:gravity="center"
+						android:text=""
+						android:drawableStart="@drawable/ic_shield_20"
+						android:textSize="18sp"
+						android:textColor="#FFFFFF"
+						android:tag="ic:#10B981" />
+					<LinearLayout
+						android:id="@+id/linear744"
+						android:layout_width="0dp"
+						android:layout_height="wrap_content"
+						android:orientation="vertical"
+						android:layout_weight="1"
+						android:layout_marginStart="14dp">
+						<TextView
+							android:id="@+id/textview766"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="الخصوصية والأمان"
+							android:textSize="15.5sp"
+							android:textStyle="bold"
+							android:tag="t" />
+						<TextView
+							android:id="@+id/textview766b"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="كلمة المرور، الحظر، الخصوصية"
+							android:textSize="11.5sp"
+							android:textStyle="bold"
+							android:tag="m" />
+					</LinearLayout>
+					<TextView
+						android:id="@+id/textview767"
+						android:layout_width="wrap_content"
+						android:layout_height="wrap_content"
+						android:text="‹"
+						android:textSize="22sp"
+						android:textStyle="bold"
+						android:tag="m" />
+				</LinearLayout>
+			</LinearLayout>
+
+			<!-- خروج / حذف -->
+			<LinearLayout
+				android:id="@+id/linear745"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="16dp"
+				android:orientation="vertical"
+				android:tag="card"
+				android:elevation="0dp"
+				android:layout_marginStart="16dp"
+				android:layout_marginEnd="16dp">
+
+				<LinearLayout
+					android:id="@+id/itemLogout"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:padding="14dp"
+					android:gravity="center_vertical"
+					android:orientation="horizontal">
+					<TextView
+						android:id="@+id/textview768"
+						android:layout_width="40dp"
+						android:layout_height="40dp"
+						android:gravity="center"
+						android:text=""
+						android:drawableStart="@drawable/ic_logout_20"
+						android:textSize="18sp"
+						android:textColor="#FFFFFF"
+						android:tag="ic:#DC2626" />
+					<LinearLayout
+						android:id="@+id/linear746"
+						android:layout_width="0dp"
+						android:layout_height="wrap_content"
+						android:orientation="vertical"
+						android:layout_weight="1"
+						android:layout_marginStart="14dp">
+						<TextView
+							android:id="@+id/textview769"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="تسجيل الخروج"
+							android:textSize="15.5sp"
+							android:textStyle="bold"
+							android:tag="t" />
+					</LinearLayout>
+				</LinearLayout>
+
+				<View
+					android:id="@+id/view747"
+					android:layout_width="match_parent"
+					android:layout_height="1dp"
+					android:tag="line"
+					android:layout_marginStart="68dp" />
+
+				<LinearLayout
+					android:id="@+id/itemDelete"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:padding="14dp"
+					android:gravity="center_vertical"
+					android:orientation="horizontal">
+					<TextView
+						android:id="@+id/textview770"
+						android:layout_width="40dp"
+						android:layout_height="40dp"
+						android:gravity="center"
+						android:text=""
+						android:drawableStart="@drawable/ic_trash_20"
+						android:textSize="18sp"
+						android:textColor="#FFFFFF"
+						android:tag="ic:#7F1D1D" />
+					<LinearLayout
+						android:id="@+id/linear748"
+						android:layout_width="0dp"
+						android:layout_height="wrap_content"
+						android:orientation="vertical"
+						android:layout_weight="1"
+						android:layout_marginStart="14dp">
+						<TextView
+							android:id="@+id/textview771"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="حذف الحساب"
+							android:textSize="15.5sp"
+							android:textStyle="bold"
+							android:tag="t" />
+					</LinearLayout>
+				</LinearLayout>
+			</LinearLayout>
+
+			<TextView
+				android:id="@+id/textview772"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="20dp"
+				android:gravity="center"
+				android:text="Babylon Chat · v1.0"
+				android:textSize="12.5sp"
+				android:textStyle="bold"
+				android:tag="m" />
+		</LinearLayout>
+	</ScrollView>
+
+	<!-- ==================== صفحة الخصوصية والأمان ==================== -->
+	<LinearLayout
+		android:id="@+id/privacySettingsView"
+		android:layout_width="match_parent"
+		android:layout_height="match_parent"
+		android:orientation="vertical"
+		android:visibility="gone"
+		android:tag="bg">
+		<LinearLayout
+			android:id="@+id/linear749"
+			android:layout_width="match_parent"
+			android:layout_height="60dp"
+			android:gravity="center_vertical"
+			android:orientation="horizontal"
+			android:tag="sf"
+			android:elevation="0dp">
+			<TextView
+				android:id="@+id/privacyBack"
+				android:layout_width="56dp"
+				android:layout_height="match_parent"
+				android:gravity="center"
+				android:text=""
+				android:drawableStart="@drawable/ic_arrow_back_24"
+				android:textSize="24sp"
+				android:tag="t" />
+			<TextView
+				android:id="@+id/textview773"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:text="الخصوصية والأمان"
+				android:textSize="18sp"
+				android:textStyle="bold"
+				android:tag="t" />
+		</LinearLayout>
+		<ScrollView
+ android:scrollbars="none"
+			android:id="@+id/vscroll46"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent">
+			<LinearLayout
+				android:id="@+id/linear750"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:paddingBottom="32dp"
+				android:orientation="vertical">
+
+				<TextView
+					android:id="@+id/textview774"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:layout_marginTop="16dp"
+					android:layout_marginBottom="6dp"
+					android:layout_marginStart="24dp"
+					android:text="الأمان"
+					android:textSize="12sp"
+					android:textStyle="bold"
+					android:tag="m" />
+
+				<LinearLayout
+					android:id="@+id/linear751"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:orientation="vertical"
+					android:tag="card"
+					android:elevation="0dp"
+					android:layout_marginStart="14dp"
+					android:layout_marginEnd="14dp">
+
+					<LinearLayout
+						android:id="@+id/itemChangePass"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:padding="14dp"
+						android:gravity="center_vertical"
+						android:orientation="horizontal">
+						<TextView
+							android:id="@+id/textview775"
+							android:layout_width="40dp"
+							android:layout_height="40dp"
+							android:gravity="center"
+							android:text=""
+							android:drawableStart="@drawable/ic_key_20"
+							android:textSize="18sp"
+							android:textColor="#FFFFFF"
+							android:tag="ic:#10B981" />
+						<LinearLayout
+							android:id="@+id/linear752"
+							android:layout_width="0dp"
+							android:layout_height="wrap_content"
+							android:orientation="vertical"
+							android:layout_weight="1"
+							android:layout_marginStart="14dp">
+							<TextView
+								android:id="@+id/textview776"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:text="تغيير كلمة المرور"
+								android:textSize="15.5sp"
+								android:textStyle="bold"
+								android:tag="t" />
+						</LinearLayout>
+						<TextView
+							android:id="@+id/textview777"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="‹"
+							android:textSize="22sp"
+							android:textStyle="bold"
+							android:tag="m" />
+					</LinearLayout>
+
+					<View
+						android:id="@+id/view753"
+						android:layout_width="match_parent"
+						android:layout_height="1dp"
+						android:tag="line"
+						android:layout_marginStart="68dp" />
+
+					<LinearLayout
+						android:id="@+id/itemChangeEmail"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:padding="14dp"
+						android:gravity="center_vertical"
+						android:orientation="horizontal">
+						<TextView
+							android:id="@+id/textview778"
+							android:layout_width="40dp"
+							android:layout_height="40dp"
+							android:gravity="center"
+							android:text="ℹ"
+							android:textSize="18sp"
+							android:textColor="#FFFFFF"
+							android:tag="ic:#3B82F6" />
+						<LinearLayout
+							android:id="@+id/linear754"
+							android:layout_width="0dp"
+							android:layout_height="wrap_content"
+							android:orientation="vertical"
+							android:layout_weight="1"
+							android:layout_marginStart="14dp">
+							<TextView
+								android:id="@+id/textview779"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:text="تغيير الإيميل"
+								android:textSize="15.5sp"
+								android:textStyle="bold"
+								android:tag="t" />
+						</LinearLayout>
+						<TextView
+							android:id="@+id/textview780"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="‹"
+							android:textSize="22sp"
+							android:textStyle="bold"
+							android:tag="m" />
+					</LinearLayout>
+
+					<View
+						android:id="@+id/view755"
+						android:layout_width="match_parent"
+						android:layout_height="1dp"
+						android:tag="line"
+						android:layout_marginStart="68dp" />
+
+					<LinearLayout
+						android:id="@+id/itemBlocked"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:padding="14dp"
+						android:gravity="center_vertical"
+						android:orientation="horizontal">
+						<TextView
+							android:id="@+id/textview781"
+							android:layout_width="40dp"
+							android:layout_height="40dp"
+							android:gravity="center"
+							android:text=""
+							android:drawableStart="@drawable/ic_shield_20"
+							android:textSize="18sp"
+							android:textColor="#FFFFFF"
+							android:tag="ic:#64748B" />
+						<LinearLayout
+							android:id="@+id/linear756"
+							android:layout_width="0dp"
+							android:layout_height="wrap_content"
+							android:orientation="vertical"
+							android:layout_weight="1"
+							android:layout_marginStart="14dp">
+							<TextView
+								android:id="@+id/textview782"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:text="المستخدمون المحظورون"
+								android:textSize="15.5sp"
+								android:textStyle="bold"
+								android:tag="t" />
+						</LinearLayout>
+						<TextView
+							android:id="@+id/textview783"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="‹"
+							android:textSize="22sp"
+							android:textStyle="bold"
+							android:tag="m" />
+					</LinearLayout>
+				</LinearLayout>
+
+				<TextView
+					android:id="@+id/textview784"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:layout_marginTop="16dp"
+					android:layout_marginBottom="6dp"
+					android:layout_marginStart="24dp"
+					android:text="من يستطيع رؤية معلوماتي"
+					android:textSize="12sp"
+					android:textStyle="bold"
+					android:tag="m" />
+
+				<LinearLayout
+					android:id="@+id/linear757"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:orientation="vertical"
+					android:tag="card"
+					android:elevation="0dp"
+					android:layout_marginStart="14dp"
+					android:layout_marginEnd="14dp">
+
+					<LinearLayout
+						android:id="@+id/linear758"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:padding="14dp"
+						android:gravity="center_vertical"
+						android:orientation="horizontal">
+						<LinearLayout
+							android:id="@+id/linear759"
+							android:layout_width="0dp"
+							android:layout_height="wrap_content"
+							android:orientation="vertical"
+							android:layout_weight="1">
+							<TextView
+								android:id="@+id/textview785"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:text="آخر ظهور"
+								android:textSize="15.5sp"
+								android:textStyle="bold"
+								android:tag="t" />
+							<TextView
+								android:id="@+id/textview786"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:text="إظهار أو إخفاء وقت آخر تواجدك"
+								android:textSize="11.5sp"
+								android:textStyle="bold"
+								android:tag="m" />
+						</LinearLayout>
+						<TextView
+							android:id="@+id/segLastSeen_show"
+							android:layout_width="wrap_content"
+							android:layout_height="36dp"
+							android:gravity="center"
+							android:text="إظهار"
+							android:textSize="13sp"
+							android:textStyle="bold"
+							android:minWidth="68dp"
+							android:tag="goldo" />
+						<TextView
+							android:id="@+id/segLastSeen_hide"
+							android:layout_width="wrap_content"
+							android:layout_height="36dp"
+							android:gravity="center"
+							android:text="إخفاء"
+							android:textSize="13sp"
+							android:textStyle="bold"
+							android:minWidth="68dp"
+							android:layout_marginStart="6dp"
+							android:tag="goldo" />
+					</LinearLayout>
+
+					<View
+						android:id="@+id/view760"
+						android:layout_width="match_parent"
+						android:layout_height="1dp"
+						android:tag="line" />
+
+					<LinearLayout
+						android:id="@+id/linear761"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:padding="14dp"
+						android:gravity="center_vertical"
+						android:orientation="horizontal">
+						<LinearLayout
+							android:id="@+id/linear762"
+							android:layout_width="0dp"
+							android:layout_height="wrap_content"
+							android:orientation="vertical"
+							android:layout_weight="1">
+							<TextView
+								android:id="@+id/textview787"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:text="صورة الملف الشخصي"
+								android:textSize="15.5sp"
+								android:textStyle="bold"
+								android:tag="t" />
+							<TextView
+								android:id="@+id/textview788"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:text="إظهار أو إخفاء صورتك للآخرين"
+								android:textSize="11.5sp"
+								android:textStyle="bold"
+								android:tag="m" />
+						</LinearLayout>
+						<TextView
+							android:id="@+id/segAvatar_show"
+							android:layout_width="wrap_content"
+							android:layout_height="36dp"
+							android:gravity="center"
+							android:text="إظهار"
+							android:textSize="13sp"
+							android:textStyle="bold"
+							android:minWidth="68dp"
+							android:tag="goldo" />
+						<TextView
+							android:id="@+id/segAvatar_hide"
+							android:layout_width="wrap_content"
+							android:layout_height="36dp"
+							android:gravity="center"
+							android:text="إخفاء"
+							android:textSize="13sp"
+							android:textStyle="bold"
+							android:minWidth="68dp"
+							android:layout_marginStart="6dp"
+							android:tag="goldo" />
+					</LinearLayout>
+				</LinearLayout>
+
+				<TextView
+					android:id="@+id/textview789"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:layout_marginTop="16dp"
+					android:layout_marginBottom="6dp"
+					android:layout_marginStart="24dp"
+					android:text="البيانات"
+					android:textSize="12sp"
+					android:textStyle="bold"
+					android:tag="m" />
+
+				<LinearLayout
+					android:id="@+id/linear763"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:orientation="vertical"
+					android:tag="card"
+					android:elevation="0dp"
+					android:layout_marginStart="14dp"
+					android:layout_marginEnd="14dp">
+
+					<LinearLayout
+						android:id="@+id/itemClearCache"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:padding="14dp"
+						android:gravity="center_vertical"
+						android:orientation="horizontal">
+						<TextView
+							android:id="@+id/textview790"
+							android:layout_width="40dp"
+							android:layout_height="40dp"
+							android:gravity="center"
+							android:text=""
+							android:drawableStart="@drawable/ic_trash_20"
+							android:textSize="18sp"
+							android:textColor="#FFFFFF"
+							android:tag="ic:#8B5CF6" />
+						<LinearLayout
+							android:id="@+id/linear764"
+							android:layout_width="0dp"
+							android:layout_height="wrap_content"
+							android:orientation="vertical"
+							android:layout_weight="1"
+							android:layout_marginStart="14dp">
+							<TextView
+								android:id="@+id/textview791"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:text="مسح البيانات المؤقتة"
+								android:textSize="15.5sp"
+								android:textStyle="bold"
+								android:tag="t" />
+						</LinearLayout>
+						<TextView
+							android:id="@+id/textview792"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="‹"
+							android:textSize="22sp"
+							android:textStyle="bold"
+							android:tag="m" />
+					</LinearLayout>
+
+					<View
+						android:id="@+id/view765"
+						android:layout_width="match_parent"
+						android:layout_height="1dp"
+						android:tag="line"
+						android:layout_marginStart="68dp" />
+
+					<LinearLayout
+						android:id="@+id/itemWipe"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:padding="14dp"
+						android:gravity="center_vertical"
+						android:orientation="horizontal">
+						<TextView
+							android:id="@+id/textview793"
+							android:layout_width="40dp"
+							android:layout_height="40dp"
+							android:gravity="center"
+							android:text=""
+							android:drawableStart="@drawable/ic_trash_20"
+							android:textSize="18sp"
+							android:textColor="#FFFFFF"
+							android:tag="ic:#DC2626" />
+						<LinearLayout
+							android:id="@+id/linear766"
+							android:layout_width="0dp"
+							android:layout_height="wrap_content"
+							android:orientation="vertical"
+							android:layout_weight="1"
+							android:layout_marginStart="14dp">
+							<TextView
+								android:id="@+id/textview794"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:text="مسح جميع البيانات"
+								android:textSize="15.5sp"
+								android:textStyle="bold"
+								android:tag="t" />
+						</LinearLayout>
+						<TextView
+							android:id="@+id/textview795"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="‹"
+							android:textSize="22sp"
+							android:textStyle="bold"
+							android:tag="m" />
+					</LinearLayout>
+				</LinearLayout>
+
+				<LinearLayout
+					android:id="@+id/linear767"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:layout_marginTop="16dp"
+					android:orientation="vertical"
+					android:tag="card"
+					android:elevation="0dp"
+					android:layout_marginStart="14dp"
+					android:layout_marginEnd="14dp">
+
+					<LinearLayout
+						android:id="@+id/itemAbout"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:padding="14dp"
+						android:gravity="center_vertical"
+						android:orientation="horizontal">
+						<TextView
+							android:id="@+id/textview796"
+							android:layout_width="40dp"
+							android:layout_height="40dp"
+							android:gravity="center"
+							android:text="ℹ"
+							android:textSize="18sp"
+							android:textColor="#FFFFFF"
+							android:tag="ic:#F59E0B" />
+						<LinearLayout
+							android:id="@+id/linear768"
+							android:layout_width="0dp"
+							android:layout_height="wrap_content"
+							android:orientation="vertical"
+							android:layout_weight="1"
+							android:layout_marginStart="14dp">
+							<TextView
+								android:id="@+id/textview797"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:text="حول Babylon Chat"
+								android:textSize="15.5sp"
+								android:textStyle="bold"
+								android:tag="t" />
+						</LinearLayout>
+						<TextView
+							android:id="@+id/textview798"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="‹"
+							android:textSize="22sp"
+							android:textStyle="bold"
+							android:tag="m" />
+					</LinearLayout>
+				</LinearLayout>
+			</LinearLayout>
+		</ScrollView>
+	</LinearLayout>
+
+	<!-- ==================== صفحة إعدادات الإشعارات ==================== -->
+	<LinearLayout
+		android:id="@+id/notificationSettingsView"
+		android:layout_width="match_parent"
+		android:layout_height="match_parent"
+		android:orientation="vertical"
+		android:visibility="gone"
+		android:tag="bg">
+		<LinearLayout
+			android:id="@+id/linear769"
+			android:layout_width="match_parent"
+			android:layout_height="60dp"
+			android:gravity="center_vertical"
+			android:orientation="horizontal"
+			android:tag="sf"
+			android:elevation="0dp">
+			<TextView
+				android:id="@+id/notifBack"
+				android:layout_width="56dp"
+				android:layout_height="match_parent"
+				android:gravity="center"
+				android:text=""
+				android:drawableStart="@drawable/ic_arrow_back_24"
+				android:textSize="24sp"
+				android:tag="t" />
+			<TextView
+				android:id="@+id/textview799"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:text="إعدادات الإشعارات"
+				android:textSize="18sp"
+				android:textStyle="bold"
+				android:tag="t" />
+		</LinearLayout>
+		<ScrollView
+ android:scrollbars="none"
+			android:id="@+id/vscroll47"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent">
+			<LinearLayout
+				android:id="@+id/linear770"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:paddingBottom="32dp"
+				android:orientation="vertical">
+
+				<LinearLayout
+					android:id="@+id/linear771"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:layout_marginTop="14dp"
+					android:orientation="vertical"
+					android:tag="card"
+					android:elevation="0dp"
+					android:layout_marginStart="14dp"
+					android:layout_marginEnd="14dp">
+					<LinearLayout
+						android:id="@+id/linear772"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:padding="16dp"
+						android:gravity="center_vertical"
+						android:orientation="horizontal">
+						<TextView
+							android:id="@+id/textview800"
+							android:layout_width="48dp"
+							android:layout_height="wrap_content"
+							android:gravity="center"
+							android:text=""
+							android:drawableStart="@drawable/ic_bell_30"
+							android:textSize="26sp"
+							android:tag="g" />
+						<LinearLayout
+							android:id="@+id/linear773"
+							android:layout_width="match_parent"
+							android:layout_height="wrap_content"
+							android:orientation="vertical"
+							android:layout_marginStart="10dp">
+							<TextView
+								android:id="@+id/textview801"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:text="تحكّم بإشعاراتك"
+								android:textSize="16sp"
+								android:textStyle="bold"
+								android:tag="t" />
+							<TextView
+								android:id="@+id/textview802"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:text="اختر الإشعارات والأصوات التي تريد تشغيلها أو تعطيلها."
+								android:textSize="12sp"
+								android:textStyle="bold"
+								android:tag="m" />
+						</LinearLayout>
+					</LinearLayout>
+				</LinearLayout>
+
+				<TextView
+					android:id="@+id/textview803"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:layout_marginTop="16dp"
+					android:layout_marginBottom="6dp"
+					android:layout_marginStart="24dp"
+					android:text="إشعارات الرسائل"
+					android:textSize="12sp"
+					android:textStyle="bold"
+					android:tag="m" />
+
+				<LinearLayout
+					android:id="@+id/linear774"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:orientation="vertical"
+					android:tag="card"
+					android:elevation="0dp"
+					android:layout_marginStart="14dp"
+					android:layout_marginEnd="14dp">
+					<LinearLayout
+						android:id="@+id/linear775"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:padding="14dp"
+						android:gravity="center_vertical"
+						android:orientation="horizontal">
+						<LinearLayout
+							android:id="@+id/linear776"
+							android:layout_width="0dp"
+							android:layout_height="wrap_content"
+							android:orientation="vertical"
+							android:layout_weight="1">
+							<TextView
+								android:id="@+id/textview804"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:text="إشعارات الجهاز"
+								android:textSize="15.5sp"
+								android:textStyle="bold"
+								android:tag="t" />
+							<TextView
+								android:id="@+id/pushNotificationDescription"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:text="استقبال تنبيهات الجهاز عند السماح بها."
+								android:textSize="11.5sp"
+								android:textStyle="bold"
+								android:tag="m" />
+						</LinearLayout>
+						<TextView
+							android:id="@+id/pushOnBtn"
+							android:layout_width="wrap_content"
+							android:layout_height="36dp"
+							android:gravity="center"
+							android:text="تشغيل"
+							android:textSize="13sp"
+							android:textStyle="bold"
+							android:minWidth="64dp"
+							android:tag="gold" />
+						<TextView
+							android:id="@+id/pushOffBtn"
+							android:layout_width="wrap_content"
+							android:layout_height="36dp"
+							android:gravity="center"
+							android:text="تعطيل"
+							android:textSize="13sp"
+							android:textStyle="bold"
+							android:minWidth="64dp"
+							android:layout_marginStart="6dp"
+							android:tag="goldo" />
+					</LinearLayout>
+				</LinearLayout>
+
+				<TextView
+					android:id="@+id/textview805"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:layout_marginTop="16dp"
+					android:layout_marginBottom="6dp"
+					android:layout_marginStart="24dp"
+					android:text="الأصوات"
+					android:textSize="12sp"
+					android:textStyle="bold"
+					android:tag="m" />
+
+				<LinearLayout
+					android:id="@+id/linear777"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:orientation="vertical"
+					android:tag="card"
+					android:elevation="0dp"
+					android:layout_marginStart="14dp"
+					android:layout_marginEnd="14dp">
+					<LinearLayout
+						android:id="@+id/linear778"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:padding="14dp"
+						android:gravity="center_vertical"
+						android:orientation="horizontal">
+						<LinearLayout
+							android:id="@+id/linear779"
+							android:layout_width="0dp"
+							android:layout_height="wrap_content"
+							android:orientation="vertical"
+							android:layout_weight="1">
+							<TextView
+								android:id="@+id/textview806"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:text="صوت الرسائل الجديدة"
+								android:textSize="15.5sp"
+								android:textStyle="bold"
+								android:tag="t" />
+							<TextView
+								android:id="@+id/textview807"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:text="تشغيل صوت قصير عند وصول رسالة جديدة داخل التطبيق."
+								android:textSize="11.5sp"
+								android:textStyle="bold"
+								android:tag="m" />
+						</LinearLayout>
+						<TextView
+							android:id="@+id/soundOnBtn"
+							android:layout_width="wrap_content"
+							android:layout_height="36dp"
+							android:gravity="center"
+							android:text="تشغيل"
+							android:textSize="13sp"
+							android:textStyle="bold"
+							android:minWidth="64dp"
+							android:tag="gold" />
+						<TextView
+							android:id="@+id/soundOffBtn"
+							android:layout_width="wrap_content"
+							android:layout_height="36dp"
+							android:gravity="center"
+							android:text="تعطيل"
+							android:textSize="13sp"
+							android:textStyle="bold"
+							android:minWidth="64dp"
+							android:layout_marginStart="6dp"
+							android:tag="goldo" />
+					</LinearLayout>
+				</LinearLayout>
+
+				<TextView
+					android:id="@+id/textview808"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:layout_margin="18dp"
+					android:text="قد تحتاج إلى السماح بإشعارات Babylon Chat من إعدادات الهاتف حتى تظهر تنبيهات الجهاز."
+					android:textSize="11.5sp"
+					android:textStyle="bold"
+					android:tag="m" />
+			</LinearLayout>
+		</ScrollView>
+	</LinearLayout>
+
+	<!-- ==================== صفحة إعدادات المحادثات ==================== -->
+	<LinearLayout
+		android:id="@+id/chatSettingsView"
+		android:layout_width="match_parent"
+		android:layout_height="match_parent"
+		android:orientation="vertical"
+		android:visibility="gone"
+		android:tag="bg">
+		<LinearLayout
+			android:id="@+id/linear780"
+			android:layout_width="match_parent"
+			android:layout_height="60dp"
+			android:gravity="center_vertical"
+			android:orientation="horizontal"
+			android:tag="sf"
+			android:elevation="0dp">
+			<TextView
+				android:id="@+id/chatSetBack"
+				android:layout_width="56dp"
+				android:layout_height="match_parent"
+				android:gravity="center"
+				android:text=""
+				android:drawableStart="@drawable/ic_arrow_back_24"
+				android:textSize="24sp"
+				android:tag="t" />
+			<TextView
+				android:id="@+id/textview809"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:text="إعدادات المحادثات"
+				android:textSize="18sp"
+				android:textStyle="bold"
+				android:tag="t" />
+		</LinearLayout>
+		<ScrollView
+ android:scrollbars="none"
+			android:id="@+id/vscroll48"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent">
+			<LinearLayout
+				android:id="@+id/linear781"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:paddingBottom="32dp"
+				android:orientation="vertical">
+
+				<!-- معاينة الفقاعات -->
+				<LinearLayout
+					android:id="@+id/pvBox"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:padding="16dp"
+					android:orientation="vertical"
+					android:tag="cover:#1E2A38">
+					<TextView
+						android:id="@+id/pvOther"
+						android:layout_width="wrap_content"
+						android:layout_height="wrap_content"
+						android:padding="12dp"
+						android:text="رسالة مستلمة\n12:00"
+						android:textSize="15sp"
+						android:textStyle="bold"
+						android:layout_gravity="start"
+						android:tag="bubOther" />
+					<TextView
+						android:id="@+id/pvMine"
+						android:layout_width="wrap_content"
+						android:layout_height="wrap_content"
+						android:layout_marginTop="8dp"
+						android:padding="12dp"
+						android:text="رسالة مرسلة\n12:01"
+						android:drawableEnd="@drawable/ic_check_double_16"
+						android:drawablePadding="6dp"
+						android:textSize="15sp"
+						android:textStyle="bold"
+						android:layout_gravity="end"
+						android:tag="bubMine" />
+				</LinearLayout>
+
+				<!-- ثيم وخلفية المحادثة -->
+				<LinearLayout
+					android:id="@+id/linear782"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:layout_marginTop="14dp"
+					android:padding="16dp"
+					android:orientation="vertical"
+					android:tag="card"
+					android:elevation="0dp"
+					android:layout_marginStart="14dp"
+					android:layout_marginEnd="14dp">
+					<TextView
+						android:id="@+id/textview810"
+						android:layout_width="wrap_content"
+						android:layout_height="wrap_content"
+						android:text="ثيم وخلفية المحادثة"
+						android:textSize="14sp"
+						android:textStyle="bold"
+						android:tag="t" />
+					<HorizontalScrollView
+						android:id="@+id/hscroll8"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:layout_marginTop="10dp"
+						android:scrollbars="none">
+						<LinearLayout
+							android:id="@+id/themeStrip"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:orientation="horizontal" />
+					</HorizontalScrollView>
+				</LinearLayout>
+
+				<!-- حجم الخط -->
+				<LinearLayout
+					android:id="@+id/linear783"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:layout_marginTop="14dp"
+					android:padding="16dp"
+					android:orientation="vertical"
+					android:tag="card"
+					android:elevation="0dp"
+					android:layout_marginStart="14dp"
+					android:layout_marginEnd="14dp">
+					<LinearLayout
+						android:id="@+id/linear784"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:orientation="horizontal">
+						<TextView
+							android:id="@+id/textview811"
+							android:layout_width="0dp"
+							android:layout_height="wrap_content"
+							android:text="حجم خط الرسائل"
+							android:textSize="14sp"
+							android:textStyle="bold"
+							android:layout_weight="1"
+							android:tag="t" />
+						<TextView
+							android:id="@+id/fontVal"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="15"
+							android:textSize="14sp"
+							android:textStyle="bold"
+							android:tag="g" />
+					</LinearLayout>
+					<SeekBar
+						android:id="@+id/fontRange"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:layout_marginTop="8dp"
+						android:progress="3"
+						android:max="10" />
+				</LinearLayout>
+
+				<!-- زوايا الرسالة -->
+				<LinearLayout
+					android:id="@+id/linear785"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:layout_marginTop="14dp"
+					android:padding="16dp"
+					android:orientation="vertical"
+					android:tag="card"
+					android:elevation="0dp"
+					android:layout_marginStart="14dp"
+					android:layout_marginEnd="14dp">
+					<LinearLayout
+						android:id="@+id/linear786"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:orientation="horizontal">
+						<TextView
+							android:id="@+id/textview812"
+							android:layout_width="0dp"
+							android:layout_height="wrap_content"
+							android:text="زوايا الرسالة"
+							android:textSize="14sp"
+							android:textStyle="bold"
+							android:layout_weight="1"
+							android:tag="t" />
+						<TextView
+							android:id="@+id/radiusVal"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="16"
+							android:textSize="14sp"
+							android:textStyle="bold"
+							android:tag="g" />
+					</LinearLayout>
+					<SeekBar
+						android:id="@+id/radiusRange"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:layout_marginTop="8dp"
+						android:progress="16"
+						android:max="20" />
+				</LinearLayout>
+			</LinearLayout>
+		</ScrollView>
+	</LinearLayout>
+</FrameLayout>
