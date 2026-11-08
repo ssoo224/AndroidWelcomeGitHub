@@ -21,6 +21,7 @@ public final class CoverPattern extends View {
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path[] icons = new Path[6];
     private final Path tmp = new Path();
+    private final float[][] centers = new float[6][2];
     private final android.graphics.Matrix mx = new android.graphics.Matrix();
     private final float d;
 
@@ -83,6 +84,12 @@ public final class CoverPattern extends View {
         j.cubicTo(16, 21, 18.5f, 18, 18.5f, 14); j.cubicTo(18.5f, 10, 17, 7, 13.5f, 6); j.lineTo(13.5f, 3);
         j.moveTo(7, 12); j.lineTo(17, 12);
         icons[5] = j;
+        RectF r = new RectF();
+        for (int i = 0; i < 6; i++) {
+            icons[i].computeBounds(r, true);
+            centers[i][0] = r.centerX();
+            centers[i][1] = r.centerY();
+        }
     }
 
     @Override protected void onDraw(Canvas c) {
@@ -97,10 +104,10 @@ public final class CoverPattern extends View {
             float cx = cellW * (col + 0.5f), cy = rowH * (row + 0.5f);
             if (cy - rowH / 2f > h) break;
             int idx = (i * 5 + (i / 5) * 2) % 6;
+            // الرمز منتصب (بدون ميلان) ومتمركز حسب حدوده الفعلية داخل المربع
             mx.reset();
+            mx.postTranslate(-centers[idx][0], -centers[idx][1]);
             mx.postScale(k, k);
-            mx.postTranslate(-size / 2f, -size / 2f);
-            mx.postRotate(((i * 37) % 50) - 25);
             mx.postTranslate(cx, cy);
             tmp.reset();
             icons[idx].transform(mx, tmp);

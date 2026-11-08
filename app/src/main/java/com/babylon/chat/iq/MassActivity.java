@@ -486,11 +486,23 @@ public class MassActivity extends Activity {
                 f.requestLayout();
             }
 
+            /** حلقة ذهبية رفيعة (1.5dp) حول صورة الملف الشخصي؛ تختفي مع الصورة نفسها عند سحبها (ProfileHero يخفي الأفاتار). */
+            android.graphics.drawable.Drawable withRing(android.graphics.drawable.Drawable inner) {
+                GradientDrawable ring = new GradientDrawable();
+                ring.setShape(GradientDrawable.OVAL);
+                ring.setColor(Color.TRANSPARENT);
+                ring.setStroke(dp(1.5f), cGold());
+                android.graphics.drawable.LayerDrawable ld = new android.graphics.drawable.LayerDrawable(
+                        new android.graphics.drawable.Drawable[]{ring, inner});
+                ld.setLayerInset(1, dp(4), dp(4), dp(4), dp(4));
+                return ld;
+            }
+
             void fixAvatar(String id) {
                 TextView a = tv(id);
                 if (a == null) return;
                 ViewGroup.LayoutParams lp = a.getLayoutParams();
-                if (lp != null) { lp.width = dp(108); lp.height = dp(108); }
+                if (lp != null) { lp.width = dp(116); lp.height = dp(116); }   // 108 + حلقة ذهبية خفيفة (4dp حول الصورة)
                 a.setTextSize(40);
                 a.setTextColor(0xFFFFFFFF);
                 if (photoBmp != null && id.equals("pAvatarText")) {
@@ -498,13 +510,12 @@ public class MassActivity extends Activity {
                 } else {
                     GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{dark ? 0xFFF0D77A : 0xFFE8C25A, dark ? 0xFFC9A227 : 0xFFB88A1C});
                     g.setShape(GradientDrawable.OVAL);
-                    g.setStroke(dp(5), cBg());
-                    a.setBackground(g);
+                    a.setBackground(withRing(g));
                 }
                 a.setElevation(dp(6));
                 View par = (View) a.getParent();
                 if (par != null && par.getLayoutParams() instanceof ViewGroup.MarginLayoutParams)
-                    ((ViewGroup.MarginLayoutParams) par.getLayoutParams()).topMargin = -dp(58);
+                    ((ViewGroup.MarginLayoutParams) par.getLayoutParams()).topMargin = -dp(62);
                 a.requestLayout();
             }
 
@@ -545,7 +556,39 @@ public class MassActivity extends Activity {
                 if (ds[0] != null) ds[0].mutate().setColorFilter(ic, android.graphics.PorterDuff.Mode.SRC_IN);
             }
 
+            /**
+             * أيقونات المربعات (صفوف الملف الشخصي/الإعدادات/المحادثات): TextView فارغ النص بأيقونة drawableStart
+             * مع gravity=center كانت تنزاح لجهة بسبب حساب النص+الأيقونة معاً. نثبّتها بحشو متساوٍ فتصير في المنتصف تماماً.
+             */
+            void centerIconBoxes(View root) {
+                if (root == null) return;
+                if (root instanceof TextView) {
+                    TextView t = (TextView) root;
+                    ViewGroup.LayoutParams lp = t.getLayoutParams();
+                    android.graphics.drawable.Drawable[] ds = t.getCompoundDrawablesRelative();
+                    if (lp != null && t.getText().length() == 0 && ds[0] != null && ds[1] == null && ds[2] == null && ds[3] == null
+                            && lp.width > 0 && lp.height > 0 && Math.abs(lp.width - lp.height) <= dp(2) && lp.width <= dp(64)) {
+                        int iw = ds[0].getBounds().width() > 0 ? ds[0].getBounds().width() : ds[0].getIntrinsicWidth();
+                        if (iw > 0 && iw < lp.width) {
+                            int hp = (lp.width - iw) / 2;
+                            t.setCompoundDrawablePadding(0);
+                            t.setPadding(hp, 0, hp, 0);
+                            t.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+                        }
+                    }
+                }
+                if (root instanceof ViewGroup) {
+                    ViewGroup g = (ViewGroup) root;
+                    for (int i = 0; i < g.getChildCount(); i++) centerIconBoxes(g.getChildAt(i));
+                }
+            }
+
             void polishProfile() {
+                try {
+                    View spark = v("pCoverTxt");               // النجمة فوق صورة الملف الشخصي
+                    if (spark != null) spark.setVisibility(View.GONE);
+                } catch (Throwable ignored) { }
+                try { centerIconBoxes(act.findViewById(android.R.id.content)); } catch (Throwable ignored) { }
                 try {
                     View c1 = v("pCoverTxt"), c2 = v("otherBack");
                     if (c1 != null) fixCover((View) c1.getParent());
@@ -572,10 +615,11 @@ public class MassActivity extends Activity {
                     quick("pEdit", "ic_edit");
                     quick("pPhoto", "ic_camera");
                     quick("pCover", "ic_palette");
-                    actBtn("otherMsgBtn", 0);
-                    actBtn("otherStarsBtn", 1);
-                    actBtn("otherGiftBtn", 1);
-                    actBtn("otherBlockBtn", 2);
+                    // 4 أزرار موحّدة في سطر واحد (.pf-quick-other): نفس لون البطاقة وأيقونة ذهبية
+                    quick("otherMsgBtn", "ic_chat");
+                    quick("otherStarsBtn", "ic_star");
+                    quick("otherGiftBtn", "ic_gift");
+                    quick("otherBlockBtn", blocked ? "ic_check" : "ic_block");
                     int[] icn = {648, 650, 652, 654, 656, 658, 660, 662, 664};
                     for (int n : icn) {
                         TextView t = tv("textview" + n);
@@ -591,6 +635,7 @@ public class MassActivity extends Activity {
                     setTab(v("pTabStoriesBtn"), tabStories);
                     setTab(v("pTabGiftsBtn"), !tabStories);
                 } catch (Throwable ignored) { }
+                try { centerIconBoxes(act.findViewById(android.R.id.content)); } catch (Throwable ignored) { }
             }
 
             void tintIcons(TextView T) {
@@ -697,11 +742,14 @@ public class MassActivity extends Activity {
                     final View fv = v(from);
                     to.setVisibility(View.INVISIBLE);
                     final String pp = p;
-                    to.post(() -> BabylonFx.tabSlide(fv, to, ti > fi ? -1 : 1, cBg(), () -> {
-                        fv.setVisibility(View.GONE);
-                        to.setVisibility(View.VISIBLE);
+                    to.post(() -> {
+                        BabylonFx.tabSlide(fv, to, ti > fi ? -1 : 1, cBg(), () -> {
+                            fv.setVisibility(View.GONE);
+                            to.setVisibility(View.VISIBLE);
+                        });
+                        // العناصر تدخل مع الانزلاق نفسه (كما في الـ HTML) لا بعد انتهائه، فلا تختفي بعد أن تظهر
                         BabylonFx.stagger(to);
-                    }));
+                    });
                 } else if (to != null) {
                     boolean secondary = ti < 0;
                     if (secondary) BabylonFx.viewIn(to);
@@ -786,7 +834,7 @@ public class MassActivity extends Activity {
                 t.setTextColor(online ? 0xFF4ADE80 : cMuted());
                 t.setGravity(Gravity.CENTER_VERTICAL);
                 t.setCompoundDrawablePadding(dp(4));    // 4dp + 3dp هالة = 7dp كما في الـ HTML
-                t.setCompoundDrawablesRelative(ld, null, null, null);
+                t.setCompoundDrawables(null, null, ld, null);   // النقطة يمين النص والكلمة يسارها (RTL كما في الـ HTML)
             }
 
             void fillProfile() {
@@ -889,7 +937,7 @@ public class MassActivity extends Activity {
                 if (oUser != null) oUser.setText("@" + username);
                 TextView oBio = tv("otherBioDisplay");
                 if (oBio != null) oBio.setText("");
-                setLabel("otherBlockBtn", "حظر", icon("ic_block", 16));
+                quick("otherBlockBtn", "ic_block"); { TextView ob = tv("otherBlockBtn"); if (ob != null) ob.setText("حظر"); }
                 String back = curPage;
                 show("otherUserProfileView");
                 prevPage = back;
@@ -992,6 +1040,19 @@ public class MassActivity extends Activity {
                 TextView fltUnread = tv("fltUnread");
                 if (fltUnread != null) {
                     fltUnread.setText("غير المقروءة" + (unreadChats > 0 ? " (" + unreadChats + ")" : ""));
+                }
+                // أزرار (الكل) و(غير المقروءة) تظهر فقط عند وجود رسالة غير مقروءة
+                View flt = v("chatFilters");
+                if (flt != null) {
+                    boolean show = unreadChats > 0;
+                    if (!show && unreadOnly) {          // لم يعد هناك غير مقروء: نرجع لعرض الكل
+                        unreadOnly = false;
+                        setOn(v("fltAll"), true, "goldo");
+                        setOn(v("fltUnread"), false, "goldo");
+                    }
+                    boolean was = flt.getVisibility() == View.VISIBLE;
+                    flt.setVisibility(show ? View.VISIBLE : View.GONE);
+                    if (show && !was) BabylonFx.pop(flt, 0);
                 }
                 for (String[] c : chatData) {
                     if (unreadOnly && c[3].equals("0")) continue;
@@ -1580,7 +1641,10 @@ public class MassActivity extends Activity {
                 androidx.core.graphics.drawable.RoundedBitmapDrawable d =
                         androidx.core.graphics.drawable.RoundedBitmapDrawableFactory.create(act.getResources(), photoBmp);
                 d.setCircular(true);
-                t.setBackground(d);
+                d.setAntiAlias(true);
+                d.setMipMap(true);          // تصغير 1080→حجم العرض بدون تسنّن
+                photoBmp.setHasMipMap(true);
+                t.setBackground(t == tv("pAvatarText") ? withRing(d) : d);
                 t.setText("");
             }
 
@@ -1932,7 +1996,7 @@ public class MassActivity extends Activity {
                 else if (id.equals("otherMsgBtn")) openChat(otherName, otherUid);
                 else if (id.equals("otherBlockBtn")) {
                     blocked = !blocked;
-                    setLabel("otherBlockBtn", blocked ? "إلغاء الحظر" : "حظر", icon(blocked ? "ic_check" : "ic_block", 16));
+                    quick("otherBlockBtn", blocked ? "ic_check" : "ic_block"); { TextView ob = tv("otherBlockBtn"); if (ob != null) ob.setText(blocked ? "إلغاء الحظر" : "حظر"); }
                     toast(blocked ? "تم حظر " + otherName : "تم إلغاء الحظر");
                 }
                 else if (id.equals("otherMoreBtn")) {
@@ -2158,6 +2222,8 @@ public class MassActivity extends Activity {
                     heroOther = new ProfileHero(act, (PullScrollView) v("otherUserProfileView"), tv("otherAvatarText"), v("linear658"),
                             tv("otherHeaderName"), tv("otherHeaderStatus"), v("linear659"), false, () -> null,
                             v("otherBack"), v("otherMoreBtn"), pal);
+                    heroMe.setAvatarInset(dp(4));       // الحلقة الذهبية خارج الصورة: المربع المكبّر يبدأ من حدود الصورة نفسها
+                    heroOther.setAvatarInset(dp(4));
                 } catch (Throwable ignored) { }
                 try {
                     BabylonFx.shine(tv("textview621"));

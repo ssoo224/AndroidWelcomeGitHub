@@ -89,6 +89,7 @@ public final class ProfileHero implements PullScrollView.Controller {
     private final LinearLayoutLtr infoHolder;
 
     private float W, size0, avatarTop, ringBottom, coverH, quickH, infoBottom, quickBottom;
+    private float inset = 0f;               // حشو الحلقة الذهبية حول الأفاتار (الصورة الفعلية داخلها)
     private float p = 0f, p0 = 0f, lastPv = -1f;
     private boolean expanded = false, covered = false;
     private ValueAnimator anim;
@@ -265,9 +266,9 @@ public final class ProfileHero implements PullScrollView.Controller {
 
     private void measure() {
         W = sv.getWidth();
-        size0 = avatar.getWidth();
-        avatarTop = topInContent(avatar);
-        ringBottom = avatarTop + avatar.getHeight();
+        size0 = avatar.getWidth() - 2 * inset;
+        avatarTop = topInContent(avatar) + inset;
+        ringBottom = avatarTop + size0;
         coverH = cover != null ? cover.getHeight() : 0;
         quickH = quick != null ? quick.getHeight() : 0;
         infoBottom = topInContent(anchor) + anchor.getHeight();
@@ -278,6 +279,7 @@ public final class ProfileHero implements PullScrollView.Controller {
         // محتوى الطبقة: صورة المستخدم أو الحرف
         Bitmap bm = photo != null ? photo.get() : null;
         if (bm != null) {
+            bm.setHasMipMap(true);
             heroImg.setImageBitmap(bm);
             heroImg.setVisibility(View.VISIBLE);
             heroLetter.setVisibility(View.GONE);
@@ -298,15 +300,15 @@ public final class ProfileHero implements PullScrollView.Controller {
         heroName.setText(nameV != null ? nameV.getText() : "");
         heroStatus.setText(statusV != null ? statusV.getText().toString().replace("●", "").trim() : "");
         // نفس النقطة الخضراء فوق الصورة
-        Drawable[] sd = statusV != null ? statusV.getCompoundDrawablesRelative() : null;
+        Drawable[] sd = statusV != null ? statusV.getCompoundDrawables() : null;
         Drawable dotD = null;
-        if (sd != null && sd[0] != null && sd[0].getConstantState() != null) {
-            dotD = sd[0].getConstantState().newDrawable().mutate();
-            dotD.setBounds(sd[0].getBounds());
+        if (sd != null && sd[2] != null && sd[2].getConstantState() != null) {
+            dotD = sd[2].getConstantState().newDrawable().mutate();
+            dotD.setBounds(sd[2].getBounds());
         }
         heroStatus.setCompoundDrawablePadding((int) (4 * d));
         heroStatus.setGravity(Gravity.CENTER_VERTICAL);
-        heroStatus.setCompoundDrawablesRelative(dotD, null, null, null);
+        heroStatus.setCompoundDrawables(null, null, dotD, null);
     }
 
     private static float clamp(float v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
@@ -564,6 +566,9 @@ public final class ProfileHero implements PullScrollView.Controller {
         });
         anim.start();
     }
+
+    /** الأفاتار مُحاط بحلقة ذهبية بحشو px؛ الصورة المكبّرة تبدأ من حدود الصورة الداخلية لا الحلقة. */
+    public void setAvatarInset(float px) { inset = px; }
 
     /** عند تغيير حجم الشاشة/الدوران. */
     public boolean isExpanded() { return expanded; }

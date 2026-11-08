@@ -193,10 +193,14 @@ public final class BabylonFx {
         }
     }
 
-    /** دخول متدرّج لعناصر شاشة (يستدعى بعد أن تصبح الشاشة ظاهرة ومقاسة). */
+    /**
+     * دخول متدرّج لعناصر شاشة.
+     * يُنفَّذ داخل OnPreDraw: بعد القياس وقبل رسم أول إطار، فتُخفى العناصر قبل أن يراها المستخدم.
+     * (النسخة السابقة كانت تستعمل post فيظهر إطار كامل ثم تختفي الأزرار وتعود: وميض.)
+     */
     public static void stagger(final View root) {
         if (root == null) return;
-        root.post(() -> {
+        final Runnable run = () -> {
             java.util.ArrayList<View> list = new java.util.ArrayList<>();
             collect(root, list);
             int i = 0;
@@ -204,7 +208,18 @@ public final class BabylonFx {
                 if (isRise(v)) rise(v, Math.min(i, 12)); else pop(v, Math.min(i, 12));
                 i++;
             }
+        };
+        final android.view.ViewTreeObserver vto = root.getViewTreeObserver();
+        if (!vto.isAlive()) { root.post(run); return; }
+        vto.addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
+            @Override public boolean onPreDraw() {
+                android.view.ViewTreeObserver o = root.getViewTreeObserver();
+                if (o.isAlive()) o.removeOnPreDrawListener(this);
+                run.run();
+                return true;
+            }
         });
+        root.invalidate();
     }
 
     // ------------------------------------------------------- انتقال التبويبات
