@@ -19,6 +19,8 @@ public final class Tk {
     public static int pageBg(boolean d)  { return d ? 0xFF0E1621 : 0xFFF4F6FA; }
     public static int surface(boolean d) { return d ? 0xFF17212B : 0xFFFFFFFF; }
     public static int navBg(boolean d)   { return d ? 0xFF17212B : 0xFFF6EDD3; }
+    /** HTML: --cr-surface داخل المحادثة (خلفية الغرفة + لون الطبقة الزجاجية + لون شريط الإيماءات) */
+    public static int chatSurface(boolean d) { return d ? 0xFF17212B : 0xFFEEF2F8; }
     public static int surface2(boolean d){ return d ? 0xFF1D2A38 : 0xFFE8EDF4; }
     public static int border(boolean d)  { return d ? 0x14FFFFFF : 0xFFE3E9F1; }
     public static int text(boolean d)    { return d ? 0xFFF1F5F9 : 0xFF17212B; }
@@ -191,7 +193,15 @@ public final class Tk {
             return true;
         }
         if (tag.equals("homepat")) { x.setBackground(pattern(x, dark, pageBg(dark))); return true; }
-        if (tag.equals("chatpat")) { x.setBackground(pattern(x, dark, dark ? 0xFF17212B : 0xFFEEF2F8)); return true; }
+        if (tag.equals("chatpat")) { x.setBackground(pattern(x, dark, chatSurface(dark))); return true; }
+        if (tag.equals("glasst")) {          // رأس المحادثة: طبقة زجاجية 72% تمتد خلف شريط الإشعارات وتتلاشى عند حافتها السفلية
+            x.setBackground(new Glass(chatSurface(dark), true, dp(x, 16)));
+            return true;
+        }
+        if (tag.equals("glassb")) {          // مدخل الرسائل: طبقة زجاجية 72% تتلاشى عند حافتها العلوية
+            x.setBackground(new Glass(chatSurface(dark), false, dp(x, 16)));
+            return true;
+        }
         if (tag.equals("rbtn")) {            // زر دائري أبيض بظل (.icon-btn في الهيدر)
             GradientDrawable g = new GradientDrawable();
             g.setShape(GradientDrawable.OVAL);

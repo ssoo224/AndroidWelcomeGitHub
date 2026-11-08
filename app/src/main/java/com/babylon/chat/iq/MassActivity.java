@@ -887,8 +887,55 @@ public class MassActivity extends Activity {
             void applyInsets() {
                 View r = v("root");
                 if (r == null) return;
-                boolean edge = isProfilePage(curPage) && !chatOpen();
+                boolean chat = chatOpen();
+                // المحادثة مثل الـ HTML: تبدأ من أعلى الشاشة فعلاً (الطبقة الزجاجية للرأس خلف شريط الإشعارات والرسائل تمرّ من خلفها)
+                boolean edge = chat || isProfilePage(curPage);
                 r.setPadding(0, edge ? 0 : sbTop, 0, padBottom);
+                if (chat) applyChatInsets();
+            }
+
+            /** حواف المحادثة: الرأس ينزل بقدر شريط الإشعارات (+4dp) ، والمدخل يترك مسافة سفلية كما في .chat-input-container. */
+            void applyChatInsets() {
+                View tb = v("chatTopBar"), bb = v("chatBottomBar");
+                if (tb != null) tb.setPadding(0, sbTop + dp(4), 0, 0);
+                if (bb != null) {
+                    // HTML: padding-bottom = max(6px, مساحة الإيماءات) ، و4px أثناء ظهور لوحة المفاتيح.
+                    // مساحة الإيماءات هنا مأخوذة أصلاً من padding الجذر، فنكمّل الفرق فقط.
+                    boolean kb = padBottom - navBottom > dp(100);
+                    bb.setPadding(0, 0, 0, kb ? dp(4) : Math.max(0, dp(6) - navBottom));
+                }
+                syncChatPadding();
+            }
+
+            boolean nearBottom(ScrollView sv) {
+                View c = sv.getChildAt(0);
+                if (c == null) return true;
+                return (c.getBottom() + sv.getPaddingBottom()) - (sv.getScrollY() + sv.getHeight()) < dp(160);
+            }
+
+            /**
+             * الرسائل تمتد خلف الرأس والمدخل الزجاجيين، وتترك مسافة بقدر ارتفاعهما
+             * (HTML: padding-top = ارتفاع الرأس + 8 ، padding-bottom = ارتفاع المدخل + 10؛ و messagesArea فيه 10dp أصلاً).
+             */
+            void syncChatPadding() {
+                View ms = v("messagesScroll"), tb = v("chatTopBar"), bb = v("chatBottomBar");
+                if (!(ms instanceof ScrollView) || tb == null || bb == null) return;
+                if (tb.getHeight() <= 0 && bb.getHeight() <= 0) return;
+                int top = Math.max(0, tb.getHeight() - dp(2));
+                int bot = Math.max(0, bb.getHeight());
+                if (ms.getPaddingTop() == top && ms.getPaddingBottom() == bot) return;
+                boolean near = nearBottom((ScrollView) ms);
+                ms.setPadding(0, top, 0, bot);
+                if (near) scrollDown();
+            }
+
+            void setupChatGlass() {
+                View.OnLayoutChangeListener l = (vw, a, b, c, d, oa, ob, oc, od) -> {
+                    if ((d - b) != (od - ob)) vw.post(() -> syncChatPadding());
+                };
+                View tb = v("chatTopBar"), bb = v("chatBottomBar");
+                if (tb != null) tb.addOnLayoutChangeListener(l);
+                if (bb != null) bb.addOnLayoutChangeListener(l);
             }
 
             void syncBars() {
@@ -896,7 +943,7 @@ public class MassActivity extends Activity {
                     boolean inChat = chatOpen();
                     applyInsets();
                     int top, bottom;
-                    if (inChat) { top = cChatBg(); bottom = cChatBg(); }   // HTML: الشريطان بلون خلفية المحادثة (الرأس شفاف فوقها + الطبقة الزجاجية تحت الإيماءات)
+                    if (inChat) { bars.syncChat(Tk.chatSurface(dark)); return; }   // HTML: شريط الحالة شفاف (الزجاج خلفه) + شريط الإيماءات بلون خلفية المحادثة الصلب
                     else {
                         top = cBg();
                         boolean nav = v("bottomNav") != null && v("bottomNav").getVisibility() == View.VISIBLE;
@@ -1395,10 +1442,7 @@ public class MassActivity extends Activity {
                 loadMessages(currentChatId);
                 vis("chatView", true);
                 final View cv = v("chatView");
-                final View mi = v("messageInput");
-                final View composer = mi != null && mi.getParent() instanceof View && ((View) mi.getParent()).getParent() instanceof View
-                        ? (View) ((View) mi.getParent()).getParent() : null;
-                if (cv != null) cv.post(() -> BabylonFx.chatGrow(cv, v("linear607"), composer));
+                if (cv != null) cv.post(() -> BabylonFx.chatGrow(cv, v("chatTopBar"), v("chatBottomBar")));
                 syncBars();
             }
 
@@ -2649,6 +2693,7 @@ public class MassActivity extends Activity {
                         BabylonFx.press(v(pid), 0.94f);
                     BabylonFx.press(v("newGroupFab"), 0.92f);
                     setupComposer();
+                    setupChatGlass();
                     BabylonFx.press(v("btnSend"), 0.9f);
                     BabylonFx.press(v("btnMic"), 0.9f);
                     BabylonFx.press(v("settingsThemeToggle"), 0.95f);
