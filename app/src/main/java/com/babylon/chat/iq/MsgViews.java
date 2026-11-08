@@ -39,7 +39,8 @@ public final class MsgViews {
         private final float dens;
 
         public TickDrawable(Context c, int state, int style, int color) {
-            this.state = (state == WAIT && style == 0) ? SENT : state; this.style = style;   // عند الإرسال ✓ واحدة (بلا ساعة)، وعند الرؤية ✓✓ this.dens = d(c);
+            this.state = (state == WAIT && style == 0) ? SENT : state; this.style = style;   // عند الإرسال ✓ واحدة (بلا ساعة)، وعند الرؤية ✓✓
+            this.dens = d(c);
             p.setStyle(Paint.Style.STROKE);
             p.setStrokeCap(Paint.Cap.ROUND);
             p.setStrokeJoin(Paint.Join.ROUND);
