@@ -1444,8 +1444,8 @@ public class MassActivity extends Activity {
                 loadMessages(currentChatId);
                 vis("chatView", true);
                 final View cv = v("chatView");
-                if (cv != null) cv.post(() -> BabylonFx.chatGrow(cv, v("chatTopBar"), v("chatBottomBar")));
                 syncBars();
+                if (cv != null) BabylonFx.chatGrowNow(cv, v("chatTopBar"), v("chatBottomBar"));
             }
 
             void loadMessages(String chatId) {
@@ -1457,9 +1457,14 @@ public class MassActivity extends Activity {
                         final boolean liveBatch = !firstSnap[0];
                         firstSnap[0] = false;
                         for (DocumentChange dc : snapshots.getDocumentChanges()) {
+                            if (dc.getType() == DocumentChange.Type.REMOVED) {
+                                removeMsgView(dc.getDocument().getId(), null);
+                                continue;
+                            }
                             if (dc.getType() == DocumentChange.Type.MODIFIED) {
                                 DocumentSnapshot md = dc.getDocument();
                                 View mv = msgViewsById.get(md.getId());
+                                if (mv != null) applyReactions(md.getId(), mv, md.get("reactions"));
                                 if (mv != null && myUid.equals(md.getString("sender"))) {
                                     boolean rd = Boolean.TRUE.equals(md.getBoolean("read"));
                                     MsgViews.setState(mv, rd ? MsgViews.READ : (md.getMetadata().hasPendingWrites() ? MsgViews.WAIT : MsgViews.SENT));
@@ -1472,6 +1477,7 @@ public class MassActivity extends Activity {
                                 String id = doc.getId();
                                 if (renderedMsgIds.contains(id)) continue;
                                 renderedMsgIds.add(id);
+                                if (hiddenSet().contains(id)) continue;   // محذوفة "لدي فقط"
 
                                 String type = doc.getString("type");
                                 if (type == null) type = "text";
@@ -1499,6 +1505,7 @@ public class MassActivity extends Activity {
                                         View last = ma0.getChildAt(ma0.getChildCount() - 1);
                                         msgViewsById.put(id, last);
                                         if (mine) MsgViews.setState(last, state);
+                                        applyReactions(id, last, doc.get("reactions"));
                                     }
                                     scrollDown();
                                     if (liveBatch) {
@@ -1562,7 +1569,8 @@ public class MassActivity extends Activity {
                 lp.gravity = mine ? Gravity.RIGHT : Gravity.LEFT;   // المرسَلة يميناً والمستلمة يساراً (مطلق، لا يتأثر بالاتجاه)
                 lp.setMargins(0, dp(4), 0, dp(4));
                 b.setLayoutParams(lp);
-                b.setOnLongClickListener(x -> { msgMenu(b, mine); return true; });
+                b.setOnClickListener(x -> msgMenu(b, mine, 0, null));
+                b.setOnLongClickListener(x -> { msgSelect(b, mine, 0, null); return true; });
                 LinearLayout msgArea = (LinearLayout) v("messagesArea");
                 if (msgArea != null) msgArea.addView(b);
                 style(b);
@@ -1626,6 +1634,7 @@ public class MassActivity extends Activity {
                     Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
                     try { act.startActivity(i); } catch (Exception e) { toast("لا يمكن فتح الصورة"); }
                 });
+                frame.setOnLongClickListener(x -> { msgSelect(frame, mine, 1, url); return true; });
                 LinearLayout msgArea = (LinearLayout) v("messagesArea");
                 if (msgArea != null) msgArea.addView(frame);
             }
@@ -1638,6 +1647,8 @@ public class MassActivity extends Activity {
                 box.setLayoutParams(lp);
                 box.addView(MsgViews.metaRow(act, mine, time, MsgViews.SENT));
                 box.playBtn.setOnClickListener(v -> playAudio(url, box, durationMs));
+                box.setOnClickListener(x -> msgMenu(box, mine, 2, url));
+                box.setOnLongClickListener(x -> { msgSelect(box, mine, 2, url); return true; });
                 box.track.listener = f -> { if (mediaPlayer != null && playingHandle == box) { try { mediaPlayer.seekTo((int) (mediaPlayer.getDuration() * f)); } catch (Throwable ignored) { } } };
                 LinearLayout msgArea = (LinearLayout) v("messagesArea");
                 if (msgArea != null) msgArea.addView(box);
@@ -1714,50 +1725,238 @@ public class MassActivity extends Activity {
                 }).start();
             }
 
-            void msgMenu(final View b, final boolean mine) {
-                PopupMenu pm = new PopupMenu(act, b);
-                pm.getMenu().add(0, 1, 0, "رد");
-                pm.getMenu().add(0, 2, 1, "نسخ");
-                if (mine) pm.getMenu().add(0, 3, 2, "تعديل");
-                pm.getMenu().add(0, 4, 3, "حذف");
-                pm.setOnMenuItemClickListener(it -> {
-                    String raw = bodyOf(String.valueOf(b.getContentDescription()));
-                    switch (it.getItemId()) {
-                        case 1:
-                            replyText = raw.length() > 40 ? raw.substring(0, 40) + "…" : raw;
-                            setLabel("replyLabel", "الرد على الرسالة", icon("ic_reply", 16));
-                            TextView rp = tv("replyPreviewText");
-                            if (rp != null) rp.setText(replyText);
-                            vis("replyPreviewBar", true);
-                            EditText mi = et("messageInput");
-                            if (mi != null) mi.requestFocus();
-                            break;
-                        case 2:
-                            ClipboardManager cm = (ClipboardManager) act.getSystemService(Context.CLIPBOARD_SERVICE);
-                            cm.setPrimaryClip(ClipData.newPlainText("msg", raw));
-                            toast("تم نسخ الرسالة");
-                            break;
-                        case 3:
-                            editing = b; replyText = null;
-                            setLabel("replyLabel", "تعديل الرسالة", icon("ic_edit", 16));
-                            TextView rp2 = tv("replyPreviewText");
-                            if (rp2 != null) rp2.setText(raw);
-                            vis("replyPreviewBar", true);
-                            EditText mi2 = et("messageInput");
-                            if (mi2 != null) {
-                                mi2.setText(raw);
-                                mi2.setSelection(raw.length());
-                                mi2.requestFocus();
-                            }
-                            break;
-                        case 4:
-                            LinearLayout msgArea = (LinearLayout) v("messagesArea");
-                            if (msgArea != null) msgArea.removeView(b);
-                            break;
+            // ===== قائمة الرسالة (نسخة طبق الأصل من #msgModal و #selEmojiBar في الـ HTML) =====
+            final java.util.Map<String, String> myReact = new java.util.HashMap<>();   // msgId -> إيموجي تفاعلي أنا
+
+            String idOfView(View b) {
+                for (java.util.Map.Entry<String, View> en : msgViewsById.entrySet()) if (en.getValue() == b) return en.getKey();
+                return null;
+            }
+
+            /** نقرة عادية على الرسالة: الشريط + بطاقة الأزرار. */
+            void msgMenu(View b, boolean mine) { msgMenu(b, mine, 0, null); }
+
+            void msgMenu(final View b, final boolean mine, final int kind, final String url) {
+                final String id = idOfView(b);
+                final String raw = kind == 0 ? bodyOf(String.valueOf(b.getContentDescription())) : "";
+                MsgMenu.Spec sp0 = new MsgMenu.Spec();
+                sp0.canCopy = kind == 0 && raw.trim().length() > 0;
+                sp0.canEdit = kind == 0 && mine;
+                sp0.canDownload = kind == 1 && url != null;
+                sp0.downloadLabel = "تحميل الصورة";
+                sp0.myReaction = id != null && myReact.get(id) != null ? myReact.get(id) : "";
+                MsgMenu.show(act, b, dark, sbTop, Math.max(navBottom, padBottom), sp0, msgCb(b, mine, kind, url, raw));
+            }
+
+            /** ضغط مطوّل = تحديد: إطار ذهبي + حبة التفاعلات فوق الرسالة، وزر + يفتح القائمة الكاملة. */
+            void msgSelect(final View b, final boolean mine, final int kind, final String url) {
+                hideKb();
+                final String id = idOfView(b);
+                final String raw = kind == 0 ? bodyOf(String.valueOf(b.getContentDescription())) : "";
+                b.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+                MsgMenu.showPill(act, b, dark, cGold(), sbTop, Math.max(navBottom, padBottom),
+                        id != null && myReact.get(id) != null ? myReact.get(id) : "",
+                        () -> msgMenu(b, mine, kind, url), msgCb(b, mine, kind, url, raw));
+            }
+
+            MsgMenu.Cb msgCb(final View b, final boolean mine, final int kind, final String url, final String raw) {
+                return new MsgMenu.Cb() {
+                    @Override public void reply() {
+                        String r = kind == 0 ? raw : (kind == 1 ? "صورة" : "بصمة صوتية");
+                        replyText = r.length() > 40 ? r.substring(0, 40) + "…" : r;
+                        setLabel("replyLabel", "الرد على الرسالة", icon("ic_reply", 16));
+                        TextView rp = tv("replyPreviewText");
+                        if (rp != null) rp.setText(replyText);
+                        vis("replyPreviewBar", true);
+                        EditText mi = et("messageInput");
+                        if (mi != null) mi.requestFocus();
                     }
-                    return true;
+                    @Override public void copy() {
+                        ClipboardManager cm = (ClipboardManager) act.getSystemService(Context.CLIPBOARD_SERVICE);
+                        cm.setPrimaryClip(ClipData.newPlainText("msg", raw));
+                        toast("تم نسخ النص!");
+                    }
+                    @Override public void download() { saveImageMsg(url); }
+                    @Override public void edit() {
+                        editing = b; replyText = null;
+                        setLabel("replyLabel", "تعديل الرسالة", icon("ic_edit", 16));
+                        TextView rp2 = tv("replyPreviewText");
+                        if (rp2 != null) rp2.setText(raw);
+                        vis("replyPreviewBar", true);
+                        EditText mi2 = et("messageInput");
+                        if (mi2 != null) {
+                            mi2.setText(raw);
+                            mi2.setSelection(raw.length());
+                            mi2.requestFocus();
+                        }
+                        toast("أدخل التعديل ثم اضغط إرسال");
+                    }
+                    @Override public void delete() { msgDeleteDialog(b); }
+                    @Override public void react(String emoji) { reactTo(b, emoji); }
+                };
+            }
+
+            // ---- حذف: لدي فقط / لدى الكل (messageDeleteModal)
+            java.util.Set<String> hiddenSet() {
+                return new java.util.HashSet<>(sp.getStringSet("hidden_msgs_" + currentChatId, new java.util.HashSet<String>()));
+            }
+
+            void msgDeleteDialog(final View b) {
+                final String id = idOfView(b);
+                final String cid = currentChatId;
+                MsgMenu.showDelete(act, dark, new MsgMenu.DeleteCb() {
+                    @Override public void forMe() {
+                        if (id != null) { java.util.Set<String> h = hiddenSet(); h.add(id); sp.edit().putStringSet("hidden_msgs_" + cid, h).apply(); }
+                        removeMsgView(id, b);
+                    }
+                    @Override public void forAll() {
+                        if (id == null || cid.isEmpty()) { toast("تعذر تحديد الرسالة"); return; }
+                        new AlertDialog.Builder(act).setTitle("حذف الرسالة لدى الجميع")
+                            .setMessage("سيتم حذف الرسالة لدى الجميع إذا سمحت صلاحيات قاعدة البيانات. هل تريد المتابعة؟")
+                            .setPositiveButton("حذف الرسالة", (d, w) ->
+                                db.collection("chats").document(cid).collection("messages").document(id).delete()
+                                    .addOnSuccessListener(x -> { removeMsgView(id, b); toast("تم حذف الرسالة لدى الجميع"); })
+                                    .addOnFailureListener(e -> toast(e instanceof com.google.firebase.firestore.FirebaseFirestoreException
+                                        && ((com.google.firebase.firestore.FirebaseFirestoreException) e).getCode() == com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED
+                                        ? "تعذر الحذف: قواعد Firestore لا تسمح بذلك" : "تعذر حذف الرسالة؛ تحقق من الاتصال والصلاحيات")))
+                            .setNegativeButton("إلغاء", null).show();
+                    }
                 });
-                pm.show();
+            }
+
+            void removeMsgView(String id, View b) {
+                View mv = id != null ? msgViewsById.remove(id) : null;
+                if (mv == null) mv = b;
+                if (id != null) myReact.remove(id);
+                if (mv != null && mv.getParent() instanceof ViewGroup) ((ViewGroup) mv.getParent()).removeView(mv);
+            }
+
+            // ---- التفاعلات: reactions.<uid> = إيموجي (نفس صيغة الـ HTML). نفس الإيموجي مرة ثانية يزيل تفاعلك فقط.
+            void reactTo(View b, String emoji) {
+                String id = idOfView(b);
+                if (id == null || currentChatId.isEmpty() || myUid == null || myUid.isEmpty()) return;
+                String cur = myReact.get(id);
+                Object val = emoji.equals(cur) ? com.google.firebase.firestore.FieldValue.delete() : emoji;
+                db.collection("chats").document(currentChatId).collection("messages").document(id)
+                    .update("reactions." + myUid, val)
+                    .addOnFailureListener(e -> toast("تعذر إرسال التفاعل"));
+            }
+
+            /** يرسم شارات التفاعل أسفل الفقاعة (reactions-row) أو داخل زاوية الصورة (media-react). */
+            @SuppressWarnings("unchecked")
+            void applyReactions(String id, View bubble, Object raw) {
+                if (bubble == null) return;
+                java.util.LinkedHashMap<String, int[]> map = new java.util.LinkedHashMap<>();   // emoji -> {count, mine}
+                String mineE = null;
+                if (raw instanceof java.util.Map) {
+                    for (java.util.Map.Entry<String, Object> en : ((java.util.Map<String, Object>) raw).entrySet()) {
+                        if (!(en.getValue() instanceof String)) continue;
+                        String e = (String) en.getValue();
+                        if (e.length() == 0) continue;
+                        int[] o = map.get(e); if (o == null) { o = new int[]{0, 0}; map.put(e, o); }
+                        o[0]++;
+                        if (en.getKey().equals(myUid)) { o[1] = 1; mineE = e; }
+                    }
+                }
+                if (mineE != null) myReact.put(id, mineE); else myReact.remove(id);
+
+                View old = bubble.findViewWithTag("reactRow");
+                if (old != null && old.getParent() instanceof ViewGroup) ((ViewGroup) old.getParent()).removeView(old);
+                if (map.isEmpty()) return;
+
+                LinearLayout rowL = new LinearLayout(act);
+                rowL.setOrientation(LinearLayout.HORIZONTAL);
+                rowL.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+                rowL.setTag("reactRow");
+                int shown = 0;
+                for (java.util.Map.Entry<String, int[]> en : map.entrySet()) {
+                    if (shown == 3) break;
+                    rowL.addView(reactChip(en.getKey(), en.getValue()[0], en.getValue()[1] == 1));
+                    shown++;
+                }
+                if (map.size() > shown) rowL.addView(reactChip("+" + (map.size() - shown), 1, false));
+
+                if (bubble instanceof FrameLayout) {            // صورة: شارة داخل الزاوية السفلية
+                    FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-2, -2);
+                    lp.gravity = Gravity.BOTTOM | Gravity.LEFT;
+                    lp.setMargins(dp(8), 0, 0, dp(8));
+                    ((FrameLayout) bubble).addView(rowL, lp);
+                } else if (bubble instanceof LinearLayout) {   // نص/صوت: صف أسفل الفقاعة
+                    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+                    lp.gravity = Gravity.START;
+                    lp.topMargin = dp(4);
+                    ((LinearLayout) bubble).addView(rowL, lp);
+                }
+            }
+
+            View reactChip(String emoji, int count, boolean mine) {
+                LinearLayout c = new LinearLayout(act);
+                c.setOrientation(LinearLayout.HORIZONTAL);
+                c.setGravity(Gravity.CENTER_VERTICAL);
+                c.setPadding(dp(8), dp(2), dp(8), dp(2));
+                GradientDrawable g = new GradientDrawable();
+                g.setColor(dark ? 0xFF202D3A : 0xFFFFFFFF);
+                g.setCornerRadius(dp(13));
+                g.setStroke(dp(1), mine ? cGold() : (dark ? 0xFF334155 : 0xFFE1E7EF));
+                c.setBackground(g);
+                TextView t = new TextView(act);
+                t.setText(emoji); t.setTextSize(emoji.startsWith("+") ? 12 : 16); t.setIncludeFontPadding(false);
+                t.setTextColor(dark ? 0xFFF1F5F9 : 0xFF17212B);
+                c.addView(t);
+                if (count > 1) {
+                    TextView n = new TextView(act);
+                    n.setText(String.valueOf(count)); n.setTextSize(11); n.setTypeface(null, android.graphics.Typeface.BOLD);
+                    n.setTextColor(dark ? 0xFFF1F5F9 : 0xFF17212B); n.setIncludeFontPadding(false);
+                    LinearLayout.LayoutParams nl = new LinearLayout.LayoutParams(-2, -2);
+                    nl.setMarginStart(dp(3));
+                    c.addView(n, nl);
+                }
+                LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(-2, -2);
+                cl.setMarginEnd(dp(4));
+                c.setLayoutParams(cl);
+                return c;
+            }
+
+            // ---- تحميل الصورة إلى المعرض (Pictures/Babylon)
+            void saveImageMsg(final String url) {
+                if (url == null) return;
+                toast("جارٍ التحميل…");
+                new Thread(() -> {
+                    try {
+                        byte[] data;
+                        if (url.startsWith("http")) {
+                            java.net.HttpURLConnection conn = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
+                            conn.setDoInput(true); conn.connect();
+                            java.io.InputStream is = conn.getInputStream();
+                            java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+                            byte[] buf = new byte[8192]; int n;
+                            while ((n = is.read(buf)) > 0) bo.write(buf, 0, n);
+                            is.close();
+                            data = bo.toByteArray();
+                        } else data = android.util.Base64.decode(url, android.util.Base64.DEFAULT);
+                        String mime = (data.length > 3 && data[0] == (byte) 0x89 && data[1] == 'P') ? "image/png"
+                                : (data.length > 3 && data[0] == 'R' && data[1] == 'I') ? "image/webp" : "image/jpeg";
+                        String ext = mime.equals("image/png") ? ".png" : mime.equals("image/webp") ? ".webp" : ".jpg";
+                        String name = "Babylon_" + System.currentTimeMillis() + ext;
+                        if (Build.VERSION.SDK_INT >= 29) {
+                            android.content.ContentValues cv = new android.content.ContentValues();
+                            cv.put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, name);
+                            cv.put(android.provider.MediaStore.Images.Media.MIME_TYPE, mime);
+                            cv.put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Babylon");
+                            Uri u = act.getContentResolver().insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, cv);
+                            java.io.OutputStream os = act.getContentResolver().openOutputStream(u);
+                            os.write(data); os.close();
+                        } else {
+                            File dir = new File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_PICTURES), "Babylon");
+                            dir.mkdirs();
+                            File f = new File(dir, name);
+                            java.io.FileOutputStream fo = new java.io.FileOutputStream(f);
+                            fo.write(data); fo.close();
+                            android.media.MediaScannerConnection.scanFile(act, new String[]{f.getAbsolutePath()}, new String[]{mime}, null);
+                        }
+                        act.runOnUiThread(() -> toast("تم حفظ الصورة في المعرض"));
+                    } catch (Throwable t) { act.runOnUiThread(() -> toast("تعذر التنزيل")); }
+                }).start();
             }
 
             void cancelReply() { replyText = null; editing = null; vis("replyPreviewBar", false); }
@@ -1948,7 +2147,7 @@ public class MassActivity extends Activity {
             }
 
             // ---------------- التسجيل الصوتي: مطابق لـ #recordingBar في الـ HTML (تسجيل ← معاينة ← إرسال)
-            boolean recPreview = false, recPlaying = false;
+            boolean recPreview = false, recPlaying = false, forceAac = false;
             long recDurMs = 0;
             MediaPlayer recPlayer = null;
             ValueAnimator recAnim = null;
@@ -2085,7 +2284,7 @@ public class MassActivity extends Activity {
                 try {
                     File dir = new File(act.getFilesDir(), "voice");
                     if (!dir.exists()) dir.mkdirs();
-                    final boolean ogg = Build.VERSION.SDK_INT >= 29;   // OGG/Opus يتطلب أندرويد 10+، وما دونه يبقى AAC
+                    final boolean ogg = Build.VERSION.SDK_INT >= 29 && !forceAac;   // OGG/Opus يتطلب أندرويد 10+، وما دونه يبقى AAC
                     audioFile = new File(dir, "rec_" + System.currentTimeMillis() + (ogg ? ".ogg" : ".m4a"));
 
                     if (Build.VERSION.SDK_INT >= 31) recorder = new MediaRecorder(act);
@@ -2094,15 +2293,15 @@ public class MassActivity extends Activity {
                     if (ogg) {
                         recorder.setOutputFormat(MediaRecorder.OutputFormat.OGG);
                         recorder.setAudioEncoder(MediaRecorder.AudioEncoder.OPUS);
-                        recorder.setAudioEncodingBitRate(32000);
+                        recorder.setAudioEncodingBitRate(64000);   // 64kbps أحادي = جودة شبه شفافة للصوت، ودقيقة كاملة ≈ 640KB base64 (حد Firestore 1MB)
                         recorder.setAudioChannels(1);
-                        recorder.setAudioSamplingRate(48000);   // Opus لا يدعم 44100
+                        recorder.setAudioSamplingRate(48000);   // 48kHz هو أعلى تردد يدعمه Opus (ولا يدعم 44100)
                     } else {
                         recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
                         recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
-                        recorder.setAudioEncodingBitRate(32000);
+                        recorder.setAudioEncodingBitRate(64000);
                         recorder.setAudioChannels(1);
-                        recorder.setAudioSamplingRate(44100);
+                        recorder.setAudioSamplingRate(44100);   // مدعوم في كل الأجهزة
                     }
                     recorder.setOutputFile(audioFile.getAbsolutePath());
                     recorder.prepare();
@@ -2124,9 +2323,14 @@ public class MassActivity extends Activity {
                     };
                     recHandler.post(recTick);
                 } catch (Exception e) {
-                    toast("فشل بدء التسجيل: " + e.getMessage());
                     try { if (recorder != null) recorder.release(); } catch (Exception ignored) { }
                     recorder = null; isRecording = false;
+                    if (Build.VERSION.SDK_INT >= 29 && !forceAac) {   // جهاز لا يدعم OGG/Opus فعلياً: نكمل بـ AAC تلقائياً
+                        forceAac = true;
+                        startRecord();
+                        return;
+                    }
+                    toast("فشل بدء التسجيل: " + e.getMessage());
                     showRecordingUi(false);
                 }
             }

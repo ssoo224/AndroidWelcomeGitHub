@@ -164,6 +164,25 @@ public final class BabylonFx {
         barUp(composer, 120);
     }
 
+    /**
+     * نفس chatGrow لكن داخل OnPreDraw: بعد القياس وقبل رسم أول إطار.
+     * (استعمال post كان يرسم المحادثة كاملة إطاراً واحداً ثم يخفيها ويبدأ الحركة: وميض عند الدخول.)
+     */
+    public static void chatGrowNow(final View chat, final View header, final View composer) {
+        if (chat == null) return;
+        final android.view.ViewTreeObserver vto = chat.getViewTreeObserver();
+        if (!vto.isAlive()) { chat.post(() -> chatGrow(chat, header, composer)); return; }
+        vto.addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
+            @Override public boolean onPreDraw() {
+                android.view.ViewTreeObserver o = chat.getViewTreeObserver();
+                if (o.isAlive()) o.removeOnPreDrawListener(this);
+                chatGrow(chat, header, composer);
+                return true;
+            }
+        });
+        chat.invalidate();
+    }
+
     // ------------------------------------------------------------ stagger
     private static final int MAX_ITEMS = 16;
 

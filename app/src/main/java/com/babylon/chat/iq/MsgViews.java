@@ -258,27 +258,49 @@ public final class MsgViews {
     /** موجة الصوت: أعمدة بعرض 2dp، ارتفاعاتها من قواعد nth-child في الـ CSS. */
     public static final class WaveView extends View {
         private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-        float progress; boolean playing; int base = 0xFF17212B, gold = 0xFFC29D30;
+        float progress; boolean playing, anim; int base = 0xFF17212B, gold = 0xFFC29D30, playColor = 0xFFFFFFFF;
+        private long t0;
         public WaveView(Context c) { super(c); }
         public void setColors(int baseColor, int goldColor) { base = baseColor; gold = goldColor; invalidate(); }
+        public void setColors(int baseColor, int goldColor, int playingColor) { playColor = playingColor; setColors(baseColor, goldColor); }
         public void setProgress(float f, boolean pl) { progress = f; playing = pl; invalidate(); }
+        /** أثناء التشغيل: الموجة متحركة مثل موجة التسجيل وكلها بلون واحد (أبيض). */
+        public void setAnimating(boolean on) {
+            if (on == anim) return;
+            anim = on; t0 = System.nanoTime();
+            invalidate();
+        }
         @Override protected void onDraw(Canvas c) {
             float dens = d(getContext());
             int n = 40;
             float w = getWidth(), h = getHeight(), bw = 2 * dens;
             float step = (w - bw) / (n - 1);
+            double t = (System.nanoTime() - t0) / 1e9;
             for (int i = 1; i <= n; i++) {
                 float hh = 4;
                 if (i % 3 == 0) hh = 7; else if (i % 4 == 0) hh = 6; else if (i % 5 == 0) hh = 8;
                 hh += (i * 7 % 6) + (i % 9 == 0 ? 3 : 0);
                 hh *= dens;
-                // الاتجاه RTL: العمود الأول عند اليمين
-                float x = w - bw - (i - 1) * step;
+                float x = w - bw - (i - 1) * step;   // RTL: العمود الأول عند اليمين
+                if (anim) {
+                    int k = i % 4;                    // نفس تأخيرات موجة التسجيل
+                    double dly = k == 1 ? 0.2 : k == 2 ? 0.5 : k == 3 ? 0.35 : 0;
+                    double xx = (t + dly) / 0.72, fr = xx - Math.floor(xx);
+                    double vv = (((long) Math.floor(xx)) % 2 == 0) ? fr : 1 - fr;
+                    double e = vv * vv * (3 - 2 * vv);
+                    float hm = Math.min(h, hh * 1.6f);   // ارتفاع أكبر قليلاً ليظهر التحرك
+                    float cur = (float) (hm * (0.45 + 0.55 * e));
+                    p.setColor(playColor);
+                    p.setAlpha((int) (255 * (0.6 + 0.4 * e)));
+                    c.drawRoundRect(x, (h - cur) / 2, x + bw, (h + cur) / 2, bw * 2, bw * 2, p);
+                    continue;
+                }
                 boolean played = ((i - 1f) / (n - 1f)) <= progress;
                 p.setColor(played && progress > 0 ? gold : base);
                 p.setAlpha(played && progress > 0 ? 242 : 115);
                 c.drawRoundRect(x, (h - hh) / 2, x + bw, (h + hh) / 2, bw * 2, bw * 2, p);
             }
+            if (anim) postInvalidateOnAnimation();
         }
     }
 
@@ -351,6 +373,7 @@ public final class MsgViews {
         }
         @Override public void setPlaying(boolean playing) {
             playIcon.setImageResource(playing ? R.drawable.ic_voice_pause : R.drawable.ic_voice_play);
+            wave.setAnimating(playing);
         }
         @Override public void setProgress(float f, String time) {
             track.setProgress(f);

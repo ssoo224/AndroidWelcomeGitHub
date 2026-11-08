@@ -168,7 +168,8 @@ public final class Tk {
         if (tag.equals("vkM") || tag.equals("vkO")) { if (x instanceof MsgViews.TrackView) ((MsgViews.TrackView) x).setDark(dark); return true; }
         if (tag.equals("wvM") || tag.equals("wvO")) {
             if (x instanceof MsgViews.WaveView)
-                ((MsgViews.WaveView) x).setColors(tag.equals("wvM") ? 0xFF292216 : text(dark), tag.equals("wvM") ? 0xFFFFFFFF : 0xFFC29D30);
+                ((MsgViews.WaveView) x).setColors(tag.equals("wvM") ? 0xFF292216 : text(dark), tag.equals("wvM") ? 0xFFFFFFFF : 0xFFC29D30,
+                        (tag.equals("wvM") || dark) ? 0xFFFFFFFF : 0xFFC29D30);   // أبيض عند التشغيل (في الفاتح وفقاعة المستلم: ذهبي كي لا يختفي على الأبيض)
             return true;
         }
         if (tag.equals("vpM") || tag.equals("vpO")) {
