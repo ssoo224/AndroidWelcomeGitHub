@@ -30,7 +30,6 @@ public class SketchwareUtil {
         _gradientDrawable.setCornerRadius(_radius);
         _view.setBackground(_gradientDrawable);
         _view.setPadding(15, 10, 15, 10);
-        _view.setElevation(10);
 
         switch (_gravity) {
             case 1:
@@ -63,7 +62,6 @@ public class SketchwareUtil {
         _gradientDrawable.setCornerRadius(_radius);
         _view.setBackground(_gradientDrawable);
         _view.setPadding(10, 10, 10, 10);
-        _view.setElevation(10);
 
         switch (_gravity) {
             case 1:

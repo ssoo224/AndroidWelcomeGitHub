@@ -46,7 +46,7 @@
 					android:textSize="35sp"
 					android:textStyle="bold"
 					android:textColor="#FFFFFF"
-					android:elevation="6dp"
+					android:elevation="0dp"
 					android:tag="circ" />
 				<TextView
 					android:id="@+id/sxName"
@@ -94,7 +94,7 @@
 				android:layout_height="wrap_content"
 				android:orientation="vertical"
 				android:tag="card"
-				android:elevation="2dp"
+				android:elevation="0dp"
 				android:layout_marginStart="16dp"
 				android:layout_marginEnd="16dp">
 
@@ -291,7 +291,7 @@
 				android:layout_height="wrap_content"
 				android:orientation="vertical"
 				android:tag="card"
-				android:elevation="2dp"
+				android:elevation="0dp"
 				android:layout_marginStart="16dp"
 				android:layout_marginEnd="16dp">
 
@@ -366,7 +366,7 @@
 				android:layout_height="wrap_content"
 				android:orientation="vertical"
 				android:tag="card"
-				android:elevation="2dp"
+				android:elevation="0dp"
 				android:layout_marginStart="16dp"
 				android:layout_marginEnd="16dp">
 
@@ -430,7 +430,7 @@
 				android:layout_marginTop="16dp"
 				android:orientation="vertical"
 				android:tag="card"
-				android:elevation="2dp"
+				android:elevation="0dp"
 				android:layout_marginStart="16dp"
 				android:layout_marginEnd="16dp">
 
@@ -540,7 +540,7 @@
 			android:gravity="center_vertical"
 			android:orientation="horizontal"
 			android:tag="sf"
-			android:elevation="3dp">
+			android:elevation="0dp">
 			<TextView
 				android:id="@+id/privacyBack"
 				android:layout_width="56dp"
@@ -589,7 +589,7 @@
 					android:layout_height="wrap_content"
 					android:orientation="vertical"
 					android:tag="card"
-					android:elevation="2dp"
+					android:elevation="0dp"
 					android:layout_marginStart="14dp"
 					android:layout_marginEnd="14dp">
 
@@ -754,7 +754,7 @@
 					android:layout_height="wrap_content"
 					android:orientation="vertical"
 					android:tag="card"
-					android:elevation="2dp"
+					android:elevation="0dp"
 					android:layout_marginStart="14dp"
 					android:layout_marginEnd="14dp">
 
@@ -889,7 +889,7 @@
 					android:layout_height="wrap_content"
 					android:orientation="vertical"
 					android:tag="card"
-					android:elevation="2dp"
+					android:elevation="0dp"
 					android:layout_marginStart="14dp"
 					android:layout_marginEnd="14dp">
 
@@ -994,7 +994,7 @@
 					android:layout_marginTop="16dp"
 					android:orientation="vertical"
 					android:tag="card"
-					android:elevation="2dp"
+					android:elevation="0dp"
 					android:layout_marginStart="14dp"
 					android:layout_marginEnd="14dp">
 
@@ -1059,7 +1059,7 @@
 			android:gravity="center_vertical"
 			android:orientation="horizontal"
 			android:tag="sf"
-			android:elevation="3dp">
+			android:elevation="0dp">
 			<TextView
 				android:id="@+id/notifBack"
 				android:layout_width="56dp"
@@ -1097,7 +1097,7 @@
 					android:layout_marginTop="14dp"
 					android:orientation="vertical"
 					android:tag="card"
-					android:elevation="2dp"
+					android:elevation="0dp"
 					android:layout_marginStart="14dp"
 					android:layout_marginEnd="14dp">
 					<LinearLayout
@@ -1160,7 +1160,7 @@
 					android:layout_height="wrap_content"
 					android:orientation="vertical"
 					android:tag="card"
-					android:elevation="2dp"
+					android:elevation="0dp"
 					android:layout_marginStart="14dp"
 					android:layout_marginEnd="14dp">
 					<LinearLayout
@@ -1235,7 +1235,7 @@
 					android:layout_height="wrap_content"
 					android:orientation="vertical"
 					android:tag="card"
-					android:elevation="2dp"
+					android:elevation="0dp"
 					android:layout_marginStart="14dp"
 					android:layout_marginEnd="14dp">
 					<LinearLayout
@@ -1320,7 +1320,7 @@
 			android:gravity="center_vertical"
 			android:orientation="horizontal"
 			android:tag="sf"
-			android:elevation="3dp">
+			android:elevation="0dp">
 			<TextView
 				android:id="@+id/chatSetBack"
 				android:layout_width="56dp"
@@ -1393,7 +1393,7 @@
 					android:padding="16dp"
 					android:orientation="vertical"
 					android:tag="card"
-					android:elevation="2dp"
+					android:elevation="0dp"
 					android:layout_marginStart="14dp"
 					android:layout_marginEnd="14dp">
 					<TextView
@@ -1427,7 +1427,7 @@
 					android:padding="16dp"
 					android:orientation="vertical"
 					android:tag="card"
-					android:elevation="2dp"
+					android:elevation="0dp"
 					android:layout_marginStart="14dp"
 					android:layout_marginEnd="14dp">
 					<LinearLayout
@@ -1471,7 +1471,7 @@
 					android:padding="16dp"
 					android:orientation="vertical"
 					android:tag="card"
-					android:elevation="2dp"
+					android:elevation="0dp"
 					android:layout_marginStart="14dp"
 					android:layout_marginEnd="14dp">
 					<LinearLayout

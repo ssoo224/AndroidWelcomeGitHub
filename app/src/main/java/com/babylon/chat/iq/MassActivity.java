@@ -13,6 +13,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.Outline;
+import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.media.MediaPlayer;
 import android.media.MediaRecorder;
@@ -28,6 +29,7 @@ import android.text.TextWatcher;
 import android.text.style.ForegroundColorSpan;
 import android.text.style.RelativeSizeSpan;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewOutlineProvider;
@@ -80,6 +82,8 @@ public class MassActivity extends Activity {
     private String currentChatId = "";
     private String otherUid = "";
     private final java.util.Set<String> renderedMsgIds = new java.util.HashSet<>();
+    private ListenerRegistration pinsListener;                       // الرسائل المثبتة: chats/{id}.pins
+    private java.util.function.BooleanSupplier backHook;             // زر الرجوع يلغي تحديد الرسائل أولاً
 
     private java.util.function.Consumer<Uri> pendingImageCallback = null;
     private Runnable pendingMicCallback = null;
@@ -198,6 +202,13 @@ public class MassActivity extends Activity {
     protected void onDestroy() {
         super.onDestroy();
         if (messagesListener != null) messagesListener.remove();
+        if (pinsListener != null) pinsListener.remove();
+    }
+
+    @Override
+    public void onBackPressed() {
+        try { if (backHook != null && backHook.getAsBoolean()) return; } catch (Throwable ignored) { }
+        super.onBackPressed();
     }
 
     @Override
@@ -252,6 +263,17 @@ public class MassActivity extends Activity {
             String curPage = "homeView", prevPage = "homeView", curChat = "";
             String replyText = null, otherName = "", otherUser = "";
             View editing = null;
+            // ---- تحديد عدة رسائل + التثبيت (multiSelectBar / pinnedBar في الـ HTML)
+            boolean selecting = false;
+            final java.util.LinkedHashSet<String> selIds = new java.util.LinkedHashSet<>();
+            final java.util.Map<String, Object[]> msgMeta = new java.util.HashMap<>();   // id -> {type, text, data, duration, mine, ts}
+            LinearLayout selBar;
+            TextView selCountTv;
+            ImageView selPinIv;
+            View selPinBtn;
+            android.view.ViewTreeObserver.OnScrollChangedListener selScrollL;
+            List<Map<String, Object>> pins = new ArrayList<>();
+            int pinIdx = -1;
             String lastDayKey = "";
             final java.util.Map<String, View> msgViewsById = new java.util.HashMap<>();
             MsgViews.Handle playingHandle = null;
@@ -365,10 +387,9 @@ public class MassActivity extends Activity {
                             ViewGroup.LayoutParams clp = x.getLayoutParams();
                             boolean small = clp != null && clp.height > 0 && clp.height <= dp(48);
                             x.setBackground(shape(cSf(), small ? 14 : 20, cBorder()));
-                            x.setElevation(isQuickBtn(x) ? 0 : dp(dark ? 1 : 2));
                             if (isQuickBtn(x)) x.setStateListAnimator(null);
                         }
-                        else if (k.equals("row")) { x.setBackground(shape(cSf(), 18, 0)); x.setElevation(dp(dark ? 1 : 2)); }
+                        else if (k.equals("row")) { x.setBackground(shape(cSf(), 18, 0)); }
                         else if (k.equals("badge")) {
                             GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE2B83F, 0xFFB8861B});
                             g.setCornerRadius(dp(11));
@@ -381,7 +402,6 @@ public class MassActivity extends Activity {
                         }
                         else if (k.equals("white_card")) {
                             x.setBackground(shape(0xFFFFFFFF, 16, 0));
-                            x.setElevation(dp(4));
                         }
                         else if (k.equals("icon_box_bg")) {
                             x.setBackground(shape(0xFFFFF7E6, 12, 0));
@@ -437,14 +457,14 @@ public class MassActivity extends Activity {
                             float rr = dp(radius), tl = dp(6);
                             GradientDrawable mg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE8C85D, 0xFFCBA843});
                             mg.setCornerRadii(new float[]{rr, rr, rr, rr, tl, tl, rr, rr});   // الذيل أسفل اليمين كما في الـ HTML
-                            x.setBackground(mg); x.setElevation(dp(1));
+                            x.setBackground(mg);
                             if (T != null) T.setTextColor(dark ? 0xFFFFFFFF : 0xFF292216);
                         } else if (k.equals("bubOther")) {
                             float rr = dp(radius), tl = dp(6);
                             GradientDrawable og = new GradientDrawable();
                             og.setColor(dark ? 0xFF263746 : 0xFFFFFFFF);
                             og.setCornerRadii(new float[]{rr, rr, rr, rr, rr, rr, tl, tl});   // الذيل أسفل اليسار كما في الـ HTML
-                            x.setBackground(og); x.setElevation(dp(1));
+                            x.setBackground(og);
                             if (T != null) T.setTextColor(cText());
                         } else if (k.startsWith("ic:")) {
                             int base = Color.parseColor(k.substring(3));
@@ -452,7 +472,6 @@ public class MassActivity extends Activity {
                             GradientDrawable ig = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{top, base});
                             ig.setCornerRadius(dp(13));
                             x.setBackground(ig);
-                            x.setElevation(dp(2));
                         }
                         else if (k.startsWith("cover:")) {
                             if (x.getId() == R.id.frame_layout642) x.setBackground(CoverThemes.gradient(CoverThemes.byId(coverId)));
@@ -696,7 +715,6 @@ public class MassActivity extends Activity {
                     g.setShape(GradientDrawable.OVAL);
                     a.setBackground(withRing(g));
                 }
-                a.setElevation(dp(6));
                 View par = (View) a.getParent();
                 if (par != null && par.getLayoutParams() instanceof ViewGroup.MarginLayoutParams)
                     ((ViewGroup.MarginLayoutParams) par.getLayoutParams()).topMargin = -(dp(58) + ringTotalPx());
@@ -1005,12 +1023,12 @@ public class MassActivity extends Activity {
                     boolean on = id.equals(a2);
                     TextView ic = tv(id + "Ic");
                     TextView tx = tv(id + "Tx");
-                    int inactive = 0xFF8A8266;   // الشريط أبيض في الوضعين: ألوان النهاري للأيقونات   // HTML: نهاري #8a8266 / ليلي #e4c45b (الخامل بشفافية .78)
-                    int active = 0xFF96720D;
+                    int inactive = dark ? 0xFFE4C45B : 0xFF8A8266;   // HTML: نهاري #8a8266 / ليلي #e4c45b (الخامل بشفافية .78)
+                    int active = dark ? 0xFFE4C45B : 0xFF96720D;
                     if (ic != null) {
                         ic.setTag(null);
                         ic.setTextColor(on ? active : inactive);
-                        ic.setBackground(on ? shape(0x29D4AF37, 13, 0) : null);   // .nav-icon.active: rgba(212,175,55,.16) / rgba(228,196,91,.14)
+                        ic.setBackground(on ? shape(dark ? 0x24E4C45B : 0x29D4AF37, 13, 0) : null);   // .nav-icon.active: rgba(212,175,55,.16) / rgba(228,196,91,.14)
                         tintIcons(ic);
                     }
                     if (tx != null) {
@@ -1331,7 +1349,6 @@ public class MassActivity extends Activity {
                     row.setGravity(Gravity.CENTER_VERTICAL);
                     row.setPadding(dp(12), dp(7), dp(12), dp(7));
                     row.setTag("row");
-                    row.setElevation(dp(2));
                     row.setMinimumHeight(dp(71));
                     final boolean hasUnread = !c[3].equals("0");
                     LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2);
@@ -1431,9 +1448,11 @@ public class MassActivity extends Activity {
                 if (chatAv != null) chatAv.setText(name.length() > 0 ? name.substring(0, 1) : "?");
                 TextView chatSub = tv("chatSub");
                 if (chatSub != null) chatSub.setText("متصل");
+                clearSel();
                 LinearLayout msgArea = (LinearLayout) v("messagesArea");
                 if (msgArea != null) msgArea.removeAllViews();
-                renderedMsgIds.clear(); lastDayKey = ""; msgViewsById.clear();
+                renderedMsgIds.clear(); lastDayKey = ""; msgViewsById.clear(); msgMeta.clear();
+                pins = new ArrayList<>(); pinIdx = -1; renderPinnedBar();
                 cancelReply();
                 vis("chatSearchPanel", false);
                 if (isRecording || recPreview) cancelRecord(); else vis("recordingBar", false);
@@ -1442,6 +1461,7 @@ public class MassActivity extends Activity {
 
                 currentChatId = getChatId(myUid, uid);
                 loadMessages(currentChatId);
+                listenPins(currentChatId);
                 vis("chatView", true);
                 final View cv = v("chatView");
                 syncBars();
@@ -1504,6 +1524,15 @@ public class MassActivity extends Activity {
                                     if (ma0 != null && ma0.getChildCount() > 0) {
                                         View last = ma0.getChildAt(ma0.getChildCount() - 1);
                                         msgViewsById.put(id, last);
+                                        msgMeta.put(id, new Object[]{type, text, url, dur != null ? dur : 0L, mine, ts});
+                                        if (Boolean.TRUE.equals(doc.getBoolean("forwarded")) && last instanceof LinearLayout && !(last instanceof MsgViews.VoiceBubble)) {
+                                            TextView fl = new TextView(act);
+                                            fl.setText("↪ معاد توجيهها"); fl.setTextSize(11); fl.setTypeface(null, android.graphics.Typeface.BOLD_ITALIC);
+                                            fl.setTag(mine ? "mmM" : "mmO");
+                                            fl.setPadding(dp(2), 0, dp(2), dp(3));
+                                            ((LinearLayout) last).addView(fl, 0);
+                                            style(fl);
+                                        }
                                         if (mine) MsgViews.setState(last, state);
                                         applyReactions(id, last, doc.get("reactions"));
                                     }
@@ -1520,11 +1549,14 @@ public class MassActivity extends Activity {
 
             void closeChat() {
                 hideKb();
+                clearSel();
                 vis("chatView", false);
                 syncBars();
                 if (messagesListener != null) { messagesListener.remove(); messagesListener = null; }
+                if (pinsListener != null) { pinsListener.remove(); pinsListener = null; }
+                pins = new ArrayList<>(); pinIdx = -1; renderPinnedBar();
                 currentChatId = ""; otherUid = "";
-                renderedMsgIds.clear(); lastDayKey = ""; msgViewsById.clear();
+                renderedMsgIds.clear(); lastDayKey = ""; msgViewsById.clear(); msgMeta.clear();
                 if (mediaPlayer != null) { try { mediaPlayer.release(); } catch (Exception e) {} mediaPlayer = null; }
                 try { buildChats(); } catch (Throwable ignored) { }
                 try { buildStories(); } catch (Throwable ignored) { }
@@ -1569,8 +1601,9 @@ public class MassActivity extends Activity {
                 lp.gravity = mine ? Gravity.RIGHT : Gravity.LEFT;   // المرسَلة يميناً والمستلمة يساراً (مطلق، لا يتأثر بالاتجاه)
                 lp.setMargins(0, dp(4), 0, dp(4));
                 b.setLayoutParams(lp);
-                b.setOnClickListener(x -> msgMenu(b, mine, 0, null));
+                b.setOnClickListener(x -> { if (selecting) toggleSel(b); else msgMenu(b, mine, 0, null); });
                 b.setOnLongClickListener(x -> { msgSelect(b, mine, 0, null); return true; });
+                attachSwipeReply(b, mine);
                 LinearLayout msgArea = (LinearLayout) v("messagesArea");
                 if (msgArea != null) msgArea.addView(b);
                 style(b);
@@ -1631,10 +1664,12 @@ public class MassActivity extends Activity {
                 t.setLayoutParams(tlp);
                 frame.addView(t);
                 frame.setOnClickListener(v -> {
+                    if (selecting) { toggleSel(frame); return; }
                     Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
                     try { act.startActivity(i); } catch (Exception e) { toast("لا يمكن فتح الصورة"); }
                 });
                 frame.setOnLongClickListener(x -> { msgSelect(frame, mine, 1, url); return true; });
+                attachSwipeReply(frame, mine);
                 LinearLayout msgArea = (LinearLayout) v("messagesArea");
                 if (msgArea != null) msgArea.addView(frame);
             }
@@ -1646,9 +1681,10 @@ public class MassActivity extends Activity {
                 lp.setMargins(0, dp(4), 0, dp(4));
                 box.setLayoutParams(lp);
                 box.addView(MsgViews.metaRow(act, mine, time, MsgViews.SENT));
-                box.playBtn.setOnClickListener(v -> playAudio(url, box, durationMs));
-                box.setOnClickListener(x -> msgMenu(box, mine, 2, url));
+                box.playBtn.setOnClickListener(v -> { if (selecting) toggleSel(box); else playAudio(url, box, durationMs); });
+                box.setOnClickListener(x -> { if (selecting) toggleSel(box); else msgMenu(box, mine, 2, url); });
                 box.setOnLongClickListener(x -> { msgSelect(box, mine, 2, url); return true; });
+                attachSwipeReply(box, mine);
                 box.track.listener = f -> { if (mediaPlayer != null && playingHandle == box) { try { mediaPlayer.seekTo((int) (mediaPlayer.getDuration() * f)); } catch (Throwable ignored) { } } };
                 LinearLayout msgArea = (LinearLayout) v("messagesArea");
                 if (msgArea != null) msgArea.addView(box);
@@ -1745,19 +1781,64 @@ public class MassActivity extends Activity {
                 sp0.canDownload = kind == 1 && url != null;
                 sp0.downloadLabel = "تحميل الصورة";
                 sp0.myReaction = id != null && myReact.get(id) != null ? myReact.get(id) : "";
+                sp0.canPin = id != null && !currentChatId.isEmpty();
+                sp0.pinned = id != null && pinIndexOf(id) >= 0;
                 MsgMenu.show(act, b, dark, sbTop, Math.max(navBottom, padBottom), sp0, msgCb(b, mine, kind, url, raw));
             }
 
-            /** ضغط مطوّل = تحديد: إطار ذهبي + حبة التفاعلات فوق الرسالة، وزر + يفتح القائمة الكاملة. */
-            void msgSelect(final View b, final boolean mine, final int kind, final String url) {
-                hideKb();
-                final String id = idOfView(b);
-                final String raw = kind == 0 ? bodyOf(String.valueOf(b.getContentDescription())) : "";
-                b.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
-                MsgMenu.showPill(act, b, dark, cGold(), sbTop, Math.max(navBottom, padBottom),
-                        id != null && myReact.get(id) != null ? myReact.get(id) : "",
-                        () -> msgMenu(b, mine, kind, url), msgCb(b, mine, kind, url, raw));
+            /** الرد بالسحب كما في الـ HTML: رسائلي يمين→يسار ورسائل غيري يسار→يمين، مقاومة متزايدة، وعتبة 72dp. */
+            void attachSwipeReply(final View b, final boolean mine) {
+                final int dir = mine ? -1 : 1;
+                final float[] st = new float[2];
+                final boolean[] f = new boolean[2];   // [0] dragging, [1] armed
+                b.setOnTouchListener((x, e) -> {
+                    switch (e.getActionMasked()) {
+                        case MotionEvent.ACTION_DOWN:
+                            st[0] = e.getRawX(); st[1] = e.getRawY(); f[0] = false; f[1] = false;
+                            return false;
+                        case MotionEvent.ACTION_MOVE: {
+                            if (selecting) return false;
+                            float dx = e.getRawX() - st[0], dy = e.getRawY() - st[1];
+                            if (!f[0]) {
+                                if (dx * dir > dp(14) && Math.abs(dx) > Math.abs(dy) * 1.4f) {
+                                    f[0] = true;
+                                    x.cancelLongPress(); x.setPressed(false);
+                                    if (x.getParent() != null) x.getParent().requestDisallowInterceptTouchEvent(true);
+                                } else return false;
+                            }
+                            float sdx = Math.max(0, dx * dir), maxp = dp(64);
+                            float pull = maxp * (1f - (float) Math.exp(-sdx / (maxp * 1.7f)));
+                            x.setTranslationX(pull * dir);
+                            boolean arm = sdx >= dp(72);
+                            if (arm && !f[1]) x.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP);
+                            f[1] = arm;
+                            return true;
+                        }
+                        case MotionEvent.ACTION_UP:
+                        case MotionEvent.ACTION_CANCEL: {
+                            if (!f[0]) return false;
+                            boolean fire = f[1] && e.getActionMasked() == MotionEvent.ACTION_UP;
+                            f[0] = false; f[1] = false;
+                            x.animate().translationX(0f).setDuration(220).start();
+                            if (fire) swipeReply(b, mine);
+                            return true;
+                        }
+                    }
+                    return false;
+                });
             }
+
+            void swipeReply(View b, boolean mine) {
+                String id = idOfView(b);
+                Object[] m = id != null ? msgMeta.get(id) : null;
+                String type = m != null ? (String) m[0] : "text";
+                int kind = "image".equals(type) ? 1 : "audio".equals(type) ? 2 : 0;
+                String raw = kind == 0 && m != null && m[1] != null ? bodyOf(String.valueOf(m[1])) : "";
+                msgCb(b, mine, kind, m != null ? (String) m[2] : null, raw).reply();
+            }
+
+            /** ضغط مطوّل = دخول وضع التحديد (أو تبديل تحديد الرسالة إن كان الوضع مفعلاً). */
+            void msgSelect(final View b, final boolean mine, final int kind, final String url) { toggleSel(b); }
 
             MsgMenu.Cb msgCb(final View b, final boolean mine, final int kind, final String url, final String raw) {
                 return new MsgMenu.Cb() {
@@ -1792,8 +1873,415 @@ public class MassActivity extends Activity {
                         toast("أدخل التعديل ثم اضغط إرسال");
                     }
                     @Override public void delete() { msgDeleteDialog(b); }
-                    @Override public void react(String emoji) { reactTo(b, emoji); }
+                    @Override public void react(String emoji) { reactTo(b, emoji); if (selecting) clearSel(); }
+                    @Override public void pin() { togglePin(idOfView(b)); }
                 };
+            }
+
+            // =====================================================================
+            //  تحديد عدة رسائل (multiSelectBar): إغلاق + عدد + تثبيت + إعادة توجيه + حذف
+            // =====================================================================
+            boolean onBack() {
+                if (selecting) { clearSel(); return true; }
+                return false;
+            }
+
+            void toggleSel(View b) {
+                String id = idOfView(b);
+                if (id == null) return;
+                hideKb();
+                if (!selecting) {
+                    selecting = true; selIds.clear();
+                    b.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+                    buildSelBar();
+                }
+                if (!selIds.add(id)) selIds.remove(id);
+                refreshSel();
+            }
+
+            /** إطار ذهبي على الرسالة المحددة (.selected-message). */
+            void markSel(View mv, boolean on) {
+                if (mv == null) return;
+                if (Build.VERSION.SDK_INT >= 23) {
+                    if (!on) { mv.setForeground(null); return; }
+                    GradientDrawable g = new GradientDrawable();
+                    g.setColor(goldA(0x26));
+                    g.setCornerRadius(mv instanceof FrameLayout ? dp(12) : dp(radius));
+                    g.setStroke(dp(2), cGold());
+                    mv.setForeground(g);
+                } else mv.setAlpha(on ? 0.72f : 1f);
+            }
+
+            String firstSel() { return selIds.isEmpty() ? null : selIds.iterator().next(); }
+
+            void refreshSel() {
+                if (selIds.isEmpty()) { clearSel(); return; }
+                for (Map.Entry<String, View> en : msgViewsById.entrySet()) markSel(en.getValue(), selIds.contains(en.getKey()));
+                if (selBar == null) buildSelBar();
+                if (selBar == null) return;
+                selBar.setVisibility(View.VISIBLE);
+                View bb = v("chatBottomBar");
+                if (bb != null) bb.setVisibility(View.INVISIBLE);
+                selCountTv.setText(String.valueOf(selIds.size()));
+                final boolean one = selIds.size() == 1;
+                final String fid = firstSel();
+                selPinBtn.setVisibility(one ? View.VISIBLE : View.GONE);
+                if (one) selPinIv.setImageResource(pinIndexOf(fid) >= 0 ? R.drawable.ic_mm_unpin : R.drawable.ic_mm_pin);
+                if (selBar.getLayoutParams() instanceof FrameLayout.LayoutParams) {
+                    FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) selBar.getLayoutParams();
+                    lp.bottomMargin = Math.max(navBottom, padBottom) + dp(10);
+                    selBar.setLayoutParams(lp);
+                }
+                final View mv = msgViewsById.get(fid);
+                if (one && mv != null) {
+                    Object[] m = msgMeta.get(fid);
+                    final String type = m != null ? (String) m[0] : "text";
+                    final int kind = "image".equals(type) ? 1 : "audio".equals(type) ? 2 : 0;
+                    final String url = m != null ? (String) m[2] : null;
+                    final boolean mine = m != null && Boolean.TRUE.equals(m[4]);
+                    final String raw = kind == 0 && m != null && m[1] != null ? bodyOf(String.valueOf(m[1])) : "";
+                    MsgMenu.showPill(act, mv, dark, cGold(), sbTop, Math.max(navBottom, padBottom),
+                            myReact.get(fid) != null ? myReact.get(fid) : "",
+                            () -> { clearSel(); msgMenu(mv, mine, kind, url); },
+                            msgCb(mv, mine, kind, url, raw));
+                } else MsgMenu.dismiss();
+                View ms = v("messagesScroll");
+                if (selScrollL == null && ms != null) {     // الحبة تتبع الرسالة أثناء التمرير
+                    selScrollL = () -> {
+                        if (selecting && selIds.size() == 1) MsgMenu.placePill(msgViewsById.get(firstSel()), sbTop, Math.max(navBottom, padBottom));
+                    };
+                    ms.getViewTreeObserver().addOnScrollChangedListener(selScrollL);
+                }
+            }
+
+            void clearSel() {
+                selecting = false;
+                selIds.clear();
+                for (View mv : msgViewsById.values()) markSel(mv, false);
+                if (selBar != null) selBar.setVisibility(View.GONE);
+                View bb = v("chatBottomBar");
+                if (bb != null) bb.setVisibility(View.VISIBLE);
+                MsgMenu.dismiss();
+            }
+
+            View selPill(int iconRes, String label, int fg, Drawable bg, final Runnable r) {
+                LinearLayout p = new LinearLayout(act);
+                p.setOrientation(LinearLayout.HORIZONTAL);
+                p.setGravity(Gravity.CENTER);
+                p.setPadding(dp(14), 0, dp(14), 0);
+                p.setBackground(bg);
+                p.setClickable(true);
+                p.setOnClickListener(x -> r.run());
+                ImageView ic = new ImageView(act);
+                ic.setImageResource(iconRes); ic.setColorFilter(fg);
+                p.addView(ic, new LinearLayout.LayoutParams(dp(18), dp(18)));
+                TextView t = new TextView(act);
+                t.setText(label); t.setTextSize(13); t.setTextColor(fg);
+                t.setTypeface(null, android.graphics.Typeface.BOLD);
+                LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(-2, -2);
+                tl.setMarginStart(dp(6));
+                p.addView(t, tl);
+                BabylonFx.press(p, 0.94f);
+                return p;
+            }
+
+            GradientDrawable pillBg(int fill, float rDp) {
+                GradientDrawable g = new GradientDrawable();
+                g.setColor(fill); g.setCornerRadius(dp(rDp));
+                return g;
+            }
+
+            /** شريط التحديد السفلي: ✕ | العدد | تثبيت | إعادة توجيه | حذف — بلا أي ظل. */
+            void buildSelBar() {
+                View host = v("chatView");
+                if (!(host instanceof FrameLayout)) return;
+                if (selBar != null && selBar.getParent() instanceof ViewGroup) ((ViewGroup) selBar.getParent()).removeView(selBar);
+                LinearLayout bar = new LinearLayout(act);
+                bar.setOrientation(LinearLayout.HORIZONTAL);
+                bar.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                bar.setGravity(Gravity.CENTER_VERTICAL);
+                bar.setClickable(true);                       // لا يمرّر اللمس لما خلفه
+                bar.setPadding(dp(5), dp(5), dp(5), dp(5));
+                GradientDrawable bg = new GradientDrawable();
+                bg.setColor(cSf()); bg.setCornerRadius(dp(26)); bg.setStroke(dp(1), goldA(0x73));
+                bar.setBackground(bg);
+
+                ImageView close = new ImageView(act);
+                close.setImageResource(R.drawable.ic_mm_x); close.setColorFilter(cGold());
+                close.setPadding(dp(10), dp(10), dp(10), dp(10));
+                close.setContentDescription("إلغاء التحديد");
+                close.setOnClickListener(x -> clearSel());
+                BabylonFx.press(close, 0.9f);
+                bar.addView(close, new LinearLayout.LayoutParams(dp(40), dp(40)));
+
+                LinearLayout cnt = new LinearLayout(act);
+                cnt.setOrientation(LinearLayout.HORIZONTAL);
+                cnt.setGravity(Gravity.CENTER_VERTICAL);
+                selCountTv = new TextView(act);
+                selCountTv.setTextSize(19); selCountTv.setTextColor(cGold());
+                selCountTv.setTypeface(null, android.graphics.Typeface.BOLD);
+                selCountTv.setIncludeFontPadding(false);
+                cnt.addView(selCountTv);
+                TextView lb = new TextView(act);
+                lb.setText("محدد"); lb.setTextSize(12); lb.setTextColor(cMuted());
+                lb.setTypeface(null, android.graphics.Typeface.BOLD);
+                LinearLayout.LayoutParams lbl = new LinearLayout.LayoutParams(-2, -2);
+                lbl.setMarginStart(dp(6));
+                cnt.addView(lb, lbl);
+                LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(0, -2, 1f);
+                cl.setMarginStart(dp(4));
+                bar.addView(cnt, cl);
+
+                selPinIv = new ImageView(act);
+                selPinIv.setImageResource(R.drawable.ic_mm_pin); selPinIv.setColorFilter(cText());
+                selPinIv.setPadding(dp(9), dp(9), dp(9), dp(9));
+                GradientDrawable pg = new GradientDrawable(); pg.setShape(GradientDrawable.OVAL); pg.setColor(0x29808080);
+                selPinIv.setBackground(pg);
+                selPinBtn = selPinIv;
+                selPinIv.setContentDescription("تثبيت الرسالة");
+                selPinIv.setOnClickListener(x -> { String id = firstSel(); clearSel(); togglePin(id); });
+                BabylonFx.press(selPinIv, 0.9f);
+                LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(dp(38), dp(38));
+                pl.setMarginEnd(dp(6));
+                bar.addView(selPinIv, pl);
+
+                LinearLayout.LayoutParams fl = new LinearLayout.LayoutParams(-2, dp(38));
+                fl.setMarginEnd(dp(6));
+                bar.addView(selPill(R.drawable.ic_mm_forward, "إعادة توجيه", cGold(), pillBg(goldA(0x29), 19), this::forwardSel), fl);
+
+                GradientDrawable dg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFF2706D, 0xFFD83A37});
+                dg.setCornerRadius(dp(19));
+                bar.addView(selPill(R.drawable.ic_mm_delete, "حذف", 0xFFFFFFFF, dg, this::multiDelete), new LinearLayout.LayoutParams(-2, dp(38)));
+
+                FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM);
+                lp.setMargins(dp(12), 0, dp(12), Math.max(navBottom, padBottom) + dp(10));
+                ((FrameLayout) host).addView(bar, lp);
+                selBar = bar;
+            }
+
+            // ---- حذف متعدد: لدي فقط / لدى الكل (openMultiDeleteDialog)
+            void multiDelete() {
+                if (selIds.isEmpty()) return;
+                final List<String> ids = new ArrayList<>(selIds);
+                boolean allMine = true;
+                for (String id : ids) { Object[] m = msgMeta.get(id); if (m == null || !Boolean.TRUE.equals(m[4])) allMine = false; }
+                final int n = ids.size();
+                final String cid = currentChatId;
+                MsgMenu.showDelete(act, dark, "حذف " + n + (n == 1 ? " رسالة" : " رسائل"),
+                        allMine ? "اختر أين تريد حذف الرسائل المحددة." : "الحذف لدى الكل متاح فقط لرسائلك.", allMine,
+                        new MsgMenu.DeleteCb() {
+                            @Override public void forMe() {
+                                java.util.Set<String> h = hiddenSet(); h.addAll(ids);
+                                sp.edit().putStringSet("hidden_msgs_" + cid, h).apply();
+                                clearSel();
+                                for (String id : ids) removeMsgView(id, null);
+                            }
+                            @Override public void forAll() {
+                                if (cid.isEmpty()) { toast("تعذر تحديد الرسائل"); return; }
+                                new AlertDialog.Builder(act).setTitle("حذف الرسائل لدى الجميع")
+                                    .setMessage("سيتم حذف " + n + " رسالة لدى الجميع. هل تريد المتابعة؟")
+                                    .setPositiveButton("حذف الرسائل", (d, w) -> {
+                                        com.google.firebase.firestore.WriteBatch wb = db.batch();
+                                        for (String id : ids) wb.delete(db.collection("chats").document(cid).collection("messages").document(id));
+                                        wb.commit().addOnSuccessListener(x -> { clearSel(); for (String id : ids) removeMsgView(id, null); toast("تم حذف الرسائل لدى الجميع"); })
+                                            .addOnFailureListener(e -> toast(e instanceof com.google.firebase.firestore.FirebaseFirestoreException
+                                                && ((com.google.firebase.firestore.FirebaseFirestoreException) e).getCode() == com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED
+                                                ? "تعذر الحذف: قواعد Firestore لا تسمح بذلك" : "تعذر حذف الرسائل؛ تحقق من الاتصال"));
+                                    })
+                                    .setNegativeButton("إلغاء", null).show();
+                            }
+                        });
+            }
+
+            // ---- إعادة توجيه الرسائل المحددة إلى محادثة أخرى (openForwardPicker / forwardSelected)
+            void forwardSel() {
+                if (selIds.isEmpty()) return;
+                final List<String> names = new ArrayList<>(), uids = new ArrayList<>();
+                for (String[] r : chatData) { if (r.length > 4) { names.add(r[0]); uids.add(r[4]); } }
+                if (names.isEmpty()) { toast("لا توجد محادثات متاحة"); return; }
+                new AlertDialog.Builder(act).setTitle("إعادة توجيه إلى")
+                    .setItems(names.toArray(new String[0]), (d, i) -> doForward(uids.get(i)))
+                    .setNegativeButton("إلغاء", null).show();
+            }
+
+            void doForward(final String targetUid) {
+                final List<String> ids = new ArrayList<>(selIds);
+                Collections.sort(ids, (a, b) -> {
+                    Object[] x = msgMeta.get(a), y = msgMeta.get(b);
+                    long tx = x != null ? (Long) x[5] : 0L, ty = y != null ? (Long) y[5] : 0L;
+                    return Long.compare(tx, ty);
+                });
+                String tcid = getChatId(myUid, targetUid);
+                long base = System.currentTimeMillis();
+                int sent = 0; String last = "";
+                for (String id : ids) {
+                    Object[] m = msgMeta.get(id);
+                    if (m == null) continue;
+                    String type = (String) m[0];
+                    Map<String, Object> msg = new HashMap<>();
+                    msg.put("type", type);
+                    if ("image".equals(type) || "audio".equals(type)) {
+                        if (m[2] == null) continue;
+                        msg.put("data", m[2]); msg.put("duration", m[3]);
+                        last = "image".equals(type) ? "📷 صورة" : "🎤 رسالة صوتية";
+                    } else {
+                        String body = m[1] == null ? "" : bodyOf(String.valueOf(m[1]));
+                        if (body.trim().isEmpty()) continue;
+                        msg.put("text", body); last = body;
+                    }
+                    msg.put("sender", myUid);
+                    msg.put("timestamp", base + sent);
+                    msg.put("forwarded", true);
+                    db.collection("chats").document(tcid).collection("messages").add(msg);
+                    sent++;
+                }
+                if (sent == 0) { toast("لا توجد رسائل قابلة لإعادة التوجيه"); return; }
+                Map<String, Object> cd = new HashMap<>();
+                cd.put("participants", Arrays.asList(myUid, targetUid));
+                cd.put("lastMessage", last);
+                cd.put("lastMessageAt", System.currentTimeMillis());
+                cd.put("lastSender", myUid);
+                db.collection("chats").document(tcid).set(cd, com.google.firebase.firestore.SetOptions.merge());
+                clearSel();
+                toast("تمت إعادة توجيه " + sent + (sent == 1 ? " رسالة" : " رسائل"));
+            }
+
+            // =====================================================================
+            //  تثبيت الرسائل: chats/{id}.pins = [{id, text, by, at}] (حد أقصى 10) + شريط الرسالة المثبتة
+            // =====================================================================
+            int pinIndexOf(String id) {
+                if (id == null) return -1;
+                for (int i = 0; i < pins.size(); i++) if (id.equals(pins.get(i).get("id"))) return i;
+                return -1;
+            }
+
+            @SuppressWarnings("unchecked")
+            void listenPins(final String cid) {
+                if (pinsListener != null) pinsListener.remove();
+                pinsListener = db.collection("chats").document(cid).addSnapshotListener((d, e) -> {
+                    if (e != null || d == null || !cid.equals(currentChatId)) return;
+                    List<Map<String, Object>> np = new ArrayList<>();
+                    Object po = d.get("pins");
+                    if (po instanceof List) for (Object o : (List<?>) po) if (o instanceof Map) np.add((Map<String, Object>) o);
+                    pins = np;
+                    renderPinnedBar();
+                    if (selecting) refreshSel();
+                });
+            }
+
+            void savePins(List<Map<String, Object>> np) {
+                pins = np;
+                renderPinnedBar();
+                Map<String, Object> upd = new HashMap<>();
+                upd.put("pins", np);
+                db.collection("chats").document(currentChatId).set(upd, com.google.firebase.firestore.SetOptions.merge())
+                    .addOnFailureListener(e -> toast("تعذر تحديث التثبيت"));
+            }
+
+            void togglePin(String id) {
+                if (id == null || currentChatId.isEmpty()) return;
+                int ex = pinIndexOf(id);
+                List<Map<String, Object>> np = new ArrayList<>(pins);
+                if (ex >= 0) {
+                    np.remove(ex); pinIdx = -1;
+                    toast("تم إلغاء تثبيت الرسالة");
+                } else {
+                    if (np.size() >= 10) { toast("الحد الأقصى 10 رسائل مثبتة"); return; }
+                    Object[] m = msgMeta.get(id);
+                    String type = m != null ? (String) m[0] : "text";
+                    String txt = "audio".equals(type) ? "♬ بصمة صوتية" : "image".equals(type) ? "▧ صورة"
+                            : (m != null && m[1] != null ? bodyOf(String.valueOf(m[1])).trim() : "");
+                    if (txt.length() > 90) txt = txt.substring(0, 90);
+                    Map<String, Object> pm = new HashMap<>();
+                    pm.put("id", id); pm.put("text", txt); pm.put("by", myUid); pm.put("at", System.currentTimeMillis());
+                    np.add(pm); pinIdx = np.size() - 1;
+                    toast("تم تثبيت الرسالة");
+                }
+                savePins(np);
+            }
+
+            void jumpToMsg(final String id) {
+                final View mv = msgViewsById.get(id);
+                View ms = v("messagesScroll");
+                if (mv == null || !(ms instanceof ScrollView)) { toast("الرسالة غير موجودة في المحادثة"); return; }
+                int y = mv.getTop() - Math.max(0, (ms.getHeight() - mv.getHeight()) / 2);
+                ((ScrollView) ms).smoothScrollTo(0, Math.max(0, y));
+                uiH.postDelayed(() -> markSel(mv, true), 450);
+                uiH.postDelayed(() -> { if (!selIds.contains(id)) markSel(mv, false); }, 1900);
+            }
+
+            /** شريط الرسالة المثبتة تحت رأس المحادثة: خطوط المؤشر + «رسالة مثبتة #n» + النص + زر إلغاء التثبيت. */
+            void renderPinnedBar() {
+                View tb = v("chatTopBar");
+                if (!(tb instanceof LinearLayout)) return;
+                LinearLayout top = (LinearLayout) tb;
+                View old = top.findViewWithTag("pinnedBar");
+                if (old != null) top.removeView(old);
+                if (pins.isEmpty()) { pinIdx = -1; return; }
+                if (pinIdx < 0 || pinIdx >= pins.size()) pinIdx = pins.size() - 1;
+                final int idx = pinIdx;
+                final Map<String, Object> p = pins.get(idx);
+                final int n = pins.size();
+
+                LinearLayout bar = new LinearLayout(act);
+                bar.setTag("pinnedBar");
+                bar.setOrientation(LinearLayout.HORIZONTAL);
+                bar.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                bar.setGravity(Gravity.CENTER_VERTICAL);
+                bar.setPadding(dp(10), dp(6), dp(6), dp(6));
+                bar.setBackground(shape(cSf(), 18, cBorder()));
+                LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(-1, -2);
+                blp.setMargins(dp(10), dp(2), dp(10), dp(6));
+                bar.setLayoutParams(blp);
+
+                LinearLayout line = new LinearLayout(act);
+                line.setOrientation(LinearLayout.VERTICAL);
+                for (int i = 0; i < n; i++) {
+                    View seg = new View(act);
+                    GradientDrawable sg = new GradientDrawable();
+                    sg.setCornerRadius(dp(2)); sg.setColor(i == idx ? cGold() : goldA(0x4D));
+                    seg.setBackground(sg);
+                    LinearLayout.LayoutParams sl = new LinearLayout.LayoutParams(-1, 0, 1f);
+                    if (i > 0) sl.topMargin = dp(2);
+                    line.addView(seg, sl);
+                }
+                bar.addView(line, new LinearLayout.LayoutParams(dp(3), dp(34)));
+
+                LinearLayout col = new LinearLayout(act);
+                col.setOrientation(LinearLayout.VERTICAL);
+                TextView hd = new TextView(act);
+                hd.setText("رسالة مثبتة" + (n > 1 ? " #" + (idx + 1) : ""));
+                hd.setTextSize(13); hd.setTextColor(cGold()); hd.setTypeface(null, android.graphics.Typeface.BOLD);
+                col.addView(hd);
+                TextView tx = new TextView(act);
+                tx.setText(String.valueOf(p.get("text") == null ? "" : p.get("text")));
+                tx.setTextSize(13.5f); tx.setTextColor(cText()); tx.setAlpha(0.85f);
+                tx.setMaxLines(1); tx.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                tx.setTypeface(null, android.graphics.Typeface.BOLD);
+                tx.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
+                col.addView(tx);
+                LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(0, -2, 1f);
+                cl.setMarginStart(dp(10)); cl.setMarginEnd(dp(4));
+                bar.addView(col, cl);
+                col.setOnClickListener(x -> {
+                    jumpToMsg(String.valueOf(p.get("id")));
+                    if (n > 1) { pinIdx = (idx - 1 + n) % n; renderPinnedBar(); }
+                });
+
+                ImageView xb = new ImageView(act);
+                xb.setImageResource(R.drawable.ic_mm_unpin); xb.setColorFilter(cMuted());
+                xb.setPadding(dp(8), dp(8), dp(8), dp(8));
+                xb.setContentDescription("إلغاء التثبيت");
+                xb.setOnClickListener(x -> confirm("إلغاء التثبيت", "هل تريد إلغاء تثبيت هذه الرسالة؟", () -> {
+                    List<Map<String, Object>> np = new ArrayList<>(pins);
+                    int at = pinIndexOf(String.valueOf(p.get("id")));
+                    if (at >= 0) np.remove(at);
+                    pinIdx = -1;
+                    savePins(np);
+                }));
+                BabylonFx.press(xb, 0.9f);
+                bar.addView(xb, new LinearLayout.LayoutParams(dp(36), dp(36)));
+                top.addView(bar);
             }
 
             // ---- حذف: لدي فقط / لدى الكل (messageDeleteModal)
@@ -1827,8 +2315,9 @@ public class MassActivity extends Activity {
             void removeMsgView(String id, View b) {
                 View mv = id != null ? msgViewsById.remove(id) : null;
                 if (mv == null) mv = b;
-                if (id != null) myReact.remove(id);
+                if (id != null) { myReact.remove(id); selIds.remove(id); msgMeta.remove(id); }
                 if (mv != null && mv.getParent() instanceof ViewGroup) ((ViewGroup) mv.getParent()).removeView(mv);
+                if (selecting) refreshSel();
             }
 
             // ---- التفاعلات: reactions.<uid> = إيموجي (نفس صيغة الـ HTML). نفس الإيموجي مرة ثانية يزيل تفاعلك فقط.
@@ -2003,7 +2492,7 @@ public class MassActivity extends Activity {
                 chatDoc.put("lastMessage", preview);
                 chatDoc.put("lastMessageAt", System.currentTimeMillis());
                 chatDoc.put("lastSender", myUid);
-                db.collection("chats").document(currentChatId).set(chatDoc);
+                db.collection("chats").document(currentChatId).set(chatDoc, com.google.firebase.firestore.SetOptions.merge());   // merge: لا تُمسح pins
             }
 
             void sendMedia(String type, String base64Data, long duration) {
@@ -2498,7 +2987,6 @@ public class MassActivity extends Activity {
                         ViewGroup.LayoutParams.WRAP_CONTENT, true);
                 pw.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0));
                 pw.setOutsideTouchable(true);
-                pw.setElevation(dp(10));
 
                 View mute = chatMenuItem(mutedNow ? R.drawable.ic_menu_bell : R.drawable.ic_menu_bell_off,
                         mutedNow ? "إلغاء كتم المحادثة" : "كتم المحادثة");
@@ -2975,6 +3463,7 @@ public class MassActivity extends Activity {
 
         UI ui = new UI();
         ui.init();
+        backHook = ui::onBack;
 
         ui.bars.setup();
         ui.syncBars();

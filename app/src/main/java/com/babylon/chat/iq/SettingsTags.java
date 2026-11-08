@@ -18,7 +18,6 @@ final class SettingsTags {
                     o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), r);
                 }
             });
-            x.setElevation(Tk.dp(x, dark ? 6 : 3));
             return true;
         }
         if (tag.equals("sxcover")) {

@@ -39,10 +39,11 @@ public final class MsgMenu {
         void edit();
         void delete();
         void react(String emoji);
+        default void pin() { }
     }
 
     public static final class Spec {
-        public boolean canCopy, canEdit, canDownload;
+        public boolean canCopy, canEdit, canDownload, canPin, pinned;
         public String downloadLabel = "تحميل";
         public String myReaction = "";
     }
@@ -54,6 +55,7 @@ public final class MsgMenu {
 
     private static FrameLayout overlay;
     private static ViewGroup overlayParent;
+    private static View pillView;
 
     private MsgMenu() { }
 
@@ -62,7 +64,7 @@ public final class MsgMenu {
     public static void dismiss() {
         final FrameLayout o = overlay;
         final ViewGroup p = overlayParent;
-        overlay = null; overlayParent = null;
+        overlay = null; overlayParent = null; pillView = null;
         if (o == null || p == null) return;
         o.animate().alpha(0f).setDuration(120).withEndAction(() -> { try { p.removeView(o); } catch (Throwable ignored) { } }).start();
     }
@@ -119,39 +121,25 @@ public final class MsgMenu {
         }
     }
 
-    /** إطار ذهبي حول الرسالة المحددة (.selected-message). */
-    private static final class Outline extends View {
-        private final RectF box; private final int gold, halo; private final float r;
-        private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-        Outline(Context c, RectF box, int gold, float r) {
-            super(c);
-            this.box = box; this.gold = gold; this.halo = (gold & 0x00FFFFFF) | 0x22000000; this.r = r;
-        }
-        @Override protected void onDraw(Canvas cv) {
-            float d = getResources().getDisplayMetrics().density;
-            p.setStyle(Paint.Style.STROKE);
-            p.setStrokeWidth(5f * d); p.setColor(halo);
-            RectF o1 = new RectF(box.left - 4.5f * d, box.top - 4.5f * d, box.right + 4.5f * d, box.bottom + 4.5f * d);
-            cv.drawRoundRect(o1, r + 4 * d, r + 4 * d, p);
-            p.setStrokeWidth(2f * d); p.setColor(gold);
-            RectF o2 = new RectF(box.left - 3f * d, box.top - 3f * d, box.right + 3f * d, box.bottom + 3f * d);
-            cv.drawRoundRect(o2, r + 3 * d, r + 3 * d, p);
-        }
-    }
+    private static FrameLayout attach(final Activity act, boolean dark) { return attach(act, dark, true); }
 
-    private static FrameLayout attach(final Activity act, boolean dark) {
+    /** block=false: طبقة لا تعترض اللمس (حبة التحديد) كي تبقى الرسائل تحتها قابلة للنقر والتمرير. */
+    private static FrameLayout attach(final Activity act, boolean dark, boolean block) {
         dismissNow();
         final ViewGroup content = act.findViewById(android.R.id.content);
         final FrameLayout root = new FrameLayout(act);
-        root.setClickable(true);
-        root.setFocusableInTouchMode(true);
-        root.setOnKeyListener((v, code, ev) -> {
-            if (code == KeyEvent.KEYCODE_BACK && ev.getAction() == KeyEvent.ACTION_UP) { dismiss(); return true; }
-            return code == KeyEvent.KEYCODE_BACK;
-        });
+        if (block) {
+            root.setClickable(true);
+            root.setFocusableInTouchMode(true);
+            root.setOnKeyListener((v, code, ev) -> {
+                if (code == KeyEvent.KEYCODE_BACK && ev.getAction() == KeyEvent.ACTION_UP) { dismiss(); return true; }
+                return code == KeyEvent.KEYCODE_BACK;
+            });
+        }
         content.addView(root, new FrameLayout.LayoutParams(-1, -1));
-        root.requestFocus();
+        if (block) root.requestFocus();
         overlay = root; overlayParent = content;
+        pillView = null;
         return root;
     }
 
@@ -162,14 +150,47 @@ public final class MsgMenu {
 
     private static Bitmap blurSnap(ViewGroup content) {
         try {
-            float s = 1f / 10f;
+            float s = 1f / 4f;
             Bitmap b = Bitmap.createBitmap(Math.max(1, (int) (content.getWidth() * s)), Math.max(1, (int) (content.getHeight() * s)), Bitmap.Config.ARGB_8888);
             Canvas c = new Canvas(b);
             c.scale(s, s);
             content.draw(c);
+            for (int i = 0; i < 3; i++) boxBlur(b, 5);
             return b;
         } catch (Throwable t) { return null; }
     }
+
+    /** Box blur أفقي ثم عمودي على الصورة نفسها (O(n) لكل بكسل). */
+    private static void boxBlur(Bitmap bm, int r) {
+        int w = bm.getWidth(), h = bm.getHeight();
+        int[] px = new int[w * h], tmp = new int[w * h];
+        bm.getPixels(px, 0, w, 0, 0, w, h);
+        blurPass(px, tmp, w, h, r, true);
+        blurPass(tmp, px, w, h, r, false);
+        bm.setPixels(px, 0, w, 0, 0, w, h);
+    }
+
+    private static void blurPass(int[] src, int[] dst, int w, int h, int r, boolean horiz) {
+        int lines = horiz ? h : w, len = horiz ? w : h, div = 2 * r + 1;
+        for (int l = 0; l < lines; l++) {
+            int sa = 0, sr = 0, sg = 0, sb = 0;
+            for (int i = -r; i <= r; i++) {
+                int p = src[idx(l, Math.max(0, Math.min(len - 1, i)), w, horiz)];
+                sa += p >>> 24; sr += (p >> 16) & 255; sg += (p >> 8) & 255; sb += p & 255;
+            }
+            for (int i = 0; i < len; i++) {
+                dst[idx(l, i, w, horiz)] = ((sa / div) << 24) | ((sr / div) << 16) | ((sg / div) << 8) | (sb / div);
+                int add = src[idx(l, Math.min(len - 1, i + r + 1), w, horiz)];
+                int rem = src[idx(l, Math.max(0, i - r), w, horiz)];
+                sa += (add >>> 24) - (rem >>> 24);
+                sr += ((add >> 16) & 255) - ((rem >> 16) & 255);
+                sg += ((add >> 8) & 255) - ((rem >> 8) & 255);
+                sb += (add & 255) - (rem & 255);
+            }
+        }
+    }
+
+    private static int idx(int line, int i, int w, boolean horiz) { return horiz ? line * w + i : i * w + line; }
 
     private static RectF anchorRect(View anchor, View content) {
         int[] a = new int[2], c = new int[2];
@@ -184,14 +205,22 @@ public final class MsgMenu {
                             final Spec spec, final Cb cb) {
         final FrameLayout root = attach(act, dark);
         final ViewGroup content = (ViewGroup) root.getParent();
-        // اللقطة قبل أن تظهر الطبقة نفسها
+        // ضبابية ناعمة (تصغير + Box Blur ثلاث مرات) بلا تكسير، والرسالة تُرسم فوقها بشكلها الحقيقي (حوافها وذيلها كاملة)
         root.setVisibility(View.INVISIBLE);
         final Bitmap snap = blurSnap(content);
         root.setVisibility(View.VISIBLE);
         final RectF hole = anchorRect(anchor, content);
-        final float corner = dp(act, 14);
-        final Backdrop bd = new Backdrop(act, snap, dark ? 0x4D050C16 : 0x291E293B, hole, corner);
+        final Backdrop bd = new Backdrop(act, snap, dark ? 0x59050C16 : 0x331E293B, null, 0f);
         root.addView(bd, new FrameLayout.LayoutParams(-1, -1));
+        try {
+            Bitmap ab = Bitmap.createBitmap(Math.max(1, anchor.getWidth()), Math.max(1, anchor.getHeight()), Bitmap.Config.ARGB_8888);
+            anchor.draw(new Canvas(ab));
+            ImageView copy = new ImageView(act);
+            copy.setImageBitmap(ab);
+            FrameLayout.LayoutParams clp = new FrameLayout.LayoutParams(anchor.getWidth(), anchor.getHeight());
+            clp.leftMargin = (int) hole.left; clp.topMargin = (int) hole.top;
+            root.addView(copy, clp);
+        } catch (Throwable ignored) { }
         bd.setAlpha(0f);
         bd.animate().alpha(1f).setDuration(200).start();
         root.setOnClickListener(v -> dismiss());
@@ -211,7 +240,6 @@ public final class MsgMenu {
         bar.setOrientation(LinearLayout.VERTICAL);
         bar.setBackground(card(act, dark, 14));
         bar.setPadding(dp(act, 6), dp(act, 4), dp(act, 6), dp(act, 4));
-        bar.setElevation(dp(act, 6));
 
         LinearLayout top = new LinearLayout(act);
         top.setOrientation(LinearLayout.HORIZONTAL);
@@ -301,12 +329,13 @@ public final class MsgMenu {
         actions.setOrientation(LinearLayout.VERTICAL);
         actions.setBackground(card(act, dark, 14));
         actions.setPadding(dp(act, 4), dp(act, 4), dp(act, 4), dp(act, 4));
-        actions.setElevation(dp(act, 8));
 
         actions.addView(actionRow(act, dark, R.drawable.ic_mm_reply, "رد على الرسالة", false, () -> { dismiss(); cb.reply(); }));
         if (spec.canCopy) actions.addView(actionRow(act, dark, R.drawable.ic_mm_copy, "نسخ النص", false, () -> { dismiss(); cb.copy(); }));
         if (spec.canDownload) actions.addView(actionRow(act, dark, R.drawable.ic_mm_download, spec.downloadLabel, false, () -> { dismiss(); cb.download(); }));
         if (spec.canEdit) actions.addView(actionRow(act, dark, R.drawable.ic_mm_edit, "تعديل الرسالة", false, () -> { dismiss(); cb.edit(); }));
+        if (spec.canPin) actions.addView(actionRow(act, dark, spec.pinned ? R.drawable.ic_mm_unpin : R.drawable.ic_mm_pin,
+                spec.pinned ? "إلغاء تثبيت الرسالة" : "تثبيت الرسالة", false, () -> { dismiss(); cb.pin(); }));
         View line = new View(act);
         line.setBackgroundColor(0x38808080);
         LinearLayout.LayoutParams ll = new LinearLayout.LayoutParams(-1, Math.max(1, dp(act, 1)));
@@ -392,13 +421,11 @@ public final class MsgMenu {
     }
 
     // ------------------------------------------------------------------ الحبة العائمة عند التحديد (ضغط مطوّل)
+    /** الحبة لا تعترض اللمس: الرسائل تحتها تبقى قابلة للتحديد/التمرير، والإطار الذهبي يرسمه تحديد الفقاعة نفسها. */
     public static void showPill(final Activity act, final View anchor, final boolean dark, final int gold, final int insetTop, final int insetBottom,
                                 final String myReaction, final Runnable onMore, final Cb cb) {
-        final FrameLayout root = attach(act, dark);
+        final FrameLayout root = attach(act, dark, false);
         final ViewGroup content = (ViewGroup) root.getParent();
-        root.setOnClickListener(v -> dismiss());
-        final RectF box = anchorRect(anchor, content);
-        root.addView(new Outline(act, box, gold, dp(act, 14)), new FrameLayout.LayoutParams(-1, -1));
 
         final LinearLayout pill = new LinearLayout(act);
         pill.setOrientation(LinearLayout.HORIZONTAL);
@@ -411,7 +438,6 @@ public final class MsgMenu {
         bg.setCornerRadius(dp(act, 28));
         bg.setStroke(dp(act, 1), dark ? 0x1AFFFFFF : 0xFFDCE4EE);
         pill.setBackground(bg);
-        pill.setElevation(dp(act, 10));
         for (final String e : QUICK) {
             TextView t = new TextView(act);
             t.setText(e); t.setTextSize(26); t.setGravity(Gravity.CENTER); t.setIncludeFontPadding(false);
@@ -432,26 +458,49 @@ public final class MsgMenu {
         pl.setMarginStart(dp(act, 2));
         pill.addView(plus, pl);
 
-        final int W = content.getWidth(), H = content.getHeight();
+        final int W = content.getWidth();
         pill.measure(View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
         int w = Math.min(pill.getMeasuredWidth(), W - dp(act, 16)), h = pill.getMeasuredHeight();
-        int m = dp(act, 8);
-        float left = Math.max(m, Math.min(box.centerX() - w / 2f, W - w - m));
-        float minTop = m + insetTop;
-        float topY = box.top - h - dp(act, 8);
-        if (topY < minTop) {
-            float below = box.bottom + dp(act, 8);
-            topY = (below + h <= H - m - insetBottom) ? below : minTop;
-        }
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(w, h);
-        lp.leftMargin = (int) left; lp.topMargin = (int) topY;
-        root.addView(pill, lp);
+        root.addView(pill, new FrameLayout.LayoutParams(w, h));
+        pillView = pill;
+        placePill(anchor, insetTop, insetBottom);
         pill.setAlpha(0f); pill.setTranslationY(dp(act, 6)); pill.setScaleX(.92f); pill.setScaleY(.92f);
         pill.animate().alpha(1f).translationY(0).scaleX(1f).scaleY(1f).setDuration(160).start();
     }
 
+    /** يعيد وضع الحبة فوق الرسالة (عند التمرير) ويخفيها إن خرجت الرسالة من الشاشة — مثل positionSelEmojiBar في الـ HTML. */
+    public static void placePill(View anchor, int insetTop, int insetBottom) {
+        final View pill = pillView;
+        if (pill == null || overlay == null || anchor == null || !anchor.isAttachedToWindow()) return;
+        final ViewGroup content = overlayParent;
+        final Context c = pill.getContext();
+        final RectF box = anchorRect(anchor, content);
+        final int W = content.getWidth(), H = content.getHeight();
+        int w = pill.getLayoutParams().width, h = pill.getLayoutParams().height;
+        int m = dp(c, 8);
+        boolean off = box.bottom < insetTop + dp(c, 56) || box.top > H - insetBottom - dp(c, 60);
+        pill.setVisibility(off ? View.INVISIBLE : View.VISIBLE);
+        float left = Math.max(m, Math.min(box.centerX() - w / 2f, W - w - m));
+        float minTop = m + insetTop;
+        float topY = box.top - h - dp(c, 8);
+        if (topY < minTop) {
+            float below = box.bottom + dp(c, 8);
+            topY = (below + h <= H - m - insetBottom) ? below : minTop;
+        }
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) pill.getLayoutParams();
+        if (lp.leftMargin != (int) left || lp.topMargin != (int) topY) {
+            lp.leftMargin = (int) left; lp.topMargin = (int) topY;
+            pill.setLayoutParams(lp);
+        }
+    }
+
     // ------------------------------------------------------------------ نافذة الحذف (messageDeleteModal)
     public static void showDelete(final Activity act, final boolean dark, final DeleteCb cb) {
+        showDelete(act, dark, "حذف الرسالة", "اختر أين تريد حذف هذه الرسالة.", true, cb);
+    }
+
+    /** نسخة الحذف المتعدد (openMultiDeleteDialog): العنوان بعدد الرسائل، و«لدى الكل» معطّل إن لم تكن كلها لي. */
+    public static void showDelete(final Activity act, final boolean dark, String title, String desc, boolean allowAll, final DeleteCb cb) {
         final FrameLayout root = attach(act, dark);
         root.setBackgroundColor(0x80050C16);
         root.setOnClickListener(v -> dismiss());
@@ -465,15 +514,14 @@ public final class MsgMenu {
         bg.setCornerRadius(dp(act, 18));
         bg.setStroke(dp(act, 1), dark ? 0x59C49B48 : 0xFFDFE5EE);
         cardV.setBackground(bg);
-        cardV.setElevation(dp(act, 16));
 
         TextView h = new TextView(act);
-        h.setText("حذف الرسالة"); h.setTextSize(17); h.setTypeface(null, Typeface.BOLD);
+        h.setText(title); h.setTextSize(17); h.setTypeface(null, Typeface.BOLD);
         h.setTextColor(dark ? 0xFFC9A45C : 0xFF17212B);
         h.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
         cardV.addView(h);
         TextView d = new TextView(act);
-        d.setText("اختر أين تريد حذف هذه الرسالة."); d.setTextSize(13);
+        d.setText(desc); d.setTextSize(13);
         d.setTextColor(dark ? 0xFF9CA3AF : 0xFF657286);
         d.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
         LinearLayout.LayoutParams dl = new LinearLayout.LayoutParams(-1, -2);
@@ -481,7 +529,9 @@ public final class MsgMenu {
         cardV.addView(d, dl);
 
         cardV.addView(dialogBtn(act, "حذف لدي فقط", dark ? 0xFF222733 : 0xFFF7F9FC, dark ? 0xFFF5F6F8 : 0xFF17212B, dark ? 0x1FFFFFFF : 0xFFE1E7EF, () -> { dismiss(); cb.forMe(); }));
-        cardV.addView(dialogBtn(act, "حذف لدى الكل", dark ? 0x1FDC4141 : 0xFFFFF1F2, dark ? 0xFFF87171 : 0xFFDC2626, dark ? 0x59F87171 : 0xFFFECACA, () -> { dismiss(); cb.forAll(); }));
+        View allBtn = dialogBtn(act, "حذف لدى الكل", dark ? 0x1FDC4141 : 0xFFFFF1F2, dark ? 0xFFF87171 : 0xFFDC2626, dark ? 0x59F87171 : 0xFFFECACA, () -> { dismiss(); cb.forAll(); });
+        if (!allowAll) { allBtn.setAlpha(.45f); allBtn.setOnClickListener(null); allBtn.setClickable(false); }
+        cardV.addView(allBtn);
         cardV.addView(dialogBtn(act, "إلغاء", 0, dark ? 0xFF9CA3AF : 0xFF64748B, 0, MsgMenu::dismiss));
 
         int W = ((ViewGroup) root.getParent()).getWidth();

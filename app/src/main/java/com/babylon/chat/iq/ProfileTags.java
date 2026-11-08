@@ -84,7 +84,6 @@ final class ProfileTags {
 
         if (tag.equals("epcard")) {                      // .edit-profile-card : radius 18 (شاشة ≤520)، حدّ 1px
             x.setBackground(box(epCardBg(dark), Tk.dp(x, 18), epCardLine(dark), Tk.dp(x, 1)));
-            x.setElevation(Tk.dp(x, dark ? 0 : 2));
             return true;
         }
 
@@ -120,14 +119,8 @@ final class ProfileTags {
                     new int[]{0xFFE6C566, 0xFFD3A93B, 0xFFBC8E24});
             g.setCornerRadius(Tk.dp(x, 13));
             x.setBackground(g);
-            x.setElevation(Tk.dp(x, 6));
-            if (android.os.Build.VERSION.SDK_INT >= 28) {
-                x.setOutlineAmbientShadowColor(0x61BE9628);
-                x.setOutlineSpotShadowColor(0x61BE9628);
-            }
             if (t != null) {
                 t.setTextColor(Color.WHITE);
-                t.setShadowLayer(Tk.dp(x, 2), 0, Tk.dp(x, 1), 0x806E4800);
                 t.setGravity(Gravity.CENTER);
             }
             return true;

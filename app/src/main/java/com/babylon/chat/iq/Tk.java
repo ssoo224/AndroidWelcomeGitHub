@@ -18,7 +18,7 @@ public final class Tk {
     // ----- الألوان الأساسية (HTML: --bg / --surface / ...)
     public static int pageBg(boolean d)  { return d ? 0xFF0E1621 : 0xFFF4F6FA; }
     public static int surface(boolean d) { return d ? 0xFF17212B : 0xFFFFFFFF; }
-    public static int navBg(boolean d)   { return 0xFFFFFFFF; }   // شريط التنقل أبيض #FFFFFF في الوضعين
+    public static int navBg(boolean d)   { return d ? 0xFF17212B : 0xFFFFFFFF; }   // شريط التنقل: ليلي #17212B / نهاري أبيض
     /** HTML: --cr-surface داخل المحادثة (خلفية الغرفة + لون الطبقة الزجاجية + لون شريط الإيماءات) */
     public static int chatSurface(boolean d) { return d ? 0xFF17212B : 0xFFEEF2F8; }
     public static int surface2(boolean d){ return d ? 0xFF1D2A38 : 0xFFE8EDF4; }
@@ -176,10 +176,8 @@ public final class Tk {
             float r = dp(x, 11);
             if (tag.equals("vpM")) {
                 x.setBackground(shape(0xFFFFFFFF, r, 0, 0));
-                x.setElevation(dp(x, 2));
             } else {
                 x.setBackground(grad(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE8C85D, 0xFFC29D30}, r));
-                x.setElevation(dp(x, 3));
             }
             if (x instanceof android.view.ViewGroup && ((android.view.ViewGroup) x).getChildCount() > 0) {
                 View ic = ((android.view.ViewGroup) x).getChildAt(0);
@@ -227,7 +225,6 @@ public final class Tk {
             GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE8C85D, 0xFFC29D30});
             g.setShape(GradientDrawable.OVAL);
             x.setBackground(g);
-            x.setElevation(dp(x, 3));
             if (t != null) t.setTextColor(0xFFFFFFFF);
             return true;
         }
@@ -235,7 +232,6 @@ public final class Tk {
             GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE8C85D, 0xFFC29D30});
             g.setCornerRadius(dp(x, 12));
             x.setBackground(g);
-            x.setElevation(dp(x, 3));
             return true;
         }
         if (tag.equals("sendbtn")) {         // زر الإرسال: تدرّج ذهبي 145deg ، انحناء 15/15/7/15 ، سهم أبيض ، ظل ذهبي
@@ -243,7 +239,6 @@ public final class Tk {
             float r = dp(x, 15), s = dp(x, 7);
             g.setCornerRadii(new float[]{r, r, r, r, s, s, r, r});   // TL, TR, BR(7), BL
             x.setBackground(g);
-            x.setElevation(dp(x, 3));
             if (t != null) t.setTextColor(0xFFFFFFFF);
             return true;
         }
@@ -251,7 +246,6 @@ public final class Tk {
             GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, GOLD_135);
             g.setShape(GradientDrawable.OVAL);
             x.setBackground(g);
-            x.setElevation(dp(x, 8));
             if (t != null) t.setTextColor(0xFFFFFFFF);
             return true;
         }
@@ -261,7 +255,7 @@ public final class Tk {
             return true;
         }
         if (tag.equals("navline")) {         // الحدّ العلوي 1px + خط ذهبي متدرّج (::before في الـ HTML)
-            final int base = 0xFFEFE5C3;   // الشريط أبيض دائماً: حدّ علوي فاتح
+            final int base = dark ? 0xFF2A3644 : 0xFFEFE5C3;   // حدّ علوي: داكن في الليلي، فاتح في النهاري
             android.graphics.drawable.ShapeDrawable sd = new android.graphics.drawable.ShapeDrawable(new android.graphics.drawable.shapes.RectShape());
             sd.setShaderFactory(new android.graphics.drawable.ShapeDrawable.ShaderFactory() {
                 @Override public android.graphics.Shader resize(int w, int h) {
