@@ -19,10 +19,14 @@ public class PullScrollView extends ScrollView {
         /** totalDy = المسافة منذ بداية الجلسة. */
         void onPull(float totalDy);
         void onRelease();
+        /** نقرة (بدون سحب) على منطقة فارغة من الصفحة؛ الإحداثيات نسبةً إلى الـ ScrollView. */
+        void onTap(float x, float y);
     }
 
     private Controller controller;
     private float downY;
+    private float tapX, tapY;
+    private boolean tapOk;
     private boolean pulling;
     private final int slop;
 
@@ -31,6 +35,9 @@ public class PullScrollView extends ScrollView {
     public PullScrollView(Context c, AttributeSet a) {
         super(c, a);
         slop = ViewConfiguration.get(c).getScaledTouchSlop();
+        // الأزرار/الصورة تصعد خارج حدود أبيها أثناء التكبير ولا يجب أن تُقصّ
+        setClipChildren(false);
+        setClipToPadding(false);
     }
 
     public void setController(Controller c) { controller = c; }
@@ -63,6 +70,25 @@ public class PullScrollView extends ScrollView {
 
     @Override
     public boolean onTouchEvent(MotionEvent ev) {
+        // كشف النقر على الفراغ (الصورة المكبّرة تقع خلف المحتوى فلا تستقبل اللمس بنفسها)
+        if (controller != null && !pulling) {
+            switch (ev.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    tapX = ev.getX(); tapY = ev.getY(); tapOk = true;
+                    break;
+                case MotionEvent.ACTION_MOVE:
+                    if (Math.abs(ev.getX() - tapX) > slop || Math.abs(ev.getY() - tapY) > slop) tapOk = false;
+                    break;
+                case MotionEvent.ACTION_UP:
+                    if (tapOk) { tapOk = false; controller.onTap(ev.getX(), ev.getY()); }
+                    break;
+                case MotionEvent.ACTION_CANCEL:
+                    tapOk = false;
+                    break;
+                default:
+                    break;
+            }
+        }
         // عندما لا يستهلك أي ابن حدث DOWN لا يُستدعى onIntercept لباقي الأحداث، فنلتقط البداية هنا أيضاً
         if (controller != null && !pulling) {
             if (ev.getActionMasked() == MotionEvent.ACTION_DOWN) {

@@ -4,64 +4,102 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.app.Activity;
+import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.LinearGradient;
 import android.graphics.Outline;
+import android.graphics.Paint;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
+import android.graphics.Shader;
+import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewOutlineProvider;
+import android.view.ViewParent;
 import android.view.animation.PathInterpolator;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import java.util.ArrayList;
+
 /**
  * سحب الشاشة للأسفل في الملف الشخصي: تكبر الصورة مع الإصبع حتى تصبح مربعاً بعرض الشاشة
- * يظهر عليه الاسم، وتصعد أزرار (تعديل / الصورة / الغلاف) إلى أسفل الصورة — مثل تليجرام.
- * منقول من سكربت pf-pull-expand-js:
+ * يظهر عليه الاسم، وتصعد أزرار (تعديل / الصورة / الغلاف) فوق أسفل الصورة — مثل تليجرام.
+ * منقول من سكربت pf-pull-expand-js (+ babylon-profile-glass + babylon-profile-blur-always):
  *   THRESH = 0.45       بعدها تثبت مفتوحة عند ترك الإصبع
  *   RANGE  = 320dp      للملف الشخصي الخاص ، 150dp لملف شخص آخر
  *   ext    = ارتفاع صف الأزرار + 28dp (امتداد الصورة المموّه أسفل المربع)
  *   حلقة الصورة تتحول من دائرة (50%) إلى مربع (0%) ، الاسم والحالة يظهران عند v > 0.55
+ *
+ * ترتيب الطبقات (من الأسفل للأعلى) داخل pagesHost — مثل z-index في الـ HTML:
+ *   coverUnder  : لون الغلاف (يبقى خلف الصورة ويكبر معها: cover.height = coverH + delta*v)
+ *   hero        : الصورة المكبّرة + الامتداد المموّه + التظليل + الاسم والحالة
+ *   ScrollView  : المحتوى (شفاف أثناء السحب) ← الأزرار الزجاجية تظهر فوق الصورة
+ *
+ * الصورة تبدأ من y=0 (خلف شريط الحالة الشفاف) لأن MassActivity لا تضع padding علوي على صفحات الملف الشخصي.
  */
 public final class ProfileHero implements PullScrollView.Controller {
 
     public interface PhotoSource { Bitmap get(); }
+
+    /** ألوان الثيم الحالي، وإعادة تنسيق الأزرار الأصلية عند الإغلاق. */
+    public interface Palette {
+        int surface();     // خلفية الأزرار العادية (--pf-card)
+        int text();        // لون نص الأزرار (--pf-txt)
+        int gold();        // لون أيقونة الأزرار (--pf-gold)
+        int red();         // زر الحظر
+        void restyle();    // يعيد تنسيق الأزرار/الغلاف كما كانت قبل السحب
+    }
 
     private static final float THRESH = 0.45f;
 
     private final Activity act;
     private final PullScrollView sv;
     private final ViewGroup content;       // الابن المباشر لـ ScrollView
+    private final View cover;              // أول ابن في المحتوى (الغلاف)
+    private final View anchor;             // الابن المباشر للمحتوى الذي يحوي صف الأزرار؛ ما بعده ينزل
     private final TextView avatar;
-    private final View infoBox;            // الحاوية التي فيها الصورة والاسم والحالة والأزرار
+    private final View infoBox;            // الصورة والاسم والحالة
     private final TextView nameV, statusV;
-    private final View quick;
+    private final View quick;              // صف/صفوف الأزرار
     private final float rangePx;
+    private final float d;
     private final PhotoSource photo;
-    private final View backBtn, moreBtn;   // لملف شخص آخر فقط
+    private final View backBtn, moreBtn;   // لملف شخص آخر فقط (داخل الغلاف، تبقى فوق الصورة)
+    private final Palette pal;
+    private final ArrayList<TextView> btns = new ArrayList<>();
+    private float[] btnElev = new float[0];
 
     // طبقة الصورة المكبّرة
     private final FrameLayout hero;
-    private final ImageView heroImg, heroExt;
+    private final View coverUnder;
+    private final ImageView heroExt;
+    private final FadeImageView heroImg;
     private final TextView heroLetter, heroName, heroStatus;
     private final View heroShade;
-    private View heroBack, heroMore;
+    private final LinearLayoutLtr infoHolder;
 
-    private float W, size0, avatarTop, quickH, infoBottom, quickBottom;
-    private float p = 0f, p0 = 0f;
-    private boolean expanded = false;
+    private float W, size0, avatarTop, ringBottom, coverH, quickH, infoBottom, quickBottom;
+    private float p = 0f, p0 = 0f, lastPv = -1f;
+    private boolean expanded = false, covered = false;
     private ValueAnimator anim;
     private float radiusPx = 0f, hW = 0f, hH = 0f;
+    private Drawable svBg, coverBg;
 
     public ProfileHero(Activity act, PullScrollView sv, TextView avatar, View infoBox,
                        TextView nameV, TextView statusV, View quick, boolean own,
-                       PhotoSource photo, View backBtn, View moreBtn) {
+                       PhotoSource photo, View backBtn, View moreBtn, Palette pal) {
         this.act = act;
         this.sv = sv;
         this.content = (ViewGroup) sv.getChildAt(0);
+        this.cover = content.getChildCount() > 0 ? content.getChildAt(0) : null;
         this.avatar = avatar;
         this.infoBox = infoBox;
         this.nameV = nameV;
@@ -70,10 +108,28 @@ public final class ProfileHero implements PullScrollView.Controller {
         this.photo = photo;
         this.backBtn = backBtn;
         this.moreBtn = moreBtn;
-        float d = act.getResources().getDisplayMetrics().density;
+        this.pal = pal;
+        this.d = act.getResources().getDisplayMetrics().density;
         this.rangePx = (own ? 320f : 150f) * d;
 
-        // --- بناء طبقة hero فوق ScrollView داخل نفس الأب ---
+        // الابن المباشر للمحتوى الذي يحوي الأزرار (يتغير مكانه حسب الـ XML)
+        View a = quick != null ? quick : infoBox;
+        while (a.getParent() != content && a.getParent() instanceof View) a = (View) a.getParent();
+        this.anchor = a;
+
+        // الأزرار تخرج من حدود أبيها أثناء الصعود فوق الصورة: نمنع القص على كل الطريق حتى الـ ScrollView
+        View w = quick != null ? quick : infoBox;
+        while (w != null && w != sv) {
+            ViewParent pp = w.getParent();
+            if (pp instanceof ViewGroup) {
+                ((ViewGroup) pp).setClipChildren(false);
+                ((ViewGroup) pp).setClipToPadding(false);
+            }
+            w = pp instanceof View ? (View) pp : null;
+        }
+        collectButtons(quick);
+
+        // --- بناء الطبقات تحت ScrollView داخل نفس الأب (الأزرار والمحتوى يبقيان فوق الصورة) ---
         hero = new FrameLayout(act);
         hero.setVisibility(View.GONE);
         hero.setBackgroundColor(0xFF16213A);
@@ -83,12 +139,14 @@ public final class ProfileHero implements PullScrollView.Controller {
                 o.setRoundRect(0, 0, (int) hW, (int) hH, radiusPx);
             }
         });
+
+        // الامتداد المموّه أسفل المربع: نسخة مصغّرة جداً من الصورة تُمدّد (blur) + brightness(.9)
         heroExt = new ImageView(act);
         heroExt.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        heroExt.setAlpha(0.55f);
+        heroExt.setColorFilter(0xFFE6E6E6, PorterDuff.Mode.MULTIPLY);
         hero.addView(heroExt, new FrameLayout.LayoutParams(-1, -1));
 
-        heroImg = new ImageView(act);
+        heroImg = new FadeImageView(act);
         heroImg.setScaleType(ImageView.ScaleType.CENTER_CROP);
         hero.addView(heroImg, new FrameLayout.LayoutParams(-1, 0));
 
@@ -98,9 +156,10 @@ public final class ProfileHero implements PullScrollView.Controller {
         heroLetter.setTypeface(null, android.graphics.Typeface.BOLD);
         hero.addView(heroLetter, new FrameLayout.LayoutParams(-1, 0));
 
+        // .pf-hero-shade : rgba(0,0,0,0) -> rgba(0,0,0,.55)
         heroShade = new View(act);
         GradientDrawable sh = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[]{0x00000000, 0xB8000000});
+                new int[]{0x00000000, 0x8C000000});
         heroShade.setBackground(sh);
         hero.addView(heroShade, new FrameLayout.LayoutParams(-1, 0));
 
@@ -126,18 +185,16 @@ public final class ProfileHero implements PullScrollView.Controller {
         hero.addView(info, ilp);
         this.infoHolder = info;
 
+        coverUnder = new View(act);
+        coverUnder.setVisibility(View.GONE);
+
         ViewGroup host = (ViewGroup) sv.getParent();
-        host.addView(hero, new FrameLayout.LayoutParams(0, 0));
+        int at = host.indexOfChild(sv);
+        host.addView(coverUnder, at, new FrameLayout.LayoutParams(-1, 0));
+        host.addView(hero, at + 1, new FrameLayout.LayoutParams(0, 0));
 
-        // أزرار الرجوع/المزيد لملف شخص آخر: تُنسخ فوق الصورة لأن الأصل يقع تحت الطبقة
-        if (backBtn != null) heroBack = makeTopBtn(true);
-        if (moreBtn != null) heroMore = makeTopBtn(false);
-
-        hero.setOnClickListener(v -> { if (expanded) animateTo(0f); });
         sv.setController(this);
     }
-
-    private LinearLayoutLtr infoHolder;
 
     /** LinearLayout رأسي بإتجاه LTR (الاسم على اليسار فوق الصورة كما في الـ HTML). */
     private static final class LinearLayoutLtr extends android.widget.LinearLayout {
@@ -148,29 +205,42 @@ public final class ProfileHero implements PullScrollView.Controller {
         }
     }
 
-    private View makeTopBtn(final boolean back) {
-        float d = act.getResources().getDisplayMetrics().density;
-        TextView b = new TextView(act);
-        b.setGravity(Gravity.CENTER);
-        GradientDrawable g = new GradientDrawable();
-        g.setShape(GradientDrawable.OVAL);
-        g.setColor(0x59000000);
-        b.setBackground(g);
-        View src = back ? backBtn : moreBtn;
-        if (src instanceof TextView) {
-            android.graphics.drawable.Drawable[] ds = ((TextView) src).getCompoundDrawablesRelative();
-            b.setCompoundDrawablesRelative(ds[0], null, null, null);
-            b.setCompoundDrawablePadding(0);
-            b.setText(((TextView) src).getText());
-            b.setTextColor(((TextView) src).getCurrentTextColor());
+    /**
+     * صورة المستخدم المربعة: أسفلها يتلاشى إلى الامتداد المموّه خلفها
+     * (mask-image: linear-gradient(to bottom, #000 calc(100% - ext*1.15px), transparent)).
+     */
+    private static final class FadeImageView extends ImageView {
+        private final Paint mask = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private float fade = 0f;
+
+        FadeImageView(Context c) {
+            super(c);
+            mask.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_IN));
         }
-        b.setVisibility(View.GONE);
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams((int) (40 * d), (int) (40 * d),
-                back ? (Gravity.TOP | Gravity.START) : (Gravity.TOP | Gravity.END));
-        lp.setMargins((int) (12 * d), (int) (12 * d), (int) (12 * d), 0);
-        hero.addView(b, lp);
-        b.setOnClickListener(v -> (back ? backBtn : moreBtn).performClick());
-        return b;
+
+        void setFade(float px) {
+            if (Math.abs(px - fade) > 0.5f) { fade = px; invalidate(); }
+        }
+
+        @Override protected void onDraw(Canvas c) {
+            int w = getWidth(), h = getHeight();
+            if (fade <= 0.5f || h <= 0) { super.onDraw(c); return; }
+            int sc = c.saveLayer(0, 0, w, h, null);
+            super.onDraw(c);
+            float f = Math.min(fade, h);
+            mask.setShader(new LinearGradient(0, h - f, 0, h, 0xFF000000, 0x00000000, Shader.TileMode.CLAMP));
+            c.drawRect(0, h - f, w, h, mask);
+            c.restoreToCount(sc);
+        }
+    }
+
+    private void collectButtons(View v) {
+        if (v == null) return;
+        if (v instanceof TextView) { btns.add((TextView) v); return; }
+        if (v instanceof ViewGroup) {
+            ViewGroup g = (ViewGroup) v;
+            for (int i = 0; i < g.getChildCount(); i++) collectButtons(g.getChildAt(i));
+        }
     }
 
     // ------------------------------------------------------------- قياس
@@ -189,8 +259,10 @@ public final class ProfileHero implements PullScrollView.Controller {
         W = sv.getWidth();
         size0 = avatar.getWidth();
         avatarTop = topInContent(avatar);
+        ringBottom = avatarTop + avatar.getHeight();
+        coverH = cover != null ? cover.getHeight() : 0;
         quickH = quick != null ? quick.getHeight() : 0;
-        infoBottom = topInContent(infoBox) + infoBox.getHeight();
+        infoBottom = topInContent(anchor) + anchor.getHeight();
         quickBottom = quick != null ? topInContent(quick) + quick.getHeight() : infoBottom;
     }
 
@@ -221,22 +293,124 @@ public final class ProfileHero implements PullScrollView.Controller {
 
     private static float clamp(float v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
 
+    /** color-mix(in srgb, c1 t%, c0) — الدمج بالألوان المضروبة مسبقاً في ألفا مثل CSS. */
+    private static int mix(int c0, int c1, float t) {
+        float a0 = Color.alpha(c0) / 255f, a1 = Color.alpha(c1) / 255f;
+        float a = a0 + (a1 - a0) * t;
+        if (a <= 0.0001f) return 0;
+        float r = (Color.red(c0) * a0 + (Color.red(c1) * a1 - Color.red(c0) * a0) * t) / a;
+        float g = (Color.green(c0) * a0 + (Color.green(c1) * a1 - Color.green(c0) * a0) * t) / a;
+        float b = (Color.blue(c0) * a0 + (Color.blue(c1) * a1 - Color.blue(c0) * a0) * t) / a;
+        return Color.argb(Math.round(a * 255f), Math.min(255, Math.round(r)),
+                Math.min(255, Math.round(g)), Math.min(255, Math.round(b)));
+    }
+
+    // ------------------------------------------------- طبقة الغلاف + شفافية الصفحة
+    /** الصفحة شفافة والغلاف ينتقل خلف الصورة (في الـ HTML: الصورة z-index:1 فوق الغلاف). */
+    private void enterCover() {
+        if (covered) return;
+        covered = true;
+        svBg = sv.getBackground();
+        sv.setBackgroundColor(Color.TRANSPARENT);
+        Drawable cd = null;
+        if (cover != null) {
+            coverBg = cover.getBackground();
+            if (coverBg != null) {
+                Drawable.ConstantState cs = coverBg.getConstantState();
+                cd = cs != null ? cs.newDrawable().mutate() : coverBg;
+            }
+            cover.setBackground(null);
+        }
+        coverUnder.setBackground(cd != null ? cd : new ColorDrawable(0xFF1B2A4A));
+        coverUnder.setVisibility(View.VISIBLE);
+    }
+
+    private void leaveCover() {
+        if (!covered) return;
+        covered = false;
+        sv.setBackground(svBg);
+        if (cover != null) {
+            cover.setBackground(coverBg);
+            fadeCover(1f);
+        }
+        coverUnder.setVisibility(View.GONE);
+        coverUnder.setBackground(null);
+    }
+
+    /** زخرفة الغلاف وتدرّج أسفله تتلاشى؛ أزرار الرجوع/المزيد تبقى ظاهرة فوق الصورة. */
+    private void fadeCover(float a) {
+        if (!(cover instanceof ViewGroup)) return;
+        ViewGroup g = (ViewGroup) cover;
+        for (int i = 0; i < g.getChildCount(); i++) {
+            View c = g.getChildAt(i);
+            if (c == backBtn || c == moreBtn) continue;
+            c.setAlpha(a);
+        }
+    }
+
+    // ------------------------------------------------- أزرار زجاجية فوق الصورة
+    /**
+     * .pf-quick .pf-q : background color-mix(rgba(255,255,255,.16) pv%, card)،
+     * color/أيقونة color-mix(#fff pv%, gold)، النص color-mix(#fff pv%, txt)،
+     * زر الرسالة الذهبي: color-mix(rgba(212,169,55,.55) pv%, gold)، زر الحظر: #ffb4b4.
+     * pv = round(clamp(2v)*8)/8 وبحد أدنى 0.125.
+     */
+    private void applyGlass(float v) {
+        float pv = v > 0.001f ? Math.max(0.125f, Math.round(clamp(v * 2f) * 8f) / 8f) : 0f;
+        if (pv == lastPv || pal == null) return;
+        lastPv = pv;
+        for (int i = 0; i < btns.size(); i++) {
+            TextView t = btns.get(i);
+            Object tg = t.getTag();
+            String s = tg instanceof String ? (String) tg : "";
+            boolean primary = s.contains("gold");
+            boolean red = s.contains("redo");
+
+            int fill = primary ? mix(pal.gold(), 0x8CD4A937, pv) : mix(pal.surface(), 0x29FFFFFF, pv);
+            int white = red ? 0xFFFFB4B4 : 0xFFFFFFFF;
+            int txt = mix(primary ? 0xFF17212B : (red ? pal.red() : pal.text()), white, pv);
+            int ico = mix(primary ? 0xFF17212B : (red ? pal.red() : pal.gold()), white, pv);
+
+            GradientDrawable g = new GradientDrawable();
+            g.setCornerRadius(16 * d);
+            g.setColor(fill);
+            t.setBackground(g);
+            t.setTextColor(txt);
+            for (Drawable dd : t.getCompoundDrawablesRelative()) {
+                if (dd != null) dd.mutate().setColorFilter(ico, PorterDuff.Mode.SRC_IN);
+            }
+            // الظل يختفي مع الزجاج (box-shadow:none)
+            if (i < btnElev.length) t.setElevation(btnElev[i] * (1f - pv));
+        }
+    }
+
     // ------------------------------------------------------------- تطبيق v
+    private void enterHero() {
+        hero.setVisibility(View.VISIBLE);
+        avatar.setAlpha(0f);
+        enterCover();
+        btnElev = new float[btns.size()];
+        for (int i = 0; i < btns.size(); i++) btnElev[i] = btns.get(i).getElevation();
+        lastPv = -1f;
+    }
+
     private void apply(float v) {
         p = clamp(v);
-        float d = act.getResources().getDisplayMetrics().density;
         if (p <= 0.001f) { hideHero(); return; }
-        if (hero.getVisibility() != View.VISIBLE) {
-            hero.setVisibility(View.VISIBLE);
-            avatar.setAlpha(0f);
-            if (heroBack != null) heroBack.setVisibility(View.VISIBLE);
-            if (heroMore != null) heroMore.setVisibility(View.VISIBLE);
-        }
+        if (hero.getVisibility() != View.VISIBLE) enterHero();
+
         float size = size0 + (W - size0) * p;
         float ext = (quickH + 28 * d) * clamp(p * 2f);
         float top = avatarTop * (1f - p);
         float left = (W - size) / 2f;
         float heroH = size + ext;
+
+        // الغلاف يكبر خلف الصورة: cover.height = coverH + delta*v
+        float delta = Math.max(0f, W - ringBottom);
+        FrameLayout.LayoutParams cu = (FrameLayout.LayoutParams) coverUnder.getLayoutParams();
+        cu.height = (int) (coverH + delta * p);
+        coverUnder.setLayoutParams(cu);
+        fadeCover(clamp(1f - p * 2f));
 
         ViewGroup.LayoutParams lp = hero.getLayoutParams();
         lp.width = (int) size;
@@ -247,6 +421,7 @@ public final class ProfileHero implements PullScrollView.Controller {
 
         FrameLayout.LayoutParams ip = (FrameLayout.LayoutParams) heroImg.getLayoutParams();
         ip.height = (int) size; heroImg.setLayoutParams(ip);
+        heroImg.setFade(ext > 0 ? ext * 1.15f : 0f);
         FrameLayout.LayoutParams lt = (FrameLayout.LayoutParams) heroLetter.getLayoutParams();
         lt.height = (int) size; heroLetter.setLayoutParams(lt);
         heroLetter.setTextSize(Math.max(20f, (size / d) * 0.34f));
@@ -265,15 +440,14 @@ public final class ProfileHero implements PullScrollView.Controller {
         FrameLayout.LayoutParams ilp = (FrameLayout.LayoutParams) infoHolder.getLayoutParams();
         ilp.bottomMargin = (int) (16 * d + ext);
         infoHolder.setLayoutParams(ilp);
-        if (heroBack != null) heroBack.setAlpha(1f);
-        if (heroMore != null) heroMore.setAlpha(1f);
 
-        // الاسم/الحالة الأصليان يتلاشيان، والأزرار تصعد إلى أسفل الصورة
+        // الاسم/الحالة الأصليان يتلاشيان، والأزرار تصعد فوق أسفل الصورة
         float fade = clamp(1f - p * 2f);
         if (nameV != null) nameV.setAlpha(fade);
         if (statusV != null) statusV.setAlpha(fade);
         float heroBottom = top + heroH;
         if (quick != null) quick.setTranslationY((heroBottom - 14 * d - quickBottom) * p);
+        applyGlass(p);
 
         // باقي المحتوى ينزل ليبدأ بعد الصورة الممتدة
         float finalStart = W + (quickH + 28 * d) + 10 * d;
@@ -282,19 +456,24 @@ public final class ProfileHero implements PullScrollView.Controller {
         for (int i = 0; i < content.getChildCount(); i++) {
             View c = content.getChildAt(i);
             if (after) c.setTranslationY(shift);
-            if (c == infoBox) after = true;
+            if (c == anchor) after = true;
         }
     }
 
     private void hideHero() {
+        boolean was = covered || hero.getVisibility() == View.VISIBLE;
         hero.setVisibility(View.GONE);
-        avatar.setAlpha(1f);
-        if (heroBack != null) heroBack.setVisibility(View.GONE);
-        if (heroMore != null) heroMore.setVisibility(View.GONE);
-        if (nameV != null) nameV.setAlpha(1f);
-        if (statusV != null) statusV.setAlpha(1f);
-        if (quick != null) quick.setTranslationY(0f);
-        for (int i = 0; i < content.getChildCount(); i++) content.getChildAt(i).setTranslationY(0f);
+        if (was) {
+            avatar.setAlpha(1f);
+            if (nameV != null) nameV.setAlpha(1f);
+            if (statusV != null) statusV.setAlpha(1f);
+            if (quick != null) quick.setTranslationY(0f);
+            for (int i = 0; i < content.getChildCount(); i++) content.getChildAt(i).setTranslationY(0f);
+            leaveCover();
+            for (int i = 0; i < btns.size() && i < btnElev.length; i++) btns.get(i).setElevation(btnElev[i]);
+            lastPv = -1f;
+            if (pal != null) pal.restyle();     // الأزرار تعود لشكل البطاقة الأصلي بالثيم الحالي
+        }
         p = 0f;
         expanded = false;
     }
@@ -302,7 +481,9 @@ public final class ProfileHero implements PullScrollView.Controller {
     /** يُستدعى عند مغادرة الشاشة أو تغيير الثيم. */
     public void reset() {
         if (anim != null) anim.cancel();
-        hideHero();
+        if (covered || hero.getVisibility() == View.VISIBLE) hideHero();
+        p = 0f;
+        expanded = false;
     }
 
     // ------------------------------------------------- PullScrollView.Controller
@@ -327,6 +508,12 @@ public final class ProfileHero implements PullScrollView.Controller {
         animateTo(p >= THRESH ? 1f : 0f);
     }
 
+    /** النقر على الصورة المكبّرة (لا على زر) يغلقها. */
+    @Override public void onTap(float x, float y) {
+        if (!expanded) return;
+        if (y <= hero.getTranslationY() + hero.getHeight()) animateTo(0f);
+    }
+
     private void animateTo(final float target) {
         if (anim != null) anim.cancel();
         if (p <= 0.001f && target == 0f) { hideHero(); return; }
@@ -336,7 +523,10 @@ public final class ProfileHero implements PullScrollView.Controller {
         anim.setInterpolator(new PathInterpolator(0.22f, 1f, 0.36f, 1f));
         anim.addUpdateListener(a -> apply((Float) a.getAnimatedValue()));
         anim.addListener(new AnimatorListenerAdapter() {
+            private boolean cancelled = false;
+            @Override public void onAnimationCancel(Animator animation) { cancelled = true; }
             @Override public void onAnimationEnd(Animator animation) {
+                if (cancelled) return;      // لمسة جديدة أثناء الحركة: لا نغلق ولا نثبّت
                 if (target == 0f) hideHero(); else expanded = true;
             }
         });

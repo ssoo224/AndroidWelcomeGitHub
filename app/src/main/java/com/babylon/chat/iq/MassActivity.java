@@ -256,6 +256,9 @@ public class MassActivity extends Activity {
             boolean tabStories = true;
             BabylonBars bars = new BabylonBars(act);
             boolean tabAnimating = false;
+            // حواف النافذة: ارتفاع شريط الحالة/الإيماءات، وطبقات سحب صورة الملف الشخصي
+            int sbTop = 0, navBottom = 0;
+            ProfileHero heroMe, heroOther;
 
             MediaRecorder recorder = null;
             File audioFile = null;
@@ -464,7 +467,9 @@ public class MassActivity extends Activity {
             void fixCover(View frame) {
                 if (!(frame instanceof FrameLayout)) return;
                 FrameLayout f = (FrameLayout) frame;
-                f.getLayoutParams().height = dp(176);
+                // calc(176px + var(--sat)) : الغلاف يمتد خلف شريط الحالة الشفاف، ومحتواه (أزرار الرجوع/المزيد) ينزل تحته
+                f.getLayoutParams().height = dp(176) + sbTop;
+                f.setPadding(0, sbTop, 0, 0);
                 View fade = f.findViewWithTag("fade");
                 if (fade == null) {
                     fade = new View(act);
@@ -624,10 +629,30 @@ public class MassActivity extends Activity {
                 return p.equals("homeView") ? 0 : p.equals("settingsView") ? 1 : p.equals("profileView") ? 2 : -1;
             }
 
+            boolean isProfilePage(String p) {
+                return "profileView".equals(p) || "otherUserProfileView".equals(p);
+            }
+
+            boolean chatOpen() {
+                View chat = v("chatView");
+                return chat != null && chat.getVisibility() == View.VISIBLE;
+            }
+
+            /**
+             * صفحتا الملف الشخصي تبدآن من أعلى الشاشة فعلاً (بلا padding علوي): الغلاف/الصورة تظهر خلف
+             * شريط الحالة الشفاف مثل الـ HTML. باقي الصفحات تبقى تحت شريط الحالة كما كانت.
+             */
+            void applyInsets() {
+                View r = v("root");
+                if (r == null) return;
+                boolean edge = isProfilePage(curPage) && !chatOpen();
+                r.setPadding(0, edge ? 0 : sbTop, 0, navBottom);
+            }
+
             void syncBars() {
                 try {
-                    View chat = v("chatView");
-                    boolean inChat = chat != null && chat.getVisibility() == View.VISIBLE;
+                    boolean inChat = chatOpen();
+                    applyInsets();
                     int top, bottom;
                     if (inChat) { top = cSf(); bottom = cSf(); }
                     else {
@@ -635,13 +660,17 @@ public class MassActivity extends Activity {
                         boolean nav = v("bottomNav") != null && v("bottomNav").getVisibility() == View.VISIBLE;
                         bottom = nav ? cSf() : cBg();
                     }
-                    bars.sync(top, bottom);
+                    if (!inChat && isProfilePage(curPage)) bars.syncProfile(bottom);   // شريط حالة شفاف + أيقونات بيضاء
+                    else bars.sync(top, bottom);
                 } catch (Throwable ignored) { }
             }
 
             void show(String p) {
                 final String from = curPage;
                 prevPage = curPage; curPage = p;
+                applyInsets();
+                if (heroMe != null && !p.equals("profileView")) heroMe.reset();
+                if (heroOther != null && !p.equals("otherUserProfileView")) heroOther.reset();
                 int fi = tabIndex(from), ti = tabIndex(p);
                 final boolean slide = fi >= 0 && ti >= 0 && fi != ti && v(from) != null && v(p) != null
                         && v(from).getVisibility() == View.VISIBLE;
@@ -2086,11 +2115,18 @@ public class MassActivity extends Activity {
                 loadChats();
                 show("homeView");
                 try {
-                    new ProfileHero(act, (PullScrollView) v("profileView"), tv("pAvatarText"), v("linear643"),
-                            tv("pHeaderName"), tv("pHeaderStatus"), v("linear644"), true, () -> photoBmp, null, null);
-                    new ProfileHero(act, (PullScrollView) v("otherUserProfileView"), tv("otherAvatarText"), v("linear658"),
+                    ProfileHero.Palette pal = new ProfileHero.Palette() {
+                        @Override public int surface() { return cSf(); }
+                        @Override public int text() { return cText(); }
+                        @Override public int gold() { return cGold(); }
+                        @Override public int red() { return cRed(); }
+                        @Override public void restyle() { polishProfile(); }
+                    };
+                    heroMe = new ProfileHero(act, (PullScrollView) v("profileView"), tv("pAvatarText"), v("linear643"),
+                            tv("pHeaderName"), tv("pHeaderStatus"), v("linear644"), true, () -> photoBmp, null, null, pal);
+                    heroOther = new ProfileHero(act, (PullScrollView) v("otherUserProfileView"), tv("otherAvatarText"), v("linear658"),
                             tv("otherHeaderName"), tv("otherHeaderStatus"), v("linear659"), false, () -> null,
-                            v("otherBack"), v("otherMoreBtn"));
+                            v("otherBack"), v("otherMoreBtn"), pal);
                 } catch (Throwable ignored) { }
                 try {
                     BabylonFx.shine(tv("textview621"));
@@ -2117,7 +2153,11 @@ public class MassActivity extends Activity {
             rootView.setOnApplyWindowInsetsListener((v, insets) -> {
                 int top = insets.getSystemWindowInsetTop();
                 int bottom = insets.getSystemWindowInsetBottom();
-                v.setPadding(0, top, 0, bottom);
+                boolean topChanged = top != ui.sbTop;
+                ui.sbTop = top;
+                ui.navBottom = bottom;
+                ui.applyInsets();                       // صفحات الملف الشخصي بلا padding علوي (الغلاف خلف الشريط)
+                if (topChanged) ui.polishProfile();     // ارتفاع الغلاف = 176dp + ارتفاع شريط الحالة
                 return insets;
             });
             rootView.requestApplyInsets();

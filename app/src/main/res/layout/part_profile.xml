@@ -8,12 +8,16 @@
 	android:layoutDirection="rtl">
 	<com.babylon.chat.iq.PullScrollView
 		android:id="@+id/profileView"
+		android:clipChildren="false"
+		android:clipToPadding="false"
 		android:layout_width="match_parent"
 		android:layout_height="match_parent"
 		android:visibility="gone"
 		android:tag="bg">
 		<LinearLayout
 			android:id="@+id/linear641"
+			android:clipChildren="false"
+			android:clipToPadding="false"
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"
 			android:paddingBottom="24dp"
@@ -35,6 +39,8 @@
 			</FrameLayout>
 			<LinearLayout
 				android:id="@+id/linear643"
+				android:clipChildren="false"
+				android:clipToPadding="false"
 				android:layout_width="match_parent"
 				android:layout_height="wrap_content"
 				android:gravity="center_horizontal"
@@ -64,63 +70,63 @@
 					android:layout_marginTop="4dp"
 					android:textSize="13sp"
 					android:tag="green" />
-				<LinearLayout
-					android:id="@+id/linear644"
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:layout_marginTop="14dp"
-					android:paddingStart="14dp"
-					android:paddingEnd="14dp"
-					android:orientation="horizontal">
-					<TextView
-						android:id="@+id/pEdit"
-						android:layout_width="0dp"
-						android:layout_height="72dp"
-						android:gravity="center_horizontal|center_vertical"
-						android:text="تعديل"
-						android:drawableTop="@drawable/ic_edit_16"
-						android:drawablePadding="6dp"
-						android:textSize="12sp"
-						android:paddingStart="4dp"
-						android:paddingEnd="4dp"
-						android:layout_marginStart="4.5dp"
-						android:layout_marginEnd="4.5dp"
-						android:tag="card g"
-						android:layout_weight="1"
-						android:textStyle="bold" />
-					<TextView
-						android:id="@+id/pPhoto"
-						android:layout_width="0dp"
-						android:layout_height="72dp"
-						android:gravity="center_horizontal|center_vertical"
-						android:text="الصورة"
-						android:drawableTop="@drawable/ic_camera_16"
-						android:drawablePadding="6dp"
-						android:textSize="12sp"
-						android:paddingStart="4dp"
-						android:paddingEnd="4dp"
-						android:layout_marginStart="4.5dp"
-						android:layout_marginEnd="4.5dp"
-						android:tag="card g"
-						android:layout_weight="1"
-						android:textStyle="bold" />
-					<TextView
-						android:id="@+id/pCover"
-						android:layout_width="0dp"
-						android:layout_height="72dp"
-						android:gravity="center_horizontal|center_vertical"
-						android:text="الغلاف"
-						android:drawableTop="@drawable/ic_palette_16"
-						android:drawablePadding="6dp"
-						android:textSize="12sp"
-						android:paddingStart="4dp"
-						android:paddingEnd="4dp"
-						android:layout_marginStart="4.5dp"
-						android:layout_marginEnd="4.5dp"
-						android:tag="card g"
-						android:layout_weight="1"
-						android:textStyle="bold" />
-				</LinearLayout>
+			</LinearLayout>
+			<LinearLayout
+				android:id="@+id/linear644"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="14dp"
+				android:paddingStart="14dp"
+				android:paddingEnd="14dp"
+				android:orientation="horizontal">
+				<TextView
+					android:id="@+id/pEdit"
+					android:layout_width="0dp"
+					android:layout_height="72dp"
+					android:gravity="center_horizontal|center_vertical"
+					android:text="تعديل"
+					android:drawableTop="@drawable/ic_edit_16"
+					android:drawablePadding="6dp"
+					android:textSize="12sp"
+					android:paddingStart="4dp"
+					android:paddingEnd="4dp"
+					android:layout_marginStart="4.5dp"
+					android:layout_marginEnd="4.5dp"
+					android:tag="card g"
+					android:layout_weight="1"
+					android:textStyle="bold" />
+				<TextView
+					android:id="@+id/pPhoto"
+					android:layout_width="0dp"
+					android:layout_height="72dp"
+					android:gravity="center_horizontal|center_vertical"
+					android:text="الصورة"
+					android:drawableTop="@drawable/ic_camera_16"
+					android:drawablePadding="6dp"
+					android:textSize="12sp"
+					android:paddingStart="4dp"
+					android:paddingEnd="4dp"
+					android:layout_marginStart="4.5dp"
+					android:layout_marginEnd="4.5dp"
+					android:tag="card g"
+					android:layout_weight="1"
+					android:textStyle="bold" />
+				<TextView
+					android:id="@+id/pCover"
+					android:layout_width="0dp"
+					android:layout_height="72dp"
+					android:gravity="center_horizontal|center_vertical"
+					android:text="الغلاف"
+					android:drawableTop="@drawable/ic_palette_16"
+					android:drawablePadding="6dp"
+					android:textSize="12sp"
+					android:paddingStart="4dp"
+					android:paddingEnd="4dp"
+					android:layout_marginStart="4.5dp"
+					android:layout_marginEnd="4.5dp"
+					android:tag="card g"
+					android:layout_weight="1"
+					android:textStyle="bold" />
 			</LinearLayout>
 			<LinearLayout
 				android:id="@+id/linear645"
@@ -443,12 +449,16 @@
 	</com.babylon.chat.iq.PullScrollView>
 	<com.babylon.chat.iq.PullScrollView
 		android:id="@+id/otherUserProfileView"
+		android:clipChildren="false"
+		android:clipToPadding="false"
 		android:layout_width="match_parent"
 		android:layout_height="match_parent"
 		android:visibility="gone"
 		android:tag="bg">
 		<LinearLayout
 			android:id="@+id/linear656"
+			android:clipChildren="false"
+			android:clipToPadding="false"
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"
 			android:paddingBottom="24dp"
@@ -484,6 +494,8 @@
 			</FrameLayout>
 			<LinearLayout
 				android:id="@+id/linear658"
+				android:clipChildren="false"
+				android:clipToPadding="false"
 				android:layout_width="match_parent"
 				android:layout_height="wrap_content"
 				android:gravity="center_horizontal"
@@ -513,91 +525,91 @@
 					android:layout_marginTop="4dp"
 					android:textSize="13sp"
 					android:tag="m" />
+			</LinearLayout>
+			<LinearLayout
+				android:id="@+id/linear659"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="14dp"
+				android:paddingStart="14dp"
+				android:paddingEnd="14dp"
+				android:orientation="vertical">
 				<LinearLayout
-					android:id="@+id/linear659"
+					android:id="@+id/otherQuickRow1"
 					android:layout_width="match_parent"
 					android:layout_height="wrap_content"
-					android:layout_marginTop="14dp"
-					android:paddingStart="14dp"
-					android:paddingEnd="14dp"
-					android:orientation="vertical">
-					<LinearLayout
-						android:id="@+id/otherQuickRow1"
-						android:layout_width="match_parent"
-						android:layout_height="wrap_content"
-						android:orientation="horizontal">
-						<TextView
-							android:id="@+id/otherMsgBtn"
-							android:layout_width="0dp"
-							android:layout_height="52dp"
-							android:gravity="center_horizontal|center_vertical"
-							android:text="رسالة"
-							android:drawableStart="@drawable/ic_chat_16"
-							android:drawablePadding="8dp"
-							android:textSize="13sp"
-							android:paddingStart="10dp"
-							android:paddingEnd="10dp"
-							android:layout_marginStart="4.5dp"
-							android:layout_marginEnd="4.5dp"
-							android:tag="gold"
-							android:layout_weight="1"
-							android:textStyle="bold" />
-						<TextView
-							android:id="@+id/otherStarsBtn"
-							android:layout_width="0dp"
-							android:layout_height="52dp"
-							android:gravity="center_horizontal|center_vertical"
-							android:text="نجوم"
-							android:drawableStart="@drawable/ic_star_16"
-							android:drawablePadding="8dp"
-							android:textSize="13sp"
-							android:paddingStart="10dp"
-							android:paddingEnd="10dp"
-							android:layout_marginStart="4.5dp"
-							android:layout_marginEnd="4.5dp"
-							android:tag="card g"
-							android:layout_weight="1"
-							android:textStyle="bold" />
-					</LinearLayout>
-					<LinearLayout
-						android:id="@+id/otherQuickRow2"
-						android:layout_width="match_parent"
-						android:layout_height="wrap_content"
-						android:layout_marginTop="9dp"
-						android:orientation="horizontal">
-						<TextView
-							android:id="@+id/otherGiftBtn"
-							android:layout_width="0dp"
-							android:layout_height="52dp"
-							android:gravity="center_horizontal|center_vertical"
-							android:text="هدية"
-							android:drawableStart="@drawable/ic_gift_16"
-							android:drawablePadding="8dp"
-							android:textSize="13sp"
-							android:paddingStart="10dp"
-							android:paddingEnd="10dp"
-							android:layout_marginStart="4.5dp"
-							android:layout_marginEnd="4.5dp"
-							android:tag="card g"
-							android:layout_weight="1"
-							android:textStyle="bold" />
-						<TextView
-							android:id="@+id/otherBlockBtn"
-							android:layout_width="0dp"
-							android:layout_height="52dp"
-							android:gravity="center_horizontal|center_vertical"
-							android:text="حظر"
-							android:drawableStart="@drawable/ic_block_16"
-							android:drawablePadding="8dp"
-							android:textSize="13sp"
-							android:paddingStart="10dp"
-							android:paddingEnd="10dp"
-							android:layout_marginStart="4.5dp"
-							android:layout_marginEnd="4.5dp"
-							android:tag="redo"
-							android:layout_weight="1"
-							android:textStyle="bold" />
-					</LinearLayout>
+					android:orientation="horizontal">
+					<TextView
+						android:id="@+id/otherMsgBtn"
+						android:layout_width="0dp"
+						android:layout_height="52dp"
+						android:gravity="center_horizontal|center_vertical"
+						android:text="رسالة"
+						android:drawableStart="@drawable/ic_chat_16"
+						android:drawablePadding="8dp"
+						android:textSize="13sp"
+						android:paddingStart="10dp"
+						android:paddingEnd="10dp"
+						android:layout_marginStart="4.5dp"
+						android:layout_marginEnd="4.5dp"
+						android:tag="gold"
+						android:layout_weight="1"
+						android:textStyle="bold" />
+					<TextView
+						android:id="@+id/otherStarsBtn"
+						android:layout_width="0dp"
+						android:layout_height="52dp"
+						android:gravity="center_horizontal|center_vertical"
+						android:text="نجوم"
+						android:drawableStart="@drawable/ic_star_16"
+						android:drawablePadding="8dp"
+						android:textSize="13sp"
+						android:paddingStart="10dp"
+						android:paddingEnd="10dp"
+						android:layout_marginStart="4.5dp"
+						android:layout_marginEnd="4.5dp"
+						android:tag="card g"
+						android:layout_weight="1"
+						android:textStyle="bold" />
+				</LinearLayout>
+				<LinearLayout
+					android:id="@+id/otherQuickRow2"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:layout_marginTop="9dp"
+					android:orientation="horizontal">
+					<TextView
+						android:id="@+id/otherGiftBtn"
+						android:layout_width="0dp"
+						android:layout_height="52dp"
+						android:gravity="center_horizontal|center_vertical"
+						android:text="هدية"
+						android:drawableStart="@drawable/ic_gift_16"
+						android:drawablePadding="8dp"
+						android:textSize="13sp"
+						android:paddingStart="10dp"
+						android:paddingEnd="10dp"
+						android:layout_marginStart="4.5dp"
+						android:layout_marginEnd="4.5dp"
+						android:tag="card g"
+						android:layout_weight="1"
+						android:textStyle="bold" />
+					<TextView
+						android:id="@+id/otherBlockBtn"
+						android:layout_width="0dp"
+						android:layout_height="52dp"
+						android:gravity="center_horizontal|center_vertical"
+						android:text="حظر"
+						android:drawableStart="@drawable/ic_block_16"
+						android:drawablePadding="8dp"
+						android:textSize="13sp"
+						android:paddingStart="10dp"
+						android:paddingEnd="10dp"
+						android:layout_marginStart="4.5dp"
+						android:layout_marginEnd="4.5dp"
+						android:tag="redo"
+						android:layout_weight="1"
+						android:textStyle="bold" />
 				</LinearLayout>
 			</LinearLayout>
 			<LinearLayout

@@ -51,40 +51,52 @@ public class PartProfileActivity extends Activity {
 		w.clearFlags(android.view.WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS
 		| android.view.WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
 		w.addFlags(android.view.WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+		
+		// شريط الحالة شفاف تماماً: الغلاف/الصورة تظهر خلفه مثل الـ HTML
 		w.setStatusBarColor(0x00000000);
 		w.setNavigationBarColor(0x00000000);
-		
 		if (android.os.Build.VERSION.SDK_INT >= 29) {
 			w.setNavigationBarContrastEnforced(false);
 			w.setStatusBarContrastEnforced(false);
 		}
+		// الصورة/الغلاف تمتد أيضاً خلف القصّة (notch)
+		if (android.os.Build.VERSION.SDK_INT >= 28) {
+			android.view.WindowManager.LayoutParams lp = w.getAttributes();
+			lp.layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+			w.setAttributes(lp);
+		}
 		
-		// لون الخلفية خلف كل شريط (غيّره إذا غيّرت الخلفية)
-		int topBg = 0xFFF1F4F9;
-		int botBg = 0xFFEEF2F9;
-		boolean topLight = (0.299 * ((topBg >> 16) & 255) + 0.587 * ((topBg >> 8) & 255) + 0.114 * (topBg & 255)) > 150;
-		boolean botLight = (0.299 * ((botBg >> 16) & 255) + 0.587 * ((botBg >> 8) & 255) + 0.114 * (botBg & 255)) > 150;
-		
+		// الأيقونات بيضاء دائماً فوق الغلاف/الصورة (بلا LIGHT_STATUS_BAR)؛ الشريط السفلي حسب الخلفية الفاتحة
 		int flags = android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
 		| android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
 		| android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
-		if (android.os.Build.VERSION.SDK_INT >= 23 && topLight) {
-			flags |= android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
-		}
-		if (android.os.Build.VERSION.SDK_INT >= 26 && botLight) {
+		if (android.os.Build.VERSION.SDK_INT >= 26) {
 			flags |= android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
 		}
 		w.getDecorView().setSystemUiVisibility(flags);
 		
-		final android.view.View rootView = findViewById(R.id.root);
+		// الجذر هنا هو partProfile (لا يوجد id باسم root في part_profile.xml)
+		final android.view.View rootView = binding.getRoot();
+		final float density = getResources().getDisplayMetrics().density;
 		rootView.setOnApplyWindowInsetsListener(new android.view.View.OnApplyWindowInsetsListener() {
 			@Override
 			public android.view.WindowInsets onApplyWindowInsets(android.view.View v, android.view.WindowInsets insets) {
-				v.setPadding(0, insets.getSystemWindowInsetTop(), 0, insets.getSystemWindowInsetBottom());
+				int top = insets.getSystemWindowInsetTop();
+				// بلا padding علوي: الصفحة تبدأ من أعلى الشاشة ويبقى أسفلها فوق شريط الإيماءات
+				v.setPadding(0, 0, 0, insets.getSystemWindowInsetBottom());
+				// calc(176px + var(--sat)) : الغلاف يمتد خلف شريط الحالة ومحتواه ينزل تحته
+				int[] covers = {R.id.frame_layout642, R.id.frame_layout657};
+				for (int id : covers) {
+					android.view.View c = v.findViewById(id);
+					if (c == null) continue;
+					c.getLayoutParams().height = (int) (176 * density + 0.5f) + top;
+					c.setPadding(0, top, 0, 0);
+					c.requestLayout();
+				}
 				return insets;
 			}
 		});
 		rootView.requestApplyInsets();
 	}
 	
-}
+}

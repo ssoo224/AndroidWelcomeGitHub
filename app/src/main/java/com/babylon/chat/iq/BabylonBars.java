@@ -20,6 +20,8 @@ public final class BabylonBars {
     private final Activity act;
     private int curTop = 0, curBottom = 0;
     private boolean first = true;
+    /** true أثناء وضع الملف الشخصي: شريط الحالة شفاف تماماً (الغلاف/الصورة ممتدة خلفه). */
+    private boolean transparentTop = false;
     private ValueAnimator topAnim, botAnim;
 
     public BabylonBars(Activity act) {
@@ -35,6 +37,12 @@ public final class BabylonBars {
         if (Build.VERSION.SDK_INT >= 29) {
             w.setNavigationBarContrastEnforced(false);
             w.setStatusBarContrastEnforced(false);
+        }
+        // الغلاف/الصورة المكبّرة تمتد أيضاً خلف القصّة (notch) في الأجهزة التي فيها قصّة
+        if (Build.VERSION.SDK_INT >= 28) {
+            WindowManager.LayoutParams lp = w.getAttributes();
+            lp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            w.setAttributes(lp);
         }
     }
 
@@ -59,20 +67,53 @@ public final class BabylonBars {
         if (Build.VERSION.SDK_INT >= 26 && lum(bottom) > 0.55f) flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
         w.getDecorView().setSystemUiVisibility(flags);
 
-        if (first) {
-            first = false;
-            curTop = top; curBottom = bottom;
+        if (first || transparentTop) {
+            // أول مرة، أو الخروج من وضع الملف الشخصي (الشريط كان شفافاً): نضع اللون فوراً بلا حركة
+            if (topAnim != null) topAnim.cancel();
+            curTop = top;
             w.setStatusBarColor(top);
-            w.setNavigationBarColor(bottom);
-            return;
-        }
-        if (top != curTop) {
+            transparentTop = false;
+        } else if (top != curTop) {
             if (topAnim != null) topAnim.cancel();
             topAnim = ValueAnimator.ofObject(new ArgbEvaluator(), curTop, top);
             topAnim.setDuration(180);
             topAnim.addUpdateListener(a -> act.getWindow().setStatusBarColor((Integer) a.getAnimatedValue()));
             topAnim.start();
             curTop = top;
+        }
+        syncBottom(w, bottom);
+    }
+
+    /**
+     * الملف الشخصي (ملفي / ملف شخص آخر): مطابق لـ edge(true) في الـ HTML —
+     * شريط الحالة شفاف تماماً فتظهر الصورة/الغلاف خلفه، والأيقونات بيضاء دائماً
+     * (setStyle DARK في Capacitor = أيقونات فاتحة).
+     *
+     * @param bottom لون القسم السفلي الظاهر (خلف شريط الإيماءات)
+     */
+    public void syncProfile(int bottom) {
+        bottom |= 0xFF000000;
+        Window w = act.getWindow();
+        int flags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
+        // لا نضيف LIGHT_STATUS_BAR => أيقونات بيضاء فوق الغلاف/الصورة
+        if (Build.VERSION.SDK_INT >= 26 && lum(bottom) > 0.55f) flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+        w.getDecorView().setSystemUiVisibility(flags);
+
+        if (topAnim != null) topAnim.cancel();
+        w.setStatusBarColor(Color.TRANSPARENT);
+        transparentTop = true;
+        curTop = 0;
+        syncBottom(w, bottom);
+    }
+
+    private void syncBottom(Window w, int bottom) {
+        if (first) {
+            first = false;
+            curBottom = bottom;
+            w.setNavigationBarColor(bottom);
+            return;
         }
         if (bottom != curBottom) {
             if (botAnim != null) botAnim.cancel();
