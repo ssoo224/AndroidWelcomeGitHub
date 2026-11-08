@@ -34,6 +34,8 @@ public class PullScrollView extends ScrollView {
 
     public PullScrollView(Context c, AttributeSet a) {
         super(c, a);
+        setVerticalScrollBarEnabled(false);
+        setHorizontalScrollBarEnabled(false);
         slop = ViewConfiguration.get(c).getScaledTouchSlop();
         // الأزرار/الصورة تصعد خارج حدود أبيها أثناء التكبير ولا يجب أن تُقصّ
         setClipChildren(false);

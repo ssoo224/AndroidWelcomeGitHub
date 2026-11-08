@@ -9,6 +9,7 @@
 
 	<!-- ==================== صفحة الإعدادات الرئيسية ==================== -->
 	<ScrollView
+ android:scrollbars="none"
 		android:id="@+id/settingsView"
 		android:layout_width="match_parent"
 		android:layout_height="match_parent"
@@ -559,6 +560,7 @@
 				android:tag="t" />
 		</LinearLayout>
 		<ScrollView
+ android:scrollbars="none"
 			android:id="@+id/vscroll46"
 			android:layout_width="match_parent"
 			android:layout_height="match_parent">
@@ -1077,6 +1079,7 @@
 				android:tag="t" />
 		</LinearLayout>
 		<ScrollView
+ android:scrollbars="none"
 			android:id="@+id/vscroll47"
 			android:layout_width="match_parent"
 			android:layout_height="match_parent">
@@ -1337,6 +1340,7 @@
 				android:tag="t" />
 		</LinearLayout>
 		<ScrollView
+ android:scrollbars="none"
 			android:id="@+id/vscroll48"
 			android:layout_width="match_parent"
 			android:layout_height="match_parent">

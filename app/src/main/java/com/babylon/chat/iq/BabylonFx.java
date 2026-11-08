@@ -314,6 +314,33 @@ public final class BabylonFx {
     }
 
     /**
+     * لقطة للواجهة تحترم القصّ بالحواف المدوّرة (clipToOutline) والظلال.
+     * root.draw(Canvas) على Canvas برمجي يتجاهل clipToOutline فتظهر البطاقات بحواف حادّة داخل الدائرة؛
+     * PixelCopy تنسخ ما رسمته الـ GPU فعلاً فتبقى الحواف مدوّرة. (API 26+ ، وإلا الطريقة القديمة)
+     */
+    private static void snapshot(final Activity act, final View root, final android.webkit.ValueCallback<Bitmap> done) {
+        final int w = root.getWidth(), h = root.getHeight();
+        final Bitmap bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+        final Runnable fallback = () -> {
+            try { root.draw(new Canvas(bmp)); } catch (Throwable ignored) { }
+            done.onReceiveValue(bmp);
+        };
+        if (android.os.Build.VERSION.SDK_INT >= 26) {
+            try {
+                int[] loc = new int[2];
+                root.getLocationInWindow(loc);
+                android.graphics.Rect r = new android.graphics.Rect(loc[0], loc[1], loc[0] + w, loc[1] + h);
+                android.view.PixelCopy.request(act.getWindow(), r, bmp, res -> {
+                    if (res == android.view.PixelCopy.SUCCESS) done.onReceiveValue(bmp);
+                    else fallback.run();
+                }, new android.os.Handler(android.os.Looper.getMainLooper()));
+                return;
+            } catch (Throwable ignored) { }
+        }
+        fallback.run();
+    }
+
+    /**
      * نفس الكشف الدائري لكن الدائرة تمتد أيضاً إلى شريط الإشعارات (الحالة) وشريط الإيماءات السفلي:
      * الشريطان يصيران شفافين أثناء الحركة ويُرسم لونهما القديم داخل الصورة المتلاشية والجديد تحتها.
      */
@@ -324,8 +351,8 @@ public final class BabylonFx {
             if (root == null || root.getWidth() <= 0 || root.getHeight() <= 0 || bars == null) {
                 applyTheme.run(); return;
             }
-            final Bitmap old = Bitmap.createBitmap(root.getWidth(), root.getHeight(), Bitmap.Config.ARGB_8888);
-            root.draw(new Canvas(old));
+            snapshot(act, root, old -> {
+            try {
             final int oldTop = bars.topColor(), oldBot = bars.bottomColor();
             bars.beginReveal();
             applyTheme.run();
@@ -359,6 +386,11 @@ public final class BabylonFx {
                 }
             });
             va.start();
+            } catch (Throwable t) {
+                try { bars.endReveal(); } catch (Throwable ignored) { }
+                try { applyTheme.run(); } catch (Throwable ignored) { }
+            }
+            });
         } catch (Throwable t) {
             try { bars.endReveal(); } catch (Throwable ignored) { }
             try { applyTheme.run(); } catch (Throwable ignored) { }

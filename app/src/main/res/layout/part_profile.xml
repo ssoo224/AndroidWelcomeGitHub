@@ -7,6 +7,7 @@
 	android:layout_height="match_parent"
 	android:layoutDirection="rtl">
 	<com.babylon.chat.iq.PullScrollView
+ android:scrollbars="none"
 		android:id="@+id/profileView"
 		android:clipChildren="false"
 		android:clipToPadding="false"
@@ -414,6 +415,7 @@
 		</LinearLayout>
 	</com.babylon.chat.iq.PullScrollView>
 	<com.babylon.chat.iq.PullScrollView
+ android:scrollbars="none"
 		android:id="@+id/otherUserProfileView"
 		android:clipChildren="false"
 		android:clipToPadding="false"
@@ -808,6 +810,7 @@
 			</LinearLayout>
 		</LinearLayout>
 		<ScrollView
+ android:scrollbars="none"
 			android:id="@+id/vscroll42"
 			android:layout_width="match_parent"
 			android:layout_height="match_parent"

@@ -1,5 +1,6 @@
 package com.babylon.chat.iq;
 
+import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ClipData;
@@ -318,6 +319,36 @@ public class MassActivity extends Activity {
             int cOther() { return dark ? 0xFF182533 : 0xFFFFFFFF; }
             int cChatBg() { return dark ? bgDark[chatBgIdx] : bgLight[chatBgIdx]; }
 
+            /** حقل الكتابة: #f1f5fa / rgba(127,140,160,.10) ، عند التركيز أبيض / .16 وحدّ #c9cfd8 / #8b94a1 ، انحناء 15 */
+            GradientDrawable msgInpBg(boolean focus) {
+                GradientDrawable g = new GradientDrawable();
+                g.setColor(focus ? (dark ? 0x297F8CA0 : 0xFFFFFFFF) : (dark ? 0x1A7F8CA0 : 0xFFF1F5FA));
+                g.setCornerRadius(dp(15));
+                g.setStroke(dp(1), focus ? (dark ? 0xFF8B94A1 : 0xFFC9CFD8) : 0x00000000);
+                return g;
+            }
+
+            /** الإرسال يظهر فقط عند وجود نص ، وعندها يختفي المايك والمرفقات (مثل .has-message في الـ HTML). */
+            void syncSend() {
+                EditText mi = et("messageInput");
+                boolean has = mi != null && mi.getText().toString().trim().length() > 0;
+                vis("btnSend", has);
+                vis("btnMic", !has);
+                vis("btnAttach", !has);
+            }
+
+            void setupComposer() {
+                final EditText mi = et("messageInput");
+                if (mi == null) return;
+                mi.addTextChangedListener(new android.text.TextWatcher() {
+                    @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
+                    @Override public void onTextChanged(CharSequence s, int a, int b, int c) { }
+                    @Override public void afterTextChanged(android.text.Editable e) { syncSend(); }
+                });
+                mi.setOnFocusChangeListener((vw, f) -> mi.setBackground(msgInpBg(f)));
+                syncSend();
+            }
+
             void style(View x) {
                 if (x == null) return;
                 Object t = x.getTag();
@@ -365,6 +396,10 @@ public class MassActivity extends Activity {
                         }
                         else if (k.equals("inp")) {
                             x.setBackground(shape(dark ? 0x1A7F8CA0 : 0xFFF1F5FA, 15, 0));
+                            if (T != null) { T.setTextColor(cText()); T.setHintTextColor(cMuted()); }
+                        }
+                        else if (k.equals("msginp")) {
+                            x.setBackground(msgInpBg(x.hasFocus()));
                             if (T != null) { T.setTextColor(cText()); T.setHintTextColor(cMuted()); }
                         }
                         else if (k.equals("gold")) {
@@ -637,7 +672,7 @@ public class MassActivity extends Activity {
                 GradientDrawable ring = new GradientDrawable();
                 ring.setShape(GradientDrawable.OVAL);
                 ring.setColor(Color.TRANSPARENT);
-                ring.setStroke(ringPx(), 0xFFD1D5DB);
+                ring.setStroke(ringPx(), dark ? 0xFF3A3F47 : 0xFFD1D5DB);   // رمادي داكن ليلاً
                 android.graphics.drawable.LayerDrawable ld = new android.graphics.drawable.LayerDrawable(
                         new android.graphics.drawable.Drawable[]{gold, ring, inner});
                 int g = goldRingPx() + goldGapPx();                 // الرمادي يبدأ بعد الذهبي + فراغ 2dp
@@ -725,7 +760,7 @@ public class MassActivity extends Activity {
                     ViewGroup.LayoutParams lp = t.getLayoutParams();
                     android.graphics.drawable.Drawable[] ds = t.getCompoundDrawablesRelative();
                     if (lp != null && t.getText().length() == 0 && ds[0] != null && ds[1] == null && ds[2] == null && ds[3] == null
-                            && lp.width > 0 && lp.height > 0 && Math.abs(lp.width - lp.height) <= dp(2) && lp.width <= dp(64)) {
+                            && lp.width > 0 && lp.height > 0 && lp.width <= dp(64)) {   // يشمل أيقونات شريط التنقل (54x26) وليس المربعات فقط
                         int iw = ds[0].getBounds().width() > 0 ? ds[0].getBounds().width() : ds[0].getIntrinsicWidth();
                         if (iw > 0 && iw < lp.width) {
                             int hp = (lp.width - iw) / 2;
@@ -861,7 +896,7 @@ public class MassActivity extends Activity {
                     boolean inChat = chatOpen();
                     applyInsets();
                     int top, bottom;
-                    if (inChat) { top = cSf(); bottom = cSf(); }
+                    if (inChat) { top = cChatBg(); bottom = cChatBg(); }   // HTML: الشريطان بلون خلفية المحادثة (الرأس شفاف فوقها + الطبقة الزجاجية تحت الإيماءات)
                     else {
                         top = cBg();
                         boolean nav = v("bottomNav") != null && v("bottomNav").getVisibility() == View.VISIBLE;
@@ -1352,7 +1387,7 @@ public class MassActivity extends Activity {
                 renderedMsgIds.clear(); lastDayKey = ""; msgViewsById.clear();
                 cancelReply();
                 vis("chatSearchPanel", false);
-                vis("recordingBar", false);
+                if (isRecording || recPreview) cancelRecord(); else vis("recordingBar", false);
 
                 if (messagesListener != null) messagesListener.remove();
 
@@ -1478,7 +1513,7 @@ public class MassActivity extends Activity {
             LinearLayout addMsg(String text, final boolean mine, String time, int state) {
                 final LinearLayout b = MsgViews.textBubble(act, text, mine, time, state, fontSp);
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
-                lp.gravity = mine ? Gravity.START : Gravity.END;
+                lp.gravity = mine ? Gravity.RIGHT : Gravity.LEFT;   // المرسَلة يميناً والمستلمة يساراً (مطلق، لا يتأثر بالاتجاه)
                 lp.setMargins(0, dp(4), 0, dp(4));
                 b.setLayoutParams(lp);
                 b.setOnLongClickListener(x -> { msgMenu(b, mine); return true; });
@@ -1497,7 +1532,7 @@ public class MassActivity extends Activity {
                 FrameLayout frame = new FrameLayout(act);
                 int size = Math.min(dp(220), (int) (act.getResources().getDisplayMetrics().widthPixels * 0.68f));
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, size);
-                lp.gravity = mine ? Gravity.START : Gravity.END;
+                lp.gravity = mine ? Gravity.RIGHT : Gravity.LEFT;   // المرسَلة يميناً والمستلمة يساراً (مطلق، لا يتأثر بالاتجاه)
                 lp.setMargins(0, dp(4), 0, dp(4));
                 frame.setLayoutParams(lp);
                 frame.setClipToOutline(true);
@@ -1515,9 +1550,23 @@ public class MassActivity extends Activity {
                 img.setScaleType(ImageView.ScaleType.CENTER_CROP);
                 frame.addView(img);
                 loadImageAsync(img, url);
-                TextView t = new TextView(act);
-                t.setText(time); t.setTextSize(10); t.setTextColor(0xFFFFFFFF);
-                t.setTypeface(null, android.graphics.Typeface.BOLD);
+                LinearLayout t = new LinearLayout(act);
+                t.setOrientation(LinearLayout.HORIZONTAL);
+                t.setGravity(Gravity.CENTER_VERTICAL);
+                t.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+                TextView tt = new TextView(act);
+                tt.setText(time); tt.setTextSize(10); tt.setTextColor(0xFFFFFFFF);
+                tt.setTypeface(null, android.graphics.Typeface.BOLD);
+                tt.setIncludeFontPadding(false);
+                t.addView(tt);
+                if (mine) {   // علامة الإرسال/الرؤية SVG على الصورة أيضاً
+                    ImageView tick = new ImageView(act);
+                    tick.setTag("tick");
+                    tick.setImageDrawable(new MsgViews.TickDrawable(act, MsgViews.SENT, 0, 0xFFFFFFFF));
+                    LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(-2, -2);
+                    tl.setMarginStart(dp(3));
+                    t.addView(tick, tl);
+                }
                 t.setPadding(dp(6), dp(2), dp(6), dp(2));
                 GradientDrawable tg = new GradientDrawable();
                 tg.setColor(0x99000000); tg.setCornerRadius(dp(8));
@@ -1538,7 +1587,7 @@ public class MassActivity extends Activity {
             void addAudioMsg(final String url, final long durationMs, final boolean mine, String time) {
                 final MsgViews.VoiceBubble box = new MsgViews.VoiceBubble(act, mine, formatDuration(durationMs));
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
-                lp.gravity = mine ? Gravity.START : Gravity.END;
+                lp.gravity = mine ? Gravity.RIGHT : Gravity.LEFT;   // المرسَلة يميناً والمستلمة يساراً (مطلق، لا يتأثر بالاتجاه)
                 lp.setMargins(0, dp(4), 0, dp(4));
                 box.setLayoutParams(lp);
                 box.addView(MsgViews.metaRow(act, mine, time, MsgViews.SENT));
@@ -1848,8 +1897,135 @@ public class MassActivity extends Activity {
             }
 
             void toggleRecording() {
-                if (!isRecording) startRecord();
-                else stopRecordAndSend();
+                if (!isRecording && !recPreview) startRecord();
+            }
+
+            // ---------------- التسجيل الصوتي: مطابق لـ #recordingBar في الـ HTML (تسجيل ← معاينة ← إرسال)
+            boolean recPreview = false, recPlaying = false;
+            long recDurMs = 0;
+            MediaPlayer recPlayer = null;
+            ValueAnimator recAnim = null;
+            long recAnimT0 = 0;
+            final java.util.ArrayList<View> waveBars = new java.util.ArrayList<>();
+            Runnable recPlayTick = null;
+
+            String fmtRec(long ms) {
+                long s = Math.max(0, ms / 1000);
+                return String.format(Locale.US, "%02d:%02d", s / 60, s % 60);
+            }
+
+            void buildWave() {
+                final LinearLayout w = (LinearLayout) v("recWave");
+                if (w == null || w.getChildCount() > 0) return;
+                int width = w.getWidth() > 0 ? w.getWidth() : act.getResources().getDisplayMetrics().widthPixels / 2;
+                int n = Math.max(8, (width + dp(5)) / dp(8));        // عمود 3dp + فراغ 5dp
+                waveBars.clear();
+                for (int i = 1; i <= n; i++) {
+                    View b = new View(act);
+                    int h = dp(10);
+                    if (i % 3 == 0) h = dp(19);
+                    if (i % 5 == 0) h = dp(23);
+                    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(3), h);
+                    lp.setMarginEnd(dp(5));
+                    b.setLayoutParams(lp);
+                    b.setBackground(shape(cGold(), 2, 0));
+                    w.addView(b);
+                    waveBars.add(b);
+                }
+            }
+
+            void tickWave() {
+                double t = (System.nanoTime() - recAnimT0) / 1e9;
+                for (int i = 0; i < waveBars.size(); i++) {
+                    int k = (i + 1) % 4;                               // 4n+1 → -.2s ، 4n+2 → -.5s ، 4n+3 → -.35s
+                    double d = k == 1 ? 0.2 : k == 2 ? 0.5 : k == 3 ? 0.35 : 0;
+                    double x = (t + d) / 0.72;
+                    double fr = x - Math.floor(x);
+                    double vv = (((long) Math.floor(x)) % 2 == 0) ? fr : 1 - fr;   // alternate
+                    double e = vv * vv * (3 - 2 * vv);                              // ease-in-out
+                    View b = waveBars.get(i);
+                    b.setScaleY((float) (0.45 + 0.55 * e));
+                    b.setAlpha((float) (0.6 + 0.4 * e));
+                }
+                View dot = v("recDot");
+                if (dot != null && !recPreview) {                      // recordingPulse 1s
+                    double ph = t % 1.0;
+                    double pu = ph < 0.5 ? ph * 2 : 2 - 2 * ph;
+                    dot.setAlpha((float) (1 - 0.65 * pu));
+                    dot.setScaleX((float) (1 - 0.2 * pu));
+                    dot.setScaleY((float) (1 - 0.2 * pu));
+                }
+            }
+
+            void startRecAnim() {
+                if (recAnim != null) return;
+                recAnimT0 = System.nanoTime();
+                recAnim = ValueAnimator.ofFloat(0f, 1f);
+                recAnim.setDuration(1000);
+                recAnim.setRepeatCount(ValueAnimator.INFINITE);
+                recAnim.setInterpolator(new android.view.animation.LinearInterpolator());
+                recAnim.addUpdateListener(a -> tickWave());
+                recAnim.start();
+            }
+
+            void stopRecAnim() {
+                if (recAnim != null) { recAnim.cancel(); recAnim = null; }
+                for (View b : waveBars) { b.setScaleY(0.8f); b.setAlpha(0.85f); }   // .rec-preview: scaleY(.8) opacity .85
+                View dot = v("recDot");
+                if (dot != null) { dot.setAlpha(1f); dot.setScaleX(1f); dot.setScaleY(1f); }
+            }
+
+            void setRecUi() {
+                boolean pv = recPreview;
+                vis("recPlay", pv); vis("recStop", !pv); vis("recSend", pv);
+                TextView lb = tv("recLabel");
+                if (lb != null) { lb.setText(pv ? "تم التسجيل" : "جاري التسجيل"); lb.setTextColor(pv ? 0xFF38BDF8 : 0xFFF87171); }
+                View dot = v("recDot");
+                if (dot != null) {
+                    GradientDrawable g = new GradientDrawable();
+                    g.setShape(GradientDrawable.OVAL);
+                    g.setColor(pv ? (recPlaying ? 0xFF22C55E : 0xFF9AA4B2) : 0xFFF87171);
+                    dot.setBackground(g);
+                }
+                TextView c = tv("recCancel");
+                if (c != null) {
+                    ViewGroup.LayoutParams lp = c.getLayoutParams();
+                    lp.height = dp(pv ? 23 : 36);
+                    c.setLayoutParams(lp);
+                }
+                TextView p = tv("recPlay");
+                if (p != null) {
+                    p.setCompoundDrawablesRelativeWithIntrinsicBounds(recPlaying ? R.drawable.ic_rec_pause : R.drawable.ic_rec_play, 0, 0, 0);
+                    tintIcons(p);
+                }
+                if (!pv || recPlaying) startRecAnim();
+                else stopRecAnim();
+            }
+
+            /** يبدّل بين حقل الكتابة وشريط التسجيل (الـ HTML يخفي textInputBar أثناء التسجيل). */
+            void showRecordingUi(boolean on) {
+                vis("recordingBar", on);
+                vis("textInputBar", !on);
+                if (on) {
+                    recPreview = false; recPlaying = false;
+                    TextView rt = tv("recTimer");
+                    if (rt != null) rt.setText("00:00");
+                    final View w = v("recWave");
+                    if (w != null) w.post(() -> { buildWave(); setRecUi(); });
+                    setRecUi();
+                } else {
+                    if (recAnim != null) { recAnim.cancel(); recAnim = null; }
+                }
+            }
+
+            void releaseRecPlayer() {
+                if (recPlayTick != null) recHandler.removeCallbacks(recPlayTick);
+                if (recPlayer != null) {
+                    try { recPlayer.stop(); } catch (Exception ignored) { }
+                    try { recPlayer.release(); } catch (Exception ignored) { }
+                    recPlayer = null;
+                }
+                recPlaying = false;
             }
 
             void startRecord() {
@@ -1878,57 +2054,106 @@ public class MassActivity extends Activity {
                     isRecording = true;
                     recordStart = System.currentTimeMillis();
 
-                    vis("recordingBar", true);
-                    TextView rt = tv("recTimer");
-                    if (rt != null) rt.setText("0:00");
+                    hideKb();
+                    showRecordingUi(true);
                     recTick = new Runnable() {
                         @Override public void run() {
                             if (!isRecording) return;
-                            long s = (System.currentTimeMillis() - recordStart) / 1000;
+                            long ms = System.currentTimeMillis() - recordStart;
                             TextView rt = tv("recTimer");
-                            if (rt != null) rt.setText(String.format(Locale.getDefault(), "%d:%02d", s / 60, s % 60));
-                            if (s >= 150) { stopRecordAndSend(); return; }
-                            recHandler.postDelayed(this, 500);
+                            if (rt != null) rt.setText(fmtRec(ms));
+                            if (ms >= 60000) { toast("وصلت الحد الأقصى للتسجيل (دقيقة)"); stopRecordPreview(); return; }
+                            recHandler.postDelayed(this, 250);
                         }
                     };
                     recHandler.post(recTick);
-                    TextView mic = tv("btnMic");
-                    if (mic != null) { mic.setTextColor(cRed()); tintIcons(mic); }
                 } catch (Exception e) {
                     toast("فشل بدء التسجيل: " + e.getMessage());
+                    try { if (recorder != null) recorder.release(); } catch (Exception ignored) { }
                     recorder = null; isRecording = false;
+                    showRecordingUi(false);
                 }
             }
 
-            void stopRecordAndSend() {
+            /** زر الإيقاف: ينهي التسجيل وينتقل لوضع الاستماع قبل الإرسال. */
+            void stopRecordPreview() {
                 if (recorder == null) return;
                 long dur = System.currentTimeMillis() - recordStart;
-                try { recorder.stop(); } catch (Exception e) { }
+                try { recorder.stop(); } catch (Exception e) { dur = 0; }
                 try { recorder.release(); } catch (Exception e) { }
                 recorder = null;
                 isRecording = false;
                 if (recTick != null) recHandler.removeCallbacks(recTick);
-                vis("recordingBar", false);
-                TextView mic = tv("btnMic");
-                if (mic != null) { mic.setTextColor(cMuted()); tintIcons(mic); }
-
-                if (audioFile == null || !audioFile.exists()) return;
-                if (dur < 800) { audioFile.delete(); toast("التسجيل قصير جداً"); return; }
-                uploadAudio(audioFile, dur);
+                if (audioFile == null || !audioFile.exists() || dur < 800) {
+                    if (audioFile != null) audioFile.delete();
+                    showRecordingUi(false);
+                    toast("التسجيل قصير جداً");
+                    return;
+                }
+                recDurMs = dur;
+                recPreview = true; recPlaying = false;
+                try {
+                    recPlayer = new MediaPlayer();
+                    recPlayer.setDataSource(audioFile.getAbsolutePath());
+                    recPlayer.prepare();
+                    recPlayer.setOnCompletionListener(mp -> {
+                        recPlaying = false;
+                        if (recPlayTick != null) recHandler.removeCallbacks(recPlayTick);
+                        try { mp.seekTo(0); } catch (Exception ignored) { }
+                        TextView rt = tv("recTimer");
+                        if (rt != null) rt.setText(fmtRec(recDurMs));
+                        setRecUi();
+                    });
+                } catch (Exception e) { recPlayer = null; }
+                TextView rt = tv("recTimer");
+                if (rt != null) rt.setText(fmtRec(recDurMs));
+                setRecUi();
             }
 
+            void toggleRecPlay() {
+                if (recPlayer == null) return;
+                if (recPlaying) {
+                    try { recPlayer.pause(); } catch (Exception ignored) { }
+                    recPlaying = false;
+                    if (recPlayTick != null) recHandler.removeCallbacks(recPlayTick);
+                } else {
+                    try { recPlayer.start(); } catch (Exception ignored) { return; }
+                    recPlaying = true;
+                    recPlayTick = new Runnable() {
+                        @Override public void run() {
+                            if (!recPlaying || recPlayer == null) return;
+                            TextView rt = tv("recTimer");
+                            if (rt != null) rt.setText(fmtRec(recPlayer.getCurrentPosition()));
+                            recHandler.postDelayed(this, 200);
+                        }
+                    };
+                    recHandler.post(recPlayTick);
+                }
+                setRecUi();
+            }
+
+            /** زر الإرسال في وضع المعاينة. */
+            void sendRecording() {
+                if (!recPreview || audioFile == null || !audioFile.exists()) return;
+                releaseRecPlayer();
+                recPreview = false;
+                showRecordingUi(false);
+                uploadAudio(audioFile, recDurMs);
+            }
+
+            /** زر × : إلغاء التسجيل أو المعاينة وحذف الملف. */
             void cancelRecord() {
-                if (recorder == null) return;
-                try { recorder.stop(); } catch (Exception e) { }
-                try { recorder.release(); } catch (Exception e) { }
-                recorder = null;
+                if (recorder != null) {
+                    try { recorder.stop(); } catch (Exception e) { }
+                    try { recorder.release(); } catch (Exception e) { }
+                    recorder = null;
+                }
                 isRecording = false;
                 if (recTick != null) recHandler.removeCallbacks(recTick);
-                vis("recordingBar", false);
-                TextView mic = tv("btnMic");
-                if (mic != null) { mic.setTextColor(cMuted()); tintIcons(mic); }
+                releaseRecPlayer();
+                recPreview = false;
                 if (audioFile != null) audioFile.delete();
-                toast("تم إلغاء التسجيل");
+                showRecordingUi(false);
             }
 
             void uploadAudio(File f, long dur) {
@@ -2256,7 +2481,9 @@ public class MassActivity extends Activity {
                 }
                 else if (id.equals("btnSend")) send();
                 else if (id.equals("btnMic")) toggleRecording();
-                else if (id.equals("recSend")) stopRecordAndSend();
+                else if (id.equals("recSend")) sendRecording();
+                else if (id.equals("recStop")) stopRecordPreview();
+                else if (id.equals("recPlay")) toggleRecPlay();
                 else if (id.equals("recCancel")) cancelRecord();
                 else if (id.equals("btnAttach")) {
                     new AlertDialog.Builder(act).setTitle("إرفاق")
@@ -2330,7 +2557,7 @@ public class MassActivity extends Activity {
                         "itemChangeEmail", "itemBlocked", "segLastSeen_show", "segLastSeen_hide",
                         "segAvatar_show", "segAvatar_hide", "itemClearCache", "itemWipe", "itemAbout",
                         "pushOnBtn", "pushOffBtn", "soundOnBtn", "soundOffBtn", "chatBack", "chatUserInfo",
-                        "chatMore", "csX", "replyCancel", "btnSend", "btnMic", "btnAttach", "recSend", "recCancel"};
+                        "chatMore", "csX", "replyCancel", "btnSend", "btnMic", "btnAttach", "recSend", "recCancel", "recStop", "recPlay"};
                 for (String id : ids) {
                     View x = v(id);
                     if (x != null) x.setOnClickListener(L);
@@ -2421,6 +2648,7 @@ public class MassActivity extends Activity {
                     for (String pid : new String[]{"navChats", "navSettings", "navProfile", "mainSearchBtn", "hdrStories", "fltAll", "fltUnread"})
                         BabylonFx.press(v(pid), 0.94f);
                     BabylonFx.press(v("newGroupFab"), 0.92f);
+                    setupComposer();
                     BabylonFx.press(v("btnSend"), 0.9f);
                     BabylonFx.press(v("btnMic"), 0.9f);
                     BabylonFx.press(v("settingsThemeToggle"), 0.95f);

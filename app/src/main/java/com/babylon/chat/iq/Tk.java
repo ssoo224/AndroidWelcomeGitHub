@@ -18,7 +18,7 @@ public final class Tk {
     // ----- الألوان الأساسية (HTML: --bg / --surface / ...)
     public static int pageBg(boolean d)  { return d ? 0xFF0E1621 : 0xFFF4F6FA; }
     public static int surface(boolean d) { return d ? 0xFF17212B : 0xFFFFFFFF; }
-    public static int navBg(boolean d)   { return d ? 0xFF17212B : 0xFFFFFCF5; }
+    public static int navBg(boolean d)   { return d ? 0xFF17212B : 0xFFF6EDD3; }
     public static int surface2(boolean d){ return d ? 0xFF1D2A38 : 0xFFE8EDF4; }
     public static int border(boolean d)  { return d ? 0x14FFFFFF : 0xFFE3E9F1; }
     public static int text(boolean d)    { return d ? 0xFFF1F5F9 : 0xFF17212B; }
@@ -204,7 +204,36 @@ public final class Tk {
             return true;
         }
         if (tag.equals("composer")) {        // مدخل الرسائل العائم
-            x.setBackground(shape(dark ? 0xFF17212B : 0xFFFFFFFF, dp(x, 24), dark ? 0x14FFFFFF : 0xFFE3E9F1, dp(x, 1)));
+            // #chatView #textInputBar : --cr-card (#1e2a38 / #fff) ، حدّ --cr-line ، انحناء 19px
+            x.setBackground(shape(dark ? 0xFF1E2A38 : 0xFFFFFFFF, dp(x, 19), dark ? 0x14FFFFFF : 0xFFE1E8F1, dp(x, 1)));
+            return true;
+        }
+        if (tag.equals("recbar")) {          // .recording-bar : surface + حدّ ، انحناء 18
+            x.setBackground(shape(dark ? 0xFF17212B : 0xFFFFFFFF, dp(x, 18), dark ? 0x3394A3B8 : 0xFFE5EAF1, dp(x, 1)));
+            return true;
+        }
+        if (tag.equals("recbtn")) {          // زر الإيقاف/الإرسال: دائرة 42 بتدرّج ذهبي 145deg وظل ذهبي
+            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE8C85D, 0xFFC29D30});
+            g.setShape(GradientDrawable.OVAL);
+            x.setBackground(g);
+            x.setElevation(dp(x, 3));
+            if (t != null) t.setTextColor(0xFFFFFFFF);
+            return true;
+        }
+        if (tag.equals("recleft")) {         // .rec-left : عمود 38 بتدرّج ذهبي وانحناء 12
+            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE8C85D, 0xFFC29D30});
+            g.setCornerRadius(dp(x, 12));
+            x.setBackground(g);
+            x.setElevation(dp(x, 3));
+            return true;
+        }
+        if (tag.equals("sendbtn")) {         // زر الإرسال: تدرّج ذهبي 145deg ، انحناء 15/15/7/15 ، سهم أبيض ، ظل ذهبي
+            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE9C957, 0xFFC59B24});
+            float r = dp(x, 15), s = dp(x, 7);
+            g.setCornerRadii(new float[]{r, r, r, r, s, s, r, r});   // TL, TR, BR(7), BL
+            x.setBackground(g);
+            x.setElevation(dp(x, 3));
+            if (t != null) t.setTextColor(0xFFFFFFFF);
             return true;
         }
         if (tag.equals("fab")) {
