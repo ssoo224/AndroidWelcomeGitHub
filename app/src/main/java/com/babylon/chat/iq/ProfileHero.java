@@ -353,6 +353,21 @@ public final class ProfileHero implements PullScrollView.Controller {
         coverUnder.setVisibility(View.VISIBLE);
     }
 
+    /**
+     * تغيير غلاف الصفحة (applyCover في الـ HTML): التدرّج + رموز النقوش.
+     * أثناء السحب (الغلاف منسوخ خلف الصورة) يُحدَّث النسخة والأصل المحفوظ ليعودا بالغلاف الجديد.
+     */
+    public void setCoverTheme(CoverThemes.Theme t) {
+        if (t == null) return;
+        coverPat.setTheme(t);
+        if (covered) {
+            coverBg = CoverThemes.gradient(t);
+            coverUnder.setBackground(CoverThemes.gradient(t));
+        } else if (cover != null) {
+            cover.setBackground(CoverThemes.gradient(t));
+        }
+    }
+
     private void leaveCover() {
         if (!covered) return;
         covered = false;

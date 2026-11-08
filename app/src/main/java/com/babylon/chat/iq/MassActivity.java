@@ -54,6 +54,7 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
+import com.google.firebase.firestore.SetOptions;
 
 import java.io.File;
 import java.text.SimpleDateFormat;
@@ -244,7 +245,8 @@ public class MassActivity extends Activity {
             int fontSp = sp.getInt("font", 15);
             int radius = sp.getInt("radius", 16);
             int chatBgIdx = sp.getInt("chatBg", 0);
-            int coverColor = sp.getInt("cover", 0xFF1B2A4A);
+            String coverId = CoverThemes.byId(sp.getString("coverId", CoverThemes.DEFAULT_ID)).id;   // غلافي (users/{uid}.cover)
+            String otherCoverId = CoverThemes.DEFAULT_ID;                                            // غلاف الشخص المعروض
             boolean unreadOnly = false, muted = false, blocked = false;
             String curPage = "homeView", prevPage = "homeView", curChat = "";
             String replyText = null, otherName = "", otherUser = "";
@@ -276,7 +278,6 @@ public class MassActivity extends Activity {
             String[] themeNames = {"افتراضي", "أزرق", "أخضر", "بنفسجي", "ذهبي"};
             int[] bgLight = {0xFFE4E9F2, 0xFFD6E6FA, 0xFFDDF0DD, 0xFFE8DDF3, 0xFFF5EBCB};
             int[] bgDark = {0xFF0E1621, 0xFF0B1B30, 0xFF0C1F14, 0xFF1A1128, 0xFF241C08};
-            int[] covers = {0xFF1B2A4A, 0xFF3B2A4A, 0xFF0F5132, 0xFF7C2D12, 0xFF334155, 0xFFB8891A};
 
             ArrayList<String[]> chatData = new ArrayList<>();
             String userName = "", userUsername = "", userBio = "", userGov = "", userEmail = "", userJoin = "";
@@ -333,7 +334,8 @@ public class MassActivity extends Activity {
                             ViewGroup.LayoutParams clp = x.getLayoutParams();
                             boolean small = clp != null && clp.height > 0 && clp.height <= dp(48);
                             x.setBackground(shape(cSf(), small ? 14 : 20, cBorder()));
-                            x.setElevation(dp(dark ? 1 : 2));
+                            x.setElevation(isQuickBtn(x) ? 0 : dp(dark ? 1 : 2));
+                            if (isQuickBtn(x)) x.setStateListAnimator(null);
                         }
                         else if (k.equals("row")) { x.setBackground(shape(cSf(), 18, 0)); x.setElevation(dp(dark ? 1 : 2)); }
                         else if (k.equals("badge")) {
@@ -411,7 +413,11 @@ public class MassActivity extends Activity {
                             x.setBackground(ig);
                             x.setElevation(dp(2));
                         }
-                        else if (k.startsWith("cover:")) x.setBackgroundColor(Color.parseColor(k.substring(6)));
+                        else if (k.startsWith("cover:")) {
+                            if (x.getId() == R.id.frame_layout642) x.setBackground(CoverThemes.gradient(CoverThemes.byId(coverId)));
+                            else if (x.getId() == R.id.frame_layout657) x.setBackground(CoverThemes.gradient(CoverThemes.byId(otherCoverId)));
+                            else x.setBackgroundColor(Color.parseColor(k.substring(6)));
+                        }
                         else if (T != null) {
                             if (k.equals("t")) T.setTextColor(cText());
                             else if (k.equals("m")) T.setTextColor(cMuted());
@@ -480,23 +486,151 @@ public class MassActivity extends Activity {
                 // نقوش الغلاف (.pattern-layer) خلف التدرّج — داخل الإطار المحشو فتبدأ تحت شريط الحالة (top:var(--sat))
                 if (f.findViewWithTag("pattern") == null) {
                     CoverPattern pat = new CoverPattern(act);
+                    pat.setTheme(CoverThemes.byId(f.getId() == R.id.frame_layout657 ? otherCoverId : coverId));
                     pat.setTag("pattern");
                     f.addView(pat, 0, new FrameLayout.LayoutParams(-1, -1));
                 }
                 f.requestLayout();
             }
 
-            int ringPx() { return dp(2.5f); }
+            // ------------------------------------------------------------------ أغلفة الملف الشخصي
+            /** applyCover(prefix, id) في الـ HTML: mine=true غلاف صفحتي، false غلاف صفحة الشخص الآخر. */
+            void applyCover(boolean mine, String id) {
+                CoverThemes.Theme t = CoverThemes.byId(id);
+                if (mine) coverId = t.id; else otherCoverId = t.id;
+                View frame = v(mine ? "frame_layout642" : "frame_layout657");
+                if (frame != null) {
+                    View pat = frame.findViewWithTag("pattern");
+                    if (pat instanceof CoverPattern) ((CoverPattern) pat).setTheme(t);
+                }
+                ProfileHero hero = mine ? heroMe : heroOther;
+                if (hero != null) hero.setCoverTheme(t);
+                else if (frame != null) frame.setBackground(CoverThemes.gradient(t));
+            }
+
+            /** openCoverPicker() + buildCoverGrid(): شبكة 3 أعمدة، فراغ 10dp، خلية ارتفاعها 78dp وحدودها 3dp (المحدّد بالذهبي). */
+            void openCoverPicker() {
+                final LinearLayout card = new LinearLayout(act);
+                card.setOrientation(LinearLayout.VERTICAL);
+                card.setPadding(dp(18), dp(18), dp(18), dp(18));
+                card.setBackground(shape(cSf(), 20, 0));
+
+                TextView title = new TextView(act);
+                title.setText("غلاف ملفك الشخصي");
+                title.setTextColor(cGold());
+                title.setTextSize(17);
+                title.setTypeface(null, android.graphics.Typeface.BOLD);
+                title.setGravity(Gravity.RIGHT);
+                LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(-1, -2);
+                tlp.bottomMargin = dp(12);
+                card.addView(title, tlp);
+
+                final AlertDialog[] dlg = new AlertDialog[1];
+                final int cols = 3, gap = dp(10);
+                final CoverThemes.Theme[] all = CoverThemes.ALL;
+                for (int r = 0; r * cols < all.length; r++) {
+                    LinearLayout row = new LinearLayout(act);
+                    row.setOrientation(LinearLayout.HORIZONTAL);
+                    row.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);   // الترتيب الظاهري مضبوط يدوياً أدناه
+                    // الصفحة عربية (RTL): أول غلاف (بابل) في أقصى اليمين مثل الـ HTML
+                    for (int c = cols - 1; c >= 0; c--) {
+                        int idx = r * cols + c;
+                        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(0, dp(78), 1f);
+                        if (c != 0) clp.setMarginEnd(gap);
+                        if (idx < all.length) row.addView(coverCell(all[idx], dlg), clp);
+                        else row.addView(new View(act), clp);
+                    }
+                    LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(-1, -2);
+                    if (r > 0) rlp.topMargin = gap;
+                    card.addView(row, rlp);
+                }
+
+                dlg[0] = new AlertDialog.Builder(act).setView(card).create();
+                dlg[0].show();
+                if (dlg[0].getWindow() != null) {
+                    dlg[0].getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+                    int sw = act.getResources().getDisplayMetrics().widthPixels;
+                    dlg[0].getWindow().setLayout(Math.min(dp(340), sw - dp(24)), ViewGroup.LayoutParams.WRAP_CONTENT);
+                }
+            }
+
+            /** .cover-opt : تدرّج الغلاف + نقوش مصغّرة (4 أعمدة × 26dp، رمز 13dp، شفافية .24) + اسم الغلاف أسفلها. */
+            View coverCell(final CoverThemes.Theme t, final AlertDialog[] dlg) {
+                final int bw = dp(3), rad = dp(12);
+                FrameLayout cell = new FrameLayout(act);
+                cell.setBackground(CoverThemes.gradient(t));
+                cell.setClipToOutline(true);
+                cell.setOutlineProvider(new android.view.ViewOutlineProvider() {
+                    @Override public void getOutline(View view, android.graphics.Outline o) {
+                        o.setRoundRect(0, 0, view.getWidth(), view.getHeight(), rad);
+                    }
+                });
+
+                CoverPattern pat = new CoverPattern(act, 4, 26f, 13f, 12, 0.24f);
+                pat.setTheme(t);
+                FrameLayout.LayoutParams plp = new FrameLayout.LayoutParams(-1, -1);
+                plp.setMargins(bw, bw, bw, bw);
+                cell.addView(pat, plp);
+
+                TextView name = new TextView(act);
+                name.setText(t.name);
+                name.setTextColor(0xFFFFFFFF);
+                name.setTextSize(11);
+                name.setTypeface(null, android.graphics.Typeface.BOLD);
+                name.setGravity(Gravity.CENTER);
+                name.setShadowLayer(dp(3), 0, dp(1), 0x99000000);
+                FrameLayout.LayoutParams nlp = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM);
+                nlp.bottomMargin = bw + dp(4);
+                cell.addView(name, nlp);
+
+                // .cover-opt{border:3px solid transparent} / .sel{border-color:var(--babylon-gold)}
+                View border = new View(act);
+                GradientDrawable bd = new GradientDrawable();
+                bd.setCornerRadius(rad);
+                bd.setColor(Color.TRANSPARENT);
+                bd.setStroke(bw, t.id.equals(coverId) ? cGold() : Color.TRANSPARENT);
+                border.setBackground(bd);
+                cell.addView(border, new FrameLayout.LayoutParams(-1, -1));
+
+                cell.setOnClickListener(x -> setCover(t.id, dlg[0]));
+                return cell;
+            }
+
+            /** setCover(id): تطبيق فوري ثم حفظ في users/{uid}.cover (merge) كما في الويب. */
+            void setCover(String id, AlertDialog dlg) {
+                if (!CoverThemes.has(id)) return;
+                sp.edit().putString("coverId", id).apply();
+                applyCover(true, id);
+                if (dlg != null) dlg.dismiss();
+                Map<String, Object> upd = new HashMap<>();
+                upd.put("cover", id);
+                db.collection("users").document(myUid).set(upd, SetOptions.merge())
+                    .addOnSuccessListener(a -> toast("تم تغيير الغلاف ✧"))
+                    .addOnFailureListener(e -> toast("تعذر حفظ الغلاف"));
+            }
+
+            int ringPx() { return dp(2.5f); }                 // الحلقة الرمادية الملاصقة للصورة
+            int goldRingPx() { return Math.max(1, dp(1.5f)); } // شريط ذهبي نحيف
+            int goldGapPx() { return dp(2); }                  // فراغ 2dp بين الذهبي والرمادي
+            /** مجموع ما حول الصورة: رمادي + فراغ + ذهبي */
+            int ringTotalPx() { return ringPx() + goldGapPx() + goldRingPx(); }
 
             /** حلقة رمادية فاتحة (2.5dp) ملاصقة للصورة بلا فراغ؛ تختفي مع الصورة نفسها عند سحبها (ProfileHero يخفي الأفاتار). */
             android.graphics.drawable.Drawable withRing(android.graphics.drawable.Drawable inner) {
+                GradientDrawable gold = new GradientDrawable();
+                gold.setShape(GradientDrawable.OVAL);
+                gold.setColor(Color.TRANSPARENT);
+                gold.setStroke(goldRingPx(), cGold());
                 GradientDrawable ring = new GradientDrawable();
                 ring.setShape(GradientDrawable.OVAL);
                 ring.setColor(Color.TRANSPARENT);
                 ring.setStroke(ringPx(), 0xFFD1D5DB);
                 android.graphics.drawable.LayerDrawable ld = new android.graphics.drawable.LayerDrawable(
-                        new android.graphics.drawable.Drawable[]{ring, inner});
-                ld.setLayerInset(1, ringPx(), ringPx(), ringPx(), ringPx());   // الصورة تبدأ من حافة الحلقة مباشرة
+                        new android.graphics.drawable.Drawable[]{gold, ring, inner});
+                int g = goldRingPx() + goldGapPx();                 // الرمادي يبدأ بعد الذهبي + فراغ 2dp
+                ld.setLayerInset(1, g, g, g, g);
+                int all = g + ringPx();                             // الصورة تبدأ من حافة الحلقة الرمادية مباشرة
+                ld.setLayerInset(2, all, all, all, all);
                 return ld;
             }
 
@@ -504,7 +638,7 @@ public class MassActivity extends Activity {
                 TextView a = tv(id);
                 if (a == null) return;
                 ViewGroup.LayoutParams lp = a.getLayoutParams();
-                if (lp != null) { lp.width = dp(108) + 2 * ringPx(); lp.height = lp.width; }   // 108 + سماكة الحلقة
+                if (lp != null) { lp.width = dp(108) + 2 * ringTotalPx(); lp.height = lp.width; }   // 108 + الحلقتان والفراغ
                 a.setTextSize(40);
                 a.setTextColor(0xFFFFFFFF);
                 if (photoBmp != null && id.equals("pAvatarText")) {
@@ -517,13 +651,22 @@ public class MassActivity extends Activity {
                 a.setElevation(dp(6));
                 View par = (View) a.getParent();
                 if (par != null && par.getLayoutParams() instanceof ViewGroup.MarginLayoutParams)
-                    ((ViewGroup.MarginLayoutParams) par.getLayoutParams()).topMargin = -(dp(58) + ringPx());
+                    ((ViewGroup.MarginLayoutParams) par.getLayoutParams()).topMargin = -(dp(58) + ringTotalPx());
                 a.requestLayout();
+            }
+
+            /** أزرار الصف السريع في الملف الشخصي (تعديل/الصورة/الغلاف وأزرار ملف الشخص الآخر): بلا ظل. */
+            boolean isQuickBtn(View x) {
+                int i = x.getId();
+                return i == R.id.pEdit || i == R.id.pPhoto || i == R.id.pCover
+                        || i == R.id.otherMsgBtn || i == R.id.otherBlockBtn;
             }
 
             void quick(String id, String iconName) {
                 TextView t = tv(id);
                 if (t == null) return;
+                t.setElevation(0);
+                t.setStateListAnimator(null);
                 // .pf-quick .pf-q : height 56px، padding 8px 6px، gap 5px، أيقونة 19px
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(56), 1f);
                 lp.setMargins(dp(4.5f), 0, dp(4.5f), 0);
@@ -617,10 +760,8 @@ public class MassActivity extends Activity {
                     quick("pEdit", "ic_edit");
                     quick("pPhoto", "ic_camera");
                     quick("pCover", "ic_palette");
-                    // 4 أزرار موحّدة في سطر واحد (.pf-quick-other): نفس لون البطاقة وأيقونة ذهبية
+                    // أزرار موحّدة في سطر واحد (.pf-quick-other): نفس لون البطاقة وأيقونة ذهبية
                     quick("otherMsgBtn", "ic_chat");
-                    quick("otherStarsBtn", "ic_star");
-                    quick("otherGiftBtn", "ic_gift");
                     quick("otherBlockBtn", blocked ? "ic_check" : "ic_block");
                     int[] icn = {648, 650, 652, 654, 656, 658, 660, 662, 664};
                     for (int n : icn) {
@@ -635,7 +776,6 @@ public class MassActivity extends Activity {
                         t.setTextColor(cGold());
                     }
                     setTab(v("pTabStoriesBtn"), tabStories);
-                    setTab(v("pTabGiftsBtn"), !tabStories);
                 } catch (Throwable ignored) { }
                 try { centerIconBoxes(act.findViewById(android.R.id.content)); } catch (Throwable ignored) { }
             }
@@ -798,6 +938,10 @@ public class MassActivity extends Activity {
                             userGov = safe(doc.getString("gov"));
                             userEmail = safe(doc.getString("email"));
                             userPhoto = safe(doc.getString("photo"));
+                            String cv = doc.getString("cover");
+                            String cvId = CoverThemes.has(cv) ? cv : CoverThemes.DEFAULT_ID;
+                            sp.edit().putString("coverId", cvId).apply();
+                            applyCover(true, cvId);
                             Long createdAt = doc.getLong("createdAt");
 
                             if (userName.isEmpty()) userName = "Mohammed";
@@ -943,6 +1087,13 @@ public class MassActivity extends Activity {
                 String back = curPage;
                 show("otherUserProfileView");
                 prevPage = back;
+                applyCover(false, CoverThemes.DEFAULT_ID);   // لا يظهر غلاف الشخص السابق أثناء التحميل
+                final String reqUid = uid;
+                if (uid != null && !uid.isEmpty()) {
+                    db.collection("users").document(uid).get().addOnSuccessListener(d -> {
+                        if (d.exists() && reqUid.equals(otherUid)) applyCover(false, d.getString("cover"));
+                    });
+                }
             }
 
             void loadChats() {
@@ -1967,15 +2118,7 @@ public class MassActivity extends Activity {
                 }
                 else if (id.equals("pEdit") || id.equals("pBioRow")) openEdit();
                 else if (id.equals("pPhoto")) pickProfilePhoto();
-                else if (id.equals("pCover")) {
-                    new AlertDialog.Builder(act).setTitle("لون الغلاف")
-                        .setItems(new String[]{"كحلي", "بنفسجي", "أخضر", "برتقالي", "رمادي", "ذهبي"}, (d, w) -> {
-                            coverColor = covers[w];
-                            sp.edit().putInt("cover", coverColor).apply();
-                            View coverView = v("frame_layout642");
-                            if (coverView != null) coverView.setBackgroundColor(coverColor);
-                        }).show();
-                }
+                else if (id.equals("pCover")) openCoverPicker();
                 else if (id.equals("pUserRow")) {
                     ClipboardManager cm = (ClipboardManager) act.getSystemService(Context.CLIPBOARD_SERVICE);
                     TextView pu = tv("pHeaderUser");
@@ -1986,15 +2129,9 @@ public class MassActivity extends Activity {
                 else if (id.equals("btnSaveProfile")) saveProfile();
                 else if (id.equals("otherBack")) show(prevPage);
                 else if (id.equals("pTabStoriesBtn")) {
-                    tabStories = true; vis("pTabStories", true); vis("pTabGifts", false);
-                    setTab(v("pTabStoriesBtn"), true); setTab(v("pTabGiftsBtn"), false);
+                    tabStories = true; vis("pTabStories", true);
+                    setTab(v("pTabStoriesBtn"), true);
                 }
-                else if (id.equals("pTabGiftsBtn")) {
-                    tabStories = false; vis("pTabStories", false); vis("pTabGifts", true);
-                    setTab(v("pTabStoriesBtn"), false); setTab(v("pTabGiftsBtn"), true);
-                }
-                else if (id.equals("otherStarsBtn")) toast("إهداء نجوم إلى " + otherName);
-                else if (id.equals("otherGiftBtn")) toast("متجر الهدايا");
                 else if (id.equals("otherMsgBtn")) openChat(otherName, otherUid);
                 else if (id.equals("otherBlockBtn")) {
                     blocked = !blocked;
@@ -2139,7 +2276,7 @@ public class MassActivity extends Activity {
                 String[] ids = {"hdrStories", "mainSearchBtn", "searchBack", "fltAll", "fltUnread",
                         "newGroupFab", "navChats", "navSettings", "navProfile", "pEdit", "pPhoto", "pCover",
                         "pBioRow", "pUserRow", "editBack", "btnCancelEdit", "btnSaveProfile", "otherBack",
-                        "otherMsgBtn", "otherStarsBtn", "otherGiftBtn", "pTabStoriesBtn", "pTabGiftsBtn", "otherBlockBtn", "otherMoreBtn", "settingsThemeToggle", "sxHero",
+                        "otherMsgBtn", "pTabStoriesBtn", "otherBlockBtn", "otherMoreBtn", "settingsThemeToggle", "sxHero",
                         "itemChatSettings", "itemNotif", "itemPrivacy", "privacyBack", "notifBack",
                         "chatSetBack", "itemShare", "itemLogout", "itemDelete", "itemChangePass",
                         "itemChangeEmail", "itemBlocked", "segLastSeen_show", "segLastSeen_hide",
@@ -2224,8 +2361,10 @@ public class MassActivity extends Activity {
                     heroOther = new ProfileHero(act, (PullScrollView) v("otherUserProfileView"), tv("otherAvatarText"), v("linear658"),
                             tv("otherHeaderName"), tv("otherHeaderStatus"), v("linear659"), false, () -> null,
                             v("otherBack"), v("otherMoreBtn"), pal);
-                    heroMe.setAvatarInset(ringPx());       // الحلقة الذهبية خارج الصورة: المربع المكبّر يبدأ من حدود الصورة نفسها
-                    heroOther.setAvatarInset(ringPx());
+                    heroMe.setCoverTheme(CoverThemes.byId(coverId));
+                    heroOther.setCoverTheme(CoverThemes.byId(otherCoverId));
+                    heroMe.setAvatarInset(ringTotalPx());       // الحلقة الذهبية خارج الصورة: المربع المكبّر يبدأ من حدود الصورة نفسها
+                    heroOther.setAvatarInset(ringTotalPx());
                 } catch (Throwable ignored) { }
                 try {
                     BabylonFx.shine(tv("textview621"));
