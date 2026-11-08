@@ -486,15 +486,17 @@ public class MassActivity extends Activity {
                 f.requestLayout();
             }
 
-            /** حلقة ذهبية رفيعة (1.5dp) حول صورة الملف الشخصي؛ تختفي مع الصورة نفسها عند سحبها (ProfileHero يخفي الأفاتار). */
+            int ringPx() { return dp(2.5f); }
+
+            /** حلقة رمادية فاتحة (2.5dp) ملاصقة للصورة بلا فراغ؛ تختفي مع الصورة نفسها عند سحبها (ProfileHero يخفي الأفاتار). */
             android.graphics.drawable.Drawable withRing(android.graphics.drawable.Drawable inner) {
                 GradientDrawable ring = new GradientDrawable();
                 ring.setShape(GradientDrawable.OVAL);
                 ring.setColor(Color.TRANSPARENT);
-                ring.setStroke(dp(1.5f), cGold());
+                ring.setStroke(ringPx(), 0xFFD1D5DB);
                 android.graphics.drawable.LayerDrawable ld = new android.graphics.drawable.LayerDrawable(
                         new android.graphics.drawable.Drawable[]{ring, inner});
-                ld.setLayerInset(1, dp(4), dp(4), dp(4), dp(4));
+                ld.setLayerInset(1, ringPx(), ringPx(), ringPx(), ringPx());   // الصورة تبدأ من حافة الحلقة مباشرة
                 return ld;
             }
 
@@ -502,7 +504,7 @@ public class MassActivity extends Activity {
                 TextView a = tv(id);
                 if (a == null) return;
                 ViewGroup.LayoutParams lp = a.getLayoutParams();
-                if (lp != null) { lp.width = dp(116); lp.height = dp(116); }   // 108 + حلقة ذهبية خفيفة (4dp حول الصورة)
+                if (lp != null) { lp.width = dp(108) + 2 * ringPx(); lp.height = lp.width; }   // 108 + سماكة الحلقة
                 a.setTextSize(40);
                 a.setTextColor(0xFFFFFFFF);
                 if (photoBmp != null && id.equals("pAvatarText")) {
@@ -515,7 +517,7 @@ public class MassActivity extends Activity {
                 a.setElevation(dp(6));
                 View par = (View) a.getParent();
                 if (par != null && par.getLayoutParams() instanceof ViewGroup.MarginLayoutParams)
-                    ((ViewGroup.MarginLayoutParams) par.getLayoutParams()).topMargin = -dp(62);
+                    ((ViewGroup.MarginLayoutParams) par.getLayoutParams()).topMargin = -(dp(58) + ringPx());
                 a.requestLayout();
             }
 
@@ -2222,8 +2224,8 @@ public class MassActivity extends Activity {
                     heroOther = new ProfileHero(act, (PullScrollView) v("otherUserProfileView"), tv("otherAvatarText"), v("linear658"),
                             tv("otherHeaderName"), tv("otherHeaderStatus"), v("linear659"), false, () -> null,
                             v("otherBack"), v("otherMoreBtn"), pal);
-                    heroMe.setAvatarInset(dp(4));       // الحلقة الذهبية خارج الصورة: المربع المكبّر يبدأ من حدود الصورة نفسها
-                    heroOther.setAvatarInset(dp(4));
+                    heroMe.setAvatarInset(ringPx());       // الحلقة الذهبية خارج الصورة: المربع المكبّر يبدأ من حدود الصورة نفسها
+                    heroOther.setAvatarInset(ringPx());
                 } catch (Throwable ignored) { }
                 try {
                     BabylonFx.shine(tv("textview621"));
