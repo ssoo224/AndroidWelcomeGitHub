@@ -143,15 +143,52 @@ public final class Tk {
         return ld;
     }
 
-    /** ظل ذهبي ناعم (rgba(212,175,55,.25)) على Android 9+؛ الأقدم يبقى بظل افتراضي. */
-    public static void goldShadow(View v) {
-        if (android.os.Build.VERSION.SDK_INT >= 28) {
-            v.setOutlineAmbientShadowColor(0x66D4AF37);
-            v.setOutlineSpotShadowColor(0xFFD4AF37);
-        }
-    }
-
     public static boolean handle(String tag, View x, TextView t, boolean dark) {
+        // ---- فقاعات الرسائل (MsgViews)
+        if (tag.equals("mtM")) { if (t != null) t.setTextColor(0xFFFFFFFF); return true; }
+        if (tag.equals("mtO")) { if (t != null) t.setTextColor(text(dark)); return true; }
+        if (tag.equals("mmM")) { if (t != null) t.setTextColor(0xF2FFFFFF); return true; }
+        if (tag.equals("mmO")) { if (t != null) t.setTextColor(dark ? 0xFF94A3B8 : 0xFF7C8B9C); return true; }
+        if (tag.equals("rqM") || tag.equals("rqO")) {
+            final float r = dp(x, 10);
+            x.setBackground(shape(tag.equals("rqM") ? 0x1A000000 : 0x247F8CA0, r, 0, 0));
+            x.setClipToOutline(true);
+            x.setOutlineProvider(new android.view.ViewOutlineProvider() {
+                @Override public void getOutline(View v, android.graphics.Outline o) { o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), r); }
+            });
+            return true;
+        }
+        if (tag.equals("rqtM")) { if (t != null) t.setTextColor(0xFFFFFFFF); return true; }
+        if (tag.equals("rqtO")) { if (t != null) t.setTextColor(dark ? 0xFFE2E8F0 : 0xFF2A3A48); return true; }
+        if (tag.equals("vtM")) { if (t != null) t.setTextColor(0xFF292216); return true; }
+        if (tag.equals("vtO")) { if (t != null) t.setTextColor(text(dark)); return true; }
+        if (tag.equals("vkM") || tag.equals("vkO")) { if (x instanceof MsgViews.TrackView) ((MsgViews.TrackView) x).setDark(dark); return true; }
+        if (tag.equals("wvM") || tag.equals("wvO")) {
+            if (x instanceof MsgViews.WaveView)
+                ((MsgViews.WaveView) x).setColors(tag.equals("wvM") ? 0xFF292216 : text(dark), tag.equals("wvM") ? 0xFFFFFFFF : 0xFFC29D30);
+            return true;
+        }
+        if (tag.equals("vpM") || tag.equals("vpO")) {
+            float r = dp(x, 11);
+            if (tag.equals("vpM")) {
+                x.setBackground(shape(0xFFFFFFFF, r, 0, 0));
+                x.setElevation(dp(x, 2));
+            } else {
+                x.setBackground(grad(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE8C85D, 0xFFC29D30}, r));
+                x.setElevation(dp(x, 3));
+            }
+            if (x instanceof android.view.ViewGroup && ((android.view.ViewGroup) x).getChildCount() > 0) {
+                View ic = ((android.view.ViewGroup) x).getChildAt(0);
+                if (ic instanceof android.widget.ImageView)
+                    ((android.widget.ImageView) ic).setColorFilter(tag.equals("vpM") ? 0xFFA9791A : 0xFFFFFFFF);
+            }
+            return true;
+        }
+        if (tag.equals("sysp")) {
+            x.setBackground(shape(dark ? 0x4D000000 : 0x1A000000, dp(x, 14), 0, 0));
+            if (t != null) t.setTextColor(dark ? 0xFFFFFFFF : 0xFF2A3A48);
+            return true;
+        }
         if (tag.equals("homepat")) { x.setBackground(pattern(x, dark, pageBg(dark))); return true; }
         if (tag.equals("chatpat")) { x.setBackground(pattern(x, dark, dark ? 0xFF17212B : 0xFFEEF2F8)); return true; }
         if (tag.equals("rbtn")) {            // زر دائري أبيض بظل (.icon-btn في الهيدر)
@@ -165,66 +202,8 @@ public final class Tk {
             x.setBackground(shape(dark ? 0xFF1E2A38 : 0xFFFFFFFF, dp(x, 24), dark ? 0x14FFFFFF : 0xFFE3E9F1, dp(x, 1)));
             return true;
         }
-        if (tag.equals("composer")) {        // #textInputBar: بطاقة radius 14 + حد 1dp (--cr-card / --cr-line)
-            x.setBackground(shape(dark ? 0xFF1E2A38 : 0xFFFFFFFF, dp(x, 14), dark ? 0x14FFFFFF : 0xFFE1E8F1, dp(x, 1)));
-            return true;
-        }
-        if (tag.equals("cinp")) {            // #messageInput.msg-editable: radius 10 ، عند التركيز حد #c9cfd8
-            GradientDrawable idle = shape(dark ? 0x1A7F8CA0 : 0xFFF1F5FA, dp(x, 10), 0x00000000, 0);
-            idle.setStroke(dpi(x, 1), 0x00000000);
-            GradientDrawable focus = shape(dark ? 0x297F8CA0 : 0xFFFFFFFF, dp(x, 10), 0xFFC9CFD8, dp(x, 1));
-            android.graphics.drawable.StateListDrawable sl = new android.graphics.drawable.StateListDrawable();
-            sl.addState(new int[]{android.R.attr.state_focused}, focus);
-            sl.addState(new int[]{}, idle);
-            x.setBackground(sl);
-            if (t != null) {
-                t.setTextColor(dark ? 0xFFF1F5F9 : 0xFF17212B);
-                t.setHintTextColor(dark ? 0xFF8A9AAB : 0xFF8B98A8);
-            }
-            return true;
-        }
-        if (tag.equals("sendbtn")) {         // زر الإرسال: 40dp ، radius 15/15/7/15 ، تدرج #e9c957→#c59b24 ، سهم أبيض
-            float a = dp(x, 15), b = dp(x, 7);
-            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE9C957, 0xFFC59B24});
-            g.setCornerRadii(new float[]{a, a, a, a, b, b, a, a});   // TL, TR, BR, BL
-            x.setBackground(g);
-            x.setElevation(dp(x, 3));
-            goldShadow(x);
-            if (t != null) t.setTextColor(0xFFFFFFFF);
-            return true;
-        }
-        if (tag.equals("recbar")) {          // .recording-bar: سطح البطاقة + خط علوي 1dp
-            android.graphics.drawable.LayerDrawable ld = new android.graphics.drawable.LayerDrawable(
-                    new android.graphics.drawable.Drawable[]{
-                            new android.graphics.drawable.ColorDrawable(dark ? 0x14FFFFFF : 0xFFE5EAF1),
-                            new android.graphics.drawable.ColorDrawable(surface(dark))});
-            ld.setLayerInset(1, 0, dpi(x, 1), 0, 0);
-            x.setBackground(ld);
-            return true;
-        }
-        if (tag.equals("recgold12")) {       // .rec-left: مربع ذهبي radius 12 (إلغاء / تشغيل)
-            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE8C85D, 0xFFC29D30});
-            g.setCornerRadius(dp(x, 12));
-            x.setBackground(g);
-            x.setElevation(dp(x, 3));
-            goldShadow(x);
-            return true;
-        }
-        if (tag.equals("recgoldc")) {        // .record-stop-btn / .record-send-btn: دائرة ذهبية 42dp
-            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE8C85D, 0xFFC29D30});
-            g.setShape(GradientDrawable.OVAL);
-            x.setBackground(g);
-            x.setElevation(dp(x, 3));
-            goldShadow(x);
-            if (t != null) t.setTextColor(0xFFFFFFFF);
-            return true;
-        }
-        if (tag.equals("recsend")) {         // سهم إرسال الصوت بلون الحبر #17212b (مثل HTML)
-            if (t != null) t.setTextColor(0xFF17212B);
-            return true;
-        }
-        if (tag.equals("recwave")) {
-            if (x instanceof VoiceWaveView) ((VoiceWaveView) x).setColor(gold(dark));
+        if (tag.equals("composer")) {        // مدخل الرسائل العائم
+            x.setBackground(shape(dark ? 0xFF17212B : 0xFFFFFFFF, dp(x, 24), dark ? 0x14FFFFFF : 0xFFE3E9F1, dp(x, 1)));
             return true;
         }
         if (tag.equals("fab")) {

@@ -518,123 +518,16 @@
 				android:textSize="18sp"
 				android:tag="m" />
 		</LinearLayout>
-		<!-- شريط التسجيل الصوتي (مطابق لـ #recordingBar في الـ HTML): إلغاء | حالة + مؤقّت + موجة | إيقاف أو إرسال -->
-		<LinearLayout
-			android:id="@+id/recordingBar"
-			android:layout_width="match_parent"
-			android:layout_height="wrap_content"
-			android:minHeight="66dp"
-			android:paddingStart="12dp"
-			android:paddingEnd="12dp"
-			android:paddingTop="8dp"
-			android:paddingBottom="8dp"
-			android:gravity="center_vertical"
-			android:orientation="horizontal"
-			android:visibility="gone"
-			android:tag="recbar">
-			<LinearLayout
-				android:id="@+id/recLeft"
-				android:layout_width="38dp"
-				android:layout_height="wrap_content"
-				android:paddingTop="3dp"
-				android:paddingBottom="3dp"
-				android:gravity="center_horizontal"
-				android:orientation="vertical"
-				android:tag="recgold12">
-				<TextView
-					android:id="@+id/recCancel"
-					android:layout_width="38dp"
-					android:layout_height="36dp"
-					android:gravity="center_horizontal|center_vertical"
-					android:text=""
-					android:drawableStart="@drawable/ic_close_20"
-					android:contentDescription="إلغاء التسجيل"
-					android:tag="wh" />
-				<TextView
-					android:id="@+id/recPlay"
-					android:layout_width="38dp"
-					android:layout_height="23dp"
-					android:gravity="center_horizontal|center_vertical"
-					android:text=""
-					android:drawableStart="@drawable/ic_play_20"
-					android:contentDescription="تشغيل التسجيل"
-					android:visibility="gone"
-					android:tag="wh" />
-			</LinearLayout>
-			<LinearLayout
-				android:id="@+id/recLive"
-				android:layout_width="0dp"
-				android:layout_height="wrap_content"
-				android:layout_weight="1"
-				android:layout_marginStart="12dp"
-				android:layout_marginEnd="12dp"
-				android:orientation="vertical">
-				<LinearLayout
-					android:layout_width="match_parent"
-					android:layout_height="wrap_content"
-					android:gravity="center_vertical"
-					android:orientation="horizontal">
-					<View
-						android:id="@+id/recDot"
-						android:layout_width="7dp"
-						android:layout_height="7dp" />
-					<TextView
-						android:id="@+id/recText"
-						android:layout_width="0dp"
-						android:layout_height="wrap_content"
-						android:layout_weight="1"
-						android:layout_marginStart="7dp"
-						android:text="جاري التسجيل"
-						android:textSize="12sp"
-						android:textStyle="bold" />
-					<TextView
-						android:id="@+id/recTimer"
-						android:layout_width="wrap_content"
-						android:layout_height="wrap_content"
-						android:text="00:00"
-						android:textSize="12sp"
-						android:tag="m" />
-				</LinearLayout>
-				<com.babylon.chat.iq.VoiceWaveView
-					android:id="@+id/recWave"
-					android:layout_width="match_parent"
-					android:layout_height="33dp"
-					android:layout_marginTop="4dp"
-					android:tag="recwave" />
-			</LinearLayout>
-			<TextView
-				android:id="@+id/recStop"
-				android:layout_width="42dp"
-				android:layout_height="42dp"
-				android:gravity="center_horizontal|center_vertical"
-				android:text=""
-				android:drawableStart="@drawable/ic_stop_18"
-				android:contentDescription="إيقاف التسجيل"
-				android:tag="recgoldc" />
-			<TextView
-				android:id="@+id/recSend"
-				android:layout_width="42dp"
-				android:layout_height="42dp"
-				android:gravity="center_horizontal|center_vertical"
-				android:text=""
-				android:drawableStart="@drawable/ic_arrow_send_21"
-				android:contentDescription="إرسال التسجيل"
-				android:visibility="gone"
-				android:tag="recgoldc recsend" />
-		</LinearLayout>
-		<!-- حقل الكتابة: بطاقة + حقل بزوايا 10dp + (إرفاق/مايك) أو زر إرسال ذهبي عند وجود نص فقط -->
 		<LinearLayout
 			android:id="@+id/textInputBar"
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"
-			android:layout_marginStart="10dp"
-			android:layout_marginEnd="10dp"
+			android:layout_marginStart="4dp"
+			android:layout_marginEnd="4dp"
+			android:layout_marginBottom="4dp"
 			android:layout_marginTop="4dp"
-			android:layout_marginBottom="6dp"
-			android:paddingStart="8dp"
-			android:paddingEnd="8dp"
-			android:paddingTop="6dp"
-			android:paddingBottom="6dp"
+			android:padding="6dp"
+			android:gravity="bottom"
 			android:orientation="horizontal"
 			android:tag="composer"
 			android:elevation="6dp">
@@ -642,54 +535,43 @@
 				android:id="@+id/messageInput"
 				android:layout_width="0dp"
 				android:layout_height="wrap_content"
-				android:layout_weight="1"
-				android:layout_gravity="bottom"
-				android:background="@null"
-				android:gravity="start|center_vertical"
+				android:textSize="15.5sp"
 				android:hint="اكتب رسالتك..."
+				android:layout_weight="1"
 				android:inputType="textMultiLine|textCapSentences"
-				android:minHeight="42dp"
-				android:maxHeight="132dp"
-				android:paddingStart="12dp"
-				android:paddingEnd="12dp"
-				android:paddingTop="10dp"
-				android:paddingBottom="10dp"
-				android:textSize="15sp"
-				android:tag="cinp" />
+				android:minHeight="43dp"
+				android:maxHeight="120dp"
+				android:paddingStart="14dp"
+				android:paddingEnd="14dp"
+				android:tag="inp" />
 			<TextView
 				android:id="@+id/btnAttach"
-				android:layout_width="40dp"
-				android:layout_height="40dp"
-				android:layout_marginStart="6dp"
-				android:layout_gravity="bottom"
+				android:layout_width="42dp"
+				android:layout_height="44dp"
 				android:gravity="center_horizontal|center_vertical"
 				android:text=""
 				android:drawableStart="@drawable/ic_attach_22"
-				android:contentDescription="وسائط"
+				android:textSize="20sp"
 				android:tag="m" />
 			<TextView
 				android:id="@+id/btnMic"
-				android:layout_width="40dp"
-				android:layout_height="40dp"
-				android:layout_marginStart="6dp"
-				android:layout_gravity="bottom"
+				android:layout_width="42dp"
+				android:layout_height="44dp"
 				android:gravity="center_horizontal|center_vertical"
 				android:text=""
 				android:drawableStart="@drawable/ic_mic_22"
-				android:contentDescription="تسجيل صوت"
+				android:textSize="20sp"
 				android:tag="m" />
 			<TextView
 				android:id="@+id/btnSend"
-				android:layout_width="40dp"
-				android:layout_height="40dp"
-				android:layout_marginStart="6dp"
-				android:layout_gravity="top"
+				android:layout_width="44dp"
+				android:layout_height="44dp"
 				android:gravity="center_horizontal|center_vertical"
 				android:text=""
-				android:drawableStart="@drawable/ic_send_up_21"
-				android:contentDescription="إرسال الرسالة"
-				android:visibility="gone"
-				android:tag="sendbtn" />
+				android:drawableStart="@drawable/ic_send_22"
+				android:textSize="22sp"
+				android:rotation="180"
+				android:tag="g" />
 		</LinearLayout>
 	</LinearLayout>
 </FrameLayout>

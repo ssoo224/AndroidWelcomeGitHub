@@ -248,7 +248,11 @@ public class MassActivity extends Activity {
             boolean unreadOnly = false, muted = false, blocked = false;
             String curPage = "homeView", prevPage = "homeView", curChat = "";
             String replyText = null, otherName = "", otherUser = "";
-            TextView editing = null;
+            View editing = null;
+            String lastDayKey = "";
+            final java.util.Map<String, View> msgViewsById = new java.util.HashMap<>();
+            MsgViews.Handle playingHandle = null;
+            android.os.Handler uiH = new android.os.Handler(android.os.Looper.getMainLooper());
             boolean tabStories = true;
             BabylonBars bars = new BabylonBars(act);
             boolean tabAnimating = false;
@@ -260,12 +264,6 @@ public class MassActivity extends Activity {
             Handler recHandler = new Handler(Looper.getMainLooper());
             Runnable recTick = null;
             MediaPlayer mediaPlayer = null;
-            // معاينة التسجيل الصوتي قبل الإرسال (مثل rec-preview في الـ HTML)
-            MediaPlayer previewPlayer = null;
-            boolean recPreview = false;
-            long recDurMs = 0;
-            Runnable previewTick = null;
-            android.animation.ValueAnimator dotPulse = null;
 
             String[] pages = {"homeView", "searchView", "profileView", "otherUserProfileView",
                     "settingsView", "privacySettingsView", "notificationSettingsView",
@@ -865,7 +863,7 @@ public class MassActivity extends Activity {
                             final String fOtherId = otherId;
                             final String lastMsg = m.get("lastMessage") != null ? m.get("lastMessage").toString() : "";
                             final Long lastAt = (Long) m.get("lastMessageAt");
-                            final String lastTime = lastAt != null ? new SimpleDateFormat("h:mm", Locale.getDefault()).format(new Date(lastAt)) : "";
+                            final String lastTime = lastAt != null ? listTime(lastAt) : "";
                             db.collection("users").document(fOtherId).get()
                                 .addOnSuccessListener(udoc -> {
                                     String oName = udoc.exists() && udoc.getString("name") != null ? udoc.getString("name") : "?";
@@ -882,6 +880,17 @@ public class MassActivity extends Activity {
                                 });
                         }
                     });
+            }
+
+            String listTime(long ts) {
+                java.util.Calendar a = java.util.Calendar.getInstance(), b = java.util.Calendar.getInstance();
+                b.setTimeInMillis(ts);
+                if (a.get(java.util.Calendar.YEAR) == b.get(java.util.Calendar.YEAR) && a.get(java.util.Calendar.DAY_OF_YEAR) == b.get(java.util.Calendar.DAY_OF_YEAR))
+                    return timeLabel(ts);
+                a.add(java.util.Calendar.DAY_OF_YEAR, -1);
+                if (a.get(java.util.Calendar.YEAR) == b.get(java.util.Calendar.YEAR) && a.get(java.util.Calendar.DAY_OF_YEAR) == b.get(java.util.Calendar.DAY_OF_YEAR))
+                    return "أمس";
+                return new SimpleDateFormat("d/M/yyyy", new Locale("ar")).format(new Date(ts));
             }
 
             void buildStories() {
@@ -1033,10 +1042,10 @@ public class MassActivity extends Activity {
                 if (chatSub != null) chatSub.setText("متصل");
                 LinearLayout msgArea = (LinearLayout) v("messagesArea");
                 if (msgArea != null) msgArea.removeAllViews();
-                renderedMsgIds.clear();
+                renderedMsgIds.clear(); lastDayKey = ""; msgViewsById.clear();
                 cancelReply();
                 vis("chatSearchPanel", false);
-                cancelRecord();
+                vis("recordingBar", false);
 
                 if (messagesListener != null) messagesListener.remove();
 
@@ -1060,6 +1069,15 @@ public class MassActivity extends Activity {
                         final boolean liveBatch = !firstSnap[0];
                         firstSnap[0] = false;
                         for (DocumentChange dc : snapshots.getDocumentChanges()) {
+                            if (dc.getType() == DocumentChange.Type.MODIFIED) {
+                                DocumentSnapshot md = dc.getDocument();
+                                View mv = msgViewsById.get(md.getId());
+                                if (mv != null && myUid.equals(md.getString("sender"))) {
+                                    boolean rd = Boolean.TRUE.equals(md.getBoolean("read"));
+                                    MsgViews.setState(mv, rd ? MsgViews.READ : (md.getMetadata().hasPendingWrites() ? MsgViews.WAIT : MsgViews.SENT));
+                                }
+                                continue;
+                            }
                             if (dc.getType() == DocumentChange.Type.ADDED) {
                                 DocumentSnapshot doc = dc.getDocument();
                                 if (!doc.exists()) continue;
@@ -1076,13 +1094,24 @@ public class MassActivity extends Activity {
                                 Long time = doc.getLong("timestamp");
                                 Long dur = doc.getLong("duration");
                                 boolean mine = myUid.equals(sender);
-                                String timeStr = new SimpleDateFormat("h:mm", Locale.getDefault())
-                                        .format(new Date(time != null ? time : System.currentTimeMillis()));
+                                final long ts = time != null ? time : System.currentTimeMillis();
+                                String timeStr = timeLabel(ts);
+                                Boolean readFlag = doc.getBoolean("read");
+                                boolean isRead = Boolean.TRUE.equals(readFlag);
+                                if (!mine && !isRead) { try { doc.getReference().update("read", true); } catch (Throwable ignored) { } }
+                                int state = mine ? (isRead ? MsgViews.READ : (doc.getMetadata().hasPendingWrites() ? MsgViews.WAIT : MsgViews.SENT)) : MsgViews.SENT;
 
                                 try {
+                                    addDaySep(ts);
                                     if (type.equals("image") && url != null) addImageMsg(url, mine, timeStr);
                                     else if (type.equals("audio") && url != null) addAudioMsg(url, dur != null ? dur : 0, mine, timeStr);
-                                    else if (text != null) addMsg(text, mine, timeStr);
+                                    else if (text != null) addMsg(text, mine, timeStr, state);
+                                    LinearLayout ma0 = (LinearLayout) v("messagesArea");
+                                    if (ma0 != null && ma0.getChildCount() > 0) {
+                                        View last = ma0.getChildAt(ma0.getChildCount() - 1);
+                                        msgViewsById.put(id, last);
+                                        if (mine) MsgViews.setState(last, state);
+                                    }
                                     scrollDown();
                                     if (liveBatch) {
                                         LinearLayout ma = (LinearLayout) v("messagesArea");
@@ -1096,29 +1125,55 @@ public class MassActivity extends Activity {
 
             void closeChat() {
                 hideKb();
-                cancelRecord();
                 vis("chatView", false);
                 syncBars();
                 if (messagesListener != null) { messagesListener.remove(); messagesListener = null; }
                 currentChatId = ""; otherUid = "";
-                renderedMsgIds.clear();
+                renderedMsgIds.clear(); lastDayKey = ""; msgViewsById.clear();
                 if (mediaPlayer != null) { try { mediaPlayer.release(); } catch (Exception e) {} mediaPlayer = null; }
                 try { buildChats(); } catch (Throwable ignored) { }
                 try { buildStories(); } catch (Throwable ignored) { }
             }
 
-            TextView addMsg(String text, final boolean mine, String time) {
-                final TextView b = new TextView(act);
-                b.setTag(mine ? "bubMine" : "bubOther");
-                b.setTextSize(fontSp);
-                b.setTypeface(null, android.graphics.Typeface.BOLD);
-                b.setPadding(dp(12), dp(8), dp(12), dp(6));
-                b.setMaxWidth((int) (act.getResources().getDisplayMetrics().widthPixels * 0.78f));
+            String timeLabel(long ts) {
+                String t = new SimpleDateFormat("h:mm a", Locale.getDefault()).format(new Date(ts));
+                return t.startsWith("0") ? t.substring(1) : t;
+            }
+
+            String dayLabel(long ts) {
+                java.util.Calendar n = java.util.Calendar.getInstance(), c = java.util.Calendar.getInstance();
+                c.setTimeInMillis(ts);
+                if (n.get(java.util.Calendar.YEAR) == c.get(java.util.Calendar.YEAR) && n.get(java.util.Calendar.DAY_OF_YEAR) == c.get(java.util.Calendar.DAY_OF_YEAR)) return "اليوم";
+                n.add(java.util.Calendar.DAY_OF_YEAR, -1);
+                if (n.get(java.util.Calendar.YEAR) == c.get(java.util.Calendar.YEAR) && n.get(java.util.Calendar.DAY_OF_YEAR) == c.get(java.util.Calendar.DAY_OF_YEAR)) return "أمس";
+                String pat = c.get(java.util.Calendar.YEAR) != java.util.Calendar.getInstance().get(java.util.Calendar.YEAR) ? "d MMMM yyyy" : "d MMMM";
+                return new SimpleDateFormat(pat, new Locale("ar")).format(new Date(ts));
+            }
+
+            void addDaySep(long ts) {
+                String key = new SimpleDateFormat("yyyyMMdd", Locale.US).format(new Date(ts));
+                if (key.equals(lastDayKey)) return;
+                lastDayKey = key;
+                LinearLayout msgArea = (LinearLayout) v("messagesArea");
+                if (msgArea == null) return;
+                TextView sp = MsgViews.sysPill(act, dayLabel(ts));
+                msgArea.addView(sp);
+                style(sp);
+            }
+
+            String bodyOf(String raw) {
+                if (raw.startsWith("\u21A9 ")) { int nl = raw.indexOf('\n'); if (nl > 0) return raw.substring(nl + 1); }
+                return raw;
+            }
+
+            LinearLayout addMsg(String text, final boolean mine, String time) { return addMsg(text, mine, time, MsgViews.SENT); }
+
+            LinearLayout addMsg(String text, final boolean mine, String time, int state) {
+                final LinearLayout b = MsgViews.textBubble(act, text, mine, time, state, fontSp);
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
-                lp.gravity = mine ? Gravity.END : Gravity.START;
-                lp.setMargins(0, dp(3), 0, dp(3));
+                lp.gravity = mine ? Gravity.START : Gravity.END;
+                lp.setMargins(0, dp(4), 0, dp(4));
                 b.setLayoutParams(lp);
-                setMsg(b, text, mine, time);
                 b.setOnLongClickListener(x -> { msgMenu(b, mine); return true; });
                 LinearLayout msgArea = (LinearLayout) v("messagesArea");
                 if (msgArea != null) msgArea.addView(b);
@@ -1126,31 +1181,26 @@ public class MassActivity extends Activity {
                 return b;
             }
 
-            void setMsg(TextView b, String text, boolean mine, String time) {
-                b.setContentDescription(text);
-                SpannableStringBuilder sb = new SpannableStringBuilder(text);
-                int s = sb.length();
-                sb.append("\n" + time + (mine ? "  ✓✓" : ""));
-                sb.setSpan(new RelativeSizeSpan(0.7f), s, sb.length(), 0);
-                sb.setSpan(new ForegroundColorSpan(0xFF8696A7), s, sb.length(), 0);
-                b.setText(sb);
+            void setMsg(View b, String text, boolean mine, String time) {
+                if (b instanceof LinearLayout) MsgViews.bind(act, (LinearLayout) b, text, mine, time, MsgViews.SENT, fontSp);
+                style(b);
             }
 
             void addImageMsg(String url, boolean mine, String time) {
                 FrameLayout frame = new FrameLayout(act);
                 int size = Math.min(dp(220), (int) (act.getResources().getDisplayMetrics().widthPixels * 0.68f));
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, size);
-                lp.gravity = mine ? Gravity.END : Gravity.START;
-                lp.setMargins(0, dp(3), 0, dp(3));
+                lp.gravity = mine ? Gravity.START : Gravity.END;
+                lp.setMargins(0, dp(4), 0, dp(4));
                 frame.setLayoutParams(lp);
                 frame.setClipToOutline(true);
                 GradientDrawable bg = new GradientDrawable();
                 bg.setColor(dark ? 0xFF202C33 : 0xFFF0F0F0);
-                bg.setCornerRadius(dp(16));
+                bg.setCornerRadius(dp(12));
                 frame.setBackground(bg);
                 frame.setOutlineProvider(new ViewOutlineProvider() {
                     @Override public void getOutline(View v, Outline o) {
-                        o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), dp(16));
+                        o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), dp(12));
                     }
                 });
                 ImageView img = new ImageView(act);
@@ -1178,50 +1228,15 @@ public class MassActivity extends Activity {
                 if (msgArea != null) msgArea.addView(frame);
             }
 
-            void addAudioMsg(String url, long durationMs, boolean mine, String time) {
-                LinearLayout box = new LinearLayout(act);
-                box.setOrientation(LinearLayout.HORIZONTAL);
-                box.setGravity(Gravity.CENTER_VERTICAL);
-                box.setPadding(dp(10), dp(8), dp(14), dp(8));
-                box.setTag(mine ? "bubMine" : "bubOther");
+            void addAudioMsg(final String url, final long durationMs, final boolean mine, String time) {
+                final MsgViews.VoiceBubble box = new MsgViews.VoiceBubble(act, mine, formatDuration(durationMs));
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
-                lp.gravity = mine ? Gravity.END : Gravity.START;
-                lp.setMargins(0, dp(3), 0, dp(3));
+                lp.gravity = mine ? Gravity.START : Gravity.END;
+                lp.setMargins(0, dp(4), 0, dp(4));
                 box.setLayoutParams(lp);
-                box.setMinimumWidth(dp(180));
-
-                TextView play = new TextView(act);
-                play.setText("▶");
-                play.setTextSize(18);
-                play.setGravity(Gravity.CENTER);
-                play.setLayoutParams(new LinearLayout.LayoutParams(dp(44), dp(44)));
-
-                LinearLayout center = new LinearLayout(act);
-                center.setOrientation(LinearLayout.VERTICAL);
-                center.setLayoutParams(new LinearLayout.LayoutParams(0, -2, 1f));
-                center.setPadding(dp(10), 0, dp(10), 0);
-
-                TextView durTv = new TextView(act);
-                durTv.setText(formatDuration(durationMs));
-                durTv.setTextSize(fontSp);
-                durTv.setTypeface(null, android.graphics.Typeface.BOLD);
-                durTv.setTextColor(mine ? (dark ? 0xFFFFFFFF : 0xFF17212B) : cText());
-
-                TextView timeTv = new TextView(act);
-                timeTv.setText(time); timeTv.setTextSize(10); timeTv.setTypeface(null, android.graphics.Typeface.BOLD);
-                timeTv.setTextColor(0xFF8696A7);
-
-                center.addView(durTv); center.addView(timeTv);
-
-                TextView wave = new TextView(act);
-                wave.setText("▁▃▂▅▇▆▃▂");
-                wave.setTextSize(14);
-                wave.setTextColor(mine ? (dark ? 0xFFB0C4DE : 0xFF6B8E23) : cGold());
-                box.addView(play); box.addView(center); box.addView(wave);
-
-                play.setOnClickListener(v -> playAudio(url, play));
-                box.setOnClickListener(v -> playAudio(url, play));
-
+                box.addView(MsgViews.metaRow(act, mine, time, MsgViews.SENT));
+                box.playBtn.setOnClickListener(v -> playAudio(url, box, durationMs));
+                box.track.listener = f -> { if (mediaPlayer != null && playingHandle == box) { try { mediaPlayer.seekTo((int) (mediaPlayer.getDuration() * f)); } catch (Throwable ignored) { } } };
                 LinearLayout msgArea = (LinearLayout) v("messagesArea");
                 if (msgArea != null) msgArea.addView(box);
                 style(box);
@@ -1232,9 +1247,16 @@ public class MassActivity extends Activity {
                 return String.format(Locale.getDefault(), "%d:%02d", s / 60, s % 60);
             }
 
-            void playAudio(String url, TextView btn) {
+            void playAudio(String url, final MsgViews.Handle h, final long fallbackMs) {
                 try {
+                    if (playingHandle == h && mediaPlayer != null) {
+                        if (mediaPlayer.isPlaying()) { mediaPlayer.pause(); h.setPlaying(false); }
+                        else { mediaPlayer.start(); h.setPlaying(true); tickVoice(h, fallbackMs); }
+                        return;
+                    }
                     if (mediaPlayer != null) { mediaPlayer.release(); mediaPlayer = null; }
+                    if (playingHandle != null) { playingHandle.setPlaying(false); playingHandle.setProgress(0f, null); }
+                    playingHandle = h;
                     mediaPlayer = new MediaPlayer();
                     mediaPlayer.setAudioStreamType(android.media.AudioManager.STREAM_MUSIC);
                     if (url.startsWith("http")) {
@@ -1249,9 +1271,21 @@ public class MassActivity extends Activity {
                         mediaPlayer.setDataSource(pf.getAbsolutePath());
                     }
                     mediaPlayer.prepareAsync();
-                    mediaPlayer.setOnPreparedListener(mp -> { mp.start(); btn.setText("⏸"); });
-                    mediaPlayer.setOnCompletionListener(mp -> { btn.setText("▶"); });
+                    mediaPlayer.setOnPreparedListener(mp -> { mp.start(); h.setPlaying(true); tickVoice(h, fallbackMs); });
+                    mediaPlayer.setOnCompletionListener(mp -> { h.setPlaying(false); h.setProgress(0f, formatDuration(fallbackMs)); playingHandle = null; });
                 } catch (Exception e) { toast("فشل تشغيل الصوت"); }
+            }
+
+            void tickVoice(final MsgViews.Handle h, final long fallbackMs) {
+                uiH.postDelayed(() -> {
+                    try {
+                        if (mediaPlayer == null || playingHandle != h || !mediaPlayer.isPlaying()) return;
+                        int dur = Math.max(1, mediaPlayer.getDuration());
+                        int pos = mediaPlayer.getCurrentPosition();
+                        h.setProgress(pos / (float) dur, formatDuration(pos));
+                        tickVoice(h, fallbackMs);
+                    } catch (Throwable ignored) { }
+                }, 80);
             }
 
             void loadImageAsync(final ImageView img, final String url) {
@@ -1277,14 +1311,14 @@ public class MassActivity extends Activity {
                 }).start();
             }
 
-            void msgMenu(final TextView b, final boolean mine) {
+            void msgMenu(final View b, final boolean mine) {
                 PopupMenu pm = new PopupMenu(act, b);
                 pm.getMenu().add(0, 1, 0, "رد");
                 pm.getMenu().add(0, 2, 1, "نسخ");
                 if (mine) pm.getMenu().add(0, 3, 2, "تعديل");
                 pm.getMenu().add(0, 4, 3, "حذف");
                 pm.setOnMenuItemClickListener(it -> {
-                    String raw = String.valueOf(b.getContentDescription());
+                    String raw = bodyOf(String.valueOf(b.getContentDescription()));
                     switch (it.getItemId()) {
                         case 1:
                             replyText = raw.length() > 40 ? raw.substring(0, 40) + "…" : raw;
@@ -1504,95 +1538,11 @@ public class MassActivity extends Activity {
             }
 
             void toggleRecording() {
-                if (!isRecording && !recPreview) startRecord();
-            }
-
-            String fmtRec(long sec) {
-                return String.format(Locale.getDefault(), "%02d:%02d", sec / 60, sec % 60);
-            }
-
-            /** نبضة النقطة الحمراء (recordingPulse: opacity .35 و scale .8 كل ثانية). */
-            void pulseDot(boolean on) {
-                final View dot = v("recDot");
-                if (dotPulse != null) { dotPulse.cancel(); dotPulse = null; }
-                if (dot == null) return;
-                dot.setAlpha(1f); dot.setScaleX(1f); dot.setScaleY(1f);
-                if (!on) return;
-                dotPulse = android.animation.ValueAnimator.ofFloat(0f, 1f);
-                dotPulse.setDuration(1000);
-                dotPulse.setRepeatCount(android.animation.ValueAnimator.INFINITE);
-                dotPulse.addUpdateListener(an -> {
-                    float f = (float) an.getAnimatedValue();
-                    float k = f <= 0.5f ? f * 2f : (1f - f) * 2f;
-                    dot.setAlpha(1f - 0.65f * k);
-                    float sc = 1f - 0.2f * k;
-                    dot.setScaleX(sc); dot.setScaleY(sc);
-                });
-                dotPulse.start();
-            }
-
-            /** يعرض شريط التسجيل: preview=false «جاري التسجيل» ، preview=true «تم التسجيل» (play/send). */
-            void showRecUi(boolean preview, boolean playing) {
-                vis("recordingBar", true);
-                vis("textInputBar", false);
-                vis("recStop", !preview);
-                vis("recSend", preview);
-                vis("recPlay", preview);
-                View rc = v("recCancel");
-                if (rc != null && rc.getLayoutParams() != null) {
-                    rc.getLayoutParams().height = dp(preview ? 23 : 36);
-                    rc.requestLayout();
-                }
-                TextView rt = tv("recText");
-                if (rt != null) {
-                    rt.setText(preview ? "تم التسجيل" : "جاري التسجيل");
-                    rt.setTextColor(preview ? 0xFF38BDF8 : 0xFFF87171);
-                }
-                View dot = v("recDot");
-                if (dot != null) {
-                    GradientDrawable dg = new GradientDrawable();
-                    dg.setShape(GradientDrawable.OVAL);
-                    dg.setColor(!preview ? 0xFFF87171 : (playing ? 0xFF22C55E : 0xFF9AA4B2));
-                    dot.setBackground(dg);
-                }
-                TextView play = tv("recPlay");
-                if (play != null) {
-                    play.setCompoundDrawablesRelativeWithIntrinsicBounds(playing ? R.drawable.ic_pause_20 : R.drawable.ic_play_20, 0, 0, 0);
-                    tintIcons(play);
-                }
-                View w = v("recWave");
-                if (w instanceof VoiceWaveView) ((VoiceWaveView) w).setRunning(!preview || playing);
-            }
-
-            /** يرجع الواجهة لحقل الكتابة العادي ويفرّغ كل حالة التسجيل (لا يحذف الملف). */
-            void resetRecUi() {
-                recPreview = false;
-                releasePreview();
-                pulseDot(false);
-                View w = v("recWave");
-                if (w instanceof VoiceWaveView) ((VoiceWaveView) w).setRunning(false);
-                TextView rtm = tv("recTimer");
-                if (rtm != null) rtm.setText("00:00");
-                vis("recordingBar", false);
-                vis("textInputBar", true);
-                syncComposer();
-            }
-
-            void stopPreviewTick() {
-                if (previewTick != null) recHandler.removeCallbacks(previewTick);
-                previewTick = null;
-            }
-
-            void releasePreview() {
-                stopPreviewTick();
-                if (previewPlayer != null) {
-                    try { previewPlayer.release(); } catch (Exception e) { }
-                    previewPlayer = null;
-                }
+                if (!isRecording) startRecord();
+                else stopRecordAndSend();
             }
 
             void startRecord() {
-                if (isRecording || recPreview) return;
                 if (act.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)
                         != PackageManager.PERMISSION_GRANTED) {
                     pendingMicCallback = this::startRecord;
@@ -1616,138 +1566,59 @@ public class MassActivity extends Activity {
                     recorder.prepare();
                     recorder.start();
                     isRecording = true;
-                    recPreview = false;
                     recordStart = System.currentTimeMillis();
 
-                    hideKb();
-                    TextView rt0 = tv("recTimer");
-                    if (rt0 != null) rt0.setText("00:00");
-                    showRecUi(false, false);
-                    pulseDot(true);
+                    vis("recordingBar", true);
+                    TextView rt = tv("recTimer");
+                    if (rt != null) rt.setText("0:00");
                     recTick = new Runnable() {
                         @Override public void run() {
                             if (!isRecording) return;
                             long s = (System.currentTimeMillis() - recordStart) / 1000;
                             TextView rt = tv("recTimer");
-                            if (rt != null) rt.setText(fmtRec(s));
-                            if (s >= 60) { toast("وصلت الحد الأقصى للتسجيل (دقيقة)"); stopRecordPreview(); return; }
-                            recHandler.postDelayed(this, 250);
+                            if (rt != null) rt.setText(String.format(Locale.getDefault(), "%d:%02d", s / 60, s % 60));
+                            if (s >= 150) { stopRecordAndSend(); return; }
+                            recHandler.postDelayed(this, 500);
                         }
                     };
                     recHandler.post(recTick);
+                    TextView mic = tv("btnMic");
+                    if (mic != null) { mic.setTextColor(cRed()); tintIcons(mic); }
                 } catch (Exception e) {
                     toast("فشل بدء التسجيل: " + e.getMessage());
-                    if (recorder != null) { try { recorder.release(); } catch (Exception ignored) { } }
                     recorder = null; isRecording = false;
-                    if (audioFile != null) { audioFile.delete(); audioFile = null; }
-                    resetRecUi();
                 }
             }
 
-            /** زر الإيقاف (المربع): ينهي التسجيل وينتقل للمعاينة «تم التسجيل» قبل الإرسال. */
-            void stopRecordPreview() {
-                if (!isRecording || recorder == null) return;
+            void stopRecordAndSend() {
+                if (recorder == null) return;
                 long dur = System.currentTimeMillis() - recordStart;
-                boolean ok = true;
-                try { recorder.stop(); } catch (Exception e) { ok = false; }
+                try { recorder.stop(); } catch (Exception e) { }
                 try { recorder.release(); } catch (Exception e) { }
                 recorder = null;
                 isRecording = false;
                 if (recTick != null) recHandler.removeCallbacks(recTick);
-                if (!ok || audioFile == null || !audioFile.exists() || dur < 800) {
-                    if (audioFile != null) audioFile.delete();
-                    audioFile = null;
-                    resetRecUi();
-                    toast("التسجيل قصير جداً");
-                    return;
-                }
-                recDurMs = dur;
-                recPreview = true;
-                TextView rtm = tv("recTimer");
-                if (rtm != null) rtm.setText(fmtRec(Math.max(1, Math.round(dur / 1000f))));
-                showRecUi(true, false);
-                pulseDot(false);
+                vis("recordingBar", false);
+                TextView mic = tv("btnMic");
+                if (mic != null) { mic.setTextColor(cMuted()); tintIcons(mic); }
+
+                if (audioFile == null || !audioFile.exists()) return;
+                if (dur < 800) { audioFile.delete(); toast("التسجيل قصير جداً"); return; }
+                uploadAudio(audioFile, dur);
             }
 
-            /** زر التشغيل/الإيقاف المؤقت داخل المربع الذهبي أثناء المعاينة. */
-            void togglePreviewPlay() {
-                if (!recPreview || audioFile == null) return;
-                try {
-                    if (previewPlayer != null && previewPlayer.isPlaying()) {
-                        previewPlayer.pause();
-                        stopPreviewTick();
-                        showRecUi(true, false);
-                        return;
-                    }
-                    if (previewPlayer == null) {
-                        previewPlayer = new MediaPlayer();
-                        previewPlayer.setDataSource(audioFile.getAbsolutePath());
-                        previewPlayer.prepare();
-                        previewPlayer.setOnCompletionListener(mp -> {
-                            releasePreview();
-                            TextView tt = tv("recTimer");
-                            if (tt != null) tt.setText(fmtRec(Math.max(1, Math.round(recDurMs / 1000f))));
-                            if (recPreview) showRecUi(true, false);
-                        });
-                    }
-                    previewPlayer.start();
-                    showRecUi(true, true);
-                    stopPreviewTick();
-                    previewTick = new Runnable() {
-                        @Override public void run() {
-                            if (previewPlayer == null) return;
-                            try {
-                                TextView tt = tv("recTimer");
-                                if (tt != null) tt.setText(fmtRec(previewPlayer.getCurrentPosition() / 1000));
-                            } catch (Exception ignored) { }
-                            recHandler.postDelayed(this, 200);
-                        }
-                    };
-                    recHandler.post(previewTick);
-                } catch (Exception e) {
-                    toast("فشل تشغيل التسجيل");
-                    releasePreview();
-                    if (recPreview) showRecUi(true, false);
-                }
-            }
-
-            /** زر الإرسال (السهم): لو التسجيل ما زال جارياً يوقفه أولاً (كما في HTML)، وإلا يرسل البصمة. */
-            void stopRecordAndSend() {
-                if (isRecording) { stopRecordPreview(); return; }
-                if (!recPreview || audioFile == null || !audioFile.exists()) return;
-                final File f = audioFile;
-                final long dur = recDurMs;
-                audioFile = null;
-                resetRecUi();
-                uploadAudio(f, dur);
-            }
-
-            /** زر × : يلغي التسجيل أو المعاينة ويحذف الملف ويعيد حقل الكتابة. */
             void cancelRecord() {
-                if (recorder != null) {
-                    try { recorder.stop(); } catch (Exception e) { }
-                    try { recorder.release(); } catch (Exception e) { }
-                    recorder = null;
-                }
+                if (recorder == null) return;
+                try { recorder.stop(); } catch (Exception e) { }
+                try { recorder.release(); } catch (Exception e) { }
+                recorder = null;
                 isRecording = false;
                 if (recTick != null) recHandler.removeCallbacks(recTick);
-                if (audioFile != null) { audioFile.delete(); audioFile = null; }
-                resetRecUi();
-            }
-
-            /** يظهر زر الإرسال الذهبي فقط عند وجود نص؛ وبدون نص يظهر الإرفاق والمايك (مثل .has-message). */
-            void syncComposer() {
-                EditText mi = et("messageInput");
-                boolean has = mi != null && mi.getText().toString().trim().length() > 0;
-                View sb = v("btnSend");
-                boolean was = sb != null && sb.getVisibility() == View.VISIBLE;
-                vis("btnSend", has);
-                vis("btnMic", !has);
-                vis("btnAttach", !has);
-                if (sb != null && has && !was) {
-                    sb.setAlpha(0f); sb.setScaleX(0.6f); sb.setScaleY(0.6f);
-                    sb.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(160).start();
-                }
+                vis("recordingBar", false);
+                TextView mic = tv("btnMic");
+                if (mic != null) { mic.setTextColor(cMuted()); tintIcons(mic); }
+                if (audioFile != null) audioFile.delete();
+                toast("تم إلغاء التسجيل");
             }
 
             void uploadAudio(File f, long dur) {
@@ -1793,7 +1664,7 @@ public class MassActivity extends Activity {
                             deleteChatMessages(currentChatId, null);
                             LinearLayout ma = (LinearLayout) v("messagesArea");
                             if (ma != null) ma.removeAllViews();
-                            renderedMsgIds.clear();
+                            renderedMsgIds.clear(); lastDayKey = ""; msgViewsById.clear();
                         }
                         toast("تم مسح المحادثة");
                     }
@@ -2090,8 +1961,6 @@ public class MassActivity extends Activity {
                 else if (id.equals("btnSend")) send();
                 else if (id.equals("btnMic")) toggleRecording();
                 else if (id.equals("recSend")) stopRecordAndSend();
-                else if (id.equals("recStop")) stopRecordPreview();
-                else if (id.equals("recPlay")) togglePreviewPlay();
                 else if (id.equals("recCancel")) cancelRecord();
                 else if (id.equals("btnAttach")) {
                     new AlertDialog.Builder(act).setTitle("إرفاق")
@@ -2150,7 +2019,7 @@ public class MassActivity extends Activity {
                         "itemChangeEmail", "itemBlocked", "segLastSeen_show", "segLastSeen_hide",
                         "segAvatar_show", "segAvatar_hide", "itemClearCache", "itemWipe", "itemAbout",
                         "pushOnBtn", "pushOffBtn", "soundOnBtn", "soundOffBtn", "chatBack", "chatUserInfo",
-                        "chatMore", "csX", "replyCancel", "btnSend", "btnMic", "btnAttach", "recSend", "recCancel", "recStop", "recPlay"};
+                        "chatMore", "csX", "replyCancel", "btnSend", "btnMic", "btnAttach", "recSend", "recCancel"};
                 for (String id : ids) {
                     View x = v(id);
                     if (x != null) x.setOnClickListener(L);
@@ -2164,15 +2033,6 @@ public class MassActivity extends Activity {
                         public void afterTextChanged(Editable s) { }
                     });
                 }
-                EditText mInp = et("messageInput");
-                if (mInp != null) {
-                    mInp.addTextChangedListener(new TextWatcher() {
-                        public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
-                        public void onTextChanged(CharSequence s, int a, int b, int c) { }
-                        public void afterTextChanged(Editable s) { syncComposer(); }
-                    });
-                }
-                syncComposer();
                 EditText cms = et("chatMessageSearchInput");
                 if (cms != null) {
                     cms.addTextChangedListener(new TextWatcher() {
@@ -2241,8 +2101,6 @@ public class MassActivity extends Activity {
                     BabylonFx.press(v("newGroupFab"), 0.92f);
                     BabylonFx.press(v("btnSend"), 0.9f);
                     BabylonFx.press(v("btnMic"), 0.9f);
-                    BabylonFx.press(v("recStop"), 0.92f);
-                    BabylonFx.press(v("recSend"), 0.92f);
                     BabylonFx.press(v("settingsThemeToggle"), 0.95f);
                 } catch (Throwable ignored) { }
             }
