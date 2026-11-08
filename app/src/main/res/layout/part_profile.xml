@@ -82,7 +82,7 @@
 				<TextView
 					android:id="@+id/pEdit"
 					android:layout_width="0dp"
-					android:layout_height="72dp"
+					android:layout_height="56dp"
 					android:gravity="center_horizontal|center_vertical"
 					android:text="تعديل"
 					android:drawableTop="@drawable/ic_edit_16"
@@ -98,7 +98,7 @@
 				<TextView
 					android:id="@+id/pPhoto"
 					android:layout_width="0dp"
-					android:layout_height="72dp"
+					android:layout_height="56dp"
 					android:gravity="center_horizontal|center_vertical"
 					android:text="الصورة"
 					android:drawableTop="@drawable/ic_camera_16"
@@ -114,7 +114,7 @@
 				<TextView
 					android:id="@+id/pCover"
 					android:layout_width="0dp"
-					android:layout_height="72dp"
+					android:layout_height="56dp"
 					android:gravity="center_horizontal|center_vertical"
 					android:text="الغلاف"
 					android:drawableTop="@drawable/ic_palette_16"

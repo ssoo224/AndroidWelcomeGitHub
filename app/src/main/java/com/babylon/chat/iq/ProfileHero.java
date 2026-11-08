@@ -79,7 +79,9 @@ public final class ProfileHero implements PullScrollView.Controller {
 
     // طبقة الصورة المكبّرة
     private final FrameLayout hero;
-    private final View coverUnder;
+    private final FrameLayout coverUnder;      // لون الغلاف + النقوش + التدرّج (كلها خلف الصورة)
+    private final CoverPattern coverPat;
+    private final View coverFade;
     private final ImageView heroExt;
     private final FadeImageView heroImg;
     private final TextView heroLetter, heroName, heroStatus;
@@ -185,8 +187,14 @@ public final class ProfileHero implements PullScrollView.Controller {
         hero.addView(info, ilp);
         this.infoHolder = info;
 
-        coverUnder = new View(act);
+        // في الـ HTML النقوش والتدرّج جزء من .pf-cover نفسه والصورة (z-index:1) فوقه؛ هنا الغلاف الأصلي
+        // داخل الـ ScrollView (فوق الصورة) فنبني نسخة منه تحت الصورة ونُخفي الأصل أثناء السحب.
+        coverUnder = new FrameLayout(act);
         coverUnder.setVisibility(View.GONE);
+        coverPat = new CoverPattern(act);
+        coverUnder.addView(coverPat, new FrameLayout.LayoutParams(-1, -1));
+        coverFade = new View(act);
+        coverUnder.addView(coverFade, new FrameLayout.LayoutParams(-1, 0, Gravity.BOTTOM));
 
         ViewGroup host = (ViewGroup) sv.getParent();
         int at = host.indexOfChild(sv);
@@ -289,6 +297,16 @@ public final class ProfileHero implements PullScrollView.Controller {
         }
         heroName.setText(nameV != null ? nameV.getText() : "");
         heroStatus.setText(statusV != null ? statusV.getText().toString().replace("●", "").trim() : "");
+        // نفس النقطة الخضراء فوق الصورة
+        Drawable[] sd = statusV != null ? statusV.getCompoundDrawablesRelative() : null;
+        Drawable dotD = null;
+        if (sd != null && sd[0] != null && sd[0].getConstantState() != null) {
+            dotD = sd[0].getConstantState().newDrawable().mutate();
+            dotD.setBounds(sd[0].getBounds());
+        }
+        heroStatus.setCompoundDrawablePadding((int) (4 * d));
+        heroStatus.setGravity(Gravity.CENTER_VERTICAL);
+        heroStatus.setCompoundDrawablesRelative(dotD, null, null, null);
     }
 
     private static float clamp(float v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
@@ -322,6 +340,14 @@ public final class ProfileHero implements PullScrollView.Controller {
             cover.setBackground(null);
         }
         coverUnder.setBackground(cd != null ? cd : new ColorDrawable(0xFF1B2A4A));
+        coverUnder.setPadding(0, cover != null ? cover.getPaddingTop() : 0, 0, 0);
+        Drawable fd = null;
+        View fv = cover != null ? cover.findViewWithTag("fade") : null;
+        if (fv != null && fv.getBackground() != null) {
+            Drawable.ConstantState fs = fv.getBackground().getConstantState();
+            fd = fs != null ? fs.newDrawable().mutate() : null;
+        }
+        coverFade.setBackground(fd);
         coverUnder.setVisibility(View.VISIBLE);
     }
 
@@ -344,7 +370,10 @@ public final class ProfileHero implements PullScrollView.Controller {
         for (int i = 0; i < g.getChildCount(); i++) {
             View c = g.getChildAt(i);
             if (c == backBtn || c == moreBtn) continue;
-            c.setAlpha(a);
+            Object tg = c.getTag();
+            // النقوش والتدرّج لهما نسخة تحت الصورة: الأصل يختفي فوراً حتى لا يغطي الصورة
+            boolean twin = "fade".equals(tg) || "pattern".equals(tg);
+            c.setAlpha(twin ? (a >= 1f ? 1f : 0f) : a);
         }
     }
 
@@ -410,7 +439,10 @@ public final class ProfileHero implements PullScrollView.Controller {
         FrameLayout.LayoutParams cu = (FrameLayout.LayoutParams) coverUnder.getLayoutParams();
         cu.height = (int) (coverH + delta * p);
         coverUnder.setLayoutParams(cu);
-        fadeCover(clamp(1f - p * 2f));
+        fadeCover(clamp(1f - p * 6f));
+        FrameLayout.LayoutParams fl = (FrameLayout.LayoutParams) coverFade.getLayoutParams();
+        fl.height = (int) (cu.height * 0.55f);          // .pf-cover::after { height: 55% }
+        coverFade.setLayoutParams(fl);
 
         ViewGroup.LayoutParams lp = hero.getLayoutParams();
         lp.width = (int) size;
@@ -442,7 +474,7 @@ public final class ProfileHero implements PullScrollView.Controller {
         infoHolder.setLayoutParams(ilp);
 
         // الاسم/الحالة الأصليان يتلاشيان، والأزرار تصعد فوق أسفل الصورة
-        float fade = clamp(1f - p * 2f);
+        float fade = clamp(1f - p * 6f);               // الاسم الأصلي (داكن) يختفي بسرعة قبل أن تصل الصورة إليه
         if (nameV != null) nameV.setAlpha(fade);
         if (statusV != null) statusV.setAlpha(fade);
         float heroBottom = top + heroH;

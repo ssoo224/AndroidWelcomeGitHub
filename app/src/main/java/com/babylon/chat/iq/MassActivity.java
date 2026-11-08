@@ -417,7 +417,7 @@ public class MassActivity extends Activity {
                             else if (k.equals("m")) T.setTextColor(cMuted());
                             else if (k.equals("g")) T.setTextColor(cGold());
                             else if (k.equals("red")) T.setTextColor(cRed());
-                            else if (k.equals("green")) T.setTextColor(0xFF22C55E);
+                            else if (k.equals("green")) T.setTextColor(0xFF4ADE80);
                             else if (k.equals("wh")) T.setTextColor(0xFFFFFFFF);
                         }
                     }
@@ -477,6 +477,12 @@ public class MassActivity extends Activity {
                     f.addView(fade, 0, new FrameLayout.LayoutParams(-1, dp(110), Gravity.BOTTOM));
                 }
                 fade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{cBg() & 0x00FFFFFF, cBg()}));
+                // نقوش الغلاف (.pattern-layer) خلف التدرّج — داخل الإطار المحشو فتبدأ تحت شريط الحالة (top:var(--sat))
+                if (f.findViewWithTag("pattern") == null) {
+                    CoverPattern pat = new CoverPattern(act);
+                    pat.setTag("pattern");
+                    f.addView(pat, 0, new FrameLayout.LayoutParams(-1, -1));
+                }
                 f.requestLayout();
             }
 
@@ -505,17 +511,18 @@ public class MassActivity extends Activity {
             void quick(String id, String iconName) {
                 TextView t = tv(id);
                 if (t == null) return;
-                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(74), 1f);
+                // .pf-quick .pf-q : height 56px، padding 8px 6px، gap 5px، أيقونة 19px
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(56), 1f);
                 lp.setMargins(dp(4.5f), 0, dp(4.5f), 0);
                 t.setLayoutParams(lp);
-                t.setPadding(dp(4), dp(10), dp(4), dp(10));
+                t.setPadding(dp(6), dp(8), dp(6), dp(8));
                 t.setGravity(Gravity.CENTER);
-                t.setCompoundDrawablePadding(dp(6));
+                t.setCompoundDrawablePadding(dp(5));
                 t.setTextSize(12);
                 t.setTypeface(null, android.graphics.Typeface.BOLD);
                 t.setBackground(shape(cSf(), 16, cBorder()));
                 t.setTextColor(cText());
-                t.setCompoundDrawablesRelative(null, dr(icon(iconName, 16), 22, cGold()), null, null);
+                t.setCompoundDrawablesRelative(null, dr(icon(iconName, 16), 19, cGold()), null, null);
             }
 
             // kind: 0 ذهبي رئيسي، 1 بطاقة بأيقونة ذهبية، 2 خطر
@@ -758,12 +765,36 @@ public class MassActivity extends Activity {
             }
             String safe(String s) { return s != null ? s : ""; }
 
+            /**
+             * .pf-status : نقطة 8dp + هالة 3dp (rgba(74,222,128,.18)) + فراغ 7dp، النص 13sp.
+             * متصل: #4ade80 للنقطة والنص؛ غير متصل: نقطة #5b6b7e والنص بلون الثانوي.
+             */
+            void setPfStatus(TextView t, boolean online, String text) {
+                int dot = online ? 0xFF4ADE80 : 0xFF5B6B7E;
+                GradientDrawable halo = new GradientDrawable();
+                halo.setShape(GradientDrawable.OVAL);
+                halo.setColor(online ? 0x2E4ADE80 : 0x00000000);
+                GradientDrawable core = new GradientDrawable();
+                core.setShape(GradientDrawable.OVAL);
+                core.setColor(dot);
+                android.graphics.drawable.LayerDrawable ld = new android.graphics.drawable.LayerDrawable(
+                        new android.graphics.drawable.Drawable[]{halo, core});
+                ld.setLayerInset(1, dp(3), dp(3), dp(3), dp(3));
+                ld.setBounds(0, 0, dp(14), dp(14));
+                t.setText(text);
+                t.setTextSize(13);
+                t.setTextColor(online ? 0xFF4ADE80 : cMuted());
+                t.setGravity(Gravity.CENTER_VERTICAL);
+                t.setCompoundDrawablePadding(dp(4));    // 4dp + 3dp هالة = 7dp كما في الـ HTML
+                t.setCompoundDrawablesRelative(ld, null, null, null);
+            }
+
             void fillProfile() {
                 String letter = userName.length() > 0 ? userName.substring(0, 1).toUpperCase() : "؟";
                 TextView pAv = tv("pAvatarText");
                 if (pAv != null) pAv.setText(letter);
                 TextView pSt = tv("pHeaderStatus");
-                if (pSt != null) pSt.setText("●  متصل الآن");
+                if (pSt != null) setPfStatus(pSt, true, "متصل الآن");
                 TextView sxAv = tv("sxAvatar");
                 if (sxAv != null) sxAv.setText(letter);
                 TextView pName = tv("pHeaderName");
@@ -1534,7 +1565,7 @@ public class MassActivity extends Activity {
                 toast("جاري حفظ الصورة...");
                 new Thread(() -> {
                     try {
-                        final String b64 = encodeImage(uri, 320, 60 * 1024, true);
+                        final String b64 = encodeImage(uri, 1080, 450 * 1024, true);   // 1080×1080 عالية الدقة (حد Firestore للمستند 1MiB)
                         act.runOnUiThread(() -> db.collection("users").document(myUid).update("photo", b64)
                             .addOnSuccessListener(a -> { userPhoto = b64; try { fillProfile(); } catch (Throwable ignored) {} toast("تم تحديث الصورة"); })
                             .addOnFailureListener(er -> toast("فشل: " + er.getMessage())));
