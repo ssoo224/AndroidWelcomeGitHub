@@ -84,6 +84,7 @@
 				<LinearLayout
 					android:id="@+id/chatFilters"
 					android:layout_width="match_parent"
+					android:visibility="gone"
 					android:layout_height="wrap_content"
 					android:paddingTop="4dp"
 					android:paddingBottom="12dp"
@@ -222,17 +223,17 @@
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"
 			android:orientation="vertical"
-			android:tag="sf"
-			android:elevation="8dp">
+			android:tag="navbg"
+			android:elevation="0dp">
 			<View
 				android:id="@+id/bottomNavLine"
 				android:layout_width="match_parent"
 				android:layout_height="1dp"
-				android:tag="line" />
+				android:tag="navline" />
 			<LinearLayout
 				android:id="@+id/bottomNavRow"
 				android:layout_width="match_parent"
-				android:layout_height="75dp"
+				android:layout_height="62dp"
 				android:gravity="center_vertical"
 				android:orientation="horizontal"
 				android:paddingStart="10dp"
@@ -242,7 +243,7 @@
 			<LinearLayout
 				android:id="@+id/navChats"
 				android:layout_width="0dp"
-				android:layout_height="63dp"
+				android:layout_height="match_parent"
 				android:layout_weight="1"
 				android:layout_marginStart="3dp"
 				android:layout_marginEnd="3dp"
@@ -252,11 +253,11 @@
 				android:focusable="true">
 				<TextView
 					android:id="@+id/navChatsIc"
-					android:layout_width="56dp"
-					android:layout_height="27dp"
+					android:layout_width="54dp"
+					android:layout_height="26dp"
 					android:gravity="center_horizontal|center_vertical"
 					android:text=""
-					android:drawableStart="@drawable/ic_chat_22"
+					android:drawableStart="@drawable/ic_nav_chat"
 					android:textSize="20sp"
 					android:tag="m" />
 				<TextView
@@ -272,7 +273,7 @@
 			<LinearLayout
 				android:id="@+id/navSettings"
 				android:layout_width="0dp"
-				android:layout_height="63dp"
+				android:layout_height="match_parent"
 				android:layout_weight="1"
 				android:layout_marginStart="3dp"
 				android:layout_marginEnd="3dp"
@@ -282,11 +283,11 @@
 				android:focusable="true">
 				<TextView
 					android:id="@+id/navSettingsIc"
-					android:layout_width="56dp"
-					android:layout_height="27dp"
+					android:layout_width="54dp"
+					android:layout_height="26dp"
 					android:gravity="center_horizontal|center_vertical"
 					android:text=""
-					android:drawableStart="@drawable/ic_settings_22"
+					android:drawableStart="@drawable/ic_nav_sliders"
 					android:textSize="20sp"
 					android:tag="m" />
 				<TextView
@@ -302,7 +303,7 @@
 			<LinearLayout
 				android:id="@+id/navProfile"
 				android:layout_width="0dp"
-				android:layout_height="63dp"
+				android:layout_height="match_parent"
 				android:layout_weight="1"
 				android:layout_marginStart="3dp"
 				android:layout_marginEnd="3dp"
@@ -312,11 +313,11 @@
 				android:focusable="true">
 				<TextView
 					android:id="@+id/navProfileIc"
-					android:layout_width="56dp"
-					android:layout_height="27dp"
+					android:layout_width="54dp"
+					android:layout_height="26dp"
 					android:gravity="center_horizontal|center_vertical"
 					android:text=""
-					android:drawableStart="@drawable/ic_user_22"
+					android:drawableStart="@drawable/ic_nav_user"
 					android:textSize="20sp"
 					android:tag="m" />
 				<TextView

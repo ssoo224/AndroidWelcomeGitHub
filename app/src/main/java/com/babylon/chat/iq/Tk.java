@@ -18,6 +18,7 @@ public final class Tk {
     // ----- الألوان الأساسية (HTML: --bg / --surface / ...)
     public static int pageBg(boolean d)  { return d ? 0xFF0E1621 : 0xFFF4F6FA; }
     public static int surface(boolean d) { return d ? 0xFF17212B : 0xFFFFFFFF; }
+    public static int navBg(boolean d)   { return d ? 0xFF17212B : 0xFFFFFCF5; }
     public static int surface2(boolean d){ return d ? 0xFF1D2A38 : 0xFFE8EDF4; }
     public static int border(boolean d)  { return d ? 0x14FFFFFF : 0xFFE3E9F1; }
     public static int text(boolean d)    { return d ? 0xFFF1F5F9 : 0xFF17212B; }
@@ -212,6 +213,25 @@ public final class Tk {
             x.setBackground(g);
             x.setElevation(dp(x, 8));
             if (t != null) t.setTextColor(0xFFFFFFFF);
+            return true;
+        }
+        if (tag.equals("navbg")) {           // #bottomNav.telegram-bottom-nav : كريمي نهاري / #17212B ليلي
+            x.setBackgroundColor(navBg(dark));
+            x.setElevation(0f);
+            return true;
+        }
+        if (tag.equals("navline")) {         // الحدّ العلوي 1px + خط ذهبي متدرّج (::before في الـ HTML)
+            final int base = dark ? 0x14FFFFFF : 0xFFEFE5C3;
+            android.graphics.drawable.ShapeDrawable sd = new android.graphics.drawable.ShapeDrawable(new android.graphics.drawable.shapes.RectShape());
+            sd.setShaderFactory(new android.graphics.drawable.ShapeDrawable.ShaderFactory() {
+                @Override public android.graphics.Shader resize(int w, int h) {
+                    return new android.graphics.LinearGradient(0, 0, w, 0,
+                            new int[]{0x00D4AF37, 0x99D4AF37, 0xD9F6DF86, 0x99D4AF37, 0x00D4AF37},
+                            new float[]{0f, 0.25f, 0.5f, 0.75f, 1f}, android.graphics.Shader.TileMode.CLAMP);
+                }
+            });
+            x.setBackground(new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[]{
+                    new android.graphics.drawable.ColorDrawable(base), sd}));
             return true;
         }
         if (SettingsTags.apply(tag, x, t, dark)) return true;

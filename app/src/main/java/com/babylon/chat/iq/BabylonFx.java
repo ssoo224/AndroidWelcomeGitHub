@@ -265,14 +265,21 @@ public final class BabylonFx {
         private final Bitmap old;
         private final Path path = new Path();
         private final Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG);
+        private final Paint barPaint = new Paint();
         private final float cx, cy;
         private final int offX, offY;
         private float radius = 0f;
+        // ألوان الشريطين القديمين (0 = شفاف/لا شيء) وارتفاعاهما، لترسمهما الدائرة أيضاً
+        private int oldTop = 0, oldBottom = 0, topH = 0, botH = 0;
 
         RevealView(Activity a, Bitmap old, float cx, float cy, int offX, int offY) {
             super(a);
             this.old = old; this.cx = cx; this.cy = cy; this.offX = offX; this.offY = offY;
             setClickable(true); // يمنع اللمس أثناء الحركة
+        }
+
+        void setBars(int oldTop, int oldBottom, int topH, int botH) {
+            this.oldTop = oldTop; this.oldBottom = oldBottom; this.topH = topH; this.botH = botH;
         }
 
         void setRadius(float r) { radius = r; invalidate(); }
@@ -286,7 +293,75 @@ public final class BabylonFx {
             c.save();
             c.clipPath(path);
             c.drawBitmap(old, offX, offY, paint);
+            if (Color.alpha(oldTop) != 0 && topH > 0) { barPaint.setColor(oldTop); c.drawRect(0, 0, getWidth(), topH, barPaint); }
+            if (Color.alpha(oldBottom) != 0 && botH > 0) { barPaint.setColor(oldBottom); c.drawRect(0, getHeight() - botH, getWidth(), getHeight(), barPaint); }
             c.restore();
+        }
+    }
+
+    /** يرسم لوني الشريطين الجديدين (الحالة والإيماءات) فوق الواجهة وتحت دائرة الكشف. */
+    private static final class BarsView extends View {
+        private final Paint p = new Paint();
+        private int top = 0, bottom = 0, topH = 0, botH = 0;
+        BarsView(Activity a, int top, int bottom, int topH, int botH) {
+            super(a);
+            this.top = top; this.bottom = bottom; this.topH = topH; this.botH = botH;
+        }
+        @Override protected void onDraw(Canvas c) {
+            if (Color.alpha(top) != 0 && topH > 0) { p.setColor(top); c.drawRect(0, 0, getWidth(), topH, p); }
+            if (Color.alpha(bottom) != 0 && botH > 0) { p.setColor(bottom); c.drawRect(0, getHeight() - botH, getWidth(), getHeight(), p); }
+        }
+    }
+
+    /**
+     * نفس الكشف الدائري لكن الدائرة تمتد أيضاً إلى شريط الإشعارات (الحالة) وشريط الإيماءات السفلي:
+     * الشريطان يصيران شفافين أثناء الحركة ويُرسم لونهما القديم داخل الصورة المتلاشية والجديد تحتها.
+     */
+    public static void themeReveal(final Activity act, View root, float x, float y,
+                                   final BabylonBars bars, final int sbTop, final int navBottom,
+                                   final Runnable applyTheme) {
+        try {
+            if (root == null || root.getWidth() <= 0 || root.getHeight() <= 0 || bars == null) {
+                applyTheme.run(); return;
+            }
+            final Bitmap old = Bitmap.createBitmap(root.getWidth(), root.getHeight(), Bitmap.Config.ARGB_8888);
+            root.draw(new Canvas(old));
+            final int oldTop = bars.topColor(), oldBot = bars.bottomColor();
+            bars.beginReveal();
+            applyTheme.run();
+            final int newTop = bars.topColor(), newBot = bars.bottomColor();
+
+            final ViewGroup content = act.findViewById(android.R.id.content);
+            int[] rl = new int[2], cl = new int[2];
+            root.getLocationOnScreen(rl);
+            content.getLocationOnScreen(cl);
+            final int offX = rl[0] - cl[0], offY = rl[1] - cl[1];
+            final float cx = x - cl[0], cy = y - cl[1];
+
+            final BarsView nb = new BarsView(act, newTop, newBot, sbTop, navBottom);
+            content.addView(nb, new FrameLayout.LayoutParams(-1, -1));
+            final RevealView rv = new RevealView(act, old, cx, cy, offX, offY);
+            rv.setBars(oldTop, oldBot, sbTop, navBottom);
+            content.addView(rv, new FrameLayout.LayoutParams(-1, -1));
+
+            float w = content.getWidth(), h = content.getHeight();
+            final float maxR = (float) Math.hypot(Math.max(cx, w - cx), Math.max(cy, h - cy));
+            ValueAnimator va = ValueAnimator.ofFloat(0f, maxR);
+            va.setDuration(600);
+            va.setInterpolator(themeEase());
+            va.addUpdateListener(a -> rv.setRadius((Float) a.getAnimatedValue()));
+            va.addListener(new AnimatorListenerAdapter() {
+                @Override public void onAnimationEnd(Animator animation) {
+                    bars.endReveal();
+                    content.removeView(rv);
+                    content.removeView(nb);
+                    old.recycle();
+                }
+            });
+            va.start();
+        } catch (Throwable t) {
+            try { bars.endReveal(); } catch (Throwable ignored) { }
+            try { applyTheme.run(); } catch (Throwable ignored) { }
         }
     }
 

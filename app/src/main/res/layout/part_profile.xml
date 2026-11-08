@@ -761,41 +761,47 @@
 		android:layout_height="match_parent"
 		android:orientation="vertical"
 		android:visibility="gone"
-		android:tag="bg">
+		android:tag="epbg">
 		<LinearLayout
 			android:id="@+id/linear668"
 			android:layout_width="match_parent"
-			android:layout_height="64dp"
+			android:layout_height="wrap_content"
 			android:gravity="center_vertical"
 			android:orientation="horizontal"
-			android:tag="sf"
-			android:elevation="3dp">
+			android:paddingStart="18dp"
+			android:paddingEnd="18dp"
+			android:paddingTop="17dp"
+			android:paddingBottom="17dp"
+			android:tag="ephdr">
 			<TextView
 				android:id="@+id/editBack"
-				android:layout_width="52dp"
-				android:layout_height="match_parent"
-				android:gravity="center_horizontal|center_vertical"
+				android:layout_width="42dp"
+				android:layout_height="42dp"
+				android:layout_marginEnd="12dp"
+				android:gravity="center"
 				android:text=""
 				android:drawableStart="@drawable/ic_arrow_back_24"
-				android:textSize="24sp"
-				android:tag="t" />
+				android:contentDescription="رجوع"
+				android:tag="epback" />
 			<LinearLayout
 				android:id="@+id/linear669"
-				android:layout_width="match_parent"
+				android:layout_width="0dp"
 				android:layout_height="wrap_content"
+				android:layout_weight="1"
 				android:orientation="vertical">
 				<TextView
 					android:id="@+id/textview667"
 					android:layout_width="wrap_content"
 					android:layout_height="wrap_content"
 					android:text="تعديل البيانات الشخصية"
-					android:textSize="17sp"
+					android:textSize="18sp"
 					android:textStyle="bold"
 					android:tag="t" />
 				<TextView
 					android:id="@+id/textview668"
 					android:layout_width="wrap_content"
 					android:layout_height="wrap_content"
+					android:layout_marginTop="4dp"
 					android:text="حدّث معلومات ملفك الشخصي"
 					android:textSize="12sp"
 					android:tag="m" />
@@ -804,125 +810,161 @@
 		<ScrollView
 			android:id="@+id/vscroll42"
 			android:layout_width="match_parent"
-			android:layout_height="match_parent">
+			android:layout_height="match_parent"
+			android:fillViewport="true"
+			android:overScrollMode="ifContentScrolls">
+			<LinearLayout
+				android:id="@+id/linear671"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:orientation="vertical"
+				android:paddingStart="12dp"
+				android:paddingEnd="12dp"
+				android:paddingTop="16dp"
+				android:paddingBottom="28dp">
 			<LinearLayout
 				android:id="@+id/linear670"
 				android:layout_width="match_parent"
 				android:layout_height="wrap_content"
-				android:layout_marginTop="12dp"
-				android:padding="14dp"
+				android:padding="17dp"
 				android:orientation="vertical"
-				android:tag="card"
-				android:layout_marginStart="14dp"
-				android:layout_marginEnd="14dp">
+				android:tag="epcard">
 				<TextView
 					android:id="@+id/textview669"
-					android:layout_width="wrap_content"
+					android:layout_width="match_parent"
 					android:layout_height="wrap_content"
-					android:layout_marginTop="12dp"
-					android:layout_marginBottom="4dp"
+					android:layout_marginTop="0dp"
+					android:layout_marginBottom="8dp"
+					android:gravity="start"
 					android:text="اسم العرض"
-					android:textSize="12sp"
-					android:tag="m" />
+					android:textSize="13sp"
+					android:textStyle="bold"
+					android:tag="eplbl" />
 				<EditText
 					android:id="@+id/modalNameInput"
 					android:layout_width="match_parent"
 					android:layout_height="wrap_content"
+					android:minHeight="46dp"
 					android:textSize="14sp"
 					android:hint="الإسم"
 					android:singleLine="true"
 					android:inputType="textPersonName"
-					android:minHeight="48dp"
-					android:paddingStart="14dp"
-					android:paddingEnd="14dp"
-					android:tag="inp" />
+					android:autofillHints="name"
+					android:gravity="center_vertical|right"
+					android:textDirection="rtl"
+					android:tag="epinp" />
 				<TextView
 					android:id="@+id/textview670"
-					android:layout_width="wrap_content"
+					android:layout_width="match_parent"
 					android:layout_height="wrap_content"
-					android:layout_marginTop="12dp"
-					android:layout_marginBottom="4dp"
+					android:layout_marginTop="18dp"
+					android:layout_marginBottom="8dp"
+					android:gravity="start"
 					android:text="اسم المستخدم (\@)"
-					android:textSize="12sp"
-					android:tag="m" />
+					android:textSize="13sp"
+					android:textStyle="bold"
+					android:tag="eplbl" />
 				<EditText
 					android:id="@+id/modalUsernameInput"
 					android:layout_width="match_parent"
 					android:layout_height="wrap_content"
+					android:minHeight="46dp"
 					android:textSize="14sp"
 					android:hint="username"
 					android:singleLine="true"
-					android:minHeight="48dp"
-					android:paddingStart="14dp"
-					android:paddingEnd="14dp"
-					android:tag="inp"
-					android:textDirection="ltr" />
+					android:inputType="text|textNoSuggestions"
+					android:autofillHints="username"
+					android:gravity="center_vertical|left"
+					android:textDirection="ltr"
+					android:tag="epinp" />
 				<TextView
 					android:id="@+id/modalUserError"
-					android:layout_width="wrap_content"
+					android:layout_width="match_parent"
 					android:layout_height="wrap_content"
+					android:layout_marginTop="5dp"
+					android:gravity="start"
 					android:textSize="12sp"
-					android:tag="red"
+					android:tag="eperr"
 					android:visibility="gone" />
 				<TextView
 					android:id="@+id/textview671"
-					android:layout_width="wrap_content"
+					android:layout_width="match_parent"
 					android:layout_height="wrap_content"
-					android:layout_marginTop="12dp"
-					android:layout_marginBottom="4dp"
+					android:layout_marginTop="18dp"
+					android:layout_marginBottom="8dp"
+					android:gravity="start"
 					android:text="النبذة التعريفية (البايو)"
-					android:textSize="12sp"
-					android:tag="m" />
+					android:textSize="13sp"
+					android:textStyle="bold"
+					android:tag="eplbl" />
 				<EditText
 					android:id="@+id/modalBioInput"
 					android:layout_width="match_parent"
 					android:layout_height="wrap_content"
-					android:paddingTop="10dp"
+					android:minHeight="104dp"
 					android:textSize="14sp"
 					android:hint="اكتب نبذة عن نفسك..."
-					android:gravity="top|start"
+					android:gravity="top|right"
+					android:textDirection="rtl"
 					android:inputType="textMultiLine"
-					android:minHeight="48dp"
-					android:paddingStart="14dp"
-					android:paddingEnd="14dp"
-					android:tag="inp"
-					android:minLines="3"
-					android:maxLength="120" />
+					android:maxLength="120"
+					android:tag="epinp" />
 				<TextView
 					android:id="@+id/textview672"
-					android:layout_width="wrap_content"
-					android:layout_height="wrap_content"
-					android:layout_marginTop="12dp"
-					android:layout_marginBottom="4dp"
-					android:text="المحافظة"
-					android:textSize="12sp"
-					android:tag="m" />
-				<Spinner
-					android:id="@+id/modalGovInput"
 					android:layout_width="match_parent"
-					android:layout_height="48dp"
-					android:spinnerMode="dropdown"
-					android:tag="inp" />
+					android:layout_height="wrap_content"
+					android:layout_marginTop="18dp"
+					android:layout_marginBottom="8dp"
+					android:gravity="start"
+					android:text="المحافظة"
+					android:textSize="13sp"
+					android:textStyle="bold"
+					android:tag="eplbl" />
+				<FrameLayout
+					android:id="@+id/frame_layout_gov"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content">
+					<Spinner
+						android:id="@+id/modalGovInput"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:minHeight="46dp"
+						android:spinnerMode="dropdown"
+						android:tag="epsel" />
+					<ImageView
+						android:id="@+id/govArrow"
+						android:layout_width="16dp"
+						android:layout_height="16dp"
+						android:layout_gravity="center_vertical|start"
+						android:layout_marginStart="13dp"
+						android:src="@drawable/ic_chevron_down_16"
+						android:clickable="false"
+						android:focusable="false"
+						android:tag="eparrow" />
+				</FrameLayout>
 				<TextView
 					android:id="@+id/btnSaveProfile"
 					android:layout_width="match_parent"
-					android:layout_height="48dp"
-					android:layout_marginTop="18dp"
-					android:gravity="center_horizontal|center_vertical"
+					android:layout_height="wrap_content"
+					android:minHeight="46dp"
+					android:layout_marginTop="24dp"
+					android:gravity="center"
 					android:text="حفظ التغييرات"
 					android:textSize="15sp"
 					android:textStyle="bold"
-					android:tag="gold" />
+					android:tag="epsave" />
 				<TextView
 					android:id="@+id/btnCancelEdit"
 					android:layout_width="match_parent"
-					android:layout_height="48dp"
-					android:layout_marginTop="10dp"
-					android:gravity="center_horizontal|center_vertical"
+					android:layout_height="wrap_content"
+					android:minHeight="46dp"
+					android:layout_marginTop="12dp"
+					android:gravity="center"
 					android:text="إلغاء"
 					android:textSize="15sp"
 					android:textStyle="bold"
-					android:tag="goldo" />
+					android:tag="epcancel" />
+			</LinearLayout>
 			</LinearLayout>
 		</ScrollView>
 	</LinearLayout>

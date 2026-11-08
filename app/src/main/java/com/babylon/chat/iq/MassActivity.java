@@ -259,7 +259,7 @@ public class MassActivity extends Activity {
             BabylonBars bars = new BabylonBars(act);
             boolean tabAnimating = false;
             // حواف النافذة: ارتفاع شريط الحالة/الإيماءات، وطبقات سحب صورة الملف الشخصي
-            int sbTop = 0, navBottom = 0;
+            int sbTop = 0, navBottom = 0, padBottom = 0;   // navBottom = ارتفاع شريط النظام السفلي الفعلي فقط (0 إن لم يوجد)؛ padBottom يشمل لوحة المفاتيح
             ProfileHero heroMe, heroOther;
 
             MediaRecorder recorder = null;
@@ -370,13 +370,19 @@ public class MassActivity extends Activity {
                         else if (k.equals("gold")) {
                             boolean chip = x.getId() == R.id.fltAll || x.getId() == R.id.fltUnread;
                             if (chip) {
-                                GradientDrawable cg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, Tk.GOLD_145);
-                                cg.setCornerRadius(dp(20));
-                                x.setBackground(cg);
+                                x.setBackground(chipGold(true));
+                                x.setAlpha(1f);
                             } else x.setBackground(shape(cGold(), rad(x), 0));
                             if (T != null) T.setTextColor(chip ? 0xFFFFFFFF : 0xFF17212B);
                         }
-                        else if (k.equals("goldo")) { x.setBackground(shape(0, rad(x), cGold())); if (T != null) T.setTextColor(cGold()); }
+                        else if (k.equals("goldo")) {
+                            boolean chipO = x.getId() == R.id.fltAll || x.getId() == R.id.fltUnread;
+                            if (chipO) {                       // نفس تدرّج أزرار تسجيل الدخول لكنه أخفّ عند عدم التحديد
+                                x.setBackground(chipGold(false));
+                                x.setAlpha(0.62f);
+                                if (T != null) T.setTextColor(0xFFFFFFFF);
+                            } else { x.setBackground(shape(0, rad(x), cGold())); if (T != null) T.setTextColor(cGold()); }
+                        }
                         else if (k.equals("redo")) { x.setBackground(shape(0, 12, cRed())); if (T != null) T.setTextColor(cRed()); }
                         else if (k.equals("circ")) {
                             GradientDrawable g = new GradientDrawable();
@@ -433,6 +439,13 @@ public class MassActivity extends Activity {
                     ViewGroup g = (ViewGroup) x;
                     for (int i = 0; i < g.getChildCount(); i++) style(g.getChildAt(i));
                 }
+            }
+            /** تدرّج ذهبي مثل زر تسجيل الدخول: #e6c566 -> #d3a93b -> #bc8e24 (135°)، حواف كبسولة. */
+            GradientDrawable chipGold(boolean on) {
+                GradientDrawable cg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                        new int[]{0xFFE6C566, 0xFFD3A93B, 0xFFBC8E24});
+                cg.setCornerRadius(dp(20));
+                return cg;
             }
             int goldA(int a) { return (cGold() & 0x00FFFFFF) | (a << 24); }
 
@@ -610,8 +623,8 @@ public class MassActivity extends Activity {
             }
 
             int ringPx() { return dp(2.5f); }                 // الحلقة الرمادية الملاصقة للصورة
-            int goldRingPx() { return Math.max(1, dp(1.5f)); } // شريط ذهبي نحيف
-            int goldGapPx() { return dp(2); }                  // فراغ 2dp بين الذهبي والرمادي
+            int goldRingPx() { return 0; }                  // الشريط الذهبي محذوف
+            int goldGapPx() { return 0; }                   // لا فراغ (لا شريط ذهبي)
             /** مجموع ما حول الصورة: رمادي + فراغ + ذهبي */
             int ringTotalPx() { return ringPx() + goldGapPx() + goldRingPx(); }
 
@@ -840,7 +853,7 @@ public class MassActivity extends Activity {
                 View r = v("root");
                 if (r == null) return;
                 boolean edge = isProfilePage(curPage) && !chatOpen();
-                r.setPadding(0, edge ? 0 : sbTop, 0, navBottom);
+                r.setPadding(0, edge ? 0 : sbTop, 0, padBottom);
             }
 
             void syncBars() {
@@ -852,7 +865,7 @@ public class MassActivity extends Activity {
                     else {
                         top = cBg();
                         boolean nav = v("bottomNav") != null && v("bottomNav").getVisibility() == View.VISIBLE;
-                        bottom = nav ? cSf() : cBg();
+                        bottom = nav ? Tk.navBg(dark) : cBg();
                     }
                     if (!inChat && isProfilePage(curPage)) bars.syncProfile(bottom);   // شريط حالة شفاف + أيقونات بيضاء
                     else bars.sync(top, bottom);
@@ -908,17 +921,18 @@ public class MassActivity extends Activity {
                     boolean on = id.equals(a2);
                     TextView ic = tv(id + "Ic");
                     TextView tx = tv(id + "Tx");
-                    int inactive = dark ? 0xFFA5B2C2 : 0xFF8A8266;
-                    int active = dark ? 0xFFE4C45B : 0xFFB8861B;
+                    int inactive = dark ? 0xFFE4C45B : 0xFF8A8266;   // HTML: نهاري #8a8266 / ليلي #e4c45b (الخامل بشفافية .78)
+                    int active = dark ? 0xFFE4C45B : 0xFF96720D;
                     if (ic != null) {
                         ic.setTag(null);
                         ic.setTextColor(on ? active : inactive);
-                        ic.setBackground(on ? shape((dark ? 0x24E4C45B : 0x29D4AF37), 13, 0) : null);
+                        ic.setBackground(on ? shape((dark ? 0x24E4C45B : 0x29D4AF37), 13, 0) : null);   // .nav-icon.active: rgba(212,175,55,.16) / rgba(228,196,91,.14)
                         tintIcons(ic);
                     }
                     if (tx != null) {
                         tx.setTag(null);
-                        tx.setTextColor(on ? (dark ? 0xFFE4C45B : 0xFF96720D) : inactive);
+                        tx.setTextSize(11);
+                        tx.setTextColor(on ? active : inactive);
                     }
                     View vv = v(id);
                     if (vv != null) {
@@ -1138,6 +1152,25 @@ public class MassActivity extends Activity {
                                     if (!found) chatData.add(new String[]{oName, lastMsg, lastTime, "0", fOtherId});
                                     try { buildChats(); } catch (Throwable ignored) { }
                                     try { buildStories(); } catch (Throwable ignored) { }
+                                    // عدد الرسائل غير المقروءة (من الطرف الآخر) لهذه المحادثة
+                                    db.collection("chats").document(getChatId(myUid, fOtherId)).collection("messages")
+                                        .whereEqualTo("read", false).get()
+                                        .addOnSuccessListener(qs -> {
+                                            int cnt = 0;
+                                            for (DocumentSnapshot md : qs.getDocuments())
+                                                if (!myUid.equals(md.getString("sender"))) cnt++;
+                                            for (int i = 0; i < chatData.size(); i++) {
+                                                if (chatData.get(i)[4].equals(fOtherId)) {
+                                                    String[] row = chatData.get(i);
+                                                    String nv = String.valueOf(cnt);
+                                                    if (!row[3].equals(nv)) {
+                                                        row[3] = nv;
+                                                        try { buildChats(); } catch (Throwable ignored) { }
+                                                    }
+                                                    break;
+                                                }
+                                            }
+                                        });
                                 });
                         }
                     });
@@ -2158,7 +2191,7 @@ public class MassActivity extends Activity {
                     View tg = v("settingsThemeToggle");
                     int[] loc = new int[2];
                     tg.getLocationOnScreen(loc);
-                    BabylonFx.themeReveal(act, v("root"), loc[0] + tg.getWidth() / 2f, loc[1] + tg.getHeight() / 2f, () -> {
+                    BabylonFx.themeReveal(act, v("root"), loc[0] + tg.getWidth() / 2f, loc[1] + tg.getHeight() / 2f, bars, sbTop, navBottom, () -> {
                         dark = !dark;
                         sp.edit().putBoolean("dark", dark).apply();
                         applyTheme();
@@ -2262,7 +2295,22 @@ public class MassActivity extends Activity {
                         public View getView(int pos, View cv, ViewGroup parent) {
                             TextView t = (TextView) super.getView(pos, cv, parent);
                             t.setTextColor(cText());
-                            t.setTypeface(null, android.graphics.Typeface.BOLD);
+                            t.setTextSize(14);
+                            t.setTypeface(null, android.graphics.Typeface.NORMAL);
+                            t.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
+                            t.setTextDirection(View.TEXT_DIRECTION_RTL);
+                            t.setPadding(0, 0, 0, 0);
+                            return t;
+                        }
+                        @Override
+                        public View getDropDownView(int pos, View cv, ViewGroup parent) {
+                            TextView t = (TextView) super.getDropDownView(pos, cv, parent);
+                            t.setTextColor(cText());
+                            t.setTextSize(14);
+                            t.setTypeface(null, android.graphics.Typeface.NORMAL);
+                            t.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
+                            t.setTextDirection(View.TEXT_DIRECTION_RTL);
+                            t.setBackgroundColor(dark ? 0xFF1D2A38 : 0xFFFFFFFF);
                             return t;
                         }
                     });
@@ -2390,10 +2438,12 @@ public class MassActivity extends Activity {
         if (rootView != null) {
             rootView.setOnApplyWindowInsetsListener((v, insets) -> {
                 int top = insets.getSystemWindowInsetTop();
-                int bottom = insets.getSystemWindowInsetBottom();
+                int bottom = insets.getSystemWindowInsetBottom();           // شريط النظام + لوحة المفاتيح إن ظهرت
+                int nav = Math.min(bottom, insets.getStableInsetBottom());   // شريط الإيماءات/الأزرار فقط: 0 في الهواتف التي لا تملك شريطاً
                 boolean topChanged = top != ui.sbTop;
                 ui.sbTop = top;
-                ui.navBottom = bottom;
+                ui.navBottom = nav;
+                ui.padBottom = bottom;
                 ui.applyInsets();                       // صفحات الملف الشخصي بلا padding علوي (الغلاف خلف الشريط)
                 if (topChanged) ui.polishProfile();     // ارتفاع الغلاف = 176dp + ارتفاع شريط الحالة
                 return insets;

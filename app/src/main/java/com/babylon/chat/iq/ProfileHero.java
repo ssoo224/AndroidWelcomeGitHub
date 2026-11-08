@@ -179,8 +179,11 @@ public final class ProfileHero implements PullScrollView.Controller {
         heroStatus.setTypeface(null, android.graphics.Typeface.BOLD);
         heroStatus.setShadowLayer(4 * d, 0, d, 0x80000000);
         heroStatus.setPadding(0, (int) (3 * d), 0, 0);
-        info.addView(heroName);
-        info.addView(heroStatus);
+        heroStatus.setTextDirection(View.TEXT_DIRECTION_LTR);
+        heroStatus.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
+        info.setGravity(Gravity.LEFT);
+        info.addView(heroName, new android.widget.LinearLayout.LayoutParams(-2, -2));
+        info.addView(heroStatus, new android.widget.LinearLayout.LayoutParams(-2, -2));
         info.setAlpha(0f);
         FrameLayout.LayoutParams ilp = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM | Gravity.LEFT);
         ilp.leftMargin = (int) (18 * d);
@@ -307,7 +310,7 @@ public final class ProfileHero implements PullScrollView.Controller {
             dotD.setBounds(sd[2].getBounds());
         }
         heroStatus.setCompoundDrawablePadding((int) (4 * d));
-        heroStatus.setGravity(Gravity.CENTER_VERTICAL);
+        heroStatus.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
         heroStatus.setCompoundDrawables(null, null, dotD, null);
     }
 

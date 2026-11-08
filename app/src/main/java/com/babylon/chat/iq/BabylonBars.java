@@ -23,6 +23,31 @@ public final class BabylonBars {
     /** true أثناء وضع الملف الشخصي: شريط الحالة شفاف تماماً (الغلاف/الصورة ممتدة خلفه). */
     private boolean transparentTop = false;
     private ValueAnimator topAnim, botAnim;
+    /** true أثناء كشف الثيم الدائري: الشريطان شفافان والدائرة ترسم خلفهما، فلا نغيّر ألوان النافذة. */
+    private boolean hold = false;
+
+    /** لون خلف شريط الحالة الحالي (0 = شفاف: الملف الشخصي). */
+    public int topColor() { return curTop; }
+    /** لون خلف شريط الإيماءات الحالي. */
+    public int bottomColor() { return curBottom; }
+
+    /** بدء كشف الثيم: نوقف الحركات ونجعل الشريطين شفافين ليظهر ما تحتهما (الدائرة تمتد إليهما). */
+    public void beginReveal() {
+        hold = true;
+        if (topAnim != null) topAnim.cancel();
+        if (botAnim != null) botAnim.cancel();
+        Window w = act.getWindow();
+        w.setStatusBarColor(Color.TRANSPARENT);
+        w.setNavigationBarColor(Color.TRANSPARENT);
+    }
+
+    /** نهاية الكشف: نثبّت لون الشريطين الجديد فوراً (مطابق لما رسمته الدائرة). */
+    public void endReveal() {
+        hold = false;
+        Window w = act.getWindow();
+        w.setStatusBarColor(transparentTop ? Color.TRANSPARENT : curTop);
+        w.setNavigationBarColor(curBottom);
+    }
 
     public BabylonBars(Activity act) {
         this.act = act;
@@ -67,7 +92,11 @@ public final class BabylonBars {
         if (Build.VERSION.SDK_INT >= 26 && lum(bottom) > 0.55f) flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
         w.getDecorView().setSystemUiVisibility(flags);
 
-        if (first || transparentTop) {
+        if (hold) {
+            if (topAnim != null) topAnim.cancel();
+            curTop = top;
+            transparentTop = false;
+        } else if (first || transparentTop) {
             // أول مرة، أو الخروج من وضع الملف الشخصي (الشريط كان شفافاً): نضع اللون فوراً بلا حركة
             if (topAnim != null) topAnim.cancel();
             curTop = top;
@@ -109,6 +138,12 @@ public final class BabylonBars {
     }
 
     private void syncBottom(Window w, int bottom) {
+        if (hold) {
+            if (botAnim != null) botAnim.cancel();
+            curBottom = bottom;
+            first = false;
+            return;
+        }
         if (first) {
             first = false;
             curBottom = bottom;
