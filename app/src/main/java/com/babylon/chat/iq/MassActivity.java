@@ -2989,7 +2989,7 @@ public class MassActivity extends Activity {
                 boolean pv = recPreview;
                 vis("recPlay", pv); vis("recStop", !pv); vis("recSend", pv);
                 TextView lb = tv("recLabel");
-                if (lb != null) { lb.setText(pv ? "تم التسجيل" : "جاري التسجيل"); lb.setTextColor(pv ? (dark ? 0xFFE4C45B : 0xFFB8861B) : 0xFFF87171);   // «تم التسجيل» ذهبي }
+                if (lb != null) { lb.setText(pv ? "تم التسجيل" : "جاري التسجيل"); lb.setTextColor(pv ? (dark ? 0xFFE4C45B : 0xFFB8861B) : 0xFFF87171); } // «تم التسجيل» ذهبي
                 View dot = v("recDot");
                 if (dot != null) {
                     GradientDrawable g = new GradientDrawable();
