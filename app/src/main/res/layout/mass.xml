@@ -236,7 +236,7 @@
 				android:id="@+id/bottomNavRow"
 				android:layoutDirection="ltr"
 				android:layout_width="match_parent"
-				android:layout_height="62dp"
+				android:layout_height="57dp"
 				android:gravity="center_vertical"
 				android:orientation="horizontal"
 				android:paddingStart="10dp"
@@ -664,7 +664,8 @@
 				android:layoutDirection="ltr"
 				android:orientation="horizontal"
 				android:tag="composer"
-				android:elevation="4dp">
+				android:elevation="0dp"
+				android:stateListAnimator="@null">
 				<!-- الترتيب الظاهري (يسار ← يمين) مطابق لـ HTML بالـ RTL: إرسال، مايك، مرفقات، ثم الحقل في أقصى اليمين -->
 				<TextView
 					android:id="@+id/btnSend"
@@ -706,8 +707,8 @@
 					android:textSize="15sp"
 					android:hint="اكتب رسالتك..."
 					android:inputType="textMultiLine|textCapSentences"
-					android:minHeight="40dp"
-					android:maxHeight="132dp"
+					android:minHeight="45dp"
+					android:maxHeight="137dp"
 					android:gravity="center_vertical"
 					android:textAlignment="textStart"
 					android:paddingStart="12dp"

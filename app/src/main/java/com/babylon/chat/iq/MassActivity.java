@@ -436,14 +436,14 @@ public class MassActivity extends Activity {
                         } else if (k.equals("bubMine")) {
                             float rr = dp(radius), tl = dp(6);
                             GradientDrawable mg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE8C85D, 0xFFCBA843});
-                            mg.setCornerRadii(new float[]{rr, rr, rr, rr, rr, rr, tl, tl});
+                            mg.setCornerRadii(new float[]{rr, rr, rr, rr, tl, tl, rr, rr});   // الذيل أسفل اليمين كما في الـ HTML
                             x.setBackground(mg); x.setElevation(dp(1));
                             if (T != null) T.setTextColor(dark ? 0xFFFFFFFF : 0xFF292216);
                         } else if (k.equals("bubOther")) {
                             float rr = dp(radius), tl = dp(6);
                             GradientDrawable og = new GradientDrawable();
                             og.setColor(dark ? 0xFF263746 : 0xFFFFFFFF);
-                            og.setCornerRadii(new float[]{rr, rr, rr, rr, tl, tl, rr, rr});
+                            og.setCornerRadii(new float[]{rr, rr, rr, rr, rr, rr, tl, tl});   // الذيل أسفل اليسار كما في الـ HTML
                             x.setBackground(og); x.setElevation(dp(1));
                             if (T != null) T.setTextColor(cText());
                         } else if (k.startsWith("ic:")) {
@@ -890,7 +890,9 @@ public class MassActivity extends Activity {
                 boolean chat = chatOpen();
                 // المحادثة مثل الـ HTML: تبدأ من أعلى الشاشة فعلاً (الطبقة الزجاجية للرأس خلف شريط الإشعارات والرسائل تمرّ من خلفها)
                 boolean edge = chat || isProfilePage(curPage);
-                r.setPadding(0, edge ? 0 : sbTop, 0, padBottom);
+                // داخل المحادثة (بلا لوحة مفاتيح) لا نحجز مساحة الإيماءات في الجذر: الطبقة الزجاجية للمدخل تمتد خلف شريط الإيماءات الشفاف
+                boolean kbUp = padBottom - navBottom > dp(100);
+                r.setPadding(0, edge ? 0 : sbTop, 0, (chat && !kbUp) ? 0 : padBottom);
                 if (chat) applyChatInsets();
             }
 
@@ -902,7 +904,7 @@ public class MassActivity extends Activity {
                     // HTML: padding-bottom = max(6px, مساحة الإيماءات) ، و4px أثناء ظهور لوحة المفاتيح.
                     // مساحة الإيماءات هنا مأخوذة أصلاً من padding الجذر، فنكمّل الفرق فقط.
                     boolean kb = padBottom - navBottom > dp(100);
-                    bb.setPadding(0, 0, 0, kb ? dp(4) : Math.max(0, dp(6) - navBottom));
+                    bb.setPadding(0, 0, 0, kb ? dp(4) : Math.max(dp(6), navBottom));   // الزجاج يمتد خلف شريط الإيماءات والمدخل فوقه
                 }
                 syncChatPadding();
             }
@@ -1003,12 +1005,12 @@ public class MassActivity extends Activity {
                     boolean on = id.equals(a2);
                     TextView ic = tv(id + "Ic");
                     TextView tx = tv(id + "Tx");
-                    int inactive = dark ? 0xFFE4C45B : 0xFF8A8266;   // HTML: نهاري #8a8266 / ليلي #e4c45b (الخامل بشفافية .78)
-                    int active = dark ? 0xFFE4C45B : 0xFF96720D;
+                    int inactive = 0xFF8A8266;   // الشريط أبيض في الوضعين: ألوان النهاري للأيقونات   // HTML: نهاري #8a8266 / ليلي #e4c45b (الخامل بشفافية .78)
+                    int active = 0xFF96720D;
                     if (ic != null) {
                         ic.setTag(null);
                         ic.setTextColor(on ? active : inactive);
-                        ic.setBackground(on ? shape((dark ? 0x24E4C45B : 0x29D4AF37), 13, 0) : null);   // .nav-icon.active: rgba(212,175,55,.16) / rgba(228,196,91,.14)
+                        ic.setBackground(on ? shape(0x29D4AF37, 13, 0) : null);   // .nav-icon.active: rgba(212,175,55,.16) / rgba(228,196,91,.14)
                         tintIcons(ic);
                     }
                     if (tx != null) {
@@ -1422,7 +1424,7 @@ public class MassActivity extends Activity {
 
             void openChat(String name, String uid) {
                 otherUid = uid; otherName = name; curChat = name;
-                blocked = false; muted = false;
+                blocked = false; muted = isMutedUid(uid);
                 TextView chatTitle = tv("chatTitle");
                 if (chatTitle != null) chatTitle.setText(name);
                 TextView chatAv = tv("chatAvatar");
@@ -1662,7 +1664,8 @@ public class MassActivity extends Activity {
                     if (url.startsWith("http")) {
                         mediaPlayer.setDataSource(url);
                     } else {
-                        File pf = new File(act.getCacheDir(), "play_" + url.length() + "_" + Math.abs(url.hashCode()) + ".m4a");
+                        boolean isOgg = url.startsWith("T2dnUw");   // "OggS" بصيغة base64
+                        File pf = new File(act.getCacheDir(), "play_" + url.length() + "_" + Math.abs(url.hashCode()) + (isOgg ? ".ogg" : ".m4a"));
                         if (!pf.exists()) {
                             byte[] b = android.util.Base64.decode(url, android.util.Base64.DEFAULT);
                             java.io.FileOutputStream fo = new java.io.FileOutputStream(pf);
@@ -2023,7 +2026,7 @@ public class MassActivity extends Activity {
                 boolean pv = recPreview;
                 vis("recPlay", pv); vis("recStop", !pv); vis("recSend", pv);
                 TextView lb = tv("recLabel");
-                if (lb != null) { lb.setText(pv ? "تم التسجيل" : "جاري التسجيل"); lb.setTextColor(pv ? 0xFF38BDF8 : 0xFFF87171); }
+                if (lb != null) { lb.setText(pv ? "تم التسجيل" : "جاري التسجيل"); lb.setTextColor(pv ? 0xFF000000 : 0xFFF87171); }
                 View dot = v("recDot");
                 if (dot != null) {
                     GradientDrawable g = new GradientDrawable();
@@ -2082,16 +2085,25 @@ public class MassActivity extends Activity {
                 try {
                     File dir = new File(act.getFilesDir(), "voice");
                     if (!dir.exists()) dir.mkdirs();
-                    audioFile = new File(dir, "rec_" + System.currentTimeMillis() + ".m4a");
+                    final boolean ogg = Build.VERSION.SDK_INT >= 29;   // OGG/Opus يتطلب أندرويد 10+، وما دونه يبقى AAC
+                    audioFile = new File(dir, "rec_" + System.currentTimeMillis() + (ogg ? ".ogg" : ".m4a"));
 
                     if (Build.VERSION.SDK_INT >= 31) recorder = new MediaRecorder(act);
                     else recorder = new MediaRecorder();
                     recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
-                    recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
-                    recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
-                    recorder.setAudioEncodingBitRate(32000);
-                    recorder.setAudioChannels(1);
-                    recorder.setAudioSamplingRate(44100);
+                    if (ogg) {
+                        recorder.setOutputFormat(MediaRecorder.OutputFormat.OGG);
+                        recorder.setAudioEncoder(MediaRecorder.AudioEncoder.OPUS);
+                        recorder.setAudioEncodingBitRate(32000);
+                        recorder.setAudioChannels(1);
+                        recorder.setAudioSamplingRate(48000);   // Opus لا يدعم 44100
+                    } else {
+                        recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+                        recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
+                        recorder.setAudioEncodingBitRate(32000);
+                        recorder.setAudioChannels(1);
+                        recorder.setAudioSamplingRate(44100);
+                    }
                     recorder.setOutputFile(audioFile.getAbsolutePath());
                     recorder.prepare();
                     recorder.start();
@@ -2224,32 +2236,88 @@ public class MassActivity extends Activity {
                 }).start();
             }
 
+            /** كتم الأشخاص محلياً على الجهاز (مثل babylon_muted_users في الـ HTML). */
+            boolean isMutedUid(String uid) {
+                return uid != null && uid.length() > 0 && sp.getStringSet("muted_users", new java.util.HashSet<String>()).contains(uid);
+            }
+
+            void toggleMuteUid(String uid) {
+                java.util.Set<String> set = new java.util.HashSet<>(sp.getStringSet("muted_users", new java.util.HashSet<String>()));
+                if (!set.remove(uid)) set.add(uid);
+                sp.edit().putStringSet("muted_users", set).apply();
+            }
+
+            View chatMenuItem(int iconRes, String label) {
+                LinearLayout row = new LinearLayout(act);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setGravity(Gravity.CENTER_VERTICAL);
+                row.setMinimumHeight(dp(44));
+                row.setPadding(dp(10), dp(8), dp(10), dp(8));
+                GradientDrawable pr = new GradientDrawable(); pr.setColor(0x21B49128); pr.setCornerRadius(dp(9));
+                android.graphics.drawable.StateListDrawable sl = new android.graphics.drawable.StateListDrawable();
+                sl.addState(new int[]{android.R.attr.state_pressed}, pr);
+                row.setBackground(sl);
+                ImageView ic = new ImageView(act);
+                ic.setImageResource(iconRes);
+                ic.setColorFilter(cText());
+                ic.setAlpha(0.92f);
+                row.addView(ic, new LinearLayout.LayoutParams(dp(20), dp(20)));
+                TextView t = new TextView(act);
+                t.setText(label);
+                t.setTextSize(15);
+                t.setTypeface(null, android.graphics.Typeface.BOLD);
+                t.setTextColor(cText());
+                t.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
+                LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(0, -2, 1f);
+                tl.setMarginStart(dp(12));
+                row.addView(t, tl);
+                return row;
+            }
+
+            /** قائمة ⋮ كما في الـ HTML: بطاقة بحدّ ذهبي وانحناء 14 وعناصر بأيقونة (كتم/إلغاء كتم، البحث عن رسالة). */
             void chatMenu() {
                 View cm = v("chatMore");
-                if (cm == null) return;
-                PopupMenu pm = new PopupMenu(act, cm);
-                pm.getMenu().add(0, 1, 0, muted ? "إلغاء كتم المحادثة" : "كتم المحادثة");
-                pm.getMenu().add(0, 2, 1, "البحث عن رسالة");
-                pm.getMenu().add(0, 3, 2, "مسح المحادثة");
-                pm.setOnMenuItemClickListener(it -> {
-                    if (it.getItemId() == 1) { muted = !muted; toast(muted ? "تم كتم المحادثة" : "تم إلغاء الكتم"); }
-                    else if (it.getItemId() == 2) {
-                        vis("chatSearchPanel", true);
-                        EditText et1 = et("chatMessageSearchInput");
-                        if (et1 != null) et1.requestFocus();
-                    }
-                    else {
-                        if (!currentChatId.isEmpty()) {
-                            deleteChatMessages(currentChatId, null);
-                            LinearLayout ma = (LinearLayout) v("messagesArea");
-                            if (ma != null) ma.removeAllViews();
-                            renderedMsgIds.clear(); lastDayKey = ""; msgViewsById.clear();
-                        }
-                        toast("تم مسح المحادثة");
-                    }
-                    return true;
+                final View host = v("chatView");
+                if (cm == null || host == null) return;
+                final boolean mutedNow = isMutedUid(otherUid);
+                LinearLayout card = new LinearLayout(act);
+                card.setOrientation(LinearLayout.VERTICAL);
+                card.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                card.setPadding(dp(7), dp(7), dp(7), dp(7));
+                GradientDrawable bg = new GradientDrawable();
+                bg.setColor(dark ? 0xFF202D3A : 0xFFFFFFFF);
+                bg.setCornerRadius(dp(14));
+                bg.setStroke(dp(1), cGold());
+                card.setBackground(bg);
+                final android.widget.PopupWindow pw = new android.widget.PopupWindow(card,
+                        Math.min(dp(265), act.getResources().getDisplayMetrics().widthPixels - dp(24)),
+                        ViewGroup.LayoutParams.WRAP_CONTENT, true);
+                pw.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0));
+                pw.setOutsideTouchable(true);
+                pw.setElevation(dp(10));
+
+                View mute = chatMenuItem(mutedNow ? R.drawable.ic_menu_bell : R.drawable.ic_menu_bell_off,
+                        mutedNow ? "إلغاء كتم المحادثة" : "كتم المحادثة");
+                mute.setOnClickListener(x -> {
+                    pw.dismiss();
+                    if (otherUid == null || otherUid.isEmpty()) return;
+                    toggleMuteUid(otherUid);
+                    muted = !mutedNow;
+                    toast(mutedNow ? "تم إلغاء كتم المحادثة" : "تم كتم هذا الشخص على جهازك");
                 });
-                pm.show();
+                card.addView(mute);
+
+                View search = chatMenuItem(R.drawable.ic_menu_search, "البحث عن رسالة");
+                search.setOnClickListener(x -> {
+                    pw.dismiss();
+                    vis("chatSearchPanel", true);
+                    EditText et1 = et("chatMessageSearchInput");
+                    if (et1 != null) { et1.setText(""); et1.requestFocus(); }
+                });
+                card.addView(search);
+
+                // HTML: inset-inline-end:12px (يسار الشاشة في RTL) و top:62px + ارتفاع شريط الإشعارات
+                pw.showAtLocation(host, Gravity.TOP | Gravity.LEFT, dp(12), sbTop + dp(62));
             }
 
             void searchInChat(String q) {

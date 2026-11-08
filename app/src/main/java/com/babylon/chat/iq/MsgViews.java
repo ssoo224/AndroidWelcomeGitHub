@@ -96,10 +96,24 @@ public final class MsgViews {
         @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
     }
 
+    // ------------------------------------------------------------------ حاوية الفقاعة
+    /** فقاعة بحدّ أقصى 80% من عرض المحادثة (max-width:80% في الـ HTML) حتى يبقى جانبها ظاهراً يميناً/يساراً. */
+    public static class Bub extends LinearLayout {
+        public Bub(Context c) { super(c); }
+        @Override protected void onMeasure(int w, int h) {
+            int mode = MeasureSpec.getMode(w), size = MeasureSpec.getSize(w);
+            if (mode != MeasureSpec.EXACTLY && size > 0) {
+                int cap = Math.max((int) (size * 0.8f), getMinimumWidth());
+                if (cap < size) w = MeasureSpec.makeMeasureSpec(cap, MeasureSpec.AT_MOST);
+            }
+            super.onMeasure(w, h);
+        }
+    }
+
     // ------------------------------------------------------------------ فقاعة نص
     /** يعيد فقاعة عمودية: [اقتباس الرد] + نص + صف الوقت/العلامة. الوسم bubMine/bubOther يلوّن الخلفية. */
     public static LinearLayout textBubble(Activity a, String text, boolean mine, String time, int state, float fontSp) {
-        LinearLayout b = new LinearLayout(a);
+        LinearLayout b = new Bub(a);
         b.setOrientation(LinearLayout.VERTICAL);
         b.setTag(mine ? "bubMine" : "bubOther");
         b.setPadding(dp(a, 10), dp(a, 6), dp(a, 10), dp(a, 5));
@@ -268,7 +282,7 @@ public final class MsgViews {
         }
     }
 
-    public static final class VoiceBubble extends LinearLayout implements Handle {
+    public static final class VoiceBubble extends Bub implements Handle {
         public final FrameLayout playBtn;
         public final ImageView playIcon;
         public final TextView timeTv;

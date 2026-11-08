@@ -25,6 +25,8 @@ public final class BabylonBars {
     private ValueAnimator topAnim, botAnim;
     /** true أثناء كشف الثيم الدائري: الشريطان شفافان والدائرة ترسم خلفهما، فلا نغيّر ألوان النافذة. */
     private boolean hold = false;
+    /** true داخل المحادثة: شريط الإيماءات شفاف والزجاج يمتد خلفه. */
+    private boolean transparentBottom = false;
 
     /** لون خلف شريط الحالة الحالي (0 = شفاف: الملف الشخصي). */
     public int topColor() { return curTop; }
@@ -46,7 +48,7 @@ public final class BabylonBars {
         hold = false;
         Window w = act.getWindow();
         w.setStatusBarColor(transparentTop ? Color.TRANSPARENT : curTop);
-        w.setNavigationBarColor(curBottom);
+        w.setNavigationBarColor(transparentBottom ? Color.TRANSPARENT : curBottom);
     }
 
     public BabylonBars(Activity act) {
@@ -159,10 +161,23 @@ public final class BabylonBars {
         w.setStatusBarColor(Color.TRANSPARENT);
         transparentTop = true;
         curTop = 0;
-        syncBottom(w, surface);
+        // شريط الإيماءات شفاف مثل شريط الإشعارات (الطبقة الزجاجية للمدخل تمتد خلفه)
+        if (botAnim != null) botAnim.cancel();
+        if (!hold) w.setNavigationBarColor(Color.TRANSPARENT);
+        transparentBottom = true;
+        curBottom = surface;
+        first = false;
     }
 
     private void syncBottom(Window w, int bottom) {
+        if (transparentBottom && !hold) {   // الخروج من المحادثة: نعيد اللون الصلب فوراً بلا حركة
+            if (botAnim != null) botAnim.cancel();
+            transparentBottom = false;
+            curBottom = bottom;
+            w.setNavigationBarColor(bottom);
+            first = false;
+            return;
+        }
         if (hold) {
             if (botAnim != null) botAnim.cancel();
             curBottom = bottom;

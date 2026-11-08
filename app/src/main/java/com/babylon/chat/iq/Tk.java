@@ -18,7 +18,7 @@ public final class Tk {
     // ----- الألوان الأساسية (HTML: --bg / --surface / ...)
     public static int pageBg(boolean d)  { return d ? 0xFF0E1621 : 0xFFF4F6FA; }
     public static int surface(boolean d) { return d ? 0xFF17212B : 0xFFFFFFFF; }
-    public static int navBg(boolean d)   { return d ? 0xFF17212B : 0xFFF6EDD3; }
+    public static int navBg(boolean d)   { return 0xFFFFFFFF; }   // شريط التنقل أبيض #FFFFFF في الوضعين
     /** HTML: --cr-surface داخل المحادثة (خلفية الغرفة + لون الطبقة الزجاجية + لون شريط الإيماءات) */
     public static int chatSurface(boolean d) { return d ? 0xFF17212B : 0xFFEEF2F8; }
     public static int surface2(boolean d){ return d ? 0xFF1D2A38 : 0xFFE8EDF4; }
@@ -260,7 +260,7 @@ public final class Tk {
             return true;
         }
         if (tag.equals("navline")) {         // الحدّ العلوي 1px + خط ذهبي متدرّج (::before في الـ HTML)
-            final int base = dark ? 0x14FFFFFF : 0xFFEFE5C3;
+            final int base = 0xFFEFE5C3;   // الشريط أبيض دائماً: حدّ علوي فاتح
             android.graphics.drawable.ShapeDrawable sd = new android.graphics.drawable.ShapeDrawable(new android.graphics.drawable.shapes.RectShape());
             sd.setShaderFactory(new android.graphics.drawable.ShapeDrawable.ShaderFactory() {
                 @Override public android.graphics.Shader resize(int w, int h) {
