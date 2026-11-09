@@ -485,7 +485,7 @@
 					android:drawableStart="@drawable/ic_arrow_left_24"
 					android:textSize="22sp"
 					android:elevation="0dp"
-					android:tag="rbtn" />
+					android:tag="rbtn t" />
 				<LinearLayout
 					android:id="@+id/chatUserInfo"
 					android:layout_width="0dp"
@@ -541,7 +541,7 @@
 					android:drawableStart="@drawable/ic_more_22"
 					android:textSize="22sp"
 					android:elevation="0dp"
-					android:tag="rbtn" />
+					android:tag="rbtn t" />
 			</LinearLayout>
 			<LinearLayout
 				android:id="@+id/chatSearchPanel"
@@ -833,7 +833,7 @@
 					android:maxHeight="137dp"
 					android:gravity="center_vertical|start"
 					android:textDirection="firstStrong"
-					android:textAlignment="gravity"
+					android:textAlignment="textStart"
 					android:paddingStart="12dp"
 					android:paddingEnd="12dp"
 					android:paddingTop="9dp"

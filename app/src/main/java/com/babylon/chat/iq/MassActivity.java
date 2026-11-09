@@ -138,6 +138,7 @@ public class MassActivity extends Activity {
                 if (mi0 != null && mi0.getHint() != null) {
                     android.text.SpannableString hs = new android.text.SpannableString(mi0.getHint().toString());
                     hs.setSpan(new android.text.style.TypefaceSpan("sans-serif"), 0, hs.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    hs.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.NORMAL), 0, hs.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);   // يلغي الغامق الموروث من makeAllTextBold
                     mi0.setHint(hs);
                 }
             } catch (Throwable ignored) { }
@@ -357,9 +358,12 @@ public class MassActivity extends Activity {
             /** حقل الكتابة: #f1f5fa / rgba(127,140,160,.10) ، عند التركيز أبيض / .16 وحدّ #c9cfd8 / #8b94a1 ، انحناء 15 */
             GradientDrawable msgInpBg(boolean focus) {
                 GradientDrawable g = new GradientDrawable();
-                if (Tk.chatPal != null)   // الثيمات غير بابل: rgba(127,140,160,.16) / .24 عند التركيز
+                if (Tk.themed()) {          // ثيم: #messageInput{background:rgba(127,140,160,.16)} وعند التركيز .24 وحدّ #c9cfd8
                     g.setColor(focus ? 0x3D7F8CA0 : 0x297F8CA0);
-                else
+                    g.setCornerRadius(dp(15));
+                    g.setStroke(dp(1), focus ? 0xFFC9CFD8 : 0x00000000);
+                    return g;
+                }
                 g.setColor(focus ? (dark ? 0x297F8CA0 : 0xFFFFFFFF) : (dark ? 0x1A7F8CA0 : 0xFFF1F5FA));
                 g.setCornerRadius(dp(15));
                 g.setStroke(dp(1), focus ? (dark ? 0xFF8B94A1 : 0xFFC9CFD8) : 0x00000000);
@@ -436,7 +440,7 @@ public class MassActivity extends Activity {
                         }
                         else if (k.equals("msginp")) {
                             x.setBackground(msgInpBg(x.hasFocus()));
-                            if (T != null) { T.setTextColor(Tk.crInk(dark)); T.setHintTextColor(Tk.crMuted(dark)); }
+                            if (T != null) { T.setTextColor(Tk.crInk(cText())); T.setHintTextColor(Tk.crMuted(cMuted())); }   // ثيم: color:var(--text-other)
                         }
                         else if (k.equals("gold")) {
                             boolean chip = x.getId() == R.id.fltAll || x.getId() == R.id.fltUnread;
@@ -508,8 +512,8 @@ public class MassActivity extends Activity {
                             else x.setBackgroundColor(Color.parseColor(k.substring(6)));
                         }
                         else if (T != null) {
-                            if (k.equals("t")) T.setTextColor(cText());
-                            else if (k.equals("m")) T.setTextColor(cMuted());
+                            if (k.equals("t")) T.setTextColor((x.getTag() instanceof String && ((String) x.getTag()).contains("rbtn")) || x.getId() == R.id.chatTitle ? Tk.crInk(cText()) : cText());
+                            else if (k.equals("m")) T.setTextColor(x.getId() == R.id.chatSub ? Tk.crMuted(cMuted()) : cMuted());
                             else if (k.equals("g")) T.setTextColor(cGold());
                             else if (k.equals("red")) T.setTextColor(cRed());
                             else if (k.equals("green")) T.setTextColor(0xFF4ADE80);
@@ -939,7 +943,6 @@ public class MassActivity extends Activity {
                 try { buildThemeStrip(); } catch (Throwable ignored) { }
                 try { setNav(curPage); } catch (Throwable ignored) { }
                 try { buildStories(); buildChats(); } catch (Throwable ignored) { }
-                try { renderPinnedBar(); } catch (Throwable ignored) { }
                 polishProfile();
                 try { syncBars(); } catch (Throwable ignored) { }
             }
@@ -981,6 +984,11 @@ public class MassActivity extends Activity {
                     // HTML: padding-bottom = max(6px, مساحة الإيماءات) ، و4px أثناء ظهور لوحة المفاتيح.
                     // مساحة الإيماءات هنا مأخوذة أصلاً من padding الجذر، فنكمّل الفرق فقط.
                     boolean kb = padBottom - navBottom > dp(100);
+                    if (blkBanner != null) {
+                        // لافتة الحظر: تمتد هي نفسها إلى شريط الإيماءات (نفس اللون) بدل أن يظهر الزجاج تحتها
+                        bb.setPadding(0, 0, 0, 0);
+                        blkBanner.setPadding(dp(16), dp(18), dp(16), dp(16) + (kb ? 0 : navBottom));
+                    } else
                     bb.setPadding(0, 0, 0, kb ? dp(4) : Math.max(dp(6), navBottom));   // الزجاج يمتد خلف شريط الإيماءات والمدخل فوقه
                 }
                 syncChatPadding();
@@ -1375,6 +1383,7 @@ public class MassActivity extends Activity {
                     } else if (!isRecording && !recPreview) {
                         vis("textInputBar", true);
                     }
+                    applyChatInsets();
                     TextView cs = tv("chatSub");
                     if (cs != null && blockedByThem && !on) cs.setText("آخر ظهور كان منذ زمن طويل");
                     syncBars();
@@ -2076,10 +2085,10 @@ public class MassActivity extends Activity {
                     LinearLayout row = new LinearLayout(act);
                     row.setOrientation(LinearLayout.HORIZONTAL);
                     row.setGravity(Gravity.CENTER_VERTICAL);
-                    row.setPadding(dp(12), dp(7), dp(12), dp(7));
+                    row.setPadding(dp(12), dp(6.9f), dp(12), dp(6.9f));   // أنحف بـ 5dp (70.8 → 65.8)
                     row.setTag("row");
                     row.setClipChildren(false);
-                    row.setMinimumHeight(dp(70.8f));
+                    row.setMinimumHeight(dp(65.8f));
                     row.setElevation(0f);
                     LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2);
                     rp.bottomMargin = dp(7);
@@ -3174,7 +3183,7 @@ public class MassActivity extends Activity {
                 bar.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
                 bar.setGravity(Gravity.CENTER_VERTICAL);
                 bar.setPadding(dp(10), dp(6), dp(6), dp(6));
-                bar.setBackground(shape(Tk.crCard(dark, cSf()), 18, Tk.crLine(dark, cBorder())));   // .pinned-bar: --cr-card + --cr-line
+                bar.setBackground(shape(Tk.crCard(cSf()), 18, Tk.crLine(cBorder())));   // .pinned-bar{background:var(--cr-card);border:1px solid var(--cr-line)}
                 LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(-1, -2);
                 blp.setMargins(dp(10), dp(2), dp(10), dp(6));
                 bar.setLayoutParams(blp);
@@ -3200,7 +3209,7 @@ public class MassActivity extends Activity {
                 col.addView(hd);
                 TextView tx = new TextView(act);
                 tx.setText(String.valueOf(p.get("text") == null ? "" : p.get("text")));
-                tx.setTextSize(13.5f); tx.setTextColor(Tk.crInk(dark)); tx.setAlpha(0.85f);
+                tx.setTextSize(13.5f); tx.setTextColor(Tk.crInk(cText())); tx.setAlpha(0.85f);
                 tx.setMaxLines(1); tx.setEllipsize(android.text.TextUtils.TruncateAt.END);
                 tx.setTypeface(null, android.graphics.Typeface.BOLD);
                 tx.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
@@ -3214,7 +3223,7 @@ public class MassActivity extends Activity {
                 });
 
                 ImageView xb = new ImageView(act);
-                xb.setImageResource(R.drawable.ic_mm_unpin); xb.setColorFilter(cMuted());
+                xb.setImageResource(R.drawable.ic_mm_unpin); xb.setColorFilter(Tk.crMuted(cMuted()));
                 xb.setPadding(dp(8), dp(8), dp(8), dp(8));
                 xb.setContentDescription("إلغاء التثبيت");
                 xb.setOnClickListener(x -> confirm("إلغاء التثبيت", "هل تريد إلغاء تثبيت هذه الرسالة؟", () -> {
@@ -4121,7 +4130,6 @@ public class MassActivity extends Activity {
                 if (chatPreview != null) chatPreview.apply(chatTheme, dark, fontSp, radius);
                 try { buildThemeStrip(); } catch (Throwable ignored) { }
                 style(v("chatView"));
-                try { renderPinnedBar(); } catch (Throwable ignored) { }
                 try { syncBars(); } catch (Throwable ignored) { }
             }
 
