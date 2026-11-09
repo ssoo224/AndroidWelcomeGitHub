@@ -396,6 +396,7 @@ public final class MsgViews {
             if (mine) cl.setMarginEnd(dp(a, 8)); else cl.setMarginStart(dp(a, 8));
 
             playBtn = new FrameLayout(a);
+            playBtn.setFocusable(false); playBtn.setFocusableInTouchMode(false);
             playBtn.setTag(mine ? "vpM" : "vpO");
             playIcon = new ImageView(a);
             playIcon.setImageResource(R.drawable.ic_voice_play);
@@ -422,6 +423,8 @@ public final class MsgViews {
             timeTv.setAlpha(0.8f);
             timeTv.setTypeface(null, android.graphics.Typeface.BOLD);
             timeTv.setTag(mine ? "vtM" : "vtO");
+            timeTv.setMinWidth(dp(a, 30));      // عرض ثابت: تغيّر الأرقام أثناء التشغيل لا يعيد قياس المحادثة كل 80ms
+            timeTv.setGravity(mine ? Gravity.LEFT : Gravity.RIGHT);
             track = new TrackView(a, mine);
             track.flip = !mine;
             track.setTag(mine ? "vkM" : "vkO");
@@ -461,7 +464,25 @@ public final class MsgViews {
         @Override public void setProgress(float f, String time) {
             track.setProgress(f);
             wave.setProgress(f, f > 0);
-            if (time != null) timeTv.setText(time);
+            if (time != null && !time.contentEquals(timeTv.getText())) timeTv.setText(time);
         }
+    }
+
+    // ------------------------------------------------------------------ معاينة آخر رسالة في قائمة المحادثات
+    /** 0 = نص عادي، 1 = صورة، 2 = رسالة صوتية، 3 = مقطع مرئي (يتعرّف أيضاً على الصيغ القديمة المخزّنة بإيموجي). */
+    public static int mediaKindOf(String s) {
+        if (s == null) return 0;
+        String t = s.trim();
+        if (t.equals("📷 صورة") || t.equals("صورة") || t.equals("▧ صورة")) return 1;
+        if (t.equals("🎤 رسالة صوتية") || t.equals("رسالة صوتية") || t.equals("♬ بصمة صوتية") || t.equals("بصمة صوتية")) return 2;
+        if (t.equals("🎬 مقطع مرئي") || t.equals("📹 مقطع مرئي") || t.equals("🎥 مقطع مرئي")
+                || t.equals("مقطع مرئي") || t.equals("🎬 فيديو") || t.equals("📹 فيديو") || t.equals("فيديو")) return 3;
+        return 0;
+    }
+    public static String mediaLabelOf(int kind) {
+        return kind == 1 ? "صورة" : kind == 2 ? "رسالة صوتية" : kind == 3 ? "مقطع مرئي" : "";
+    }
+    public static int mediaIconOf(int kind) {
+        return kind == 1 ? R.drawable.ic_cl_image : kind == 2 ? R.drawable.ic_cl_mic : kind == 3 ? R.drawable.ic_cl_video : 0;
     }
 }

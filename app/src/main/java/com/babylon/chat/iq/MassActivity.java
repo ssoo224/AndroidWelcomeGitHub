@@ -365,6 +365,13 @@ public class MassActivity extends Activity {
             int cText() { return dark ? 0xFFF1F5F9 : 0xFF17212B; }
             int cMuted() { return Tk.muted(dark); }
             int cGold() { return Tk.gold(dark); }
+            /** دمج لون أمامي فوق لون أساس معتم وإرجاع لون معتم بالكامل. */
+            int androidx_blend(int base, int fg, float a) {
+                int r = Math.round(((base >> 16) & 0xFF) * (1 - a) + ((fg >> 16) & 0xFF) * a);
+                int g = Math.round(((base >> 8) & 0xFF) * (1 - a) + ((fg >> 8) & 0xFF) * a);
+                int b = Math.round((base & 0xFF) * (1 - a) + (fg & 0xFF) * a);
+                return 0xFF000000 | (r << 16) | (g << 8) | b;
+            }
             int cRed() { return dark ? 0xFFFB7185 : 0xFFDC2626; }
             int cMine() { return dark ? 0xFF2B5278 : 0xFFD9FDD3; }
             int cOther() { return dark ? 0xFF182533 : 0xFFFFFFFF; }
@@ -2165,11 +2172,26 @@ public class MassActivity extends Activity {
                     LinearLayout.LayoutParams r2p = new LinearLayout.LayoutParams(-1, -2);
                     r2p.topMargin = dp(5);
                     TextView ls = new TextView(act);
-                    ls.setText(c[1]); ls.setTextSize(14.05f);
+                    final int mediaKind = MsgViews.mediaKindOf(c[1]);
+                    ls.setText(mediaKind > 0 ? MsgViews.mediaLabelOf(mediaKind) : c[1]); ls.setTextSize(14.05f);
                     ls.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
                     ls.setSingleLine(true); ls.setEllipsize(TextUtils.TruncateAt.END); ls.setIncludeFontPadding(false);
                     ls.setTextColor(hasUnread ? cText() : (dark ? 0xFF8798AA : 0xFF6B7A8C));
-                    r2.addView(ls, new LinearLayout.LayoutParams(0, -2, 1f));
+                    if (mediaKind > 0) {
+                        // وسائط (صوتية/صورة/مقطع): النص ثم أيقونة SVG على يساره
+                        LinearLayout mw = new LinearLayout(act);
+                        mw.setOrientation(LinearLayout.HORIZONTAL);
+                        mw.setGravity(Gravity.CENTER_VERTICAL);
+                        mw.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);   // أول عنصر (النص) يمين، والأيقونة بعده أي يساره
+                        mw.addView(ls, new LinearLayout.LayoutParams(-2, -2));
+                        ImageView mi = new ImageView(act);
+                        mi.setImageResource(MsgViews.mediaIconOf(mediaKind));
+                        mi.setColorFilter(hasUnread ? cText() : (dark ? 0xFF8798AA : 0xFF6B7A8C));
+                        LinearLayout.LayoutParams mil = new LinearLayout.LayoutParams(dp(16), dp(16));
+                        mil.setMarginStart(dp(5));
+                        mw.addView(mi, mil);
+                        r2.addView(mw, new LinearLayout.LayoutParams(0, -2, 1f));
+                    } else r2.addView(ls, new LinearLayout.LayoutParams(0, -2, 1f));
                     if (hasUnread) {
                         TextView b = new TextView(act);
                         b.setText(c[3]); b.setTextSize(12.5f); b.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -2221,9 +2243,11 @@ public class MassActivity extends Activity {
                     });
                     list.addView(row);
                     style(row);
-                    if (rowSel) {   // التحديد: لون ذهبي شفاف + إطار ذهبي فقط (بلا علامة ✓)
+                    if (rowSel) {   // التحديد: ذهبي معتم يغطي الصف بالكامل (لا تظهر النقوش خلفه) + إطار ذهبي
                         GradientDrawable sg = new GradientDrawable();
-                        sg.setColor(goldA(0x24)); sg.setCornerRadius(dp(18)); sg.setStroke(dp(1.5f), cGold());
+                        int selBase = cSf() | 0xFF000000;   // طبقة أساس معتمة
+                        sg.setColor(androidx_blend(selBase, cGold(), 0.30f));
+                        sg.setCornerRadius(dp(18)); sg.setStroke(dp(1.5f), cGold());
                         row.setBackground(sg);
                     }
                 }
@@ -2640,6 +2664,7 @@ public class MassActivity extends Activity {
                     if (area0 != null) area0.setAlpha(0f);
                     if (!stickInstalled && area0 != null && ms0 instanceof ScrollView) {
                         stickInstalled = true;
+                        ((ScrollView) ms0).setDescendantFocusability(android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS);   // لا قفز تلقائي إلى رسالة بعينها
                         ms0.setOnTouchListener((vw, ev) -> { if (ev.getActionMasked() == android.view.MotionEvent.ACTION_DOWN) chatUserTouched = true; return false; });
                         area0.addOnLayoutChangeListener((vv, l, t, r, b, ol, ot, orr, ob) -> {
                             if (System.currentTimeMillis() < chatStick && !chatUserTouched) {
@@ -2937,6 +2962,7 @@ public class MassActivity extends Activity {
             }
 
             void playAudio(String url, final MsgViews.Handle h, final long fallbackMs) {
+                chatUserTouched = true;   // لمس الصوتية (ابن للـ ScrollView لا يمرّ على مستمع اللمس): أوقف تثبيت أسفل المحادثة
                 try {
                     if (playingHandle == h && mediaPlayer != null) {
                         if (mediaPlayer.isPlaying()) { mediaPlayer.pause(); h.setPlaying(false); }
