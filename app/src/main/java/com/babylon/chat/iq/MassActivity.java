@@ -2052,6 +2052,20 @@ public class MassActivity extends Activity {
                 return new SimpleDateFormat("d/M/yyyy", new Locale("ar")).format(new Date(ts));
             }
 
+            /** فتح عارض القصص: قوس ذهبي دوّار على الحلقة ثم نافذة منبثقة (launchStoryWithGlow + startViewer في الـ HTML). */
+            void openStory(final String uid, final String name, final String letter, final Bitmap photo, final boolean blue, final StoryAvatarView av) {
+                if (myUid == null || myUid.isEmpty() || db == null) return;
+                StoryViewer.launch(act, db, myUid, av, uid, name, letter, photo, blue, new StoryViewer.Listener() {
+                    @Override public void onClosed() { try { buildStories(); } catch (Throwable ignored) { } }
+                    @Override public void openChat(String u) { try { UI.this.openChat(name, u); } catch (Throwable ignored) { } }
+                    @Override public void onStoriesChanged(long until) {
+                        if (uid.equals(myUid)) myStoryUntil = until; else storyUntil.put(uid, until);
+                        try { refreshProfileRings(); } catch (Throwable ignored) { }
+                        try { buildStories(); } catch (Throwable ignored) { }
+                    }
+                });
+            }
+
             /** نشر قصة جديدة (مثل startStoryPublish في الـ HTML). */
             void startStoryPublish() {
                 if (myUid == null || myUid.isEmpty()) return;
@@ -2072,6 +2086,7 @@ public class MassActivity extends Activity {
                 me.letter = userName != null && userName.length() > 0 ? userName.substring(0, 1).toUpperCase() : "?";
                 me.photo = photoBmp; me.blue = StoryAvatarView.toneBlue(myUid);
                 me.ring = myStoryUntil > nowMs;
+                me.seen = me.ring && StoryViewer.isSeen(act, myUid, myUid, myStoryUntil);
                 list.add(me);
                 for (String[] c : chatData) {
                     if (c.length < 5) continue;
@@ -2082,6 +2097,7 @@ public class MassActivity extends Activity {
                     it.name = dispName(c[4], c[0]);
                     it.letter = c[0].length() > 0 ? c[0].substring(0, 1).toUpperCase() : "?";
                     it.ring = true; it.blue = StoryAvatarView.toneBlue(c[4]);
+                    it.seen = StoryViewer.isSeen(act, myUid, c[4], u);
                     list.add(it);
                 }
                 stories.setItems(list, dark);
@@ -2144,6 +2160,13 @@ public class MassActivity extends Activity {
                     av.set(dn.length() > 0 ? dn.substring(0, 1).toUpperCase() : "?", null, c.length > 4 && StoryAvatarView.toneBlue(c[4]))
                       .ring(ringOn, false).online(c.length > 4 && Boolean.TRUE.equals(onlineMap.get(c[4])))
                       .theme(dark, cSf()).textSp(19.8f);
+                    if (ringOn) {   // chatAvatarStory: الضغط على أفاتار فيه حلقة يفتح القصة
+                        final StoryAvatarView fav = av; final String fUid = rowUid, fName = dn;
+                        final boolean fBlue = StoryAvatarView.toneBlue(rowUid);
+                        av.ring(true, StoryViewer.isSeen(act, myUid, rowUid, storyUntil.get(rowUid)));
+                        av.setOnClickListener(vv -> openStory(fUid, fName, fName.length() > 0 ? fName.substring(0, 1).toUpperCase() : "?", null, fBlue, fav));
+                        av.setOnLongClickListener(vv -> row.performLongClick());
+                    }
                     LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(dp(52), dp(52));
                     LinearLayout mid = new LinearLayout(act);
                     mid.setOrientation(LinearLayout.VERTICAL);
@@ -3158,6 +3181,7 @@ public class MassActivity extends Activity {
              */
             boolean onBack() {
                 try {
+                    if (StoryViewer.handleBack()) return true;
                     if (MsgMenu.isShowing()) { MsgMenu.dismiss(); return true; }
                     if (chatSelMode) { exitChatSel(true); return true; }
                     if (selecting) { clearSel(); return true; }
@@ -4957,7 +4981,10 @@ public class MassActivity extends Activity {
                 try {
                     stories = new StoriesController(act, (FrameLayout) v("root"), (StoriesHost) v("homeView"), (ScrollView) v("vscroll39"),
                             (LinearLayout) v("topStories"), (HorizontalScrollView) v("storiesScroll"), (LinearLayout) v("storiesBar"),
-                            (LinearLayout) v("hdrStories"), it -> { if (it.me) startStoryPublish(); /* عرض قصص الآخرين: لاحقاً */ });
+                            (LinearLayout) v("hdrStories"), it -> {
+                                if (it.me && !it.ring) startStoryPublish();                 // myStoryClick: لا قصة نشطة = نشر
+                                else openStory(it.uid, it.me ? "قصتي" : it.name, it.letter, it.photo, it.blue, it.av);
+                            });
                     ((StoriesHost) v("homeView")).setController(stories);
                     buildStories();
                 } catch (Throwable ignored) { }

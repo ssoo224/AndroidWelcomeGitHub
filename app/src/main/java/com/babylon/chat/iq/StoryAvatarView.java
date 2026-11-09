@@ -1,5 +1,6 @@
 package com.babylon.chat.iq;
 
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapShader;
@@ -14,6 +15,7 @@ import android.graphics.Shader;
 import android.graphics.SweepGradient;
 import android.graphics.Typeface;
 import android.view.View;
+import android.view.animation.LinearInterpolator;
 
 /**
  * .avatar في الـ HTML:
@@ -35,6 +37,15 @@ public class StoryAvatarView extends View {
     private int surface = 0xFF17212B;       // لون حدّ النقطة/علامة +
     private float plusAlpha = 1f;
     private boolean shadow = true;
+
+    /** توهّج الحلقة: box-shadow:0 0 7px rgba(212,160,23,.55) في .avatar.sring::after */
+    public static boolean GLOW = true;
+    /** مؤشر الفتح: .story-launch-loading — قوس ذهبي دوّار (conic-gradient) 2.15s linear infinite */
+    private static final int[] LAUNCH_COLORS = {0x00B98710, 0x00B98710, 0xFFB98710, 0xFFD4AF37, 0xFFFFE9A0, 0xFFD4AF37, 0x00D4AF37, 0x00D4AF37};
+    private static final float[] LAUNCH_POS = {0f, 205f / 360f, 225f / 360f, 255f / 360f, 285f / 360f, 320f / 360f, 340f / 360f, 1f};
+    private boolean launching;
+    private float spin;
+    private ValueAnimator spinAnim;
 
     private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint tp = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -62,6 +73,31 @@ public class StoryAvatarView extends View {
     public StoryAvatarView textSp(float sp) { this.textSp = sp; invalidate(); return this; }
     public StoryAvatarView shadow(boolean on) { this.shadow = on; invalidate(); return this; }
     public void setPlusAlpha(float a) { plusAlpha = a; invalidate(); }
+
+    /** يشغّل/يوقف القوس الدوّار فوق حلقة القصة (نفس .story-launch-loading في الـ HTML). */
+    public StoryAvatarView launching(boolean on) {
+        if (on == launching) return this;
+        launching = on;
+        if (on) startSpin(); else stopSpin();
+        invalidate();
+        return this;
+    }
+    public boolean isLaunching() { return launching; }
+
+    private void startSpin() {
+        stopSpin();
+        spinAnim = ValueAnimator.ofFloat(0f, 360f);
+        spinAnim.setDuration(2150);
+        spinAnim.setInterpolator(new LinearInterpolator());
+        spinAnim.setRepeatCount(ValueAnimator.INFINITE);
+        spinAnim.addUpdateListener(a -> { spin = (Float) a.getAnimatedValue(); invalidate(); });
+        spinAnim.start();
+    }
+    private void stopSpin() {
+        if (spinAnim != null) { spinAnim.removeAllUpdateListeners(); spinAnim.cancel(); spinAnim = null; }
+    }
+    @Override protected void onAttachedToWindow() { super.onAttachedToWindow(); if (launching && spinAnim == null) startSpin(); }
+    @Override protected void onDetachedFromWindow() { stopSpin(); super.onDetachedFromWindow(); }
 
     public void copyFrom(StoryAvatarView o) {
         letter = o.letter; photo = o.photo; blue = o.blue; ring = o.ring; seen = o.seen; plus = o.plus;
@@ -132,32 +168,49 @@ public class StoryAvatarView extends View {
             c.drawText(letter, cx, cy - (fm.ascent + fm.descent) / 2f, tp);
         }
 
-        // حلقة القصة
+        // حلقة القصة (.avatar.sring::after : inset:-5px; padding:3px)
         if (ring) {
             float outerR = R + dp(5), thick = dp(3), mid = outerR - thick / 2f;
-            if (false) { // تم إلغاء توهج الحلقة
-                float g = outerR + dp(7);
+            if (launching) {
+                // أثناء التحميل تُستبدل الحلقة بقوس دوّار فقط (بلا توهّج) — كما في الـ CSS
                 p.reset(); p.setAntiAlias(true);
-                p.setShader(new RadialGradient(cx, cy, g,
-                        new int[]{0x00D4A017, 0x00D4A017, 0x4DD4A017, 0x00D4A017},
-                        new float[]{0f, (outerR - dp(0.2f)) / g, (outerR + dp(0.2f)) / g, 1f}, Shader.TileMode.CLAMP));
-                c.drawCircle(cx, cy, g, p);
-            }
-            p.reset(); p.setAntiAlias(true);
-            p.setStyle(Paint.Style.STROKE);
-            p.setStrokeWidth(thick);
-            if (seen) {
-                p.setColor(0xFF4B5A6B);
-            } else {
-                SweepGradient sg = new SweepGradient(cx, cy,
-                        new int[]{0xFF8F6810, 0xFFE8D176, 0xFFB98B20, 0xFFE8D991, 0xFFB8860B, 0xFFE6C45B, 0xFF8F6810},
-                        new float[]{0f, .18f, .34f, .48f, .65f, .82f, 1f});
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(thick);
+                SweepGradient lg = new SweepGradient(cx, cy, LAUNCH_COLORS, LAUNCH_POS);
                 mx.reset();
-                mx.setRotate(-90, cx, cy);   // conic-gradient يبدأ من الأعلى
-                sg.setLocalMatrix(mx);
-                p.setShader(sg);
+                mx.setRotate(-90 + spin, cx, cy);   // conic من الأعلى + دوران الأنيميشن
+                lg.setLocalMatrix(mx);
+                p.setShader(lg);
+                c.drawCircle(cx, cy, mid, p);
+            } else {
+                if (GLOW) {   // box-shadow:0 0 7px rgba(212,160,23,.55) خارج حافة الحلقة فقط
+                    float g = outerR + dp(8);
+                    float e = 0.0005f;
+                    p.reset(); p.setAntiAlias(true);
+                    p.setShader(new RadialGradient(cx, cy, g,
+                            new int[]{0x00D4A017, 0x00D4A017, 0x46D4A017, 0x2BD4A017, 0x16D4A017, 0x09D4A017, 0x03D4A017, 0x00D4A017},
+                            new float[]{0f, outerR / g - e, outerR / g,
+                                    (outerR + dp(1.75f)) / g, (outerR + dp(3.5f)) / g,
+                                    (outerR + dp(5.25f)) / g, (outerR + dp(7f)) / g, 1f},
+                            Shader.TileMode.CLAMP));
+                    c.drawCircle(cx, cy, g, p);
+                }
+                p.reset(); p.setAntiAlias(true);
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(thick);
+                if (seen) {
+                    p.setColor(0xFF4B5A6B);
+                } else {
+                    SweepGradient sg = new SweepGradient(cx, cy,
+                            new int[]{0xFF8F6810, 0xFFE8D176, 0xFFB98B20, 0xFFE8D991, 0xFFB8860B, 0xFFE6C45B, 0xFF8F6810},
+                            new float[]{0f, .18f, .34f, .48f, .65f, .82f, 1f});
+                    mx.reset();
+                    mx.setRotate(-90, cx, cy);   // conic-gradient يبدأ من الأعلى
+                    sg.setLocalMatrix(mx);
+                    p.setShader(sg);
+                }
+                c.drawCircle(cx, cy, mid, p);
             }
-            c.drawCircle(cx, cy, mid, p);
         }
 
         // علامة + (قصتي بدون قصة)

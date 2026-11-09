@@ -46,6 +46,7 @@ public final class StoriesController {
         public String uid = "", name = "", letter = "?";
         public Bitmap photo;
         public boolean me, ring, seen, blue;
+        public StoryAvatarView av;      // أفاتار الخلية الحالي (لتشغيل القوس الدوّار عند الضغط)
     }
 
     public interface OnItem { void click(Item it); }
@@ -185,6 +186,7 @@ public final class StoriesController {
             StoryAvatarView av = new StoryAvatarView(act);
             av.set(it.letter, it.photo, it.blue).ring(it.ring, it.seen).plus(it.me && !it.ring)
               .theme(dark, cSurface()).textSp(20.8f).shadow(true);
+            it.av = av;
             cell.addView(av, new LinearLayout.LayoutParams(px(AV), px(AV)));
             TextView nm = new TextView(act);
             nm.setText(it.name);
