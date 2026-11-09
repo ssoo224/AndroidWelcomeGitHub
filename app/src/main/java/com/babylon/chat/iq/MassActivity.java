@@ -2195,7 +2195,7 @@ public class MassActivity extends Activity {
                     mid.addView(r1);
                     mid.addView(r2, r2p);
                     // RTL: الأفاتار أول عنصر (يمين)
-                    if (rowSel) {
+                    if (false) {
                         FrameLayout avf = new FrameLayout(act);
                         avf.setClipChildren(false);
                         avf.addView(av, new FrameLayout.LayoutParams(-1, -1));
@@ -2221,7 +2221,7 @@ public class MassActivity extends Activity {
                     });
                     list.addView(row);
                     style(row);
-                    if (rowSel) {   // .chat-item.cl-selected: خلفية ذهبية شفافة + إطار داخلي 1.5px
+                    if (rowSel) {   // التحديد: لون ذهبي شفاف + إطار ذهبي فقط (بلا علامة ✓)
                         GradientDrawable sg = new GradientDrawable();
                         sg.setColor(goldA(0x24)); sg.setCornerRadius(dp(18)); sg.setStroke(dp(1.5f), cGold());
                         row.setBackground(sg);

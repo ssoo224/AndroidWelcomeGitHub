@@ -255,7 +255,11 @@ public final class MsgViews {
     public static TextView sysPill(Activity a, String label) {
         TextView t = new TextView(a);
         t.setText(label);
-        t.setTextSize(13);
+        t.setTextSize(12.5f);                       // .sys-msg: font-size 12.5px
+        t.setLineSpacing(0f, 1.2f);                 // line-height 1.5 تقريباً
+        t.setGravity(Gravity.CENTER);               // text-align:center
+        t.setIncludeFontPadding(false);
+        t.setMaxWidth((int) (a.getResources().getDisplayMetrics().widthPixels * 0.88f));   // max-width:88%
         t.setTag("sysp");
         t.setPadding(dp(a, 13), dp(a, 5), dp(a, 13), dp(a, 5));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
@@ -355,9 +359,9 @@ public final class MsgViews {
                     c.drawRoundRect(x, (h - cur) / 2, x + bw, (h + cur) / 2, bw * 2, bw * 2, p);
                     continue;
                 }
-                boolean played = ((i - 1f) / (n - 1f)) <= progress;
-                p.setColor(played && progress > 0 ? gold : base);
-                p.setAlpha(played && progress > 0 ? 242 : 115);
+                // عند الإيقاف: موجة ثابتة بلون واحد (opacity .45) بلا تلوين حسب موضع التشغيل، مثل الـ HTML
+                p.setColor(base);
+                p.setAlpha(115);
                 c.drawRoundRect(x, (h - hh) / 2, x + bw, (h + hh) / 2, bw * 2, bw * 2, p);
             }
             if (anim) postInvalidateOnAnimation();
