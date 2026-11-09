@@ -85,6 +85,7 @@ public class MassActivity extends Activity {
     private ListenerRegistration pinsListener;                       // الرسائل المثبتة: chats/{id}.pins
     private java.util.function.BooleanSupplier backHook;             // زر الرجوع يلغي تحديد الرسائل أولاً
 
+    private StoryComposer storyComposer;                              // نشر قصة (StoryComposer.java)
     private java.util.function.Consumer<Uri> pendingImageCallback = null;
     private Runnable pendingMicCallback = null;
     private static final int REQ_PICK_IMAGE = 1001;
@@ -213,6 +214,7 @@ public class MassActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        try { if (storyComposer != null && storyComposer.onActivityResult(requestCode, resultCode, data)) return; } catch (Throwable ignored) { }
         if (requestCode == REQ_PICK_IMAGE && resultCode == RESULT_OK && data != null && data.getData() != null) {
             java.util.function.Consumer<Uri> cb = pendingImageCallback;
             pendingImageCallback = null;
@@ -2041,6 +2043,17 @@ public class MassActivity extends Activity {
                 if (a.get(java.util.Calendar.YEAR) == b.get(java.util.Calendar.YEAR) && a.get(java.util.Calendar.DAY_OF_YEAR) == b.get(java.util.Calendar.DAY_OF_YEAR))
                     return "أمس";
                 return new SimpleDateFormat("d/M/yyyy", new Locale("ar")).format(new Date(ts));
+            }
+
+            /** نشر قصة جديدة (مثل startStoryPublish في الـ HTML). */
+            void startStoryPublish() {
+                if (myUid == null || myUid.isEmpty()) return;
+                storyComposer = new StoryComposer(act, db, myUid, dark, until -> {
+                    if (until > 0) myStoryUntil = until;
+                    try { refreshProfileRings(); } catch (Throwable ignored) { }
+                    try { buildStories(); } catch (Throwable ignored) { }
+                });
+                storyComposer.start();
             }
 
             void buildStories() {
@@ -4918,7 +4931,7 @@ public class MassActivity extends Activity {
                 try {
                     stories = new StoriesController(act, (FrameLayout) v("root"), (StoriesHost) v("homeView"), (ScrollView) v("vscroll39"),
                             (LinearLayout) v("topStories"), (HorizontalScrollView) v("storiesScroll"), (LinearLayout) v("storiesBar"),
-                            (LinearLayout) v("hdrStories"), it -> toast(it.me ? "نشر قصة جديدة" : "عرض قصة " + it.name));
+                            (LinearLayout) v("hdrStories"), it -> { if (it.me) startStoryPublish(); /* عرض قصص الآخرين: لاحقاً */ });
                     ((StoriesHost) v("homeView")).setController(stories);
                     buildStories();
                 } catch (Throwable ignored) { }
