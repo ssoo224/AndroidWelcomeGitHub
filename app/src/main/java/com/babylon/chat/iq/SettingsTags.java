@@ -20,6 +20,14 @@ final class SettingsTags {
             });
             return true;
         }
+        if (tag.equals("sxback")) {          // .sx-back : دائرة 38 ، خلفية rgba(255,255,255,.08) / #edf2f8 ولون الأيقونة #f5d76e / #52657a
+            android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+            g.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+            g.setColor(Tk.backBg(dark));
+            x.setBackground(g);
+            if (t != null) t.setTextColor(Tk.backFg(dark));
+            return true;
+        }
         if (tag.equals("sxcover")) {
             android.graphics.drawable.ShapeDrawable sd = new android.graphics.drawable.ShapeDrawable(new android.graphics.drawable.shapes.RectShape());
             sd.setShaderFactory(new android.graphics.drawable.ShapeDrawable.ShaderFactory() {

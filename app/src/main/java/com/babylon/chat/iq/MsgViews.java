@@ -227,14 +227,15 @@ public final class MsgViews {
                 : ("audio".equals(qKind) && "بصمة صوتية".equals(qText)) ? R.drawable.ic_rq_mic : 0;
         if (icoRes != 0) {
             android.graphics.drawable.Drawable ico = a.getResources().getDrawable(icoRes, null).mutate();
-            ico.setColorFilter(mine ? 0xFFFFFFFF : 0xFFC29D30, android.graphics.PorterDuff.Mode.SRC_IN);
+            ico.setColorFilter(mine ? (Tk.chatPal != null ? Tk.chatPal.textMine : 0xFFFFFFFF) : Tk.quoteBar(), android.graphics.PorterDuff.Mode.SRC_IN);
             q.setCompoundDrawablePadding(dp(a, 4));
             q.setCompoundDrawablesWithIntrinsicBounds(null, null, ico, null);
         }
         col.addView(q, new LinearLayout.LayoutParams(-1, -2));
         box.addView(col, new LinearLayout.LayoutParams(0, -2, 1f));
         View bar = new View(a);
-        bar.setBackgroundColor(0xFFC29D30);
+        bar.setTag(mine ? "rqbM" : "rqbO");
+        bar.setBackgroundColor(Tk.quoteBar());
         box.addView(bar, new LinearLayout.LayoutParams(dp(a, 3), -1));
         if (qId.length() > 0) {
             final String rid = qId;
@@ -276,19 +277,24 @@ public final class MsgViews {
         boolean flip;      // المستلمة: معكوسة (التقدم من اليسار)
         SeekListener listener;
         public TrackView(Context c, boolean mine) { super(c); this.mine = mine; }
+        boolean themed; int tFill, tTrack;
         public void setDark(boolean dk) { dark = dk; invalidate(); }
+        /** ثيم غير بابل: accent-color:var(--accent-chat) للتقدّم والمقبض، والمسار بلون نص الفقاعة الخافت */
+        public void setThemed(int fill, int track) { themed = true; tFill = fill; tTrack = track; invalidate(); }
+        public void clearThemed() { themed = false; invalidate(); }
         public void setProgress(float f) { progress = Math.max(0, Math.min(1, f)); invalidate(); }
         @Override protected void onDraw(Canvas c) {
             float dens = d(getContext());
             float w = getWidth(), h = getHeight(), cy = h / 2f, th = 3 * dens, r = 6 * dens;
             float left = r, right = w - r;
             p.setStyle(Paint.Style.FILL);
-            p.setColor(mine ? 0x66FFFFFF : (dark ? 0x30FFFFFF : 0xFFDCE4EE));
+            p.setColor(themed ? tTrack : (mine ? 0x66FFFFFF : (dark ? 0x30FFFFFF : 0xFFDCE4EE)));
             c.drawRoundRect(left, cy - th / 2, right, cy + th / 2, th, th, p);
             // المرسلة: يبدأ التقدم من اليمين، المستلمة: من اليسار (معكوسة تماماً)
             float x = flip ? left + (right - left) * progress : right - (right - left) * progress;
-            p.setColor(mine ? 0xFFFFFFFF : 0xFFC29D30);
+            p.setColor(themed ? tFill : (mine ? 0xFFFFFFFF : 0xFFC29D30));
             c.drawRoundRect(flip ? left : x, cy - th / 2, flip ? x : right, cy + th / 2, th, th, p);
+            if (themed) { p.setColor(tFill); c.drawCircle(x, cy, r - 1 * dens, p); return; }   // مقبض accent-color صلب
             p.setColor(0xFFFFFFFF);
             c.drawCircle(x, cy, r, p);
             p.setColor(mine ? 0xFFA9791A : 0xFFB8861B);

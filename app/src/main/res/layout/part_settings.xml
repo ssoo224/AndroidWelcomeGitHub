@@ -1313,29 +1313,35 @@
 		android:orientation="vertical"
 		android:visibility="gone"
 		android:tag="bg">
+		<!-- .sx-top في الـ HTML: خلفية الصفحة، حشوة 11/16/5، زر رجوع دائري 38 (rgba(255,255,255,.08) / #edf2f8) وعنوان 20 -->
 		<LinearLayout
 			android:id="@+id/linear780"
 			android:layout_width="match_parent"
-			android:layout_height="60dp"
+			android:layout_height="wrap_content"
 			android:gravity="center_vertical"
 			android:orientation="horizontal"
-			android:tag="sf"
+			android:paddingStart="16dp"
+			android:paddingEnd="16dp"
+			android:paddingTop="11dp"
+			android:paddingBottom="5dp"
+			android:tag="bg"
 			android:elevation="0dp">
 			<TextView
 				android:id="@+id/chatSetBack"
-				android:layout_width="56dp"
-				android:layout_height="match_parent"
+				android:layout_width="38dp"
+				android:layout_height="38dp"
 				android:gravity="center"
 				android:text=""
 				android:drawableStart="@drawable/ic_arrow_back_24"
-				android:textSize="24sp"
-				android:tag="t" />
+				android:textSize="22sp"
+				android:tag="sxback" />
 			<TextView
 				android:id="@+id/textview809"
 				android:layout_width="wrap_content"
 				android:layout_height="wrap_content"
+				android:layout_marginStart="12dp"
 				android:text="إعدادات المحادثات"
-				android:textSize="18sp"
+				android:textSize="20sp"
 				android:textStyle="bold"
 				android:tag="t" />
 		</LinearLayout>

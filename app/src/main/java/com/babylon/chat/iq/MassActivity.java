@@ -357,6 +357,9 @@ public class MassActivity extends Activity {
             /** حقل الكتابة: #f1f5fa / rgba(127,140,160,.10) ، عند التركيز أبيض / .16 وحدّ #c9cfd8 / #8b94a1 ، انحناء 15 */
             GradientDrawable msgInpBg(boolean focus) {
                 GradientDrawable g = new GradientDrawable();
+                if (Tk.chatPal != null)   // الثيمات غير بابل: rgba(127,140,160,.16) / .24 عند التركيز
+                    g.setColor(focus ? 0x3D7F8CA0 : 0x297F8CA0);
+                else
                 g.setColor(focus ? (dark ? 0x297F8CA0 : 0xFFFFFFFF) : (dark ? 0x1A7F8CA0 : 0xFFF1F5FA));
                 g.setCornerRadius(dp(15));
                 g.setStroke(dp(1), focus ? (dark ? 0xFF8B94A1 : 0xFFC9CFD8) : 0x00000000);
@@ -433,7 +436,7 @@ public class MassActivity extends Activity {
                         }
                         else if (k.equals("msginp")) {
                             x.setBackground(msgInpBg(x.hasFocus()));
-                            if (T != null) { T.setTextColor(cText()); T.setHintTextColor(cMuted()); }
+                            if (T != null) { T.setTextColor(Tk.crInk(dark)); T.setHintTextColor(Tk.crMuted(dark)); }
                         }
                         else if (k.equals("gold")) {
                             boolean chip = x.getId() == R.id.fltAll || x.getId() == R.id.fltUnread;
@@ -936,6 +939,7 @@ public class MassActivity extends Activity {
                 try { buildThemeStrip(); } catch (Throwable ignored) { }
                 try { setNav(curPage); } catch (Throwable ignored) { }
                 try { buildStories(); buildChats(); } catch (Throwable ignored) { }
+                try { renderPinnedBar(); } catch (Throwable ignored) { }
                 polishProfile();
                 try { syncBars(); } catch (Throwable ignored) { }
             }
@@ -3170,7 +3174,7 @@ public class MassActivity extends Activity {
                 bar.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
                 bar.setGravity(Gravity.CENTER_VERTICAL);
                 bar.setPadding(dp(10), dp(6), dp(6), dp(6));
-                bar.setBackground(shape(cSf(), 18, cBorder()));
+                bar.setBackground(shape(Tk.crCard(dark, cSf()), 18, Tk.crLine(dark, cBorder())));   // .pinned-bar: --cr-card + --cr-line
                 LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(-1, -2);
                 blp.setMargins(dp(10), dp(2), dp(10), dp(6));
                 bar.setLayoutParams(blp);
@@ -3196,7 +3200,7 @@ public class MassActivity extends Activity {
                 col.addView(hd);
                 TextView tx = new TextView(act);
                 tx.setText(String.valueOf(p.get("text") == null ? "" : p.get("text")));
-                tx.setTextSize(13.5f); tx.setTextColor(cText()); tx.setAlpha(0.85f);
+                tx.setTextSize(13.5f); tx.setTextColor(Tk.crInk(dark)); tx.setAlpha(0.85f);
                 tx.setMaxLines(1); tx.setEllipsize(android.text.TextUtils.TruncateAt.END);
                 tx.setTypeface(null, android.graphics.Typeface.BOLD);
                 tx.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
@@ -4117,6 +4121,7 @@ public class MassActivity extends Activity {
                 if (chatPreview != null) chatPreview.apply(chatTheme, dark, fontSp, radius);
                 try { buildThemeStrip(); } catch (Throwable ignored) { }
                 style(v("chatView"));
+                try { renderPinnedBar(); } catch (Throwable ignored) { }
                 try { syncBars(); } catch (Throwable ignored) { }
             }
 

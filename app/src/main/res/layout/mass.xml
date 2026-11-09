@@ -457,6 +457,7 @@
 				android:layout_width="match_parent"
 				android:layout_height="wrap_content"
 				android:padding="10dp"
+				android:gravity="bottom"
 				android:orientation="vertical" />
 		</ScrollView>
 		<LinearLayout
@@ -484,7 +485,7 @@
 					android:drawableStart="@drawable/ic_arrow_left_24"
 					android:textSize="22sp"
 					android:elevation="0dp"
-					android:tag="rbtn t" />
+					android:tag="rbtn" />
 				<LinearLayout
 					android:id="@+id/chatUserInfo"
 					android:layout_width="0dp"
@@ -540,7 +541,7 @@
 					android:drawableStart="@drawable/ic_more_22"
 					android:textSize="22sp"
 					android:elevation="0dp"
-					android:tag="rbtn t" />
+					android:tag="rbtn" />
 			</LinearLayout>
 			<LinearLayout
 				android:id="@+id/chatSearchPanel"
@@ -830,7 +831,8 @@
 					android:inputType="textMultiLine|textCapSentences"
 					android:minHeight="45dp"
 					android:maxHeight="137dp"
-					android:gravity="center_vertical|left"
+					android:gravity="center_vertical|start"
+					android:textDirection="firstStrong"
 					android:textAlignment="gravity"
 					android:paddingStart="12dp"
 					android:paddingEnd="12dp"
