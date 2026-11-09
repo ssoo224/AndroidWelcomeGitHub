@@ -238,7 +238,11 @@ public final class MsgMenu {
         // ---- شريط التفاعلات
         final LinearLayout bar = new LinearLayout(act);
         bar.setOrientation(LinearLayout.VERTICAL);
-        bar.setBackground(card(act, dark, 14));
+        GradientDrawable barBg = new GradientDrawable();
+        barBg.setColor(dark ? 0xFF2B3B4F : 0xFFFFFFFF);
+        barBg.setCornerRadius(dp(act, 14));
+        barBg.setStroke(dp(act, 1.5f), dark ? 0x80FFFFFF : 0xFFB9C6D6);
+        bar.setBackground(barBg);
         bar.setPadding(dp(act, 6), dp(act, 4), dp(act, 6), dp(act, 4));
 
         LinearLayout top = new LinearLayout(act);
@@ -251,16 +255,16 @@ public final class MsgMenu {
         plus.setPadding(dp(act, 6.5f), dp(act, 6.5f), dp(act, 6.5f), dp(act, 6.5f));
         GradientDrawable pbg = new GradientDrawable(); pbg.setShape(GradientDrawable.OVAL); pbg.setColor(0x29808080);
         plus.setBackground(pbg);
-        top.addView(plus, new LinearLayout.LayoutParams(dp(act, 28), dp(act, 28)));
+        top.addView(plus, new LinearLayout.LayoutParams(dp(act, 30), dp(act, 30)));
 
         LinearLayout quick = new LinearLayout(act);
         quick.setOrientation(LinearLayout.HORIZONTAL);
         quick.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
         quick.setGravity(Gravity.CENTER_VERTICAL);
         for (final String e : QUICK) {
-            TextView t = emojiCell(act, e, 32, 20);
+            TextView t = emojiCell(act, e, 34, 23);
             t.setOnClickListener(v -> { dismiss(); cb.react(e); });
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(act, 32), 1f);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(act, 34), 1f);
             quick.addView(t, lp);
         }
         LinearLayout.LayoutParams ql = new LinearLayout.LayoutParams(0, -2, 1f);
@@ -284,12 +288,12 @@ public final class MsgMenu {
                 row = new LinearLayout(act);
                 row.setOrientation(LinearLayout.HORIZONTAL);
                 row.setGravity(Gravity.CENTER_HORIZONTAL);
-                grid.addView(row, new LinearLayout.LayoutParams(-1, dp(act, 36)));
+                grid.addView(row, new LinearLayout.LayoutParams(-1, dp(act, 34)));
             }
             final String e = ALL[i];
-            TextView t = emojiCell(act, e, 36, 22);
+            TextView t = emojiCell(act, e, 34, 23);
             t.setOnClickListener(v -> { dismiss(); cb.react(e); });
-            row.addView(t, new LinearLayout.LayoutParams(dp(act, 36), dp(act, 36)));
+            row.addView(t, new LinearLayout.LayoutParams(dp(act, 34), dp(act, 34)));
             cells.add(t);
         }
         gridScroll.addView(grid, new FrameLayout.LayoutParams(-1, -2));
@@ -432,30 +436,30 @@ public final class MsgMenu {
         pill.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
         pill.setGravity(Gravity.CENTER_VERTICAL);
         pill.setClickable(true);
-        pill.setPadding(dp(act, 8), dp(act, 5), dp(act, 8), dp(act, 5));
+        pill.setPadding(dp(act, 6), dp(act, 4), dp(act, 6), dp(act, 4));
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(dark ? 0xFF2B3B4F : 0xFFFFFFFF);          // خلفية أوضح عن خلفية المحادثة
-        bg.setCornerRadius(dp(act, 28));
+        bg.setCornerRadius(dp(act, 24));
         bg.setStroke(dp(act, 1.5f), dark ? 0x80FFFFFF : 0xFFB9C6D6);   // حدّ واضح بدل الخافت
         pill.setBackground(bg);
-        pill.setElevation(dp(act, 12));                        // ظل يفصلها عن الرسائل خلفها
+        pill.setElevation(0f);                        // ظل يفصلها عن الرسائل خلفها
         for (final String e : QUICK) {
             TextView t = new TextView(act);
-            t.setText(e); t.setTextSize(28); t.setGravity(Gravity.CENTER); t.setIncludeFontPadding(false);
+            t.setText(e); t.setTextSize(23); t.setGravity(Gravity.CENTER); t.setIncludeFontPadding(false);
             t.setTextColor(dark ? 0xFFFFFFFF : 0xFF17212B);
             if (e.equals(myReaction)) { GradientDrawable on = new GradientDrawable(); on.setShape(GradientDrawable.OVAL); on.setColor(0x80D4AF37); t.setBackground(on); }
             pressScale(t);
             t.setOnClickListener(v -> { dismiss(); cb.react(e); });
-            pill.addView(t, new LinearLayout.LayoutParams(dp(act, 42), dp(act, 42)));
+            pill.addView(t, new LinearLayout.LayoutParams(dp(act, 34), dp(act, 34)));
         }
         ImageView plus = new ImageView(act);
         plus.setImageResource(R.drawable.ic_mm_plus);
         plus.setColorFilter(dark ? 0xFFFFFFFF : 0xFF17212B);
-        plus.setPadding(dp(act, 9), dp(act, 9), dp(act, 9), dp(act, 9));
+        plus.setPadding(dp(act, 7), dp(act, 7), dp(act, 7), dp(act, 7));
         GradientDrawable pb = new GradientDrawable(); pb.setShape(GradientDrawable.OVAL); pb.setColor(dark ? 0x66A5B4C8 : 0x4D7F8CA0);
         plus.setBackground(pb);
         plus.setOnClickListener(v -> { dismiss(); onMore.run(); });
-        LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(dp(act, 38), dp(act, 38));
+        LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(dp(act, 30), dp(act, 30));
         pl.setMarginStart(dp(act, 2));
         pill.addView(plus, pl);
 

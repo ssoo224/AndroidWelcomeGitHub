@@ -77,15 +77,10 @@ public final class Tk {
         return ld;
     }
 
-    /** .telegram-avatar : دائرة ذهبية + حلقة سطح 2dp + حلقة ذهبية 2dp. */
+    /** أفاتار رأس المحادثة: دائرة ذهبية بحجم الصورة كاملاً (بدون حلقات ذهبية/سطح حولها). */
     public static android.graphics.drawable.Drawable chatAvatar(View v, boolean dark) {
-        GradientDrawable outer = new GradientDrawable(); outer.setShape(GradientDrawable.OVAL); outer.setColor(0xA6D4AF37);
-        GradientDrawable mid = new GradientDrawable(); mid.setShape(GradientDrawable.OVAL); mid.setColor(dark ? 0xFF1E2A38 : 0xFFFFFFFF);
         GradientDrawable in = new GradientDrawable(); in.setShape(GradientDrawable.OVAL); in.setColor(dark ? 0xFFE4C45B : 0xFF9B7410);
-        android.graphics.drawable.LayerDrawable ld = new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[]{outer, mid, in});
-        ld.setLayerInset(1, dpi(v, 2), dpi(v, 2), dpi(v, 2), dpi(v, 2));
-        ld.setLayerInset(2, dpi(v, 4), dpi(v, 4), dpi(v, 4), dpi(v, 4));
-        return ld;
+        return in;
     }
 
     public static int parse(String hex) { return Color.parseColor(hex); }
@@ -140,14 +135,14 @@ public final class Tk {
         c.scale(d, d);
         android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
         p.setStyle(android.graphics.Paint.Style.STROKE);
-        p.setStrokeWidth(1.5f);
+        p.setStrokeWidth(2.3f);
         p.setStrokeCap(android.graphics.Paint.Cap.ROUND);
         p.setStrokeJoin(android.graphics.Paint.Join.ROUND);
-        p.setColor(dark ? 0x12E4C45B : 0x16B8861B);
+        p.setColor(dark ? 0x66E4C45B : 0x66B8861B);   // أوضح (كانت شبه شفافة)
         final float[] rot = {-18, 24, 9, -31, 14, -7, 33, -22, 5};
         final float[] jx = {6, -10, 14, -4, 9, -12, 3, 12, -8};
         final float[] jy = {-8, 5, -3, 12, -10, 7, -12, 2, 9};
-        final float sc = 0.42f;
+        final float sc = 0.45f;   // الرموز أكبر قليلاً (~1px)
         for (int i = 0; i < n * n; i++) {
             int cx = (i % n) * cell, cy = (i / n) * cell;
             c.save();
@@ -205,7 +200,7 @@ public final class Tk {
         // ---- شريط الرد أعلى حقل الكتابة (.reply-preview-bar في الـ HTML)
         if (tag.equals("rpBar")) {      // بطاقة عائمة: radius 22، حدّ 1px، خلفية --cr-card، ظل خفيف (reply-bar-rounder)
             x.setBackground(shape(dark ? 0xFF1E2A38 : 0xFFFFFFFF, dp(x, 22), dark ? 0x14FFFFFF : 0xFFDCE4EE, dp(x, 1)));
-            x.setElevation(dp(x, 4));
+            x.setElevation(0f);
             return true;
         }
         if (tag.equals("rpContent")) {  // بلا حقل داخلي: يبقى الخط الذهبي فقط

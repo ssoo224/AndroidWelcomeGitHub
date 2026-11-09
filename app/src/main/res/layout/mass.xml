@@ -16,6 +16,7 @@
 		android:tag="bg">
 		<LinearLayout
 			android:id="@+id/mainHeader"
+			android:layoutDirection="ltr"
 			android:layout_width="match_parent"
 			android:layout_height="62dp"
 			android:clipChildren="false"
@@ -25,14 +26,15 @@
 			android:paddingEnd="16dp"
 			android:tag="bg">
 			<TextView
-				android:id="@+id/textview621"
-				android:layout_width="0dp"
-				android:layout_height="wrap_content"
-				android:text="Babylon Chat"
-				android:textSize="23sp"
-				android:textStyle="bold"
-				android:layout_weight="1"
-				android:tag="g" />
+				android:id="@+id/mainSearchBtn"
+				android:layout_width="42dp"
+				android:layout_height="42dp"
+				android:gravity="center_horizontal|center_vertical"
+				android:text=""
+				android:drawableStart="@drawable/ic_search_22"
+				android:textSize="19sp"
+				android:elevation="0dp"
+				android:tag="card t" />
 			<LinearLayout
 				android:id="@+id/hdrStories"
 				android:layout_width="wrap_content"
@@ -44,16 +46,16 @@
 				android:focusable="true"
 				android:contentDescription="القصص" />
 			<TextView
-				android:id="@+id/mainSearchBtn"
-				android:layout_width="42dp"
-				android:layout_height="42dp"
-				android:gravity="center_horizontal|center_vertical"
-				android:text=""
-				android:drawableStart="@drawable/ic_search_22"
-				android:textSize="19sp"
-				android:layout_marginStart="8dp"
-				android:elevation="0dp"
-				android:tag="card t" />
+				android:id="@+id/textview621"
+				android:layout_width="0dp"
+				android:layout_height="wrap_content"
+				android:text="Babylon Chat"
+				android:textSize="23sp"
+				android:textStyle="bold"
+				android:layout_weight="1"
+				android:gravity="right|center_vertical"
+				android:textAlignment="gravity"
+				android:tag="g" />
 		</LinearLayout>
 		<FrameLayout
 			android:id="@+id/pagesHost"

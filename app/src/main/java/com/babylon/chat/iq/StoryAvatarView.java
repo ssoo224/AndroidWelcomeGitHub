@@ -72,6 +72,7 @@ public class StoryAvatarView extends View {
     // ------------------------------------------------------------ نغمة الحساب (نفس toneOf في الـ HTML)
     /** FNV-1a ثم خلط؛ البت السابع يحدّد أزرق/ذهبي. */
     public static boolean toneBlue(String id) {
+        if (true) return false;   // الجميع ذهبي متدرج (لا أزرق)
         if (id == null || id.isEmpty()) return false;
         int h = (int) 2166136261L;
         for (int i = 0; i < id.length(); i++) h = (h ^ id.charAt(i)) * 16777619;
@@ -100,7 +101,7 @@ public class StoryAvatarView extends View {
         int toneShadow = blue ? 0x471F63D8 : 0x47B8861B;   // rgba(.., .28)
 
         // الظل الناعم: 0 3px 10px
-        if (shadow) {
+        if (false) { // تم إلغاء الظل
             float cyS = cy + dp(3), outer = R + dp(9);
             p.reset(); p.setAntiAlias(true);
             p.setShader(new RadialGradient(cx, cyS, outer,
@@ -134,7 +135,7 @@ public class StoryAvatarView extends View {
         // حلقة القصة
         if (ring) {
             float outerR = R + dp(5), thick = dp(3), mid = outerR - thick / 2f;
-            if (!seen) {
+            if (false) { // تم إلغاء توهج الحلقة
                 float g = outerR + dp(7);
                 p.reset(); p.setAntiAlias(true);
                 p.setShader(new RadialGradient(cx, cy, g,
@@ -165,10 +166,6 @@ public class StoryAvatarView extends View {
             float pcx = cx + R + dp(3) - pr, pcy = cy + R + dp(3) - pr;
             int a = Math.round(255 * plusAlpha);
             // ظل
-            p.reset(); p.setAntiAlias(true);
-            int sh = dark ? 0x3D000000 : 0x66B8861B;
-            p.setColor((sh & 0x00FFFFFF) | ((((sh >>> 24) * a) / 255) << 24));
-            c.drawCircle(pcx, pcy + dp(1), pr + dp(1.5f), p);
             // الحدّ
             p.reset(); p.setAntiAlias(true);
             p.setColor((surface & 0x00FFFFFF) | (a << 24));

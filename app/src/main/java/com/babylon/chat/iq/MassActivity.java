@@ -661,7 +661,7 @@ public class MassActivity extends Activity {
                 name.setTextSize(11);
                 name.setTypeface(null, android.graphics.Typeface.BOLD);
                 name.setGravity(Gravity.CENTER);
-                name.setShadowLayer(dp(3), 0, dp(1), 0x99000000);
+                name.setShadowLayer(0, 0, 0, 0);
                 FrameLayout.LayoutParams nlp = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM);
                 nlp.bottomMargin = bw + dp(4);
                 cell.addView(name, nlp);
@@ -988,7 +988,7 @@ public class MassActivity extends Activity {
                     boolean inChat = chatOpen();
                     applyInsets();
                     int top, bottom;
-                    if (inChat) { bars.syncChat(Tk.chatSurface(dark)); return; }   // HTML: شريط الحالة شفاف (الزجاج خلفه) + شريط الإيماءات بلون خلفية المحادثة الصلب
+                    if (inChat) { bars.syncChat(blkBanner != null ? cSf() : Tk.chatSurface(dark)); return; }   // HTML: شريط الحالة شفاف (الزجاج خلفه) + شريط الإيماءات بلون خلفية المحادثة الصلب
                     else {
                         top = cBg();
                         boolean nav = v("bottomNav") != null && v("bottomNav").getVisibility() == View.VISIBLE;
@@ -1342,6 +1342,7 @@ public class MassActivity extends Activity {
                     }
                     TextView cs = tv("chatSub");
                     if (cs != null && blockedByThem && !on) cs.setText("آخر ظهور كان منذ زمن طويل");
+                    syncBars();
                 } catch (Throwable ignored) { }
             }
 
@@ -1355,7 +1356,6 @@ public class MassActivity extends Activity {
                 GradientDrawable bg = new GradientDrawable();
                 bg.setColor(cSf());
                 bg.setCornerRadii(new float[]{r, r, r, r, 0, 0, 0, 0});
-                bg.setStroke(dp(1), dark ? 0x61F87171 : 0x47DC2626);
                 box.setBackground(bg);
                 box.setClickable(true);
 
@@ -1396,16 +1396,24 @@ public class MassActivity extends Activity {
                 top.addView(info, li);
                 box.addView(top, new LinearLayout.LayoutParams(-2, -2));
 
-                TextView btn = new TextView(act);
-                btn.setText("إلغاء الحظر");
-                btn.setTextSize(14.5f);
-                btn.setTypeface(null, android.graphics.Typeface.BOLD);
-                int fg = dark ? 0xFFFCA5A5 : 0xFFDC2626;
-                btn.setTextColor(fg);
+                LinearLayout btn = new LinearLayout(act);
+                btn.setOrientation(LinearLayout.HORIZONTAL);
+                btn.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
                 btn.setGravity(Gravity.CENTER);
-                btn.setCompoundDrawablePadding(dp(8));
-                android.graphics.drawable.Drawable ul = dr(R.drawable.ic_unlock_19, 19, fg);
-                btn.setCompoundDrawablesRelative(ul, null, null, null);
+                int fg = dark ? 0xFFFCA5A5 : 0xFFDC2626;
+                ImageView ulIv = new ImageView(act);
+                ulIv.setImageDrawable(dr(R.drawable.ic_unlock_19, 19, fg));
+                ulIv.setScaleType(ImageView.ScaleType.FIT_CENTER);
+                btn.addView(ulIv, new LinearLayout.LayoutParams(dp(19), dp(19)));
+                TextView btnTxt = new TextView(act);
+                btnTxt.setText("إلغاء الحظر");
+                btnTxt.setTextSize(14.5f);
+                btnTxt.setTypeface(null, android.graphics.Typeface.BOLD);
+                btnTxt.setTextColor(fg);
+                btnTxt.setGravity(Gravity.CENTER);
+                LinearLayout.LayoutParams ltx = new LinearLayout.LayoutParams(-2, -2);
+                ltx.setMarginStart(dp(8));
+                btn.addView(btnTxt, ltx);
                 GradientDrawable bb = new GradientDrawable();
                 bb.setColor(dark ? 0x24DC2626 : 0xFFFFFFFF);
                 bb.setCornerRadius(dp(14));
@@ -1521,7 +1529,7 @@ public class MassActivity extends Activity {
                 bg.setCornerRadius(dp(16));
                 bg.setStroke(dp(1), cardStroke);
                 card.setBackground(bg);
-                card.setElevation(dp(8));
+                card.setElevation(0f);
 
                 if (!has) {
                     View add = menuItem(R.drawable.ic_user_add_20, "إضافة لجهات الدردشة", txt);
@@ -2037,7 +2045,7 @@ public class MassActivity extends Activity {
                     row.setTag("row");
                     row.setClipChildren(false);
                     row.setMinimumHeight(dp(70.8f));
-                    row.setElevation(dp(2));
+                    row.setElevation(0f);
                     LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2);
                     rp.bottomMargin = dp(7);
                     row.setLayoutParams(rp);
@@ -2175,11 +2183,51 @@ public class MassActivity extends Activity {
                 checkBlockedByThem(uid);
             }
 
+            long chatStick = 0L;
+            boolean stickInstalled = false;
+
+            /** يُظهر المحادثة عند آخر رسالة مباشرة (بدون وميض البداية): المحتوى مخفي حتى يكتمل أول رسم ثم يُنزَّل للأسفل. */
+            void revealChatBottom() {
+                final View ms = v("messagesScroll"), area = v("messagesArea");
+                if (!(ms instanceof ScrollView) || area == null) return;
+                chatStick = System.currentTimeMillis() + 900;
+                final android.view.ViewTreeObserver vto = ms.getViewTreeObserver();
+                vto.addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
+                    @Override public boolean onPreDraw() {
+                        android.view.ViewTreeObserver o = ms.getViewTreeObserver();
+                        if (o.isAlive()) o.removeOnPreDrawListener(this);
+                        View c0 = ((ScrollView) ms).getChildAt(0);
+                        if (c0 != null) ((ScrollView) ms).scrollTo(0, Math.max(0, c0.getHeight() - ms.getHeight()));
+                        area.setAlpha(1f);
+                        return true;
+                    }
+                });
+                ms.invalidate();
+            }
+
             void loadMessages(String chatId) {
                 final boolean[] firstSnap = {true};
+                {   // أخفِ الرسائل حتى يكتمل التحميل الأول (لا وميض ولا قفزة من أول المحادثة)
+                    final View ms0 = v("messagesScroll"), area0 = v("messagesArea");
+                    if (area0 != null) area0.setAlpha(0f);
+                    if (!stickInstalled && area0 != null && ms0 instanceof ScrollView) {
+                        stickInstalled = true;
+                        area0.addOnLayoutChangeListener((vv, l, t, r, b, ol, ot, orr, ob) -> {
+                            if (System.currentTimeMillis() < chatStick) {
+                                View c0 = ((ScrollView) ms0).getChildAt(0);
+                                if (c0 != null) ((ScrollView) ms0).scrollTo(0, Math.max(0, c0.getHeight() - ms0.getHeight()));
+                            }
+                        });
+                    }
+                    uiH.postDelayed(() -> { View a1 = v("messagesArea"); if (a1 != null && a1.getAlpha() < 1f) a1.animate().alpha(1f).setDuration(120).start(); }, 900);
+                }
+                MsgViews.replyJump = (bv, rid) -> {
+                    if (selecting) { toggleSel(bv); return; }
+                    jumpToMsg(rid);
+                };
                 messagesListener = db.collection("chats").document(chatId).collection("messages")
                     .orderBy("timestamp", Query.Direction.ASCENDING)
-                    .addSnapshotListener((snapshots, e) -> {
+                    .addSnapshotListener(com.google.firebase.firestore.MetadataChanges.INCLUDE, (snapshots, e) -> {
                         if (e != null || snapshots == null) return;
                         final boolean liveBatch = !firstSnap[0];
                         firstSnap[0] = false;
@@ -2213,7 +2261,9 @@ public class MassActivity extends Activity {
                                 if (text != null && rTo != null && rTo.length() > 0 && !text.startsWith("\u21A9 ")) {
                                     String rSid = doc.getString("replyToSenderId");
                                     String rNm = rSid == null || rSid.isEmpty() ? "" : replyOwner(rSid.equals(myUid));
-                                    text = "\u21A9 " + (rNm.isEmpty() ? "" : rNm + "\u0001") + rTo.replace('\n', ' ') + "\n" + text;
+                                    String rId = doc.getString("replyToId"), rTy = doc.getString("replyToType");
+                                    text = "\u21A9 " + (rNm.isEmpty() ? "" : rNm + "\u0001") + rTo.replace('\n', ' ').replace('\u0002', ' ')
+                                            + "\u0002" + (rId == null ? "" : rId) + "\u0002" + (rTy == null ? "" : rTy) + "\n" + text;
                                 }
                                 String url = doc.getString("data");
                                 if (url == null) url = doc.getString("url");
@@ -2257,6 +2307,7 @@ public class MassActivity extends Activity {
                                 } catch (Throwable ignored) { }
                             }
                         }
+                        if (!liveBatch) revealChatBottom();
                     });
             }
 

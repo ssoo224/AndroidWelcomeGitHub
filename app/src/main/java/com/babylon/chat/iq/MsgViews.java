@@ -28,6 +28,10 @@ public final class MsgViews {
 
     public static final int SENT = 0, READ = 1, WAIT = 2;
 
+    /** النقر على اقتباس الرد داخل الفقاعة: الرجوع للرسالة الأصلية (goToReplied في الـ HTML). */
+    public interface ReplyJump { void go(View bubble, String replyId); }
+    public static ReplyJump replyJump;
+
     private static float d(Context c) { return c.getResources().getDisplayMetrics().density; }
     private static int dp(Context c, float v) { return (int) (v * d(c) + 0.5f); }
 
@@ -39,7 +43,7 @@ public final class MsgViews {
         private final float dens;
 
         public TickDrawable(Context c, int state, int style, int color) {
-            this.state = (state == WAIT && style == 0) ? SENT : state; this.style = style;   // عند الإرسال ✓ واحدة (بلا ساعة)، وعند الرؤية ✓✓
+            this.state = state; this.style = style;   // ساعة انتظار حتى يصل للسيرفر، ثم ✓، ثم ✓✓ عند الرؤية
             this.dens = d(c);
             p.setStyle(Paint.Style.STROKE);
             p.setStrokeCap(Paint.Cap.ROUND);
@@ -185,9 +189,16 @@ public final class MsgViews {
         LinearLayout col = new LinearLayout(a);
         col.setOrientation(LinearLayout.VERTICAL);
         col.setPadding(dp(a, 9), dp(a, 5), dp(a, 9), dp(a, 5));
-        String qName = null, qText = quote;
+        String qName = null, qText = quote, qId = "", qKind = "";
         int sep = quote.indexOf('\u0001');
         if (sep >= 0) { qName = quote.substring(0, sep); qText = quote.substring(sep + 1); }
+        int s2 = qText.indexOf('\u0002');
+        if (s2 >= 0) {
+            String[] pr = qText.split("\u0002", -1);
+            qText = pr[0];
+            if (pr.length > 1) qId = pr[1];
+            if (pr.length > 2) qKind = pr[2];
+        }
         if (qName != null && qName.length() > 0) {      // .reply-quote-name: سطر الاسم فوق نص الاقتباس
             TextView qn = new TextView(a);
             qn.setText(qName);
@@ -210,11 +221,27 @@ public final class MsgViews {
         q.setGravity(Gravity.RIGHT);
         q.setTypeface(null, android.graphics.Typeface.BOLD);
         q.setTag(mine ? "rqtM" : "rqtO");
+        int icoRes = ("image".equals(qKind) && "صورة".equals(qText)) ? R.drawable.ic_rq_image
+                : ("audio".equals(qKind) && "بصمة صوتية".equals(qText)) ? R.drawable.ic_rq_mic : 0;
+        if (icoRes != 0) {
+            android.graphics.drawable.Drawable ico = a.getResources().getDrawable(icoRes, null).mutate();
+            ico.setColorFilter(mine ? 0xFFFFFFFF : 0xFFC29D30, android.graphics.PorterDuff.Mode.SRC_IN);
+            q.setCompoundDrawablePadding(dp(a, 4));
+            q.setCompoundDrawablesWithIntrinsicBounds(null, null, ico, null);
+        }
         col.addView(q, new LinearLayout.LayoutParams(-1, -2));
         box.addView(col, new LinearLayout.LayoutParams(0, -2, 1f));
         View bar = new View(a);
         bar.setBackgroundColor(0xFFC29D30);
         box.addView(bar, new LinearLayout.LayoutParams(dp(a, 3), -1));
+        if (qId.length() > 0) {
+            final String rid = qId;
+            box.setClickable(true);
+            box.setOnClickListener(v -> {
+                if (replyJump != null && v.getParent() instanceof View) replyJump.go((View) v.getParent(), rid);
+            });
+            box.setOnLongClickListener(v -> v.getParent() instanceof View && ((View) v.getParent()).performLongClick());
+        }
         return box;
     }
 

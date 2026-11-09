@@ -171,7 +171,7 @@ final class SearchPage {
             }
         });
         top.setClipToOutline(false);
-        top.setElevation(dp(8));
+        top.setElevation(0f);
 
         BabylonFx.press(backBtn, 0.92f);
         clearBtn.setOnClickListener(x -> {
@@ -391,7 +391,7 @@ final class SearchPage {
         final View dot = new View(act);
         GradientDrawable halo = new GradientDrawable();
         halo.setShape(GradientDrawable.OVAL);
-        halo.setColor(0x1FD4AF37);                              // box-shadow 0 0 0 5px rgba(212,175,55,.12)
+        halo.setColor(0x00D4AF37);                              // box-shadow 0 0 0 5px rgba(212,175,55,.12)
         GradientDrawable core = new GradientDrawable();
         core.setShape(GradientDrawable.OVAL);
         core.setColor(0xFFD4AF37);
@@ -441,7 +441,7 @@ final class SearchPage {
         row.setPadding(dp(14), dp(11), dp(14), dp(11));
         row.setMinimumHeight(dp(74));
         row.setBackground(cardBg(false));
-        row.setElevation(dp(2));
+        row.setElevation(0f);
         row.setClickable(true);
         BabylonFx.press(row, 0.975f);
 
@@ -713,6 +713,7 @@ final class SearchPage {
     // ------------------------------------------------------------------ الأفاتار
     /** toneOf(u) في الـ HTML: عائلة لون ثابتة لكل حساب من معرّفه (FNV + خلط). */
     private static boolean toneBlue(String id) {
+        if (true) return false;   // الجميع ذهبي متدرج (لا أزرق)
         if (id == null || id.isEmpty()) return false;
         int h = (int) 2166136261L;
         for (int i = 0; i < id.length(); i++) h = (h ^ id.charAt(i)) * 16777619;

@@ -173,13 +173,13 @@ public final class ProfileHero implements PullScrollView.Controller {
         heroName.setTextColor(0xFFFFFFFF);
         heroName.setTextSize(24);
         heroName.setTypeface(null, android.graphics.Typeface.BOLD);
-        heroName.setShadowLayer(6 * d, 0, d, 0x8C000000);
+        heroName.setShadowLayer(0, 0, 0, 0);
         heroName.setTextDirection(View.TEXT_DIRECTION_LTR);
         heroStatus = new TextView(act);
         heroStatus.setTextColor(0xFFFFFFFF);
         heroStatus.setTextSize(13.5f);
         heroStatus.setTypeface(null, android.graphics.Typeface.BOLD);
-        heroStatus.setShadowLayer(4 * d, 0, d, 0x80000000);
+        heroStatus.setShadowLayer(0, 0, 0, 0);
         heroStatus.setPadding(0, (int) (3 * d), 0, 0);
         heroStatus.setTextDirection(View.TEXT_DIRECTION_LTR);
         heroStatus.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
