@@ -45,6 +45,8 @@ public final class Tk {
     public static int crInk(int fallback) { return chatPal != null ? chatPal.textOther : fallback; }
     /** --cr-muted داخل المحادثة */
     public static int crMuted(int fallback) { return chatPal != null ? chatPal.metaOther : fallback; }
+    /** تدرّج أزرار الإرسال/التسجيل: لون فقاعتي في الثيم (بابل: الذهبي الأصلي) */
+    public static int[] accentPair(int from, int to) { return chatPal != null ? new int[]{chatPal.mineFrom, chatPal.mineTo} : new int[]{from, to}; }
     public static int surface2(boolean d){ return d ? 0xFF1D2A38 : 0xFFE8EDF4; }
     public static int border(boolean d)  { return d ? 0x14FFFFFF : 0xFFE3E9F1; }
     public static int text(boolean d)    { return d ? 0xFFF1F5F9 : 0xFF17212B; }
@@ -223,7 +225,7 @@ public final class Tk {
         if (tag.equals("rqtO")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.accent : 0xFFC29D30); return true; }   // HTML: لون .reply-quote في رسائل الطرف الآخر = ذهبي accent-chat
         // ---- شريط الرد أعلى حقل الكتابة (.reply-preview-bar في الـ HTML)
         if (tag.equals("rpBar")) {      // بطاقة عائمة: radius 22، حدّ 1px، خلفية --cr-card، ظل خفيف (reply-bar-rounder)
-            x.setBackground(shape(crCard(dark ? 0xFF1E2A38 : 0xFFFFFFFF), dp(x, 22), crLine(dark ? 0x14FFFFFF : 0xFFDCE4EE), dp(x, 1)));
+            x.setBackground(shape(dark ? 0xFF1E2A38 : 0xFFFFFFFF, dp(x, 22), dark ? 0x14FFFFFF : 0xFFDCE4EE, dp(x, 1)));   // خارج الثيم
             x.setElevation(0f);
             return true;
         }
@@ -231,20 +233,20 @@ public final class Tk {
             x.setBackground(null);
             return true;
         }
-        if (tag.equals("rpGold")) { x.setBackgroundColor(chatPal != null ? chatPal.accent : (dark ? 0xFFC9A45C : 0xFFB58B2A)); return true; }
+        if (tag.equals("rpGold")) { x.setBackgroundColor(dark ? 0xFFC9A45C : 0xFFB58B2A); return true; }
         if (tag.equals("rpLabel")) {
             if (t != null) {
-                int c = chatPal != null ? chatPal.accent : (dark ? 0xFFE4C45B : 0xFF8A6818);
+                int c = dark ? 0xFFE4C45B : 0xFF8A6818;
                 t.setTextColor(c);
                 for (android.graphics.drawable.Drawable d : t.getCompoundDrawablesRelative())
                     if (d != null) d.mutate().setColorFilter(c, android.graphics.PorterDuff.Mode.SRC_IN);
             }
             return true;
         }
-        if (tag.equals("rpMsg")) { if (t != null) t.setTextColor(crInk(dark ? 0xFFF1F5F9 : 0xFF17212B)); return true; }
+        if (tag.equals("rpMsg")) { if (t != null) t.setTextColor(dark ? 0xFFF1F5F9 : 0xFF17212B); return true; }
         if (tag.equals("rpCancel")) {
-            int c = crMuted(dark ? 0xFFA5B2C2 : 0xFF64748B);
-            x.setBackground(shape(0x00000000, dp(x, 15), crLine(dark ? 0x14FFFFFF : 0xFFDBE2EA), dp(x, 1)));
+            int c = dark ? 0xFFA5B2C2 : 0xFF64748B;
+            x.setBackground(shape(0x00000000, dp(x, 15), dark ? 0x14FFFFFF : 0xFFDBE2EA, dp(x, 1)));
             if (t != null) {
                 t.setTextColor(c);
                 for (android.graphics.drawable.Drawable d : t.getCompoundDrawablesRelative())
@@ -256,34 +258,29 @@ public final class Tk {
         if (tag.equals("vtTO")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.textOther : (dark ? 0xFFFFFFFF : 0xFFB8861B)); return true; }   // في المستلمة: ذهبي في النهاري فقط، أبيض في الليلي
         if (tag.equals("vtM")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.textMine : 0xFF292216); return true; }
         if (tag.equals("vtO")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.metaOther : text(dark)); return true; }
-        if (tag.equals("vkM") || tag.equals("vkO")) { if (x instanceof MsgViews.TrackView) { ((MsgViews.TrackView) x).setDark(dark); ((MsgViews.TrackView) x).setAccent(chatPal != null ? chatPal.accent : 0); } return true; }   // ثيم: .voice-progress{accent-color:--accent-chat}
+        if (tag.equals("vkM") || tag.equals("vkO")) { if (x instanceof MsgViews.TrackView) { ((MsgViews.TrackView) x).setDark(dark); ((MsgViews.TrackView) x).setAccent(0); } return true; }   // شريط التقدم لا يتبع الثيم: يبقى كما في الـ HTML (أبيض في رسائلي)
         if (tag.equals("wvM") || tag.equals("wvO")) {
-            if (x instanceof MsgViews.WaveView && chatPal != null)   // ثيم: .is-playing .voice-wave i = --accent-chat
-                ((MsgViews.WaveView) x).setColors(tag.equals("wvM") ? chatPal.textMine : chatPal.textOther, chatPal.accent, chatPal.accent);
-            else if (x instanceof MsgViews.WaveView)
-                ((MsgViews.WaveView) x).setColors(tag.equals("wvM") ? 0xFF292216 : text(dark), tag.equals("wvM") ? 0xFFFFFFFF : 0xFFC29D30,
-                        (tag.equals("wvM") || dark) ? 0xFFFFFFFF : 0xFFC29D30);   // أبيض عند التشغيل (في الفاتح وفقاعة المستلم: ذهبي كي لا يختفي على الأبيض)
+            if (x instanceof MsgViews.WaveView) {   // الأعمدة الساكنة تتبع نص الفقاعة؛ لون التشغيل أصلي (لا يتبع الثيم)
+                boolean wm = tag.equals("wvM");
+                int base = chatPal != null ? (wm ? chatPal.textMine : chatPal.textOther) : (wm ? 0xFF292216 : text(dark));
+                ((MsgViews.WaveView) x).setColors(base, wm ? 0xFFFFFFFF : 0xFFC29D30,
+                        (wm || dark) ? 0xFFFFFFFF : 0xFFC29D30);   // أبيض عند التشغيل (في الفاتح وفقاعة المستلم: ذهبي كي لا يختفي على الأبيض)
+            }
             return true;
         }
         if (tag.equals("vpM") || tag.equals("vpO")) {
             float r = dp(x, 11);
-            if (chatPal != null) {          // ثيم: .voice-play-btn{background:--accent-chat; color:--chat-bg}
-                x.setBackground(shape(chatPal.accent, r, 0, 0));
-                if (x instanceof android.view.ViewGroup && ((android.view.ViewGroup) x).getChildCount() > 0) {
-                    View ic0 = ((android.view.ViewGroup) x).getChildAt(0);
-                    if (ic0 instanceof android.widget.ImageView) ((android.widget.ImageView) ic0).setColorFilter(chatPal.chatBg);
-                }
-                return true;
-            }
+            // خلفية الزر أصلية دائماً (أبيض في رسائلي / تدرّج ذهبي في المستلمة)
             if (tag.equals("vpM")) {
                 x.setBackground(shape(0xFFFFFFFF, r, 0, 0));
             } else {
                 x.setBackground(grad(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE8C85D, 0xFFC29D30}, r));
             }
+            // الثيم يُطبَّق على مثلث التشغيل فقط: .voice-play-btn{color:var(--bubble-mine)}
+            int tri = chatPal != null ? chatPal.mineFrom : (tag.equals("vpM") ? 0xFFA9791A : 0xFFFFFFFF);
             if (x instanceof android.view.ViewGroup && ((android.view.ViewGroup) x).getChildCount() > 0) {
                 View ic = ((android.view.ViewGroup) x).getChildAt(0);
-                if (ic instanceof android.widget.ImageView)
-                    ((android.widget.ImageView) ic).setColorFilter(tag.equals("vpM") ? 0xFFA9791A : 0xFFFFFFFF);
+                if (ic instanceof android.widget.ImageView) ((android.widget.ImageView) ic).setColorFilter(tri);
             }
             return true;
         }
@@ -316,7 +313,7 @@ public final class Tk {
         }
         if (tag.equals("composer")) {        // مدخل الرسائل العائم
             // #chatView #textInputBar : --cr-card (#1e2a38 / #fff) ، حدّ --cr-line ، انحناء 19px
-            x.setBackground(shape(crCard(dark ? 0xFF1C2836 : 0xFFFFFFFF), dp(x, 19), crLine(dark ? 0x14FFFFFF : 0xFFE1E8F1), dp(x, 1)));
+            x.setBackground(shape(dark ? 0xFF1C2836 : 0xFFFFFFFF, dp(x, 19), dark ? 0x14FFFFFF : 0xFFE1E8F1, dp(x, 1)));   // حقل الكتابة خارج الثيم
             return true;
         }
         if (tag.equals("recbar")) {          // .recording-bar : surface + حدّ ، انحناء 18
@@ -324,24 +321,24 @@ public final class Tk {
             return true;
         }
         if (tag.equals("recbtn")) {          // زر الإيقاف/الإرسال: دائرة 42 بتدرّج ذهبي 145deg وظل ذهبي
-            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE8C85D, 0xFFC29D30});
+            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, accentPair(0xFFE8C85D, 0xFFC29D30));
             g.setShape(GradientDrawable.OVAL);
             x.setBackground(g);
-            if (t != null) t.setTextColor(0xFFFFFFFF);
+            if (t != null) t.setTextColor(chatPal != null ? chatPal.textMine : 0xFFFFFFFF);
             return true;
         }
         if (tag.equals("recleft")) {         // .rec-left : عمود 38 بتدرّج ذهبي وانحناء 12
-            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE8C85D, 0xFFC29D30});
+            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, accentPair(0xFFE8C85D, 0xFFC29D30));
             g.setCornerRadius(dp(x, 12));
             x.setBackground(g);
             return true;
         }
         if (tag.equals("sendbtn")) {         // زر الإرسال: تدرّج ذهبي 145deg ، انحناء 15/15/7/15 ، سهم أبيض ، ظل ذهبي
-            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE9C957, 0xFFC59B24});
+            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, accentPair(0xFFE9C957, 0xFFC59B24));
             float r = dp(x, 15), s = dp(x, 7);
             g.setCornerRadii(new float[]{r, r, r, r, s, s, r, r});   // TL, TR, BR(7), BL
             x.setBackground(g);
-            if (t != null) t.setTextColor(0xFFFFFFFF);
+            if (t != null) t.setTextColor(chatPal != null ? chatPal.textMine : 0xFFFFFFFF);
             return true;
         }
         if (tag.equals("fab")) {

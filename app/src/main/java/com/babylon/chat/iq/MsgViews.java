@@ -247,6 +247,10 @@ public final class MsgViews {
         return box;
     }
 
+    /** اقتباس الرد كعنصر مستقل (للصور) / يُضاف أعلى فقاعة (للصوتيات): الاسم + النص + خط ذهبي، والنقر للانتقال للرسالة الأصلية. */
+    public static View quoteView(Activity a, String quote, boolean mine) { return replyQuote(a, quote, mine); }
+    public static void addQuote(Activity a, LinearLayout bubble, String quote, boolean mine) { bubble.addView(replyQuote(a, quote, mine), 0); }
+
     // ------------------------------------------------------------------ فاصل اليوم
     public static TextView sysPill(Activity a, String label) {
         TextView t = new TextView(a);

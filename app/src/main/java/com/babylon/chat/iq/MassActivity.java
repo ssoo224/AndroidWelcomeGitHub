@@ -358,12 +358,6 @@ public class MassActivity extends Activity {
             /** حقل الكتابة: #f1f5fa / rgba(127,140,160,.10) ، عند التركيز أبيض / .16 وحدّ #c9cfd8 / #8b94a1 ، انحناء 15 */
             GradientDrawable msgInpBg(boolean focus) {
                 GradientDrawable g = new GradientDrawable();
-                if (Tk.themed()) {          // ثيم: #messageInput{background:rgba(127,140,160,.16)} وعند التركيز .24 وحدّ #c9cfd8
-                    g.setColor(focus ? 0x3D7F8CA0 : 0x297F8CA0);
-                    g.setCornerRadius(dp(15));
-                    g.setStroke(dp(1), focus ? 0xFFC9CFD8 : 0x00000000);
-                    return g;
-                }
                 g.setColor(focus ? (dark ? 0x297F8CA0 : 0xFFFFFFFF) : (dark ? 0x1A7F8CA0 : 0xFFF1F5FA));
                 g.setCornerRadius(dp(15));
                 g.setStroke(dp(1), focus ? (dark ? 0xFF8B94A1 : 0xFFC9CFD8) : 0x00000000);
@@ -379,14 +373,26 @@ public class MassActivity extends Activity {
                 vis("btnAttach", !has);
             }
 
+            /** عبارة «اكتب رسالتك...» (hint) في اليسار فقط؛ وعند الكتابة يعود النص لاتجاهه الطبيعي. */
+            void hintLeft(EditText mi) {
+                boolean empty = mi.getText().length() == 0;
+                int g = empty ? (Gravity.CENTER_VERTICAL | Gravity.LEFT) : (Gravity.CENTER_VERTICAL | Gravity.START);
+                if (mi.getGravity() != g) mi.setGravity(g);
+                int ta = empty ? View.TEXT_ALIGNMENT_GRAVITY : View.TEXT_ALIGNMENT_VIEW_START;
+                if (mi.getTextAlignment() != ta) mi.setTextAlignment(ta);
+                int td = empty ? View.TEXT_DIRECTION_LTR : View.TEXT_DIRECTION_FIRST_STRONG;
+                if (mi.getTextDirection() != td) mi.setTextDirection(td);
+            }
+
             void setupComposer() {
                 final EditText mi = et("messageInput");
                 if (mi == null) return;
                 mi.addTextChangedListener(new android.text.TextWatcher() {
                     @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
                     @Override public void onTextChanged(CharSequence s, int a, int b, int c) { }
-                    @Override public void afterTextChanged(android.text.Editable e) { syncSend(); }
+                    @Override public void afterTextChanged(android.text.Editable e) { syncSend(); hintLeft(mi); }
                 });
+                hintLeft(mi);
                 mi.setOnFocusChangeListener((vw, f) -> mi.setBackground(msgInpBg(f)));
                 syncSend();
             }
@@ -440,7 +446,7 @@ public class MassActivity extends Activity {
                         }
                         else if (k.equals("msginp")) {
                             x.setBackground(msgInpBg(x.hasFocus()));
-                            if (T != null) { T.setTextColor(Tk.crInk(cText())); T.setHintTextColor(Tk.crMuted(cMuted())); }   // ثيم: color:var(--text-other)
+                            if (T != null) { T.setTextColor(cText()); T.setHintTextColor(cMuted()); }   // حقل الكتابة خارج الثيم
                         }
                         else if (k.equals("gold")) {
                             boolean chip = x.getId() == R.id.fltAll || x.getId() == R.id.fltUnread;
@@ -1041,7 +1047,7 @@ public class MassActivity extends Activity {
                         if (rt != null) rt.setBackgroundColor(srch ? SearchPage.bg(dark) : cBg());
                         if (srch) { top = SearchPage.topColor(dark); bottom = SearchPage.bg(dark); }
                         // تعديل البيانات الشخصية (نهاري): شريط الإشعارات بنفس بياض ترويسة الصفحة (.edit-profile-header)
-                        if ("editProfileView".equals(curPage) && !dark) top = 0xFFFFFFFF;
+                        if (("editProfileView".equals(curPage) || "chatSettingsView".equals(curPage)) && !dark) top = 0xFFFFFFFF;
                     }
                     if (!inChat && isProfilePage(curPage)) bars.syncProfile(bottom);   // شريط حالة شفاف + أيقونات بيضاء
                     else bars.sync(top, bottom);
@@ -2227,14 +2233,17 @@ public class MassActivity extends Activity {
                 checkBlockedByThem(uid);
             }
 
+            String mediaQuote = null;   // اقتباس رد لرسالة صورة/صوتية قيد الرسم
             long chatStick = 0L;
+            boolean chatUserTouched = false;   // لمس المستخدم المحادثة: توقّف عن التثبيت أسفلها
             boolean stickInstalled = false;
 
             /** يُظهر المحادثة عند آخر رسالة مباشرة (بدون وميض البداية): المحتوى مخفي حتى يكتمل أول رسم ثم يُنزَّل للأسفل. */
             void revealChatBottom() {
                 final View ms = v("messagesScroll"), area = v("messagesArea");
                 if (!(ms instanceof ScrollView) || area == null) return;
-                chatStick = System.currentTimeMillis() + 900;
+                chatStick = System.currentTimeMillis() + 8000;   // الصور/الوسائط تكبر بعد التحميل، فنبقى أسفل المحادثة حتى يلمسها المستخدم
+                chatUserTouched = false;
                 final android.view.ViewTreeObserver vto = ms.getViewTreeObserver();
                 vto.addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
                     @Override public boolean onPreDraw() {
@@ -2256,8 +2265,9 @@ public class MassActivity extends Activity {
                     if (area0 != null) area0.setAlpha(0f);
                     if (!stickInstalled && area0 != null && ms0 instanceof ScrollView) {
                         stickInstalled = true;
+                        ms0.setOnTouchListener((vw, ev) -> { if (ev.getActionMasked() == android.view.MotionEvent.ACTION_DOWN) chatUserTouched = true; return false; });
                         area0.addOnLayoutChangeListener((vv, l, t, r, b, ol, ot, orr, ob) -> {
-                            if (System.currentTimeMillis() < chatStick) {
+                            if (System.currentTimeMillis() < chatStick && !chatUserTouched) {
                                 View c0 = ((ScrollView) ms0).getChildAt(0);
                                 if (c0 != null) ((ScrollView) ms0).scrollTo(0, Math.max(0, c0.getHeight() - ms0.getHeight()));
                             }
@@ -2308,6 +2318,14 @@ public class MassActivity extends Activity {
                                     String rId = doc.getString("replyToId"), rTy = doc.getString("replyToType");
                                     text = "\u21A9 " + (rNm.isEmpty() ? "" : rNm + "\u0001") + rTo.replace('\n', ' ').replace('\u0002', ' ')
                                             + "\u0002" + (rId == null ? "" : rId) + "\u0002" + (rTy == null ? "" : rTy) + "\n" + text;
+                                }
+                                mediaQuote = null;
+                                if (rTo != null && rTo.length() > 0 && ("image".equals(type) || "audio".equals(type))) {
+                                    String qSid = doc.getString("replyToSenderId");
+                                    String qNm = qSid == null || qSid.isEmpty() ? "" : replyOwner(qSid.equals(myUid));
+                                    String qId = doc.getString("replyToId"), qTy = doc.getString("replyToType");
+                                    mediaQuote = (qNm.isEmpty() ? "" : qNm + "\u0001") + rTo.replace('\n', ' ').replace('\u0002', ' ')
+                                            + "\u0002" + (qId == null ? "" : qId) + "\u0002" + (qTy == null ? "" : qTy);
                                 }
                                 String url = doc.getString("data");
                                 if (url == null) url = doc.getString("url");
@@ -2478,6 +2496,16 @@ public class MassActivity extends Activity {
                 });
                 frame.setOnLongClickListener(x -> { msgSelect(frame, mine, 1, url); return true; });
                 attachSwipeReply(frame, mine);
+                if (mediaQuote != null) {   // اقتباس الرد فوق الصورة (اسم صاحب الرسالة + النص)، والنقر ينتقل للأصلية
+                    View qv = MsgViews.quoteView(act, mediaQuote, true);
+                    FrameLayout.LayoutParams qlp = new FrameLayout.LayoutParams(-1, -2, Gravity.TOP);
+                    qlp.setMargins(dp(6), dp(6), dp(6), 0);
+                    frame.addView(qv, qlp);
+                    style(qv);
+                    GradientDrawable qg = new GradientDrawable();
+                    qg.setColor(0xB3000000); qg.setCornerRadius(dp(10));
+                    qv.setBackground(qg);
+                }
                 LinearLayout msgArea = (LinearLayout) v("messagesArea");
                 if (msgArea != null) msgArea.addView(frame);
             }
@@ -2494,6 +2522,7 @@ public class MassActivity extends Activity {
                 box.setOnLongClickListener(x -> { msgSelect(box, mine, 2, url); return true; });
                 attachSwipeReply(box, mine);
                 box.track.listener = f -> { if (mediaPlayer != null && playingHandle == box) { try { mediaPlayer.seekTo((int) (mediaPlayer.getDuration() * f)); } catch (Throwable ignored) { } } };
+                if (mediaQuote != null) MsgViews.addQuote(act, box, mediaQuote, mine);   // اقتباس الرد داخل فقاعة الصوتية
                 LinearLayout msgArea = (LinearLayout) v("messagesArea");
                 if (msgArea != null) msgArea.addView(box);
                 style(box);
@@ -3470,8 +3499,15 @@ public class MassActivity extends Activity {
                 msg.put("duration", duration);
                 msg.put("sender", myUid);
                 msg.put("timestamp", System.currentTimeMillis());
+                if (replyText != null) {   // الرد على رسالة يشمل الصور والصوتيات أيضاً (bbReplyFields في الـ HTML)
+                    msg.put("replyTo", replyText);
+                    msg.put("replyToId", replyId == null ? "" : replyId);
+                    msg.put("replyToSenderId", replyMine ? myUid : otherUid);
+                    msg.put("replyToType", replyKind);
+                }
                 db.collection("chats").document(currentChatId).collection("messages")
                     .add(msg);
+                cancelReply();
 
                 String preview = type.equals("image") ? "📷 صورة"
                         : type.equals("audio") ? "🎤 رسالة صوتية" : "";
@@ -3632,7 +3668,7 @@ public class MassActivity extends Activity {
                     LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(3), h);
                     lp.setMarginEnd(dp(5));
                     b.setLayoutParams(lp);
-                    b.setBackground(shape(cGold(), 2, 0));
+                    b.setBackground(shape(Tk.chatPal != null ? Tk.chatPal.mineFrom : cGold(), 2, 0));   // موجة التسجيل تتبع الثيم
                     w.addView(b);
                     waveBars.add(b);
                 }

@@ -151,17 +151,10 @@ public final class BabylonFx {
     public static void chatGrow(final View chat, View header, View composer) {
         if (chat == null) return;
         reset(chat);
-        chat.setPivotX(chat.getWidth() * 0.5f);
-        chat.setPivotY(chat.getHeight() * 0.6f);
+        // دخول سريع بالظهور فقط (بدون تصغير/إزاحة): لا تظهر قائمة المحادثات من خلف الغرفة لفترة طويلة
         chat.setAlpha(0f);
-        chat.setScaleX(0.88f);
-        chat.setScaleY(0.88f);
-        chat.setTranslationY(dp(chat, 18));
-        chat.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f)
-                .setDuration(420).setInterpolator(easeOut())
+        chat.animate().alpha(1f).setDuration(140).setInterpolator(easeOut())
                 .withEndAction(() -> reset(chat)).start();
-        barDown(header, 80);
-        barUp(composer, 120);
     }
 
     /**
