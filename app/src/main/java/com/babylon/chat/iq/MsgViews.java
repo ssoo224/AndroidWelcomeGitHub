@@ -283,6 +283,8 @@ public final class MsgViews {
         int accent;        // ثيم غير بابل: accent-color:var(--accent-chat) (0 = الألوان الأصلية)
         public void setDark(boolean dk) { dark = dk; invalidate(); }
         public void setAccent(int c) { accent = c; invalidate(); }
+        int thumbAccent;   // لون قلب المقبض: يتبع ثيم المحادثة (0 = الذهبي الأصلي)
+        public void setThumbAccent(int c) { thumbAccent = c; invalidate(); }
         public void setProgress(float f) { progress = Math.max(0, Math.min(1, f)); invalidate(); }
         @Override protected void onDraw(Canvas c) {
             float dens = d(getContext());
@@ -297,7 +299,7 @@ public final class MsgViews {
             c.drawRoundRect(flip ? left : x, cy - th / 2, flip ? x : right, cy + th / 2, th, th, p);
             p.setColor(0xFFFFFFFF);
             c.drawCircle(x, cy, r, p);
-            p.setColor(accent != 0 ? accent : (mine ? 0xFFA9791A : 0xFFB8861B));
+            p.setColor(thumbAccent != 0 ? thumbAccent : (accent != 0 ? accent : (mine ? 0xFFA9791A : 0xFFB8861B)));
             c.drawCircle(x, cy, r - 2 * dens, p);
         }
         @Override public boolean onTouchEvent(MotionEvent e) {

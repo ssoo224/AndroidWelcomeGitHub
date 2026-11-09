@@ -315,6 +315,19 @@ public class MassActivity extends Activity {
             final java.util.HashMap<String, Boolean> onlineMap = new java.util.HashMap<>();
             long myStoryUntil = 0;
             ArrayList<String[]> chatData = new ArrayList<>();
+            // ---- تحديد المحادثات وحذفها (مطابق لـ initChatSelection / deleteChats في الـ HTML) ----
+            boolean chatSelMode = false;
+            final java.util.LinkedHashSet<String> chatSel = new java.util.LinkedHashSet<>();          // uid الطرف الآخر
+            final java.util.HashMap<String, String> chatIdByUid = new java.util.HashMap<>();
+            final java.util.HashMap<String, Long> chatClearedAll = new java.util.HashMap<>();         // chats/{id}.clearedAll
+            final String PIN_KEY = "babylon_pinned_chats", CLR_KEY = "babylon_cleared_chats";
+            final int MAX_CHAT_PINS = 5;
+            java.util.HashMap<String, Long> clrMem = null;
+            boolean chatStateLoaded = false;
+            Runnable chatStateRun;
+            LinearLayout chatSelBar;
+            TextView chatSelCountTv;
+            ImageView chatSelPinIv;
             String userName = "", userUsername = "", userBio = "", userGov = "", userEmail = "", userJoin = "";
             String userPhoto = "", shownPhoto = "";
             Bitmap photoBmp = null;
@@ -715,36 +728,30 @@ public class MassActivity extends Activity {
                     .addOnFailureListener(e -> toast("تعذر حفظ الغلاف"));
             }
 
-            int ringPx() { return dp(2.5f); }                 // الحلقة الرمادية الملاصقة للصورة
-            int goldRingPx() { return 0; }                  // الشريط الذهبي محذوف
-            int goldGapPx() { return 0; }                   // لا فراغ (لا شريط ذهبي)
-            /** مجموع ما حول الصورة: رمادي + فراغ + ذهبي */
-            int ringTotalPx() { return ringPx() + goldGapPx() + goldRingPx(); }
+            /** حلقة صورة الملف الشخصي كما في الـ HTML: 2dp بلون --pf-bg ثم 4dp حلقة القصة، والصورة 110dp بعدها. */
+            int ringTotalPx() { return dp(6); }
 
-            /** حلقة رمادية فاتحة (2.5dp) ملاصقة للصورة بلا فراغ؛ تختفي مع الصورة نفسها عند سحبها (ProfileHero يخفي الأفاتار). */
-            android.graphics.drawable.Drawable withRing(android.graphics.drawable.Drawable inner) {
-                GradientDrawable gold = new GradientDrawable();
-                gold.setShape(GradientDrawable.OVAL);
-                gold.setColor(Color.TRANSPARENT);
-                gold.setStroke(goldRingPx(), cGold());
-                GradientDrawable ring = new GradientDrawable();
-                ring.setShape(GradientDrawable.OVAL);
-                ring.setColor(Color.TRANSPARENT);
-                ring.setStroke(ringPx(), dark ? 0xFF3A3F47 : 0xFFD1D5DB);   // رمادي داكن ليلاً
-                android.graphics.drawable.LayerDrawable ld = new android.graphics.drawable.LayerDrawable(
-                        new android.graphics.drawable.Drawable[]{gold, ring, inner});
-                int g = goldRingPx() + goldGapPx();                 // الرمادي يبدأ بعد الذهبي + فراغ 2dp
-                ld.setLayerInset(1, g, g, g, g);
-                int all = g + ringPx();                             // الصورة تبدأ من حافة الحلقة الرمادية مباشرة
-                ld.setLayerInset(2, all, all, all, all);
-                return ld;
+            boolean hasStoryFor(boolean mine) {
+                long now = System.currentTimeMillis();
+                if (mine) return myStoryUntil > now;
+                Long u = otherUid == null ? null : storyUntil.get(otherUid);
+                return u != null && u > now;
+            }
+
+            android.graphics.drawable.Drawable withRing(android.graphics.drawable.Drawable inner, final boolean mine) {
+                return new ProfileRing(inner, dp(2), dp(4), dark ? 0xFF0E1621 : 0xFFEEF1F6,
+                        () -> hasStoryFor(mine), () -> false);   // لا تتبّع «شوهدت» في الأندرويد بعد
+            }
+
+            void refreshProfileRings() {
+                for (String id : new String[]{"pAvatarText", "otherAvatarText"}) { View a = v(id); if (a != null) a.invalidate(); }
             }
 
             void fixAvatar(String id) {
                 TextView a = tv(id);
                 if (a == null) return;
                 ViewGroup.LayoutParams lp = a.getLayoutParams();
-                if (lp != null) { lp.width = dp(108) + 2 * ringTotalPx(); lp.height = lp.width; }   // 108 + الحلقتان والفراغ
+                if (lp != null) { lp.width = dp(110) + 2 * ringTotalPx(); lp.height = lp.width; }   // 110 + حلقة القصة 4 + حلقة الخلفية 2
                 a.setTextSize(40);
                 a.setTextColor(0xFFFFFFFF);
                 if (photoBmp != null && id.equals("pAvatarText")) {
@@ -752,7 +759,7 @@ public class MassActivity extends Activity {
                 } else {
                     GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{dark ? 0xFFF0D77A : 0xFFE8C25A, dark ? 0xFFC9A227 : 0xFFB88A1C});
                     g.setShape(GradientDrawable.OVAL);
-                    a.setBackground(withRing(g));
+                    a.setBackground(withRing(g, id.equals("pAvatarText")));
                 }
                 View par = (View) a.getParent();
                 if (par != null && par.getLayoutParams() instanceof ViewGroup.MarginLayoutParams)
@@ -1069,7 +1076,8 @@ public class MassActivity extends Activity {
                 }
                 boolean home = p.equals("homeView");
                 boolean hdrWas = v("mainHeader") != null && v("mainHeader").getVisibility() == View.VISIBLE;
-                vis("mainHeader", home);
+                if (chatSelMode && !home) exitChatSel(false);
+                vis("mainHeader", home && !chatSelMode);
                 vis("newGroupFab", home);
                 vis("bottomNav", home || p.equals("settingsView") || p.equals("profileView"));
                 setNav(p);
@@ -1139,6 +1147,7 @@ public class MassActivity extends Activity {
                             sp.edit().putString("coverId", cvId).apply();
                             applyCover(true, cvId);
                             try { syncPrefsFromUser(doc); } catch (Throwable ignored) { }
+                            try { syncChatStateFromUser(doc); } catch (Throwable ignored) { }
                             Long createdAt = doc.getLong("createdAt");
 
                             if (userName.isEmpty()) userName = "Mohammed";
@@ -1149,7 +1158,7 @@ public class MassActivity extends Activity {
                             if (createdAt == null) createdAt = System.currentTimeMillis();
 
                             userJoin = new SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(new Date(createdAt));
-                            try { Long msu = doc.getLong("storyUntil"); myStoryUntil = msu != null ? msu : 0L; } catch (Throwable ignored) { }
+                            try { Long msu = doc.getLong("storyUntil"); myStoryUntil = msu != null ? msu : 0L; refreshProfileRings(); } catch (Throwable ignored) { }
                             try { applyProfilePhoto(); } catch (Throwable ignored) { }
                             try { buildStories(); } catch (Throwable ignored) { }
                             try { fillProfile(); } catch (Throwable ignored) { }
@@ -1391,7 +1400,7 @@ public class MassActivity extends Activity {
                     }
                     applyChatInsets();
                     TextView cs = tv("chatSub");
-                    if (cs != null && blockedByThem && !on) cs.setText("آخر ظهور كان منذ زمن طويل");
+                    if (cs != null && blockedByThem && !on) { cs.setText("آخر ظهور كان منذ زمن طويل"); cs.setTextColor(Tk.crMuted(cMuted())); }
                     syncBars();
                 } catch (Throwable ignored) { }
             }
@@ -1869,6 +1878,7 @@ public class MassActivity extends Activity {
                         created != null && created > 0 ? new SimpleDateFormat("MMMM yyyy", new Locale("ar", "IQ")).format(new Date(created)) : "");
 
                 // الحالة: متصل الآن / آخر ظهور (مع احترام إخفاء آخر ظهور)
+                try { Long osu = d.getLong("storyUntil"); if (osu != null && otherUid != null) storyUntil.put(otherUid, osu); refreshProfileRings(); } catch (Throwable ignored) { }
                 boolean hideSeen = Boolean.TRUE.equals(d.getBoolean("hideLastSeen"));
                 Long ls = d.getLong("lastSeen");
                 long lastSeen = ls != null ? ls : 0;
@@ -1912,7 +1922,7 @@ public class MassActivity extends Activity {
                 rd.setAntiAlias(true);
                 rd.setMipMap(true);
                 otherPhotoBmp.setHasMipMap(true);
-                t.setBackground(withRing(rd));
+                t.setBackground(withRing(rd, false));
                 t.setText("");
             }
 
@@ -1967,12 +1977,16 @@ public class MassActivity extends Activity {
                             final String lastTime = lastAt > 0 ? listTime(lastAt) : "";
                             final String fChatId = String.valueOf(m.get("__id"));
                             chatTsMap.put(fOtherId, lastAt);
+                            chatIdByUid.put(fOtherId, fChatId);
+                            { Object ca = m.get("clearedAll"); chatClearedAll.put(fChatId, ca instanceof Number ? ((Number) ca).longValue() : 0L); }
+                            if (chatIsCleared(fChatId, lastAt)) continue;   // محذوفة عندي ولم يصلها جديد بعد الحذف
                             // يظهر الصف فوراً (حتى قبل جلب بيانات الطرف الآخر أو إن فشل الجلب) ثم يُحدَّث الاسم
                             boolean exists = false;
                             for (String[] r0 : chatData) if (r0[4].equals(fOtherId)) { exists = true; break; }
                             if (!exists) { chatData.add(new String[]{"?", lastMsg, lastTime, "0", fOtherId}); sortChats(); try { buildChats(); } catch (Throwable ignored) { } }
                             db.collection("users").document(fOtherId).get()
                                 .addOnSuccessListener(udoc -> {
+                                    if (chatIsCleared(fChatId, lastAt)) return;
                                     String oName = udoc.exists() && udoc.getString("name") != null ? udoc.getString("name") : "?";
                                     try {
                                         Long su = udoc.getLong("storyUntil");
@@ -1998,8 +2012,9 @@ public class MassActivity extends Activity {
                                         .whereEqualTo("read", false).get()
                                         .addOnSuccessListener(qs -> {
                                             int cnt = 0;
+                                            final long clrU = chatClearedAt(fChatId);
                                             for (DocumentSnapshot md : qs.getDocuments())
-                                                if (!myUid.equals(md.getString("sender")) && !myUid.equals(md.getString("senderId"))) cnt++;
+                                                if (!myUid.equals(md.getString("sender")) && !myUid.equals(md.getString("senderId")) && !msgCleared(md, clrU)) cnt++;
                                             for (int i = 0; i < chatData.size(); i++) {
                                                 if (chatData.get(i)[4].equals(fOtherId)) {
                                                     String[] row = chatData.get(i);
@@ -2056,6 +2071,7 @@ public class MassActivity extends Activity {
                 startBlocksListener();
                 LinearLayout list = (LinearLayout) v("chatList");
                 if (list == null) return;
+                syncChatSelWithData();
                 list.removeAllViews();
                 int unreadChats = 0;
                 for (String[] c : chatData) if (!c[3].equals("0")) unreadChats++;
@@ -2084,9 +2100,13 @@ public class MassActivity extends Activity {
                     flt.setVisibility(show ? View.VISIBLE : View.GONE);
                     if (show && !was) BabylonFx.pop(flt, 0);
                 }
-                for (String[] c : chatData) {
+                final java.util.List<String> pinsNow = getPins();
+                for (String[] c : orderedChats()) {
                     if (unreadOnly && c[3].equals("0")) continue;
                     final boolean hasUnread = !c[3].equals("0");
+                    final String rowUid = c.length > 4 ? c[4] : "";
+                    final boolean rowSel = chatSelMode && chatSel.contains(rowUid);
+                    final boolean rowPinned = c.length > 4 && pinsNow.contains(chatIdOf(rowUid));
                     final String dn = c.length > 4 ? dispName(c[4], c[0]) : c[0];
                     LinearLayout row = new LinearLayout(act);
                     row.setOrientation(LinearLayout.HORIZONTAL);
@@ -2150,25 +2170,49 @@ public class MassActivity extends Activity {
                         bl.rightMargin = dp(8);
                         r2.addView(b, bl);
                     }
+                    if (rowPinned && !hasUnread) {
+                        ImageView pi = new ImageView(act);
+                        pi.setImageResource(R.drawable.ic_mm_pin);
+                        pi.setColorFilter(cGold());
+                        pi.setAlpha(.95f);
+                        LinearLayout.LayoutParams pil = new LinearLayout.LayoutParams(dp(17), dp(17));
+                        pil.setMarginStart(dp(6));
+                        r2.addView(pi, pil);
+                    }
                     mid.addView(r1);
                     mid.addView(r2, r2p);
                     // RTL: الأفاتار أول عنصر (يمين)
-                    row.addView(av, ap); row.addView(mid);
+                    if (rowSel) {
+                        FrameLayout avf = new FrameLayout(act);
+                        avf.setClipChildren(false);
+                        avf.addView(av, new FrameLayout.LayoutParams(-1, -1));
+                        FrameLayout chk = new FrameLayout(act);
+                        GradientDrawable cg = new GradientDrawable();
+                        cg.setShape(GradientDrawable.OVAL); cg.setColor(cGold()); cg.setStroke(dp(2), cSf());
+                        chk.setBackground(cg);
+                        ImageView ci = new ImageView(act);
+                        ci.setImageResource(R.drawable.ic_sel_check);
+                        chk.addView(ci, new FrameLayout.LayoutParams(dp(13), dp(13), Gravity.CENTER));
+                        FrameLayout.LayoutParams ckp = new FrameLayout.LayoutParams(dp(22), dp(22), Gravity.RIGHT | Gravity.BOTTOM);
+                        ckp.rightMargin = -dp(3); ckp.bottomMargin = -dp(3);
+                        avf.addView(chk, ckp);
+                        row.addView(avf, ap);
+                    } else row.addView(av, ap);
+                    row.addView(mid);
                     final String fName = c[0], fUid = c[4];
-                    row.setOnClickListener(x -> openChat(fName, fUid));
+                    row.setOnClickListener(x -> { if (chatSelMode) toggleChatSel(fUid); else openChat(fName, fUid); });
                     row.setOnLongClickListener(x -> {
-                        new AlertDialog.Builder(act).setTitle(fName)
-                            .setItems(new String[]{"تعليم كمقروءة", "حذف المحادثة"}, (d, w) -> {
-                                if (w == 1) {
-                                    String cid = getChatId(myUid, fUid);
-                                    deleteChatMessages(cid, () ->
-                                        db.collection("chats").document(cid).delete());
-                                }
-                            }).show();
+                        try { x.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); } catch (Throwable ignored) { }
+                        if (!chatSelMode) enterChatSel(fUid); else toggleChatSel(fUid);
                         return true;
                     });
                     list.addView(row);
                     style(row);
+                    if (rowSel) {   // .chat-item.cl-selected: خلفية ذهبية شفافة + إطار داخلي 1.5px
+                        GradientDrawable sg = new GradientDrawable();
+                        sg.setColor(goldA(0x24)); sg.setCornerRadius(dp(18)); sg.setStroke(dp(1.5f), cGold());
+                        row.setBackground(sg);
+                    }
                 }
                 if (list.getChildCount() == 0) {
                     TextView e = new TextView(act);
@@ -2180,6 +2224,322 @@ public class MassActivity extends Activity {
                     list.addView(e);
                     style(e);
                 }
+            }
+
+
+            // =====================================================================
+            //  تحديد المحادثات + التثبيت + الحذف (نسخة الـ HTML: التحديد/الحذف مثل تليجرام)
+            //  التخزين: pins = [chatId] (حد أقصى 5)، cleared = {chatId: وقت الحذف} في prefs ومزامنة users/{uid}.chatState
+            // =====================================================================
+            String chatIdOf(String uid) {
+                String id = chatIdByUid.get(uid);
+                return id != null ? id : getChatId(myUid, uid);
+            }
+
+            java.util.List<String> getPins() {
+                java.util.ArrayList<String> out = new java.util.ArrayList<>();
+                try {
+                    org.json.JSONArray a = new org.json.JSONArray(sp.getString(PIN_KEY, "[]"));
+                    for (int i = 0; i < a.length(); i++) out.add(a.getString(i));
+                } catch (Throwable ignored) { }
+                return out;
+            }
+
+            void setPins(java.util.List<String> l) {
+                try { sp.edit().putString(PIN_KEY, new org.json.JSONArray(l).toString()).apply(); } catch (Throwable ignored) { }
+                syncChatStateToCloud();
+            }
+
+            java.util.HashMap<String, Long> getCleared() {
+                if (clrMem == null) {
+                    clrMem = new java.util.HashMap<>();
+                    try {
+                        org.json.JSONObject o = new org.json.JSONObject(sp.getString(CLR_KEY, "{}"));
+                        java.util.Iterator<String> it = o.keys();
+                        while (it.hasNext()) { String k = it.next(); clrMem.put(k, o.optLong(k, 0L)); }
+                    } catch (Throwable ignored) { }
+                }
+                return clrMem;
+            }
+
+            void setClearedLocal(java.util.Map<String, Long> m) {
+                clrMem = new java.util.HashMap<>(m);
+                try {
+                    org.json.JSONObject o = new org.json.JSONObject();
+                    for (java.util.Map.Entry<String, Long> e : m.entrySet()) o.put(e.getKey(), e.getValue().longValue());
+                    sp.edit().putString(CLR_KEY, o.toString()).apply();
+                } catch (Throwable ignored) { }
+            }
+
+            /** chatClearedAt: الأكبر بين وقت حذفي المحلي وclearedAll الذي كتبه الطرف الآخر. */
+            long chatClearedAt(String chatId) {
+                Long l = getCleared().get(chatId), a = chatClearedAll.get(chatId);
+                return Math.max(l == null ? 0L : l, a == null ? 0L : a);
+            }
+
+            boolean chatIsCleared(String chatId, long lastAt) {
+                long c = chatClearedAt(chatId);
+                return c > 0 && lastAt <= c;
+            }
+
+            long msgTs(DocumentSnapshot d) {
+                try { Long t = d.getLong("timestamp"); if (t != null) return t; } catch (Throwable ignored) { }
+                try { Long t = d.getLong("createdAt"); if (t != null) return t; } catch (Throwable ignored) { }
+                return 0L;
+            }
+
+            boolean msgCleared(DocumentSnapshot d, long clr) {
+                if (clr <= 0) return false;
+                long t = msgTs(d);
+                return t > 0 && t <= clr;
+            }
+
+            void syncChatStateToCloud() {
+                if (chatStateRun != null) uiH.removeCallbacks(chatStateRun);
+                chatStateRun = () -> {
+                    try {
+                        java.util.Map<String, Object> cs = new java.util.HashMap<>();
+                        cs.put("pins", new ArrayList<>(getPins()));
+                        cs.put("cleared", new java.util.HashMap<>(getCleared()));
+                        java.util.Map<String, Object> up = new java.util.HashMap<>();
+                        up.put("chatState", cs);
+                        db.collection("users").document(myUid).set(up, com.google.firebase.firestore.SetOptions.merge());
+                    } catch (Throwable ignored) { }
+                };
+                uiH.postDelayed(chatStateRun, 900);
+            }
+
+            /** syncChatStateFromUser: مرة واحدة عند تحميل ملفي — التثبيت إن كان المحلي فارغاً، والحذف بالأكبر. */
+            void syncChatStateFromUser(DocumentSnapshot doc) {
+                if (chatStateLoaded || doc == null) return;
+                chatStateLoaded = true;
+                try {
+                    Object cso = doc.get("chatState");
+                    if (!(cso instanceof Map)) return;
+                    Map<?, ?> cs = (Map<?, ?>) cso;
+                    Object po = cs.get("pins");
+                    if (po instanceof List && getPins().isEmpty()) {
+                        java.util.ArrayList<String> np = new java.util.ArrayList<>();
+                        for (Object o : (List<?>) po) { if (np.size() >= MAX_CHAT_PINS) break; np.add(String.valueOf(o)); }
+                        sp.edit().putString(PIN_KEY, new org.json.JSONArray(np).toString()).apply();
+                    }
+                    Object co = cs.get("cleared");
+                    if (co instanceof Map) {
+                        java.util.HashMap<String, Long> c = new java.util.HashMap<>(getCleared());
+                        for (Map.Entry<?, ?> e : ((Map<?, ?>) co).entrySet()) {
+                            String k = String.valueOf(e.getKey());
+                            long v = e.getValue() instanceof Number ? ((Number) e.getValue()).longValue() : 0L;
+                            Long cur = c.get(k);
+                            c.put(k, Math.max(cur == null ? 0L : cur, v));
+                        }
+                        setClearedLocal(c);
+                    }
+                    pruneClearedChats();
+                    buildChats();
+                    buildStories();
+                } catch (Throwable ignored) { }
+            }
+
+            /** يزيل من chatData كل محادثة لم يصلها شيء بعد وقت حذفها. */
+            void pruneClearedChats() {
+                for (java.util.Iterator<String[]> it = chatData.iterator(); it.hasNext(); ) {
+                    String[] c = it.next();
+                    if (c.length < 5) continue;
+                    Long ts = chatTsMap.get(c[4]);
+                    if (chatIsCleared(chatIdOf(c[4]), ts == null ? 0L : ts)) it.remove();
+                }
+            }
+
+            /** reorderChatListItems: المثبّتة أولاً بترتيب التثبيت ثم الباقي بترتيب آخر نشاط. */
+            java.util.List<String[]> orderedChats() {
+                final java.util.List<String> pins = getPins();
+                java.util.ArrayList<String[]> l = new java.util.ArrayList<>(chatData);
+                Collections.sort(l, (a, b) -> {
+                    int pa = a.length > 4 ? pins.indexOf(chatIdOf(a[4])) : -1;
+                    int pb = b.length > 4 ? pins.indexOf(chatIdOf(b[4])) : -1;
+                    if ((pa >= 0) != (pb >= 0)) return pa >= 0 ? -1 : 1;
+                    if (pa >= 0) return Integer.compare(pa, pb);
+                    return 0;
+                });
+                return l;
+            }
+
+            // ---- التحديد ----
+            void enterChatSel(String uid) {
+                chatSelMode = true;
+                chatSel.clear(); chatSel.add(uid);
+                ensureChatSelBar();
+                updateChatSelBar();
+                View mh = v("mainHeader");
+                if (mh != null) mh.setVisibility(View.GONE);
+                if (chatSelBar != null) { chatSelBar.setVisibility(View.VISIBLE); BabylonFx.barDown(chatSelBar, 0); }
+                buildChats();
+            }
+
+            void toggleChatSel(String uid) {
+                if (!chatSel.remove(uid)) chatSel.add(uid);
+                if (chatSel.isEmpty()) exitChatSel(true);
+                else { updateChatSelBar(); buildChats(); }
+            }
+
+            void exitChatSel(boolean rebuild) {
+                boolean was = chatSelMode;
+                chatSelMode = false;
+                chatSel.clear();
+                if (chatSelBar != null) chatSelBar.setVisibility(View.GONE);
+                View mh = v("mainHeader");
+                if (was && mh != null && "homeView".equals(curPage) && !chatOpen()) {
+                    mh.setVisibility(View.VISIBLE);
+                    BabylonFx.barDown(mh, 0);
+                }
+                if (rebuild && was) buildChats();
+            }
+
+            /** إن اختفت محادثة محددة من القائمة (حُذفت من الطرف الآخر مثلاً) تُزال من التحديد. */
+            void syncChatSelWithData() {
+                if (!chatSelMode) return;
+                java.util.HashSet<String> have = new java.util.HashSet<>();
+                for (String[] c : chatData) if (c.length > 4) have.add(c[4]);
+                chatSel.retainAll(have);
+                if (chatSel.isEmpty()) exitChatSel(false);
+                else updateChatSelBar();
+            }
+
+            void updateChatSelBar() {
+                if (chatSelCountTv != null) chatSelCountTv.setText(String.valueOf(chatSel.size()));
+                if (chatSelPinIv != null) {
+                    java.util.List<String> pins = getPins();
+                    boolean all = !chatSel.isEmpty();
+                    for (String u : chatSel) if (!pins.contains(chatIdOf(u))) { all = false; break; }
+                    chatSelPinIv.setImageResource(all ? R.drawable.ic_mm_unpin : R.drawable.ic_mm_pin);
+                    chatSelPinIv.setContentDescription(all ? "إلغاء التثبيت" : "تثبيت");
+                }
+            }
+
+            /** #selBar في الـ HTML: ✕ + العدد عند البداية، وعند النهاية تثبيت | حذف (أحمر). يحلّ محل mainHeader. */
+            void ensureChatSelBar() {
+                if (chatSelBar != null) return;
+                View mh = v("mainHeader");
+                if (mh == null || !(mh.getParent() instanceof LinearLayout)) return;
+                LinearLayout par = (LinearLayout) mh.getParent();
+                LinearLayout row = new LinearLayout(act);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                row.setGravity(Gravity.CENTER_VERTICAL);
+                row.setPadding(dp(12), 0, dp(12), 0);
+                row.setTag("bg");
+                row.setBackgroundColor(cBg());
+                row.setVisibility(View.GONE);
+
+                row.addView(selIcon(R.drawable.ic_mm_x, cText(), cSf(), "إلغاء التحديد", () -> exitChatSel(true)),
+                        new LinearLayout.LayoutParams(dp(42), dp(42)));
+
+                chatSelCountTv = new TextView(act);
+                chatSelCountTv.setTextSize(19); chatSelCountTv.setTextColor(cText());
+                chatSelCountTv.setTypeface(null, android.graphics.Typeface.BOLD);
+                chatSelCountTv.setIncludeFontPadding(false);
+                LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(0, -2, 1f);
+                cl.setMarginStart(dp(12));
+                row.addView(chatSelCountTv, cl);
+
+                chatSelPinIv = selIcon(R.drawable.ic_mm_pin, cGold(), goldA(0x1F), "تثبيت", this::selPinChats);
+                LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(dp(42), dp(42));
+                pl.setMarginEnd(dp(8));
+                row.addView(chatSelPinIv, pl);
+
+                row.addView(selIcon(R.drawable.ic_mm_delete, 0xFFF0605D, 0x1FF0605D, "حذف", this::selDeleteChats),
+                        new LinearLayout.LayoutParams(dp(42), dp(42)));
+
+                par.addView(row, par.indexOfChild(mh), new LinearLayout.LayoutParams(-1, dp(62)));
+                chatSelBar = row;
+            }
+
+            // ---- التثبيت (selPin) ----
+            void selPinChats() {
+                java.util.ArrayList<String> ids = new java.util.ArrayList<>();
+                for (String u : chatSel) ids.add(chatIdOf(u));
+                if (ids.isEmpty()) return;
+                java.util.List<String> pins = getPins();
+                if (pins.containsAll(ids)) {
+                    pins.removeAll(ids);
+                    setPins(pins);
+                } else {
+                    java.util.ArrayList<String> np = new java.util.ArrayList<>(pins);
+                    for (String id : ids) if (!np.contains(id)) np.add(0, id);
+                    if (np.size() > MAX_CHAT_PINS) {
+                        // الاستثناء الوحيد لإشعار Toast: رفض التثبيت لا يجوز أن يمرّ بصمت (مثل رسالة الـ HTML)
+                        android.widget.Toast.makeText(act, "يمكنك تثبيت " + MAX_CHAT_PINS + " محادثات كحد أقصى", android.widget.Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    setPins(np);
+                }
+                exitChatSel(true);
+            }
+
+            // ---- الحذف (selDelete / openDeleteChatsDialog / deleteChats) ----
+            String chatNameOfUid(String uid) {
+                for (String[] c : chatData) if (c.length > 4 && c[4].equals(uid)) return dispName(uid, c[0]);
+                return "المستخدم";
+            }
+
+            void selDeleteChats() {
+                if (chatSel.isEmpty()) return;
+                final java.util.ArrayList<String> uids = new java.util.ArrayList<>(chatSel);
+                final boolean one = uids.size() == 1;
+                final String name = one ? chatNameOfUid(uids.get(0)) : "";
+                MsgMenu.showChatDelete(act, dark,
+                        one ? "حذف المحادثة" : "حذف " + uids.size() + " محادثات",
+                        one ? "هل تريد حذف المحادثة مع " : "هل تريد حذف المحادثات المحددة؟",
+                        name,
+                        (one ? "؟" : "") + " لا يمكن التراجع عن هذا الإجراء.",
+                        one ? "حذف أيضاً عند " + name : "حذف أيضاً عند الطرف الآخر",
+                        both -> deleteChats(uids, both));
+            }
+
+            void deleteChats(java.util.List<String> uids, boolean both) {
+                long now = System.currentTimeMillis();
+                java.util.HashMap<String, Long> cl = new java.util.HashMap<>(getCleared());
+                final java.util.HashMap<String, Long> stamps = new java.util.HashMap<>();
+                java.util.List<String> pins = getPins();
+                for (String u : uids) {
+                    String cid = chatIdOf(u);
+                    Long ts = chatTsMap.get(u);
+                    long stamp = Math.max(now, ts == null ? 0L : ts);
+                    cl.put(cid, stamp); stamps.put(cid, stamp);
+                    pins.remove(cid);
+                }
+                setClearedLocal(cl);
+                setPins(pins);                                   // يزامن chatState (التثبيت + الحذف) مع السحابة
+                for (java.util.Iterator<String[]> it = chatData.iterator(); it.hasNext(); ) {
+                    String[] c = it.next();
+                    if (c.length > 4 && uids.contains(c[4])) it.remove();
+                }
+                exitChatSel(false);
+                buildChats();
+                try { buildStories(); } catch (Throwable ignored) { }
+                if (!both) return;
+                for (final java.util.Map.Entry<String, Long> e : stamps.entrySet()) {
+                    final String cid = e.getKey();
+                    java.util.Map<String, Object> d = new java.util.HashMap<>();
+                    d.put("clearedAll", e.getValue());
+                    db.collection("chats").document(cid).set(d, com.google.firebase.firestore.SetOptions.merge())
+                        .addOnSuccessListener(x -> purgeChatMessages(cid, 0, 0));
+                }
+            }
+
+            /** purgeChatMessages: يحذف رسائل المحادثة على دفعات 400؛ إن رفضت القواعد حذف الكل يحذف رسائلي فقط. */
+            void purgeChatMessages(final String cid, final int mode, final int round) {
+                if (round >= 30) return;
+                Query q = db.collection("chats").document(cid).collection("messages").limit(400);
+                if (mode == 1) q = q.whereEqualTo("sender", myUid);
+                else if (mode == 2) q = q.whereEqualTo("senderId", myUid);
+                q.get().addOnSuccessListener(qs -> {
+                    if (qs.isEmpty()) { if (mode == 1) purgeChatMessages(cid, 2, 0); return; }
+                    com.google.firebase.firestore.WriteBatch b = db.batch();
+                    for (DocumentSnapshot d : qs.getDocuments()) b.delete(d.getReference());
+                    b.commit().addOnSuccessListener(x -> purgeChatMessages(cid, mode, round + 1))
+                        .addOnFailureListener(er -> { if (mode == 0) purgeChatMessages(cid, 1, 0); });
+                }).addOnFailureListener(er -> { if (mode == 0) purgeChatMessages(cid, 1, 0); });
             }
 
             void deleteChatMessages(String chatId, Runnable onDone) {
@@ -2203,6 +2563,7 @@ public class MassActivity extends Activity {
             }
 
             void openChat(String name, String uid) {
+                if (chatSelMode) exitChatSel(false);
                 otherUid = uid; otherName = name; curChat = name;
                 startBlocksListener(); blocked = uid != null && myBlocks.contains(uid); blockedByThem = false; otherOrigName = name == null ? "" : name; muted = isMutedUid(uid);
                 TextView chatTitle = tv("chatTitle");
@@ -2210,7 +2571,8 @@ public class MassActivity extends Activity {
                 TextView chatAv = tv("chatAvatar");
                 if (chatAv != null) chatAv.setText(name.length() > 0 ? name.substring(0, 1) : "?");
                 TextView chatSub = tv("chatSub");
-                if (chatSub != null) chatSub.setText("متصل");
+                if (chatSub != null) chatSub.setText("\u200B");
+                listenChatPresence(uid);
                 clearSel();
                 LinearLayout msgArea = (LinearLayout) v("messagesArea");
                 if (msgArea != null) msgArea.removeAllViews();
@@ -2306,6 +2668,7 @@ public class MassActivity extends Activity {
                                 String id = doc.getId();
                                 if (renderedMsgIds.contains(id)) continue;
                                 renderedMsgIds.add(id);
+                                if (msgCleared(doc, chatClearedAt(chatId))) continue;   // قبل حذف المحادثة
                                 if (hiddenSet().contains(id)) continue;   // محذوفة "لدي فقط"
 
                                 String type = doc.getString("type");
@@ -2373,7 +2736,34 @@ public class MassActivity extends Activity {
                     });
             }
 
+            com.google.firebase.firestore.ListenerRegistration chatPresenceReg;
+
+            /** حالة الطرف الآخر في رأس المحادثة (مطابق لـ userUnsubscribe في الـ HTML):
+             *  مخفي → «آخر ظهور منذ فترة»، متصل خلال 45ث → «متصل الآن» (أخضر)، غير ذلك → «آخر ظهور كان قريباً»،
+             *  ومن حظرني → «آخر ظهور كان منذ زمن طويل». */
+            void listenChatPresence(final String uid) {
+                if (chatPresenceReg != null) { chatPresenceReg.remove(); chatPresenceReg = null; }
+                if (uid == null) return;
+                chatPresenceReg = db.collection("users").document(uid).addSnapshotListener((d, e) -> {
+                    if (e != null || d == null || !d.exists() || !uid.equals(otherUid)) return;
+                    TextView cs = tv("chatSub");
+                    if (cs == null) return;
+                    boolean hid = Boolean.TRUE.equals(d.getBoolean("hideLastSeen"));
+                    Long ls = d.getLong("lastSeen");
+                    boolean live = !hid && Boolean.TRUE.equals(d.getBoolean("online"))
+                            && ls != null && System.currentTimeMillis() - ls < 45000;
+                    String txt; int col = Tk.crMuted(cMuted());
+                    if (blockedByThem && !myBlocks.contains(uid)) txt = "آخر ظهور كان منذ زمن طويل";
+                    else if (hid) txt = "آخر ظهور منذ فترة";
+                    else if (live) { txt = "متصل الآن"; col = 0xFF4ADE80; }
+                    else txt = "آخر ظهور كان قريباً";
+                    cs.setText(txt);
+                    cs.setTextColor(col);
+                });
+            }
+
             void closeChat() {
+                if (chatPresenceReg != null) { chatPresenceReg.remove(); chatPresenceReg = null; }
                 hideKb();
                 clearSel();
                 vis("chatView", false);
@@ -2730,6 +3120,7 @@ public class MassActivity extends Activity {
             boolean onBack() {
                 try {
                     if (MsgMenu.isShowing()) { MsgMenu.dismiss(); return true; }
+                    if (chatSelMode) { exitChatSel(true); return true; }
                     if (selecting) { clearSel(); return true; }
 
                     if (chatOpen()) {
@@ -3618,7 +4009,7 @@ public class MassActivity extends Activity {
                 d.setAntiAlias(true);
                 d.setMipMap(true);          // تصغير 1080→حجم العرض بدون تسنّن
                 photoBmp.setHasMipMap(true);
-                t.setBackground(t == tv("pAvatarText") ? withRing(d) : d);
+                t.setBackground(t == tv("pAvatarText") ? withRing(d, true) : d);
                 t.setText("");
             }
 
@@ -3719,7 +4110,7 @@ public class MassActivity extends Activity {
                 boolean pv = recPreview;
                 vis("recPlay", pv); vis("recStop", !pv); vis("recSend", pv);
                 TextView lb = tv("recLabel");
-                if (lb != null) { lb.setText(pv ? "تم التسجيل" : "جاري التسجيل"); lb.setTextColor(pv ? (dark ? 0xFFE4C45B : 0xFFB8861B) : 0xFFF87171); } // «تم التسجيل» ذهبي
+                if (lb != null) { lb.setText(pv ? "تم التسجيل" : "جاري التسجيل"); lb.setTextColor(pv ? (Tk.chatPal != null ? Tk.chatPal.accent : (dark ? 0xFFE4C45B : 0xFFB8861B)) : 0xFFF87171); } // «تم التسجيل» ذهبي
                 View dot = v("recDot");
                 if (dot != null) {
                     GradientDrawable g = new GradientDrawable();
