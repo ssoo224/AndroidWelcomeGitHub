@@ -312,7 +312,93 @@ public final class StoryComposer {
         return bos.toByteArray();
     }
 
-    // ============================================================ openComposer (واجهة صفحة النشر)
+    // ============================================================ openComposer (واجهة صفحة النشر — مطابقة لـ #storyComposer في الـ HTML)
+    // ألوان --sp-* من .story-page (نهاري / ليلي)
+    private int spBg()     { return dark ? 0xFF0F172A : 0xFFF4F7FB; }
+    private int spCard()   { return dark ? 0xFF17212B : 0xFFFFFFFF; }
+    private int spText()   { return dark ? 0xFFF1F5F9 : 0xFF17212B; }
+    private int spSub()    { return dark ? 0xFFA5B2C2 : 0xFF68798D; }
+    private int spBorder() { return dark ? 0xFF334155 : 0xFFDCE4EE; }
+    private int spInput()  { return dark ? 0xFF101A26 : 0xFFF5F7FB; }
+    private int spGold()   { return dark ? 0xFFE4C45B : 0xFFB8861B; }
+    private int spSoft()   { return dark ? 0x24E4C45B : 0x1FB8861B; }   // .14 / .12
+    private static final int G1 = 0xFFE6BD45, G2 = 0xFFB8861B;           // linear-gradient(135deg,#e6bd45,#b8861b)
+
+    /** مقياس --bb-s: sqrt(w/360) محصور بين 0.9 و 1.25 (w = أصغر بُعد للشاشة بالـ dp). */
+    private float bbScale() {
+        try {
+            android.util.DisplayMetrics m = act.getResources().getDisplayMetrics();
+            float w = Math.min(m.widthPixels, m.heightPixels) / m.density;
+            return Math.max(0.9f, Math.min(1.25f, (float) Math.sqrt(w / 360f)));
+        } catch (Throwable t) { return 1f; }
+    }
+    /** px من قيمة CSS (px) مع مقياس --bb-s */
+    private int px(float css) { return Math.round(css * dens * bbScale()); }
+    private void tsz(TextView t, float css) { t.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, css * dens * bbScale()); }
+
+    private GradientDrawable goldGrad(float rCss) {
+        GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{G1, G2});
+        g.setCornerRadius(px(rCss));
+        return g;
+    }
+    private GradientDrawable box(int fill, float rCss, int stroke) {
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(fill);
+        g.setCornerRadius(px(rCss));
+        if (stroke != 0) g.setStroke(Math.max(1, Math.round(dens)), stroke);
+        return g;
+    }
+
+    private View spIcon(int res, int color, float boxCss, float icoCss, int bg, float rCss) {
+        FrameLayout f = new FrameLayout(act);
+        if (bg != 0) f.setBackground(box(bg, rCss, 0));
+        ImageView iv = new ImageView(act);
+        iv.setImageResource(res);
+        iv.setColorFilter(color, android.graphics.PorterDuff.Mode.SRC_IN);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(px(icoCss), px(icoCss));
+        lp.gravity = Gravity.CENTER;
+        f.addView(iv, lp);
+        f.setLayoutParams(new LinearLayout.LayoutParams(px(boxCss), px(boxCss)));
+        return f;
+    }
+
+    private LinearLayout newCard() {
+        LinearLayout c = new LinearLayout(act);
+        c.setOrientation(LinearLayout.VERTICAL);
+        c.setPadding(px(14), px(14), px(14), px(14));
+        c.setBackground(box(spCard(), 18, spBorder()));
+        return c;
+    }
+
+    private LinearLayout.LayoutParams spCardLp() {
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2);
+        p.bottomMargin = px(12);
+        return p;
+    }
+
+    /** .sp-label: أيقونة 34 + نص (flex:1) + [اختياري] */
+    private LinearLayout spLabel(int iconRes, String text, boolean optional) {
+        LinearLayout row = new LinearLayout(act);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.addView(spIcon(iconRes, spGold(), 34, 19, spSoft(), 11));
+        TextView t = new TextView(act);
+        t.setText(text); tsz(t, 14); t.setTypeface(null, Typeface.BOLD); t.setTextColor(spText());
+        LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(0, -2, 1f);
+        tl.setMarginStart(px(10));
+        row.addView(t, tl);
+        if (optional) {
+            TextView o = new TextView(act);
+            o.setText("اختياري"); tsz(o, 11);
+            o.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+            o.setTextColor(spSub());
+            o.setBackground(box(spInput(), 999, spBorder()));
+            o.setPadding(px(9), px(3), px(9), px(3));
+            row.addView(o);
+        }
+        return row;
+    }
+
     private void openComposer(String posterUrl, Uri video, double duration, long size) {
         if (dlg != null) return;
         posterDataUrl = posterUrl; videoUri = video; videoDuration = duration; videoSize = size;
@@ -329,56 +415,67 @@ public final class StoryComposer {
         LinearLayout root = new LinearLayout(act);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        root.setBackgroundColor(cBg());
+        root.setBackgroundColor(spBg());
 
-        // ---- الهيدر
+        // ---- .sp-header
         LinearLayout header = new LinearLayout(act);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setPadding(dp(12), dp(10) + statusBarH(), dp(16), dp(10));
-        header.setBackgroundColor(cSf());
-        TextView back = new TextView(act);
-        back.setText("→");
-        back.setTextSize(22);
-        back.setTypeface(null, Typeface.BOLD);
-        back.setTextColor(cText());
-        back.setGravity(Gravity.CENTER);
-        back.setBackground(shape(cBg(), 14, cBorder()));
+        header.setPadding(px(16), px(14) + statusBarH(), px(16), px(12));
+        header.setBackgroundColor(spCard());
+        FrameLayout back = new FrameLayout(act);
+        back.setBackground(box(spInput(), 12, spBorder()));
+        ImageView bi = new ImageView(act);
+        bi.setImageResource(R.drawable.ic_sp_back);
+        bi.setColorFilter(spText(), android.graphics.PorterDuff.Mode.SRC_IN);
+        FrameLayout.LayoutParams bil = new FrameLayout.LayoutParams(px(21), px(21));
+        bil.gravity = Gravity.CENTER;
+        back.addView(bi, bil);
         back.setOnClickListener(v -> close());
-        header.addView(back, new LinearLayout.LayoutParams(dp(42), dp(42)));
+        header.addView(back, new LinearLayout.LayoutParams(px(40), px(40)));
         LinearLayout titles = new LinearLayout(act);
         titles.setOrientation(LinearLayout.VERTICAL);
         TextView t1 = new TextView(act);
-        t1.setText("قصة جديدة"); t1.setTextSize(17); t1.setTypeface(null, Typeface.BOLD); t1.setTextColor(cText());
+        t1.setText("قصة جديدة"); tsz(t1, 18); t1.setTypeface(null, Typeface.BOLD); t1.setTextColor(spText());
         TextView t2 = new TextView(act);
-        t2.setText("شارك لحظتك مع أصدقائك"); t2.setTextSize(12.5f); t2.setTextColor(cMuted());
-        titles.addView(t1); titles.addView(t2);
+        t2.setText("شارك لحظتك مع أصدقائك"); tsz(t2, 12); t2.setTextColor(spSub());
+        LinearLayout.LayoutParams t2l = new LinearLayout.LayoutParams(-2, -2);
+        t2l.topMargin = px(3);
+        titles.addView(t1); titles.addView(t2, t2l);
         LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(0, -2, 1f);
-        tl.setMarginStart(dp(12));
+        tl.setMarginStart(px(12));
         header.addView(titles, tl);
         root.addView(header, new LinearLayout.LayoutParams(-1, -2));
+        View hl = new View(act);
+        hl.setBackgroundColor(spBorder());
+        root.addView(hl, new LinearLayout.LayoutParams(-1, Math.max(1, Math.round(dens))));
 
-        // ---- المحتوى
+        // ---- .sp-scroll
         ScrollView sv = new ScrollView(act);
         sv.setFillViewport(false);
+        sv.setOverScrollMode(View.OVER_SCROLL_NEVER);
         LinearLayout body = new LinearLayout(act);
         body.setOrientation(LinearLayout.VERTICAL);
-        body.setPadding(dp(14), dp(14), dp(14), dp(14));
+        body.setPadding(px(14), px(14), px(14), px(6));
         sv.addView(body, new ViewGroup.LayoutParams(-1, -2));
         root.addView(sv, new LinearLayout.LayoutParams(-1, 0, 1f));
 
-        // معاينة
+        // ---- .sp-media-card (padding:10) > .sp-preview (radius 13، خلفية سوداء، max-height:46%)
         FrameLayout pvBox = new FrameLayout(act);
-        pvBox.setBackground(shape(0xFF000000, 18, cBorder()));
+        pvBox.setBackground(box(0xFF000000, 13, 0));
         pvBox.setClipToOutline(true);
         preview = new ImageView(act);
         preview.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        preview.setAdjustViewBounds(true);
+        preview.setMaxHeight(Math.round(act.getResources().getDisplayMetrics().heightPixels * 0.46f));
         try {
             String b64 = posterDataUrl.substring(posterDataUrl.indexOf(',') + 1);
             byte[] bytes = Base64.decode(b64, Base64.DEFAULT);
             preview.setImageBitmap(BitmapFactory.decodeByteArray(bytes, 0, bytes.length));
         } catch (Throwable ignored) { }
-        pvBox.addView(preview, new FrameLayout.LayoutParams(-1, -1));
+        FrameLayout.LayoutParams pil = new FrameLayout.LayoutParams(-1, -2);
+        pil.gravity = Gravity.CENTER;
+        pvBox.addView(preview, pil);
         if (videoUri != null) {
             previewVid = new VideoView(act);
             previewVid.setVisibility(View.GONE);
@@ -387,140 +484,176 @@ public final class StoryComposer {
             pvBox.addView(previewVid, vp);
             playBtn = new TextView(act);
             playBtn.setText("▶");
-            playBtn.setTextSize(24);
+            tsz(playBtn, 24);
             playBtn.setTextColor(0xFFFFFFFF);
             playBtn.setGravity(Gravity.CENTER);
-            playBtn.setBackground(shape(0x99000000, 30, 0));
-            FrameLayout.LayoutParams pp = new FrameLayout.LayoutParams(dp(60), dp(60));
+            playBtn.setBackground(box(0x99000000, 999, 0));
+            FrameLayout.LayoutParams pp = new FrameLayout.LayoutParams(px(60), px(60));
             pp.gravity = Gravity.CENTER;
             pvBox.addView(playBtn, pp);
             playBtn.setOnClickListener(v -> playPreview());
         }
-        LinearLayout pvCard = card();
-        pvCard.setPadding(dp(8), dp(8), dp(8), dp(8));
-        pvCard.addView(pvBox, new LinearLayout.LayoutParams(-1, Math.round(act.getResources().getDisplayMetrics().heightPixels * 0.42f)));
-        body.addView(pvCard, cardLp());
+        LinearLayout pvCard = newCard();
+        pvCard.setPadding(px(10), px(10), px(10), px(10));
+        pvCard.addView(pvBox, new LinearLayout.LayoutParams(-1, -2));
+        body.addView(pvCard, spCardLp());
 
-        // الوصف
-        LinearLayout capCard = card();
-        LinearLayout capHead = new LinearLayout(act);
-        capHead.setOrientation(LinearLayout.HORIZONTAL);
-        capHead.setGravity(Gravity.CENTER_VERTICAL);
-        TextView capLbl = label(videoUri != null ? "وصف القصة" : "وصف القصة");
-        capHead.addView(capLbl, new LinearLayout.LayoutParams(0, -2, 1f));
-        TextView opt = new TextView(act);
-        opt.setText("اختياري"); opt.setTextSize(11.5f); opt.setTextColor(cMuted());
-        capHead.addView(opt);
-        capCard.addView(capHead, new LinearLayout.LayoutParams(-1, -2));
+        // ---- بطاقة الوصف
+        LinearLayout capCard = newCard();
+        LinearLayout capHead = spLabel(R.drawable.ic_sp_caption, "وصف القصة", true);
+        LinearLayout.LayoutParams chl = new LinearLayout.LayoutParams(-1, -2);
+        chl.bottomMargin = px(11);
+        capCard.addView(capHead, chl);
         caption = new EditText(act);
         caption.setHint("اكتب وصفاً لقصتك...");
-        caption.setHintTextColor(cMuted());
-        caption.setTextColor(cText());
-        caption.setTextSize(15);
+        caption.setHintTextColor((spSub() & 0x00FFFFFF) | 0xD9000000);   // opacity .85
+        caption.setTextColor(spText());
+        tsz(caption, 14);
+        caption.setLineSpacing(0, 1.35f);
+        caption.setMinHeight(px(92));
         caption.setMinLines(3);
-        caption.setMaxLines(5);
+        caption.setMaxLines(3);
         caption.setGravity(Gravity.TOP | Gravity.START);
+        caption.setTextDirection(View.TEXT_DIRECTION_RTL);
         caption.setFilters(new InputFilter[]{new InputFilter.LengthFilter(MAX_CAPTION)});
-        caption.setBackground(shape(dark ? 0xFF0F1923 : 0xFFF4F7FB, 14, cBorder()));
-        caption.setPadding(dp(14), dp(10), dp(14), dp(10));
-        LinearLayout.LayoutParams el = new LinearLayout.LayoutParams(-1, -2);
-        el.topMargin = dp(10);
-        capCard.addView(caption, el);
+        caption.setBackground(box(spInput(), 13, spBorder()));
+        caption.setPadding(px(13), px(12), px(13), px(12));
+        caption.setOnFocusChangeListener((v, has) -> caption.setBackground(box(spInput(), 13, has ? spGold() : spBorder())));
+        capCard.addView(caption, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout foot = new LinearLayout(act);
         foot.setOrientation(LinearLayout.HORIZONTAL);
         TextView hint = new TextView(act);
         hint.setText("أضف تفاصيل تساعد أصدقاءك على فهم القصة");
-        hint.setTextSize(11.5f); hint.setTextColor(cMuted());
+        tsz(hint, 11); hint.setTextColor(spSub());
         foot.addView(hint, new LinearLayout.LayoutParams(0, -2, 1f));
         countTv = new TextView(act);
-        countTv.setText("0/" + MAX_CAPTION); countTv.setTextSize(11.5f); countTv.setTextColor(cMuted());
-        foot.addView(countTv);
+        countTv.setText("0/" + MAX_CAPTION); tsz(countTv, 11); countTv.setTextColor(spSub());
+        LinearLayout.LayoutParams cnl = new LinearLayout.LayoutParams(-2, -2);
+        cnl.setMarginStart(px(10));
+        foot.addView(countTv, cnl);
         LinearLayout.LayoutParams fl = new LinearLayout.LayoutParams(-1, -2);
-        fl.topMargin = dp(6);
+        fl.topMargin = px(8);
         capCard.addView(foot, fl);
         caption.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
             @Override public void onTextChanged(CharSequence s, int a, int b, int c) { }
             @Override public void afterTextChanged(Editable s) { countTv.setText(s.length() + "/" + MAX_CAPTION); }
         });
-        body.addView(capCard, cardLp());
+        body.addView(capCard, spCardLp());
 
-        // المدة
-        LinearLayout durCard = card();
-        durCard.addView(label("مدة ظهور القصة"), new LinearLayout.LayoutParams(-1, -2));
+        // ---- بطاقة المدة (.sc-chips: شبكة 4 أعمدة، gap 8)
+        LinearLayout durCard = newCard();
+        LinearLayout durHead = spLabel(R.drawable.ic_sp_clock, "مدة ظهور القصة", false);
+        LinearLayout.LayoutParams dhl = new LinearLayout.LayoutParams(-1, -2);
+        dhl.bottomMargin = px(11);
+        durCard.addView(durHead, dhl);
         chipsRow = new LinearLayout(act);
         chipsRow.setOrientation(LinearLayout.HORIZONTAL);
         for (int i = 0; i < DURS.length; i++) {
             final int h = DURS[i];
             TextView chip = new TextView(act);
             chip.setText(h + " ساعة");
-            chip.setTextSize(13);
-            chip.setTypeface(null, Typeface.BOLD);
+            tsz(chip, 13);
             chip.setGravity(Gravity.CENTER);
+            chip.setSingleLine(true);
             chip.setTag(h);
             chip.setOnClickListener(v -> { if (!publishing) { hours = h; refreshChips(); } });
-            LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(0, dp(40), 1f);
-            if (i > 0) cl.setMarginStart(dp(8));
+            LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(0, px(39), 1f);
+            if (i > 0) cl.setMarginStart(px(8));
             chipsRow.addView(chip, cl);
         }
-        LinearLayout.LayoutParams cr = new LinearLayout.LayoutParams(-1, -2);
-        cr.topMargin = dp(12);
-        durCard.addView(chipsRow, cr);
+        durCard.addView(chipsRow, new LinearLayout.LayoutParams(-1, -2));
         refreshChips();
-        body.addView(durCard, cardLp());
+        body.addView(durCard, spCardLp());
 
-        // التثبيت
-        LinearLayout pinCard = card();
+        // ---- بطاقة التثبيت (.sp-switch-row)
+        LinearLayout pinCard = newCard();
         LinearLayout pinRow = new LinearLayout(act);
         pinRow.setOrientation(LinearLayout.HORIZONTAL);
         pinRow.setGravity(Gravity.CENTER_VERTICAL);
+        pinRow.addView(spIcon(R.drawable.ic_sp_pin, spGold(), 34, 19, spSoft(), 11));
         LinearLayout copy = new LinearLayout(act);
         copy.setOrientation(LinearLayout.VERTICAL);
         TextView pt = new TextView(act);
-        pt.setText("تثبيت بالملف الشخصي"); pt.setTextSize(14.5f); pt.setTypeface(null, Typeface.BOLD); pt.setTextColor(cText());
+        pt.setText("تثبيت بالملف الشخصي"); tsz(pt, 14); pt.setTypeface(null, Typeface.BOLD); pt.setTextColor(spText());
         TextView ps = new TextView(act);
-        ps.setText("تبقى القصة ظاهرة دائماً بعد انتهاء مدتها"); ps.setTextSize(12); ps.setTextColor(cMuted());
-        copy.addView(pt); copy.addView(ps);
-        pinRow.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+        ps.setText("تبقى القصة ظاهرة دائماً بعد انتهاء مدتها"); tsz(ps, 11.5f); ps.setTextColor(spSub());
+        ps.setLineSpacing(0, 1.15f);
+        LinearLayout.LayoutParams psl = new LinearLayout.LayoutParams(-2, -2);
+        psl.topMargin = px(3);
+        copy.addView(pt); copy.addView(ps, psl);
+        LinearLayout.LayoutParams cpl = new LinearLayout.LayoutParams(0, -2, 1f);
+        cpl.setMarginStart(px(12)); cpl.setMarginEnd(px(12));
+        pinRow.addView(copy, cpl);
         FrameLayout sw = new FrameLayout(act);
         pinSwitchTrack = new View(act);
         pinSwitchKnob = new View(act);
-        sw.addView(pinSwitchTrack, new FrameLayout.LayoutParams(dp(46), dp(26)));
-        FrameLayout.LayoutParams kp = new FrameLayout.LayoutParams(dp(20), dp(20));
-        kp.topMargin = dp(3);
+        sw.addView(pinSwitchTrack, new FrameLayout.LayoutParams(px(48), px(28)));
+        FrameLayout.LayoutParams kp = new FrameLayout.LayoutParams(px(22), px(22));
+        kp.topMargin = px(3);
         sw.addView(pinSwitchKnob, kp);
-        pinRow.addView(sw, new LinearLayout.LayoutParams(dp(46), dp(26)));
+        pinRow.addView(sw, new LinearLayout.LayoutParams(px(48), px(28)));
         pinRow.setOnClickListener(v -> { if (!publishing) { pin = !pin; refreshPin(); } });
         pinCard.addView(pinRow, new LinearLayout.LayoutParams(-1, -2));
         refreshPin();
-        body.addView(pinCard, cardLp());
+        body.addView(pinCard, spCardLp());
 
-        // ---- الفوتر
-        LinearLayout footer = new LinearLayout(act);
+        // ---- .sp-footer
+        View fline = new View(act);
+        fline.setBackgroundColor(spBorder());
+        root.addView(fline, new LinearLayout.LayoutParams(-1, Math.max(1, Math.round(dens))));
+        final LinearLayout footer = new LinearLayout(act);
         footer.setOrientation(LinearLayout.VERTICAL);
-        footer.setPadding(dp(14), dp(10), dp(14), dp(14));
-        footer.setBackgroundColor(cSf());
+        final int fPadB = px(12);
+        footer.setPadding(px(14), px(12), px(14), fPadB);
+        footer.setBackgroundColor(spCard());
         errTv = new TextView(act);
-        errTv.setTextSize(12.5f); errTv.setTextColor(cRed()); errTv.setGravity(Gravity.CENTER);
+        tsz(errTv, 12.5f); errTv.setTextColor(cRed()); errTv.setGravity(Gravity.CENTER);
         errTv.setVisibility(View.GONE);
         LinearLayout.LayoutParams erl = new LinearLayout.LayoutParams(-1, -2);
-        erl.bottomMargin = dp(8);
+        erl.bottomMargin = px(8);
         footer.addView(errTv, erl);
+
         publishBtn = new TextView(act);
         publishBtn.setText(LBL_PUBLISH);
-        publishBtn.setTextSize(15.5f);
+        tsz(publishBtn, 16);
         publishBtn.setTypeface(null, Typeface.BOLD);
-        publishBtn.setTextColor(0xFF17212B);
+        publishBtn.setTextColor(0xFFFFFFFF);
         publishBtn.setGravity(Gravity.CENTER);
-        publishBtn.setBackground(shape(cGold(), 16, 0));
+        publishBtn.setBackground(goldGrad(14));
+        publishBtn.setElevation(px(4));
+        try { if (android.os.Build.VERSION.SDK_INT >= 28) publishBtn.setOutlineSpotShadowColor(0x52B8861B); } catch (Throwable ignored) { }
+        android.graphics.drawable.Drawable sendIco = act.getResources().getDrawable(R.drawable.ic_sp_send, null);
+        sendIco.setBounds(0, 0, px(20), px(20));
+        publishBtn.setCompoundDrawablesRelative(sendIco, null, null, null);
+        publishBtn.setCompoundDrawablePadding(px(9));
         publishBtn.setOnClickListener(v -> publish());
-        footer.addView(publishBtn, new LinearLayout.LayoutParams(-1, dp(50)));
+        footer.addView(publishBtn, new LinearLayout.LayoutParams(-1, px(50)));
+
+        TextView cancel = new TextView(act);
+        cancel.setText("إلغاء");
+        tsz(cancel, 14);
+        cancel.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        cancel.setTextColor(spSub());
+        cancel.setGravity(Gravity.CENTER);
+        cancel.setBackground(box(0, 13, spBorder()));
+        cancel.setOnClickListener(v -> close());
+        LinearLayout.LayoutParams cal = new LinearLayout.LayoutParams(-1, px(44));
+        cal.topMargin = px(8);
+        footer.addView(cancel, cal);
         root.addView(footer, new LinearLayout.LayoutParams(-1, -2));
+
+        // safe-area السفلية (شريط الأزرار) تُضاف لحشوة الفوتر
+        root.setOnApplyWindowInsetsListener((v, ins) -> {
+            int bt = ins.getSystemWindowInsetBottom();
+            footer.setPadding(px(14), px(12), px(14), fPadB + Math.max(0, bt));
+            return ins;
+        });
 
         dlg.setContentView(root);
         Window w = dlg.getWindow();
         if (w != null) {
-            w.setBackgroundDrawable(new ColorDrawable(cBg()));
+            w.setBackgroundDrawable(new ColorDrawable(spBg()));
             w.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
             w.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         }
@@ -534,50 +667,38 @@ public final class StoryComposer {
         } catch (Throwable t) { return 0; }
     }
 
-    private LinearLayout card() {
-        LinearLayout c = new LinearLayout(act);
-        c.setOrientation(LinearLayout.VERTICAL);
-        c.setPadding(dp(14), dp(14), dp(14), dp(14));
-        c.setBackground(shape(cSf(), 18, cBorder()));
-        return c;
-    }
-
-    private LinearLayout.LayoutParams cardLp() {
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2);
-        p.bottomMargin = dp(12);
-        return p;
-    }
-
-    private TextView label(String s) {
-        TextView t = new TextView(act);
-        t.setText(s); t.setTextSize(14.5f); t.setTypeface(null, Typeface.BOLD); t.setTextColor(cText());
-        return t;
-    }
-
     private void refreshChips() {
         if (chipsRow == null) return;
         for (int i = 0; i < chipsRow.getChildCount(); i++) {
             TextView c = (TextView) chipsRow.getChildAt(i);
             boolean on = ((Integer) c.getTag()) == hours;
-            c.setBackground(on ? shape(cGold(), 12, 0) : shape(dark ? 0xFF0F1923 : 0xFFF4F7FB, 12, cBorder()));
-            c.setTextColor(on ? 0xFF17212B : cText());
+            if (on) {
+                c.setBackground(goldGrad(12));
+                c.setTextColor(0xFFFFFFFF);
+                c.setTypeface(null, Typeface.BOLD);
+            } else {
+                c.setBackground(box(spInput(), 12, spBorder()));
+                c.setTextColor(spText());
+                c.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+            }
         }
     }
 
     private void refreshPin() {
         if (pinSwitchTrack == null) return;
-        pinSwitchTrack.setBackground(shape(pin ? cGold() : (dark ? 0xFF2B3A4A : 0xFFCBD5E1), 13, 0));
-        pinSwitchKnob.setBackground(shape(0xFFFFFFFF, 10, 0));
+        pinSwitchTrack.setBackground(pin ? goldGrad(999) : box(spBorder(), 999, 0));
+        pinSwitchKnob.setBackground(box(0xFFFFFFFF, 999, 0));
+        pinSwitchKnob.setElevation(px(1.5f));
         FrameLayout.LayoutParams kp = (FrameLayout.LayoutParams) pinSwitchKnob.getLayoutParams();
-        // في RTL يبدأ الهامش من اليمين: مطفأ = يمين، مشغّل = يسار
-        kp.setMarginStart(pin ? dp(23) : dp(3));
+        // RTL: البداية = اليمين. مطفأ: right:3  |  مشغّل: translateX(-20) أي نحو اليسار
+        kp.setMarginStart(pin ? px(23) : px(3));
         pinSwitchKnob.setLayoutParams(kp);
     }
 
     private void playPreview() {
         if (previewVid == null || videoUri == null) return;
         try {
-            preview.setVisibility(View.GONE);
+            preview.setVisibility(View.INVISIBLE);
             playBtn.setVisibility(View.GONE);
             previewVid.setVisibility(View.VISIBLE);
             previewVid.setVideoURI(videoUri);
