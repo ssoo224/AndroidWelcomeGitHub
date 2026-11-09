@@ -84,6 +84,9 @@ public final class CoverPattern extends View {
         return ic;
     }
 
+    /** مسار الرمز الخام (viewBox 24×24) — يستعمله ChatPattern لرسم نقوش المحادثة. */
+    static Path pathOf(String name) { return icon(name).path; }
+
     private static void add(Path into, String pathData) {
         Path q = PathParser.createPathFromPathData(pathData);
         if (q != null) into.addPath(q);

@@ -51,6 +51,8 @@ public final class MsgViews {
             p.setColor(color);
         }
 
+        public int state() { return state; }
+
         @Override public int getIntrinsicWidth() {
             if (style == 1) return (int) (16 * dens);
             return (int) ((state == READ ? 18.5f : state == WAIT ? 12f : 15f) * dens);
@@ -164,7 +166,7 @@ public final class MsgViews {
         if (mine) {
             ImageView tick = new ImageView(a);
             tick.setTag("tick");
-            tick.setImageDrawable(new TickDrawable(a, state, 0, 0xFFFFFFFF));
+            tick.setImageDrawable(new TickDrawable(a, state, 0, Tk.tickColor(state)));
             LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(-2, -2);
             tl.setMarginStart(dp(a, 3));
             m.addView(tick, tl);
@@ -174,7 +176,7 @@ public final class MsgViews {
 
     public static void setState(View bubble, int state) {
         View t = bubble.findViewWithTag("tick");
-        if (t instanceof ImageView) ((ImageView) t).setImageDrawable(new TickDrawable(t.getContext(), state, 0, 0xFFFFFFFF));
+        if (t instanceof ImageView) ((ImageView) t).setImageDrawable(new TickDrawable(t.getContext(), state, 0, Tk.tickColor(state)));
     }
 
     /** اقتباس الرد داخل الرسالة مطابق لـ .reply-quote: خلفية خفيفة، حواف 10، حشوة 5×9، خط ذهبي 3dp على اليمين، سطر واحد، محاذاة يمين. */

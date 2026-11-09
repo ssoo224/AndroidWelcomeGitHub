@@ -825,7 +825,7 @@ final class SearchPage {
 
     // ------------------------------------------------------------------ شارة التوثيق (.verified-badge النهائية في الـ HTML)
     /** ختم ذهبي مسنّن: تدرّج + لمعة + حلقة رفيعة + علامة ✓ بيضاء (SVG بإحداثيات 24×24). */
-    private static final class Seal extends Drawable {
+    static final class Seal extends Drawable {
         private static final float[] PTS = {
             23.35f, 12.00f, 23.25f, 12.59f, 22.98f, 13.15f, 22.56f, 13.67f, 22.08f, 14.14f, 21.59f, 14.57f, 21.16f,
             14.98f, 20.84f, 15.39f, 20.65f, 15.85f, 20.58f, 16.37f, 20.60f, 16.96f, 20.64f, 17.61f, 20.65f, 18.29f,

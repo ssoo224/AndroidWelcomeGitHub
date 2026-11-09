@@ -20,7 +20,21 @@ public final class Tk {
     public static int surface(boolean d) { return d ? 0xFF17212B : 0xFFFFFFFF; }
     public static int navBg(boolean d)   { return d ? 0xFF17212B : 0xFFFFFFFF; }   // شريط التنقل: ليلي #17212B / نهاري أبيض
     /** HTML: --cr-surface داخل المحادثة (خلفية الغرفة + لون الطبقة الزجاجية + لون شريط الإيماءات) */
-    public static int chatSurface(boolean d) { return d ? 0xFF17212B : 0xFFEEF2F8; }
+    public static int chatSurface(boolean d) { return chatPal != null ? chatPal.chatBg : (d ? 0xFF17212B : 0xFFEEF2F8); }
+
+    // ----- ثيم المحادثة الحالي (ChatThemes): chatPal = لوحة الثيم المطبّقة، وnull لثيم بابل (يبقى مظهره الأصلي)
+    public static String chatThemeId = ChatThemes.DEFAULT_ID;
+    public static ChatThemes.Pal chatPal = null;
+    public static void setChatTheme(String id, boolean dark) {
+        ChatThemes.Spec sp = ChatThemes.byId(id);
+        chatThemeId = sp.id;
+        chatPal = ChatThemes.isBabylon(sp.id) ? null : sp.pal(dark);
+    }
+    /** لون علامتَي القراءة: ثيم غير بابل → --tick-read للمقروءة وإلا لون نص رسالتي؛ بابل: أبيض كما كان. */
+    public static int tickColor(int state) {
+        if (chatPal == null) return 0xFFFFFFFF;
+        return state == MsgViews.READ ? chatPal.tick : chatPal.textMine;
+    }
     public static int surface2(boolean d){ return d ? 0xFF1D2A38 : 0xFFE8EDF4; }
     public static int border(boolean d)  { return d ? 0x14FFFFFF : 0xFFE3E9F1; }
     public static int text(boolean d)    { return d ? 0xFFF1F5F9 : 0xFF17212B; }
@@ -159,6 +173,14 @@ public final class Tk {
                 new android.graphics.drawable.Drawable[]{new android.graphics.drawable.ColorDrawable(baseColor), bd});
     }
 
+    /** خلفية غرفة المحادثة بحسب الثيم: نقوش الثيم (#chatPattern) بشفافية مخفَّفة 50% عن الـ HTML: .03 ليلي / .035 نهاري / .04 لغير بابل. */
+    public static android.graphics.drawable.Drawable chatRoomBg(View v, boolean dark) {
+        ChatThemes.Spec sp = ChatThemes.byId(chatThemeId);
+        if (chatPal != null) return new ChatPattern.Bg(v.getContext(), chatPal.chatBg, sp.symbols, chatPal.pattern, 0.04f);
+        ChatThemes.Pal b = sp.pal(dark);
+        return new ChatPattern.Bg(v.getContext(), chatSurface(dark), sp.symbols, b.pattern, dark ? 0.03f : 0.035f);
+    }
+
     public static android.graphics.drawable.Drawable pattern(View v, boolean dark, int baseColor) {
         final float d = v.getResources().getDisplayMetrics().density;
         int size = (int) (180 * d);
@@ -181,10 +203,21 @@ public final class Tk {
 
     public static boolean handle(String tag, View x, TextView t, boolean dark) {
         // ---- فقاعات الرسائل (MsgViews)
-        if (tag.equals("mtM")) { if (t != null) t.setTextColor(0xFFFFFFFF); return true; }
-        if (tag.equals("mtO")) { if (t != null) t.setTextColor(text(dark)); return true; }
-        if (tag.equals("mmM")) { if (t != null) t.setTextColor(0xF2FFFFFF); return true; }
-        if (tag.equals("mmO")) { if (t != null) t.setTextColor(dark ? 0xFF94A3B8 : 0xFF7C8B9C); return true; }
+        if (tag.equals("mtM")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.textMine : 0xFFFFFFFF); return true; }
+        if (tag.equals("mtO")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.textOther : text(dark)); return true; }
+        if (tag.equals("mmM")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.textMine : 0xF2FFFFFF); return true; }
+        if (tag.equals("mmO")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.metaOther : (dark ? 0xFF94A3B8 : 0xFF7C8B9C)); return true; }
+        if (tag.equals("tick")) {
+            if (x instanceof android.widget.ImageView) {
+                android.graphics.drawable.Drawable td = ((android.widget.ImageView) x).getDrawable();
+                if (td instanceof MsgViews.TickDrawable) {
+                    int st = ((MsgViews.TickDrawable) td).state();
+                    ((android.widget.ImageView) x).setImageDrawable(new MsgViews.TickDrawable(x.getContext(), st, 0, tickColor(st)));
+                }
+            }
+            return true;
+        }
+        if (tag.equals("sct")) { if (t != null) t.setTextColor(dark ? gold(true) : 0xFF17212B); return true; }   // .set-card-title
         if (tag.equals("rqM") || tag.equals("rqO")) {
             final float r = dp(x, 10);
             x.setBackground(shape(tag.equals("rqM") ? 0x1A000000 : 0x247F8CA0, r, 0, 0));
@@ -195,8 +228,8 @@ public final class Tk {
             return true;
         }
         if (tag.equals("rqnM") || tag.equals("rqnO")) { if (t != null) t.setTextColor(dark ? 0xFFE4C45B : 0xFF9B7410); return true; }   // .reply-quote-name: var(--babylon-gold)
-        if (tag.equals("rqtM")) { if (t != null) t.setTextColor(0xFFFFFFFF); return true; }
-        if (tag.equals("rqtO")) { if (t != null) t.setTextColor(0xFFC29D30); return true; }   // HTML: لون .reply-quote في رسائل الطرف الآخر = ذهبي accent-chat
+        if (tag.equals("rqtM")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.textMine : 0xFFFFFFFF); return true; }
+        if (tag.equals("rqtO")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.accent : 0xFFC29D30); return true; }   // HTML: لون .reply-quote في رسائل الطرف الآخر = ذهبي accent-chat
         // ---- شريط الرد أعلى حقل الكتابة (.reply-preview-bar في الـ HTML)
         if (tag.equals("rpBar")) {      // بطاقة عائمة: radius 22، حدّ 1px، خلفية --cr-card، ظل خفيف (reply-bar-rounder)
             x.setBackground(shape(dark ? 0xFF1E2A38 : 0xFFFFFFFF, dp(x, 22), dark ? 0x14FFFFFF : 0xFFDCE4EE, dp(x, 1)));
@@ -259,7 +292,7 @@ public final class Tk {
             return true;
         }
         if (tag.equals("homepat")) { x.setBackground(pattern(x, dark, pageBg(dark))); return true; }
-        if (tag.equals("chatpat")) { x.setBackground(chatPattern(x, dark, chatSurface(dark))); return true; }
+        if (tag.equals("chatpat")) { x.setBackground(chatRoomBg(x, dark)); return true; }
         if (tag.equals("glasst")) {          // رأس المحادثة: طبقة زجاجية 72% تمتد خلف شريط الإشعارات وتتلاشى عند حافتها السفلية
             x.setBackground(new Glass(chatSurface(dark), true, dp(x, 16)));
             return true;

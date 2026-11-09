@@ -1351,51 +1351,29 @@
 				android:paddingBottom="32dp"
 				android:orientation="vertical">
 
-				<!-- معاينة الفقاعات -->
-				<LinearLayout
+				<!-- معاينة الفقاعات (.pv): تُبنى في ChatPreview.java -->
+				<FrameLayout
 					android:id="@+id/pvBox"
 					android:layout_width="match_parent"
 					android:layout_height="wrap_content"
-					android:padding="16dp"
-					android:orientation="vertical"
-					android:tag="cover:#1E2A38">
-					<TextView
-						android:id="@+id/pvOther"
-						android:layout_width="wrap_content"
-						android:layout_height="wrap_content"
-						android:padding="12dp"
-						android:text="رسالة مستلمة\n12:00"
-						android:textSize="15sp"
-						android:textStyle="bold"
-						android:layout_gravity="start"
-						android:tag="bubOther" />
-					<TextView
-						android:id="@+id/pvMine"
-						android:layout_width="wrap_content"
-						android:layout_height="wrap_content"
-						android:layout_marginTop="8dp"
-						android:padding="12dp"
-						android:text="رسالة مرسلة\n12:01"
-						android:drawableEnd="@drawable/ic_check_double_16"
-						android:drawablePadding="6dp"
-						android:textSize="15sp"
-						android:textStyle="bold"
-						android:layout_gravity="end"
-						android:tag="bubMine" />
-				</LinearLayout>
+					android:layout_marginTop="12dp"
+					android:minHeight="190dp" />
 
 				<!-- ثيم وخلفية المحادثة -->
 				<LinearLayout
 					android:id="@+id/linear782"
 					android:layout_width="match_parent"
 					android:layout_height="wrap_content"
-					android:layout_marginTop="14dp"
-					android:padding="16dp"
+					android:layout_marginTop="12dp"
+					android:paddingStart="16dp"
+					android:paddingEnd="16dp"
+					android:paddingTop="14dp"
+					android:paddingBottom="10dp"
 					android:orientation="vertical"
 					android:tag="card"
 					android:elevation="0dp"
-					android:layout_marginStart="14dp"
-					android:layout_marginEnd="14dp">
+					android:layout_marginStart="12dp"
+					android:layout_marginEnd="12dp">
 					<TextView
 						android:id="@+id/textview810"
 						android:layout_width="wrap_content"
@@ -1403,12 +1381,13 @@
 						android:text="ثيم وخلفية المحادثة"
 						android:textSize="14sp"
 						android:textStyle="bold"
-						android:tag="t" />
+						android:tag="sct" />
 					<HorizontalScrollView
 						android:id="@+id/hscroll8"
 						android:layout_width="match_parent"
 						android:layout_height="wrap_content"
 						android:layout_marginTop="10dp"
+						android:layoutDirection="rtl"
 						android:scrollbars="none">
 						<LinearLayout
 							android:id="@+id/themeStrip"
@@ -1423,43 +1402,53 @@
 					android:id="@+id/linear783"
 					android:layout_width="match_parent"
 					android:layout_height="wrap_content"
-					android:layout_marginTop="14dp"
-					android:padding="16dp"
+					android:layout_marginTop="12dp"
+					android:paddingStart="16dp"
+					android:paddingEnd="16dp"
+					android:paddingTop="10dp"
+					android:paddingBottom="6dp"
 					android:orientation="vertical"
 					android:tag="card"
 					android:elevation="0dp"
-					android:layout_marginStart="14dp"
-					android:layout_marginEnd="14dp">
+					android:layout_marginStart="12dp"
+					android:layout_marginEnd="12dp">
+					<TextView
+						android:id="@+id/textview811"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:text="حجم خط الرسائل"
+						android:textSize="14sp"
+						android:textStyle="bold"
+						android:gravity="start"
+						android:tag="sct" />
 					<LinearLayout
 						android:id="@+id/linear784"
 						android:layout_width="match_parent"
 						android:layout_height="wrap_content"
+						android:layout_marginTop="10dp"
+						android:paddingBottom="6dp"
+						android:gravity="center_vertical"
+						android:layoutDirection="ltr"
 						android:orientation="horizontal">
-						<TextView
-							android:id="@+id/textview811"
+						<SeekBar
+							android:id="@+id/fontRange"
 							android:layout_width="0dp"
 							android:layout_height="wrap_content"
-							android:text="حجم خط الرسائل"
-							android:textSize="14sp"
-							android:textStyle="bold"
 							android:layout_weight="1"
-							android:tag="t" />
+							android:progress="3"
+							android:max="10" />
 						<TextView
 							android:id="@+id/fontVal"
 							android:layout_width="wrap_content"
 							android:layout_height="wrap_content"
+							android:minWidth="26dp"
+							android:layout_marginStart="14dp"
+							android:gravity="end"
 							android:text="15"
-							android:textSize="14sp"
+							android:textSize="18sp"
 							android:textStyle="bold"
 							android:tag="g" />
 					</LinearLayout>
-					<SeekBar
-						android:id="@+id/fontRange"
-						android:layout_width="match_parent"
-						android:layout_height="wrap_content"
-						android:layout_marginTop="8dp"
-						android:progress="3"
-						android:max="10" />
 				</LinearLayout>
 
 				<!-- زوايا الرسالة -->
@@ -1467,43 +1456,53 @@
 					android:id="@+id/linear785"
 					android:layout_width="match_parent"
 					android:layout_height="wrap_content"
-					android:layout_marginTop="14dp"
-					android:padding="16dp"
+					android:layout_marginTop="12dp"
+					android:paddingStart="16dp"
+					android:paddingEnd="16dp"
+					android:paddingTop="10dp"
+					android:paddingBottom="6dp"
 					android:orientation="vertical"
 					android:tag="card"
 					android:elevation="0dp"
-					android:layout_marginStart="14dp"
-					android:layout_marginEnd="14dp">
+					android:layout_marginStart="12dp"
+					android:layout_marginEnd="12dp">
+					<TextView
+						android:id="@+id/textview812"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:text="زوايا الرسالة"
+						android:textSize="14sp"
+						android:textStyle="bold"
+						android:gravity="start"
+						android:tag="sct" />
 					<LinearLayout
 						android:id="@+id/linear786"
 						android:layout_width="match_parent"
 						android:layout_height="wrap_content"
+						android:layout_marginTop="10dp"
+						android:paddingBottom="6dp"
+						android:gravity="center_vertical"
+						android:layoutDirection="ltr"
 						android:orientation="horizontal">
-						<TextView
-							android:id="@+id/textview812"
+						<SeekBar
+							android:id="@+id/radiusRange"
 							android:layout_width="0dp"
 							android:layout_height="wrap_content"
-							android:text="زوايا الرسالة"
-							android:textSize="14sp"
-							android:textStyle="bold"
 							android:layout_weight="1"
-							android:tag="t" />
+							android:progress="12"
+							android:max="20" />
 						<TextView
 							android:id="@+id/radiusVal"
 							android:layout_width="wrap_content"
 							android:layout_height="wrap_content"
-							android:text="16"
-							android:textSize="14sp"
+							android:minWidth="26dp"
+							android:layout_marginStart="14dp"
+							android:gravity="end"
+							android:text="12"
+							android:textSize="18sp"
 							android:textStyle="bold"
 							android:tag="g" />
 					</LinearLayout>
-					<SeekBar
-						android:id="@+id/radiusRange"
-						android:layout_width="match_parent"
-						android:layout_height="wrap_content"
-						android:layout_marginTop="8dp"
-						android:progress="16"
-						android:max="20" />
 				</LinearLayout>
 			</LinearLayout>
 		</ScrollView>

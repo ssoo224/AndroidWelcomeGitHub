@@ -251,9 +251,12 @@ public class MassActivity extends Activity {
         class UI {
             SharedPreferences sp = act.getSharedPreferences("babylon_ui", MODE_PRIVATE);
             boolean dark = sp.getBoolean("dark", false);
-            int fontSp = sp.getInt("font", 15);
-            int radius = sp.getInt("radius", 16);
-            int chatBgIdx = sp.getInt("chatBg", 0);
+            int fontSp = Math.max(ChatThemes.FONT_MIN, Math.min(ChatThemes.FONT_MAX, sp.getInt("font", ChatThemes.FONT_DEF)));
+            int radius = Math.max(ChatThemes.RADIUS_MIN, Math.min(ChatThemes.RADIUS_MAX, sp.getInt("radius", ChatThemes.RADIUS_DEF)));
+            String chatTheme = ChatThemes.byId(sp.getString("chatTheme", ChatThemes.DEFAULT_ID)).id;   // prefs.theme (babylon افتراضي)
+            ChatPreview chatPreview;
+            boolean prefsFromCloudDone = false;
+            Runnable prefsSyncRun;
             String coverId = CoverThemes.byId(sp.getString("coverId", CoverThemes.DEFAULT_ID)).id;   // غلافي (users/{uid}.cover)
             String otherCoverId = CoverThemes.DEFAULT_ID;                                            // غلاف الشخص المعروض
             boolean unreadOnly = false, muted = false, blocked = false;
@@ -305,9 +308,6 @@ public class MassActivity extends Activity {
                     "chatSettingsView", "editProfileView"};
             String[] govs = {"بغداد", "البصرة", "نينوى", "أربيل", "النجف", "كربلاء", "السليمانية", "دهوك",
                     "كركوك", "الأنبار", "ديالى", "صلاح الدين", "بابل", "واسط", "ذي قار", "ميسان", "المثنى", "القادسية"};
-            String[] themeNames = {"افتراضي", "أزرق", "أخضر", "بنفسجي", "ذهبي"};
-            int[] bgLight = {0xFFE4E9F2, 0xFFD6E6FA, 0xFFDDF0DD, 0xFFE8DDF3, 0xFFF5EBCB};
-            int[] bgDark = {0xFF0E1621, 0xFF0B1B30, 0xFF0C1F14, 0xFF1A1128, 0xFF241C08};
 
             StoriesController stories;
             final java.util.HashMap<String, Long> storyUntil = new java.util.HashMap<>();
@@ -352,7 +352,7 @@ public class MassActivity extends Activity {
             int cRed() { return dark ? 0xFFFB7185 : 0xFFDC2626; }
             int cMine() { return dark ? 0xFF2B5278 : 0xFFD9FDD3; }
             int cOther() { return dark ? 0xFF182533 : 0xFFFFFFFF; }
-            int cChatBg() { return dark ? bgDark[chatBgIdx] : bgLight[chatBgIdx]; }
+            int cChatBg() { return Tk.chatSurface(dark); }
 
             /** حقل الكتابة: #f1f5fa / rgba(127,140,160,.10) ، عند التركيز أبيض / .16 وحدّ #c9cfd8 / #8b94a1 ، انحناء 15 */
             GradientDrawable msgInpBg(boolean focus) {
@@ -471,17 +471,27 @@ public class MassActivity extends Activity {
                             if (T != null) T.setTextColor(cGold());
                         } else if (k.equals("bubMine")) {
                             float rr = dp(radius), tl = dp(6);
+                            if (Tk.chatPal != null) {            // ثيم غير بابل: --bubble-mine / --text-mine
+                                x.setBackground(ChatThemes.bubble(Tk.chatPal, true, new float[]{rr, rr, rr, rr, tl, tl, rr, rr}, 0f));
+                                if (T != null) T.setTextColor(Tk.chatPal.textMine);
+                            } else {
                             GradientDrawable mg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE8C85D, 0xFFCBA843});
                             mg.setCornerRadii(new float[]{rr, rr, rr, rr, tl, tl, rr, rr});   // الذيل أسفل اليمين كما في الـ HTML
                             x.setBackground(mg);
                             if (T != null) T.setTextColor(dark ? 0xFFFFFFFF : 0xFF292216);
+                            }
                         } else if (k.equals("bubOther")) {
                             float rr = dp(radius), tl = dp(6);
+                            if (Tk.chatPal != null) {            // ثيم غير بابل: --bubble-other + حدّ --bubble-line + --text-other
+                                x.setBackground(ChatThemes.bubble(Tk.chatPal, false, new float[]{rr, rr, rr, rr, rr, rr, tl, tl}, dp(1)));
+                                if (T != null) T.setTextColor(Tk.chatPal.textOther);
+                            } else {
                             GradientDrawable og = new GradientDrawable();
                             og.setColor(dark ? 0xFF263746 : 0xFFFFFFFF);
                             og.setCornerRadii(new float[]{rr, rr, rr, rr, rr, rr, tl, tl});   // الذيل أسفل اليسار كما في الـ HTML
                             x.setBackground(og);
                             if (T != null) T.setTextColor(cText());
+                            }
                         } else if (k.startsWith("ic:")) {
                             int base = Color.parseColor(k.substring(3));
                             int top = Color.rgb(Color.red(base) + (255 - Color.red(base)) / 4, Color.green(base) + (255 - Color.green(base)) / 4, Color.blue(base) + (255 - Color.blue(base)) / 4);
@@ -893,11 +903,31 @@ public class MassActivity extends Activity {
                 style(b);
             }
 
+            /** ثيم المحادثة الحالي → Tk (يقرؤه رسم الفقاعات والخلفية والشريط الزجاجي). */
+            void syncChatTheme() { Tk.setChatTheme(chatTheme, dark); }
+
+            /** مؤشرات الشرائح: ذهبية بحسب الوضع (accent-color: var(--babylon-gold)) */
+            void tintSeek(String id) {
+                View sv = v(id);
+                if (!(sv instanceof SeekBar)) return;
+                SeekBar sb = (SeekBar) sv;
+                if (Build.VERSION.SDK_INT >= 21) {
+                    sb.setProgressTintList(android.content.res.ColorStateList.valueOf(cGold()));
+                    sb.setThumbTintList(android.content.res.ColorStateList.valueOf(cGold()));
+                    sb.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(dark ? 0x55FFFFFF : 0x33000000));
+                }
+            }
+
             void applyTheme() {
+                syncChatTheme();
                 style(v("root"));
                 if (searchPage != null) searchPage.applyTheme();
                 View pvBox = v("pvBox");
-                if (pvBox != null) pvBox.setBackgroundColor(cChatBg());
+                if (pvBox instanceof FrameLayout) {
+                    if (chatPreview == null) chatPreview = new ChatPreview(act, (FrameLayout) pvBox);
+                    chatPreview.apply(chatTheme, dark, fontSp, radius);
+                }
+                tintSeek("fontRange"); tintSeek("radiusRange");
                 TextView themeDesc = tv("themeDescription");
                 if (themeDesc != null) {
                     themeDesc.setText(dark ? "الوضع الليلي مفعّل" : "الوضع النهاري مفعّل");
@@ -1090,6 +1120,7 @@ public class MassActivity extends Activity {
                             String cvId = CoverThemes.has(cv) ? cv : CoverThemes.DEFAULT_ID;
                             sp.edit().putString("coverId", cvId).apply();
                             applyCover(true, cvId);
+                            try { syncPrefsFromUser(doc); } catch (Throwable ignored) { }
                             Long createdAt = doc.getLong("createdAt");
 
                             if (userName.isEmpty()) userName = "Mohammed";
@@ -2413,7 +2444,7 @@ public class MassActivity extends Activity {
                 if (mine) {   // علامة الإرسال/الرؤية SVG على الصورة أيضاً
                     ImageView tick = new ImageView(act);
                     tick.setTag("tick");
-                    tick.setImageDrawable(new MsgViews.TickDrawable(act, MsgViews.SENT, 0, 0xFFFFFFFF));
+                    tick.setImageDrawable(new MsgViews.TickDrawable(act, MsgViews.SENT, 0, Tk.tickColor(MsgViews.SENT)));
                     LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(-2, -2);
                     tl.setMarginStart(dp(3));
                     t.addView(tick, tl);
@@ -4009,43 +4040,149 @@ public class MassActivity extends Activity {
                 if (searchPage != null) searchPage.onQuery(q);
             }
 
+            // ====================== ثيم وخلفية المحادثة (buildThemeStrip / setTheme / applyPrefs في الـ HTML) ======================
+            /** شريط الثيمات: بطاقات 96dp، مصغّر 132dp بحدّ 3dp (ذهبي للمحدد وبحجم 1.03)، فقاعتان وزخرفة الثيم والرمز الكبير والاسم. */
             void buildThemeStrip() {
                 LinearLayout s = (LinearLayout) v("themeStrip");
                 if (s == null) return;
+                s.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                if (s.getParent() instanceof View) ((View) s.getParent()).setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
                 s.removeAllViews();
-                for (int i = 0; i < themeNames.length; i++) {
-                    final int idx = i;
-                    TextView c = new TextView(act);
-                    c.setText(themeNames[i]); c.setTextSize(13); c.setGravity(Gravity.CENTER);
-                    c.setTypeface(null, android.graphics.Typeface.BOLD);
-                    c.setPadding(dp(16), dp(8), dp(16), dp(8));
-                    c.setTag(i == chatBgIdx ? "gold" : "goldo");
-                    LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-2, -2);
-                    p.setMargins(0, 0, dp(8), 0);
-                    c.setLayoutParams(p);
-                    c.setOnClickListener(x -> {
-                        chatBgIdx = idx;
-                        sp.edit().putInt("chatBg", idx).apply();
-                        applyTheme();
+                s.setPadding(dp(4), dp(4), dp(4), dp(12));
+                for (final ChatThemes.Spec spc : ChatThemes.ALL) {
+                    final ChatThemes.Pal p = spc.pal(dark);
+                    boolean sel = spc.id.equals(chatTheme);
+                    LinearLayout card = new LinearLayout(act);
+                    card.setOrientation(LinearLayout.VERTICAL);
+                    LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(96), -2);
+                    cp.setMarginEnd(dp(10));
+                    card.setLayoutParams(cp);
+
+                    FrameLayout thumb = new FrameLayout(act);
+                    thumb.setPadding(dp(3), dp(3), dp(3), dp(3));
+                    GradientDrawable tb = new GradientDrawable();
+                    tb.setColor(p.chatBg);
+                    tb.setCornerRadius(dp(14));
+                    tb.setStroke(dp(3), sel ? cGold() : 0x00000000);
+                    thumb.setBackground(tb);
+                    thumb.setClipToOutline(true);
+                    thumb.setOutlineProvider(new android.view.ViewOutlineProvider() {
+                        @Override public void getOutline(View vw, android.graphics.Outline o) { o.setRoundRect(0, 0, vw.getWidth(), vw.getHeight(), dp(14)); }
                     });
-                    s.addView(c);
-                    style(c);
+                    card.addView(thumb, new LinearLayout.LayoutParams(-1, dp(132)));
+                    if (sel) { thumb.setScaleX(1.03f); thumb.setScaleY(1.03f); }
+
+                    ChatPattern pat = new ChatPattern(act).grid(3, 34f, 15f, 24)
+                            .style(spc.symbols, p.pattern, Math.min(0.4f, p.patternOp * 2.4f));
+                    thumb.addView(pat, new FrameLayout.LayoutParams(-1, -1));
+
+                    float inner = 96f - 6f;   // عرض صندوق الحشوة داخل الحدّ
+                    float[] r12 = {dp(12), dp(12), dp(12), dp(12), dp(12), dp(12), dp(12), dp(12)};
+                    View thMine = new View(act);
+                    thMine.setBackground(ChatThemes.bubble(p, true, r12, 0f));
+                    FrameLayout.LayoutParams lm = new FrameLayout.LayoutParams(dp(inner * 0.72f), dp(22), Gravity.TOP | Gravity.LEFT);
+                    lm.leftMargin = dp(inner * 0.16f); lm.topMargin = dp(16);
+                    thumb.addView(thMine, lm);
+                    View thOther = new View(act);
+                    thOther.setBackground(ChatThemes.bubble(p, false, r12, 0f));
+                    FrameLayout.LayoutParams lo = new FrameLayout.LayoutParams(dp(inner * 0.62f), dp(22), Gravity.TOP | Gravity.LEFT);
+                    lo.leftMargin = dp(inner * 0.12f); lo.topMargin = dp(48);
+                    thumb.addView(thOther, lo);
+                    ChatPattern.Glyph hero = new ChatPattern.Glyph(act).set(spc.hero, p.pattern);
+                    FrameLayout.LayoutParams lh = new FrameLayout.LayoutParams(dp(40), dp(40), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+                    lh.bottomMargin = dp(8);
+                    thumb.addView(hero, lh);
+
+                    TextView nm = new TextView(act);
+                    nm.setText(spc.name);
+                    nm.setTextSize(12);
+                    nm.setGravity(Gravity.CENTER);
+                    nm.setTextColor(sel ? cGold() : cMuted());
+                    nm.setTypeface(null, sel ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
+                    LinearLayout.LayoutParams ln = new LinearLayout.LayoutParams(-1, -2);
+                    ln.topMargin = dp(6);
+                    card.addView(nm, ln);
+
+                    final String id = spc.id;
+                    card.setOnClickListener(x -> setChatTheme(id));
+                    s.addView(card);
                 }
             }
 
+            void setChatTheme(String id) {
+                if (!ChatThemes.has(id)) return;
+                chatTheme = id;
+                saveChatPrefs();
+                syncChatTheme();
+                if (chatPreview != null) chatPreview.apply(chatTheme, dark, fontSp, radius);
+                try { buildThemeStrip(); } catch (Throwable ignored) { }
+                style(v("chatView"));
+                try { syncBars(); } catch (Throwable ignored) { }
+            }
+
+            void saveChatPrefs() {
+                sp.edit().putString("chatTheme", chatTheme).putInt("font", fontSp).putInt("radius", radius).apply();
+                syncPrefsToCloud();
+            }
+
+            /** users/{uid}.chatPrefs = {theme, font, radius} بعد 800ms من آخر تغيير (syncPrefsToCloud في الـ HTML) */
+            void syncPrefsToCloud() {
+                if (prefsSyncRun != null) uiH.removeCallbacks(prefsSyncRun);
+                prefsSyncRun = () -> {
+                    if (db == null || myUid == null || myUid.isEmpty()) return;
+                    Map<String, Object> cp = new HashMap<>();
+                    cp.put("theme", chatTheme); cp.put("font", fontSp); cp.put("radius", radius);
+                    Map<String, Object> m = new HashMap<>();
+                    m.put("chatPrefs", cp);
+                    try { db.collection("users").document(myUid).set(m, com.google.firebase.firestore.SetOptions.merge()); } catch (Throwable ignored) { }
+                };
+                uiH.postDelayed(prefsSyncRun, 800);
+            }
+
+            /** عند أول تحميل لوثيقة المستخدم: تُعتمد chatPrefs السحابية (syncPrefsFromUser في الـ HTML) */
+            void syncPrefsFromUser(com.google.firebase.firestore.DocumentSnapshot doc) {
+                if (prefsFromCloudDone || doc == null) return;
+                prefsFromCloudDone = true;
+                Object o = doc.get("chatPrefs");
+                if (!(o instanceof Map)) { syncPrefsToCloud(); return; }
+                Map<?, ?> c = (Map<?, ?>) o;
+                Object th = c.get("theme");
+                if (th instanceof String && ChatThemes.has((String) th)) chatTheme = (String) th;
+                Object f = c.get("font");
+                if (f instanceof Number) { int n = ((Number) f).intValue(); if (n >= ChatThemes.FONT_MIN && n <= ChatThemes.FONT_MAX) fontSp = n; }
+                Object r = c.get("radius");
+                if (r instanceof Number) { int n = ((Number) r).intValue(); if (n >= ChatThemes.RADIUS_MIN && n <= ChatThemes.RADIUS_MAX) radius = n; }
+                sp.edit().putString("chatTheme", chatTheme).putInt("font", fontSp).putInt("radius", radius).apply();
+                SeekBar fr0 = (SeekBar) v("fontRange"), rr0 = (SeekBar) v("radiusRange");
+                if (fr0 != null) fr0.setProgress(fontSp - ChatThemes.FONT_MIN);
+                if (rr0 != null) rr0.setProgress(radius - ChatThemes.RADIUS_MIN);
+                TextView fv0 = tv("fontVal"), rv0 = tv("radiusVal");
+                if (fv0 != null) fv0.setText("" + fontSp);
+                if (rv0 != null) rv0.setText("" + radius);
+                applyTheme();
+                applyBubbles();
+            }
+
+            void setMsgTextSize(View x) {
+                Object t = x.getTag();
+                if (x instanceof TextView && t instanceof String && (t.equals("mtM") || t.equals("mtO"))) ((TextView) x).setTextSize(fontSp);
+                if (x instanceof ViewGroup) {
+                    ViewGroup g = (ViewGroup) x;
+                    for (int i = 0; i < g.getChildCount(); i++) setMsgTextSize(g.getChildAt(i));
+                }
+            }
+
+            /** applyPrefs: حجم الخط وانحناء الفقاعات على المعاينة وعلى رسائل المحادثة المفتوحة */
             void applyBubbles() {
-                TextView po = tv("pvOther");
-                if (po != null) po.setTextSize(fontSp);
-                TextView pm2 = tv("pvMine");
-                if (pm2 != null) pm2.setTextSize(fontSp);
                 LinearLayout a = (LinearLayout) v("messagesArea");
                 if (a != null) {
                     for (int i = 0; i < a.getChildCount(); i++) {
                         View c = a.getChildAt(i);
                         if (c instanceof TextView) ((TextView) c).setTextSize(fontSp);
                     }
+                    setMsgTextSize(a);
                 }
-                style(v("pvBox"));
+                if (chatPreview != null) chatPreview.apply(chatTheme, dark, fontSp, radius);
                 style(a);
             }
 
@@ -4300,13 +4437,13 @@ public class MassActivity extends Activity {
 
                 SeekBar fr = (SeekBar) v("fontRange");
                 if (fr != null) {
-                    fr.setProgress(fontSp - 12);
+                    fr.setProgress(fontSp - ChatThemes.FONT_MIN);
                     fr.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
                         public void onProgressChanged(SeekBar s, int p, boolean u) {
-                            fontSp = 12 + p;
+                            fontSp = ChatThemes.FONT_MIN + p;
                             TextView fv = tv("fontVal");
                             if (fv != null) fv.setText("" + fontSp);
-                            sp.edit().putInt("font", fontSp).apply();
+                            if (u) saveChatPrefs();
                             applyBubbles();
                         }
                         public void onStartTrackingTouch(SeekBar s) { }
@@ -4318,10 +4455,10 @@ public class MassActivity extends Activity {
                     rr.setProgress(radius);
                     rr.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
                         public void onProgressChanged(SeekBar s, int p, boolean u) {
-                            radius = p;
+                            radius = ChatThemes.RADIUS_MIN + p;
                             TextView rv = tv("radiusVal");
-                            if (rv != null) rv.setText("" + p);
-                            sp.edit().putInt("radius", p).apply();
+                            if (rv != null) rv.setText("" + radius);
+                            if (u) saveChatPrefs();
                             applyBubbles();
                         }
                         public void onStartTrackingTouch(SeekBar s) { }
