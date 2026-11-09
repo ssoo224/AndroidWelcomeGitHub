@@ -320,6 +320,11 @@ public final class StoryComposer {
     private int spSub()    { return dark ? 0xFFA5B2C2 : 0xFF68798D; }
     private int spBorder() { return dark ? 0xFF334155 : 0xFFDCE4EE; }
     private int spInput()  { return dark ? 0xFF101A26 : 0xFFF5F7FB; }
+    // ---- ترويسة مطابقة لـ .edit-profile-header في صفحة «تعديل البيانات الشخصية»
+    private int hdrBg()     { return dark ? 0xFF0E1621 : 0xFFFFFFFF; }
+    private int hdrLine()   { return dark ? 0x14FFFFFF : 0xFFE1E7EF; }
+    private int hdrBackBg() { return dark ? 0xFF232E3C : 0xFFEDF2F8; }
+    private int hdrBackFg() { return dark ? 0xFF8696A7 : 0xFF536579; }
     private int spGold()   { return dark ? 0xFFE4C45B : 0xFFB8861B; }
     private int spSoft()   { return dark ? 0x24E4C45B : 0x1FB8861B; }   // .14 / .12
     private static final int G1 = 0xFFE6BD45, G2 = 0xFFB8861B;           // linear-gradient(135deg,#e6bd45,#b8861b)
@@ -421,18 +426,19 @@ public final class StoryComposer {
         LinearLayout header = new LinearLayout(act);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setPadding(px(16), px(14) + statusBarH(), px(16), px(12));
-        header.setBackgroundColor(spCard());
+        // padding: 17dp/18dp مثل الأصل، والجزء العلوي يُضاف له ارتفاع شريط الإشعارات ليمتد الهيدر خلفه
+        header.setPadding(px(18), px(17) + statusBarH(), px(18), px(17));
+        header.setBackgroundColor(hdrBg());
         FrameLayout back = new FrameLayout(act);
-        back.setBackground(box(spInput(), 12, spBorder()));
+        back.setBackground(box(hdrBackBg(), 14, 0));
         ImageView bi = new ImageView(act);
         bi.setImageResource(R.drawable.ic_sp_back);
-        bi.setColorFilter(spText(), android.graphics.PorterDuff.Mode.SRC_IN);
-        FrameLayout.LayoutParams bil = new FrameLayout.LayoutParams(px(21), px(21));
+        bi.setColorFilter(hdrBackFg(), android.graphics.PorterDuff.Mode.SRC_IN);
+        FrameLayout.LayoutParams bil = new FrameLayout.LayoutParams(px(24), px(24));
         bil.gravity = Gravity.CENTER;
         back.addView(bi, bil);
         back.setOnClickListener(v -> close());
-        header.addView(back, new LinearLayout.LayoutParams(px(40), px(40)));
+        header.addView(back, new LinearLayout.LayoutParams(px(42), px(42)));
         LinearLayout titles = new LinearLayout(act);
         titles.setOrientation(LinearLayout.VERTICAL);
         TextView t1 = new TextView(act);
@@ -440,14 +446,14 @@ public final class StoryComposer {
         TextView t2 = new TextView(act);
         t2.setText("شارك لحظتك مع أصدقائك"); tsz(t2, 12); t2.setTextColor(spSub());
         LinearLayout.LayoutParams t2l = new LinearLayout.LayoutParams(-2, -2);
-        t2l.topMargin = px(3);
+        t2l.topMargin = px(4);
         titles.addView(t1); titles.addView(t2, t2l);
         LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(0, -2, 1f);
         tl.setMarginStart(px(12));
         header.addView(titles, tl);
         root.addView(header, new LinearLayout.LayoutParams(-1, -2));
         View hl = new View(act);
-        hl.setBackgroundColor(spBorder());
+        hl.setBackgroundColor(hdrLine());
         root.addView(hl, new LinearLayout.LayoutParams(-1, Math.max(1, Math.round(dens))));
 
         // ---- .sp-scroll
@@ -646,6 +652,8 @@ public final class StoryComposer {
         // safe-area السفلية (شريط الأزرار) تُضاف لحشوة الفوتر
         root.setOnApplyWindowInsetsListener((v, ins) -> {
             int bt = ins.getSystemWindowInsetBottom();
+            int st = ins.getSystemWindowInsetTop();
+            if (st > 0) header.setPadding(px(18), px(17) + st, px(18), px(17));
             footer.setPadding(px(14), px(12), px(14), fPadB + Math.max(0, bt));
             return ins;
         });
@@ -656,6 +664,13 @@ public final class StoryComposer {
             w.setBackgroundDrawable(new ColorDrawable(spBg()));
             w.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
             w.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+            // شريط الإشعارات: شفاف/بنفس لون الترويسة، والترويسة تمتد خلفه كما في تعديل البيانات الشخصية
+            w.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
+            w.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+            w.setStatusBarColor(hdrBg());
+            int uiFlags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN;
+            if (!dark && android.os.Build.VERSION.SDK_INT >= 23) uiFlags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+            w.getDecorView().setSystemUiVisibility(uiFlags);
         }
         dlg.show();
     }

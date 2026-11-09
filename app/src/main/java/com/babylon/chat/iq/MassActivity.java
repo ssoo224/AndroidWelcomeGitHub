@@ -2649,7 +2649,7 @@ public class MassActivity extends Activity {
                         android.view.ViewTreeObserver o = ms.getViewTreeObserver();
                         if (o.isAlive()) o.removeOnPreDrawListener(this);
                         View c0 = ((ScrollView) ms).getChildAt(0);
-                        if (c0 != null) ((ScrollView) ms).scrollTo(0, Math.max(0, c0.getHeight() - ms.getHeight()));
+                        if (c0 != null) ((ScrollView) ms).scrollTo(0, Math.max(0, c0.getHeight() + ms.getPaddingTop() + ms.getPaddingBottom() - ms.getHeight()));
                         area.setAlpha(1f);
                         return true;
                     }
@@ -2669,7 +2669,7 @@ public class MassActivity extends Activity {
                         area0.addOnLayoutChangeListener((vv, l, t, r, b, ol, ot, orr, ob) -> {
                             if (System.currentTimeMillis() < chatStick && !chatUserTouched) {
                                 View c0 = ((ScrollView) ms0).getChildAt(0);
-                                if (c0 != null) ((ScrollView) ms0).scrollTo(0, Math.max(0, c0.getHeight() - ms0.getHeight()));
+                                if (c0 != null) ((ScrollView) ms0).scrollTo(0, Math.max(0, c0.getHeight() + ms0.getPaddingTop() + ms0.getPaddingBottom() - ms0.getHeight()));
                             }
                         });
                     }
