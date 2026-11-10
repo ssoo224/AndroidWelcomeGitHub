@@ -40,6 +40,7 @@ public class MainActivity extends Activity {
         binding = MainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
+        if (AuthTheme.isDark(this)) binding.getRoot().setBackground(AuthTheme.screenBg(true));   // الطور الليلي
         setupSystemBars();
         startAnimations();
 
@@ -68,12 +69,7 @@ public class MainActivity extends Activity {
             w.setNavigationBarContrastEnforced(false);
             w.setStatusBarContrastEnforced(false);
         }
-        int flags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
-        if (Build.VERSION.SDK_INT >= 23) flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
-        if (Build.VERSION.SDK_INT >= 26) flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
-        w.getDecorView().setSystemUiVisibility(flags);
+        AuthTheme.systemBars(w, AuthTheme.isDark(this));
     }
 
     private void startAnimations() {

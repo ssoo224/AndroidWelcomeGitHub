@@ -494,7 +494,7 @@ public class MassActivity extends Activity {
                             GradientDrawable g = new GradientDrawable();
                             g.setShape(GradientDrawable.OVAL); g.setColor(cGold()); x.setBackground(g);
                             if (x.getId() == R.id.sxAvatar) x.setBackground(Tk.ringAvatar(x, dark));
-                            if (x.getId() == R.id.chatAvatar) x.setBackground(Tk.chatAvatar(x, dark));
+                            if (x.getId() == R.id.chatAvatar) { x.setBackground(Tk.chatAvatar(x, dark)); if (T != null) T.setTextColor(dark ? 0xFF17212B : 0xFFFFFFFF); }   // النهاري: الحرف أبيض
                             if (photoBmp != null && x instanceof TextView && (x == v("pAvatarText") || x == v("sxAvatar"))) applyPhotoTo((TextView) x);
                             if (otherPhotoBmp != null && x instanceof TextView && x == v("otherAvatarText")) applyOtherPhotoTo((TextView) x);
                         } else if (k.equals("circRed")) {
@@ -1070,6 +1070,19 @@ public class MassActivity extends Activity {
                 View tb = v("chatTopBar"), bb = v("chatBottomBar");
                 if (tb != null) tb.addOnLayoutChangeListener(l);
                 if (bb != null) bb.addOnLayoutChangeListener(l);
+                // ظهور لوحة المفاتيح يصغّر منطقة الرسائل: إن كنتَ قرب آخر الرسائل تبقى ظاهرة فوق اللوحة، وإن كنتَ بعيداً لا يتغير موضعك
+                final View msK = v("messagesScroll");
+                if (msK instanceof ScrollView) {
+                    msK.addOnLayoutChangeListener((vw, l2, t2, r2, b2, ol2, ot2, or2, ob2) -> {
+                        int newH = b2 - t2, oldH = ob2 - ot2;
+                        if (oldH <= 0 || newH >= oldH) return;       // نهتم بالتصغير فقط (فتح الكيبورد)
+                        ScrollView sv = (ScrollView) msK;
+                        View c = sv.getChildAt(0);
+                        if (c == null) return;
+                        boolean wasNear = (c.getBottom() + sv.getPaddingBottom()) - (sv.getScrollY() + oldH) < dp(160);
+                        if (wasNear) scrollDown();
+                    });
+                }
             }
 
             void syncBars() {
@@ -1098,6 +1111,7 @@ public class MassActivity extends Activity {
             void show(String p) {
                 final String from = curPage;
                 prevPage = curPage; curPage = p;
+                if (stories != null && !p.equals("homeView")) stories.collapseNow();   // الانتقال لصفحة/قسم آخر يطوي القصص
                 applyInsets();
                 if (heroMe != null && !p.equals("profileView")) heroMe.reset();
                 if (heroOther != null && !p.equals("otherUserProfileView")) heroOther.reset();
@@ -1372,14 +1386,13 @@ public class MassActivity extends Activity {
                 } catch (Throwable ignored) { }
             }
 
-            /** زرا رسالة/حظر: أيقونة زرقاء/حمراء وكلمة بلون النص (مثل بروفايل الـ HTML). */
+            /** زرا رسالة/حظر: أيقونة وكلمة بلون ذهبي (أصفر) في النهاري والليلي. */
             void refreshOtherButtons() {
-                int blue = dark ? 0xFF60A5FA : 0xFF2563EB, red = dark ? 0xFFF87171 : 0xFFDC2626;
-                quick("otherMsgBtn", "ic_chat", blue);
-                quick("otherBlockBtn", "ic_block", red);
+                quick("otherMsgBtn", "ic_chat", cGold());
+                quick("otherBlockBtn", "ic_block", cGold());
                 View mb = v("otherMsgBtn"), bb0 = v("otherBlockBtn");
-                if (mb != null) mb.setTag("card g ibl");      // ibl/ird: لون أيقونة ثابت يحترمه ProfileHero عند سحب الصورة
-                if (bb0 != null) bb0.setTag("card g ird");
+                if (mb != null) mb.setTag("card g");
+                if (bb0 != null) bb0.setTag("card g");
                 TextView ob = tv("otherBlockBtn");
                 if (ob != null) ob.setText(blocked ? "إلغاء الحظر" : "حظر");
             }
@@ -2179,7 +2192,8 @@ public class MassActivity extends Activity {
                     row.setMinimumHeight(dp(65.8f));
                     row.setElevation(0f);
                     LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2);
-                    rp.bottomMargin = dp(7);
+                    rp.bottomMargin = dp(3);                              // المسافة بين المحادثات 3dp
+                    if (rowSel) { rp.topMargin = dp(2); rp.bottomMargin = dp(5); }   // المحدَّدة تبتعد أكثر (7dp بين محدَّدتين) كي لا يتشابك إطارها
                     row.setLayoutParams(rp);
                     StoryAvatarView av = new StoryAvatarView(act);
                     boolean ringOn = c.length > 4 && storyUntil.get(c[4]) != null && storyUntil.get(c[4]) > System.currentTimeMillis();
@@ -2649,6 +2663,7 @@ public class MassActivity extends Activity {
             }
 
             void openChat(String name, String uid) {
+                if (stories != null) stories.collapseNow();   // دخول محادثة يطوي القصص
                 if (chatSelMode) exitChatSel(false);
                 otherUid = uid; otherName = name; curChat = name;
                 startBlocksListener(); blocked = uid != null && myBlocks.contains(uid); blockedByThem = false; otherOrigName = name == null ? "" : name; muted = isMutedUid(uid);
@@ -2666,12 +2681,14 @@ public class MassActivity extends Activity {
                 pins = new ArrayList<>(); pinIdx = -1; renderPinnedBar();
                 cancelReply();
                 vis("chatSearchPanel", false);
-                if (isRecording || recPreview) cancelRecord(); else vis("recordingBar", false);
+                parkRecording();   // لا حذف: يُحفظ تسجيل المحادثة السابقة بدل إلغائه
+                vis("recordingBar", false);
 
                 if (messagesListener != null) messagesListener.remove();
 
                 currentChatId = getChatId(myUid, uid);
                 loadMessages(currentChatId);
+                restoreRecording(currentChatId);   // تعود الصوتية المسجّلة إن وُجدت
                 listenPins(currentChatId);
                 vis("chatView", true);
                 final View cv = v("chatView");
@@ -2690,7 +2707,7 @@ public class MassActivity extends Activity {
             void revealChatBottom() {
                 final View ms = v("messagesScroll"), area = v("messagesArea");
                 if (!(ms instanceof ScrollView) || area == null) return;
-                chatStick = System.currentTimeMillis() + 8000;   // الصور/الوسائط تكبر بعد التحميل، فنبقى أسفل المحادثة حتى يلمسها المستخدم
+                chatStick = 0L;   // أُزيلت مهلة التثبيت (8 ثوانٍ): النزول لآخر رسالة مرة واحدة عند الدخول فقط
                 chatUserTouched = false;
                 final android.view.ViewTreeObserver vto = ms.getViewTreeObserver();
                 vto.addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
@@ -2850,6 +2867,7 @@ public class MassActivity extends Activity {
             }
 
             void closeChat() {
+                parkRecording();   // الخروج لا يحذف الصوتية المسجّلة
                 if (chatPresenceReg != null) { chatPresenceReg.remove(); chatPresenceReg = null; }
                 hideKb();
                 clearSel();
@@ -3211,6 +3229,7 @@ public class MassActivity extends Activity {
                     if (MsgMenu.isShowing()) { MsgMenu.dismiss(); return true; }
                     if (chatSelMode) { exitChatSel(true); return true; }
                     if (selecting) { clearSel(); return true; }
+                    if (stories != null && stories.isExpanded()) { stories.setCollapsed(true); return true; }   // الرجوع يطوي شريط القصص أولاً
 
                     if (chatOpen()) {
                         View sp2 = v("chatSearchPanel");
@@ -3222,8 +3241,7 @@ public class MassActivity extends Activity {
                             if (mi != null) mi.setText("");
                             return true;
                         }
-                        if (isRecording || recPreview) { cancelRecord(); return true; }
-                        closeChat();
+                        closeChat();   // الرجوع لا يحذف التسجيل (يُحفظ ويعود عند دخول المحادثة)
                         return true;
                     }
 
@@ -4126,6 +4144,8 @@ public class MassActivity extends Activity {
 
             // ---------------- التسجيل الصوتي: مطابق لـ #recordingBar في الـ HTML (تسجيل ← معاينة ← إرسال)
             boolean recPreview = false, recPlaying = false, forceAac = false;
+            /** تسجيلات معاينة محفوظة لكل محادثة (chatId → {File, مدة بالمللي ثانية}) تبقى عند الخروج وتعود عند دخول نفس المحادثة. */
+            final java.util.HashMap<String, Object[]> savedRec = new java.util.HashMap<>();
             long recDurMs = 0;
             MediaPlayer recPlayer = null;
             ValueAnimator recAnim = null;
@@ -4329,6 +4349,11 @@ public class MassActivity extends Activity {
                     return;
                 }
                 recDurMs = dur;
+                enterPreview();
+            }
+
+            /** يدخل وضع الاستماع قبل الإرسال للملف audioFile بمدة recDurMs. */
+            void enterPreview() {
                 recPreview = true; recPlaying = false;
                 try {
                     recPlayer = new MediaPlayer();
@@ -4368,6 +4393,32 @@ public class MassActivity extends Activity {
                     recHandler.post(recPlayTick);
                 }
                 setRecUi();
+            }
+
+            /** عند مغادرة المحادثة: التسجيل الجاري يُنهى ويُحفظ، والمعاينة تُحفظ (لا حذف) لتعود عند دخول نفس المحادثة. */
+            void parkRecording() {
+                try {
+                    if (isRecording) stopRecordPreview();          // يتحول لمعاينة (أو يُحذف إن كان أقصر من 0.8ث)
+                    if (recPreview && audioFile != null && audioFile.exists() && currentChatId != null && !currentChatId.isEmpty()) {
+                        releaseRecPlayer();
+                        savedRec.put(currentChatId, new Object[]{audioFile, recDurMs});
+                        recPreview = false; audioFile = null;
+                    } else if (recPreview) {
+                        cancelRecord();
+                    }
+                    showRecordingUi(false);
+                } catch (Throwable ignored) { }
+            }
+
+            /** يستعيد معاينة التسجيل المحفوظة لهذه المحادثة إن وُجدت. */
+            void restoreRecording(String chatId) {
+                Object[] r = savedRec.remove(chatId);
+                if (r == null) return;
+                File f = (File) r[0];
+                if (f == null || !f.exists() || blocked) { if (f != null) f.delete(); return; }
+                showRecordingUi(true);
+                audioFile = f; recDurMs = (Long) r[1];
+                enterPreview();
             }
 
             /** زر الإرسال في وضع المعاينة. */
@@ -4759,9 +4810,13 @@ public class MassActivity extends Activity {
                     show("searchView");
                     if (searchPage != null) searchPage.onShown();
                 }
-                else if (id.equals("searchBack") || id.equals("navChats")) show("homeView");
-                else if (id.equals("navSettings")) show("settingsView");
-                else if (id.equals("navProfile") || id.equals("sxHero")) { loadMyProfile(); show("profileView"); }
+                else if (id.equals("searchBack") || id.equals("navChats")) { if (!"homeView".equals(curPage)) show("homeView"); }   // الضغط على القسم الحالي لا يعيد تحميله ولا يعيد الأنيميشن
+                else if (id.equals("navSettings")) { if (!"settingsView".equals(curPage)) show("settingsView"); }
+                else if (id.equals("navProfile") || id.equals("sxHero")) {
+                    if ("profileView".equals(curPage)) return;
+                    if (userJoin.isEmpty()) loadMyProfile();   // يُحمَّل مرة واحدة فقط؛ التعديلات تحدّث الصفحة بنفسها
+                    show("profileView");
+                }
                 else if (id.equals("fltAll")) setFilter(false);
                 else if (id.equals("fltUnread")) setFilter(true);
                 else if (id.equals("newGroupFab")) {

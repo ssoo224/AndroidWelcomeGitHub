@@ -54,6 +54,9 @@ public final class StoriesController {
     // ----- القياسات (px الـ HTML عند --bb-s=1.041 ⇒ dp)
     static final float ITEM_W = 66.6f, AV = 56.2f, SIDE = 14f, GAP_ITEMS = 14f, GAP_TXT = 7f, TXT_H = 15f;
     static final float PT = 12f, PB = 10f;
+    /** هامش رسم الحلقة داخل حدود الأفاتار (≥ 5dp سماكة+إزاحة الحلقة) كي لا تُقصّ من أي حاوية. */
+    static final float RP = 5.3f;
+    static final float PTP = PT - RP;
     static final float HH = 22.9f, HMT = -6f, HMB = 2f, TOP_PB = 2f;
     static final float HDR_AV = 37.5f, THUMB = 34.2f, COUNT = 30.2f;
 
@@ -100,6 +103,7 @@ public final class StoriesController {
 
         top.setClipChildren(false); top.setClipToPadding(false);
         scroll.setClipChildren(false); bar.setClipChildren(false);
+        scroll.setClipToPadding(false); bar.setClipToPadding(false);
         scroll.setHorizontalScrollBarEnabled(false);
         scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
         if (chatScroll.getParent() instanceof ViewGroup) ((ViewGroup) chatScroll.getParent()).setClipChildren(false);
@@ -133,18 +137,20 @@ public final class StoriesController {
         hdrBtn.setOrientation(LinearLayout.HORIZONTAL);
         hdrBtn.setGravity(Gravity.CENTER_VERTICAL);
         hdrBtn.setClipChildren(false);
-        hdrBtn.setPadding(px(2), 0, px(2), 0);
+        hdrBtn.setClipToPadding(false);
+        hdrBtn.setPadding(0, 0, 0, 0);
         if (hdrBtn.getParent() instanceof ViewGroup) ((ViewGroup) hdrBtn.getParent()).setClipChildren(false);
         hdrAv = new StoryAvatarView(act);
         hdrAv.shadow(true).textSp(15.6f).ringSmall(true);
-        hdrBtn.addView(hdrAv, new LinearLayout.LayoutParams(px(HDR_AV), px(HDR_AV)));
+        hdrAv.pad(RP);
+        hdrBtn.addView(hdrAv, new LinearLayout.LayoutParams(px(HDR_AV + 2 * RP), px(HDR_AV + 2 * RP)));
         hdrStack = new LinearLayout(act);
         hdrStack.setOrientation(LinearLayout.HORIZONTAL);
         hdrStack.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
         hdrStack.setGravity(Gravity.CENTER_VERTICAL);
         hdrStack.setClipChildren(false);
         LinearLayout.LayoutParams sl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        sl.leftMargin = px(7);
+        sl.leftMargin = px(7 - RP);
         hdrBtn.addView(hdrStack, sl);
         hdrBtn.setOnClickListener(v -> toggle());
     }
@@ -171,7 +177,7 @@ public final class StoriesController {
 
     private void rebuildBar() {
         bar.removeAllViews();
-        bar.setPadding(px(SIDE), px(PT), px(SIDE), px(PB));
+        bar.setPadding(px(SIDE), px(PTP), px(SIDE), px(PB));
         for (int i = 0; i < items.size(); i++) {
             final Item it = items.get(i);
             LinearLayout cell = new LinearLayout(act);
@@ -185,9 +191,9 @@ public final class StoriesController {
             cell.setLayoutParams(cp);
             StoryAvatarView av = new StoryAvatarView(act);
             av.set(it.letter, it.photo, it.blue).ring(it.ring, it.seen).plus(it.me && !it.ring)
-              .theme(dark, cSurface()).textSp(20.8f).shadow(true);
+              .theme(dark, cSurface()).textSp(20.8f).shadow(true).pad(RP);
             it.av = av;
-            cell.addView(av, new LinearLayout.LayoutParams(px(AV), px(AV)));
+            cell.addView(av, new LinearLayout.LayoutParams(px(AV + 2 * RP), px(AV + 2 * RP)));
             TextView nm = new TextView(act);
             nm.setText(it.name);
             nm.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f);
@@ -198,7 +204,7 @@ public final class StoriesController {
             nm.setGravity(Gravity.CENTER);
             nm.setIncludeFontPadding(false);
             LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, px(TXT_H));
-            np.topMargin = px(GAP_TXT);
+            np.topMargin = px(GAP_TXT - RP);
             cell.addView(nm, np);
             cell.setOnClickListener(v -> { if (onItem != null) onItem.click(it); });
             bar.addView(cell);
@@ -288,6 +294,19 @@ public final class StoriesController {
         }
     }
 
+    /** طيّ فوري بلا حركة (عند دخول محادثة أو الانتقال لصفحة/قسم آخر). */
+    public void collapseNow() {
+        if (hidden) return;
+        if (collapsed && !animating && drag == null) return;
+        drag = null; pend = null;
+        cancelAnim();
+        collapsed = true; hmode = "";
+        clear();
+        handle.setVisibility(View.GONE);
+        syncStatic();
+        unlock();
+    }
+
     private void finishCollapse() {
         handle.setVisibility(View.GONE);
         collapsed = true;
@@ -298,7 +317,7 @@ public final class StoriesController {
 
     // ============================================================ قياسات
     private void measureH() {
-        bar.setPadding(px(SIDE), px(PT), px(SIDE), px(PB));
+        bar.setPadding(px(SIDE), px(PTP), px(SIDE), px(PB));
         bar.measure(View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
                 View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
         H = bar.getMeasuredHeight();
@@ -310,13 +329,19 @@ public final class StoriesController {
         return new float[]{a[0] - r[0], a[1] - r[1], v.getWidth(), v.getHeight()};
     }
 
-    private float[] hdrRect() { return rectIn(hdrAv); }
+    /** مستطيل جسم الأفاتار فقط (بدون هامش الحلقة). */
+    private float[] body(float[] r) {
+        float k = px(RP);
+        return new float[]{r[0] + k, r[1] + k, r[2] - 2 * k, r[3] - 2 * k};
+    }
+
+    private float[] hdrRect() { return body(rectIn(hdrAv)); }
 
     /** مستطيل أفاتار «قصتي» داخل الشريط وهو مفتوح بالكامل (يُحسب هندسياً إن لم يكن مرسوماً بعد). */
     private float[] barRect() {
         View first = bar.getChildCount() > 0 ? ((ViewGroup) bar.getChildAt(0)).getChildAt(0) : null;
         if (first != null && top.getVisibility() == View.VISIBLE && first.getWidth() > 0 && scroll.getHeight() >= H - 2 && curP >= 0.999f) {
-            return rectIn(first);
+            return body(rectIn(first));
         }
         int[] a = new int[2], r = new int[2];
         home.getLocationInWindow(a); root.getLocationInWindow(r);
@@ -337,7 +362,7 @@ public final class StoriesController {
         f.v = new StoryAvatarView(act);
         f.v.copyFrom(f.srcAv);
         f.plus = items.get(0).me && !items.get(0).ring;
-        int w = Math.round(br[2]), h = Math.round(br[3]);
+        int w = Math.round(br[2] + 2 * px(RP)), h = Math.round(br[3] + 2 * px(RP));
         f.v.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY));
         f.v.layout(0, 0, w, h);
         root.getOverlay().add(f.v);
@@ -351,8 +376,8 @@ public final class StoriesController {
         float hx = h[0] + h[2] / 2f, hy = h[1] + h[3] / 2f, bx = b[0] + b[2] / 2f, by = b[1] + b[3] / 2f;
         float cx = hx + (bx - hx) * p, cy = hy + (by - hy) * p;
         float sc = (h[2] + (b[2] - h[2]) * p) / b[2];
-        fl.v.setTranslationX(cx - b[2] / 2f);
-        fl.v.setTranslationY(cy - b[3] / 2f);
+        fl.v.setTranslationX(cx - (b[2] + 2 * px(RP)) / 2f);
+        fl.v.setTranslationY(cy - (b[3] + 2 * px(RP)) / 2f);
         fl.v.setScaleX(sc); fl.v.setScaleY(sc);
         if (fl.plus) fl.v.setPlusAlpha(p);
     }
@@ -409,7 +434,7 @@ public final class StoriesController {
         int hpx = Math.max(0, Math.round(H * p));
         ViewGroup.LayoutParams lp = scroll.getLayoutParams();
         if (lp.height != hpx) { lp.height = hpx; scroll.setLayoutParams(lp); }
-        bar.setPadding(px(SIDE), Math.round(px(PT) * p), px(SIDE), Math.round(px(PB) * p));
+        bar.setPadding(px(SIDE), Math.round(px(PTP) * p), px(SIDE), Math.round(px(PB) * p));
         for (int i = 0; i < bar.getChildCount(); i++) {
             View c = bar.getChildAt(i);
             c.setPivotX(px(ITEM_W) / 2f); c.setPivotY(0f);
@@ -433,7 +458,7 @@ public final class StoriesController {
         ViewGroup.LayoutParams lp = scroll.getLayoutParams();
         lp.height = ViewGroup.LayoutParams.WRAP_CONTENT;
         scroll.setLayoutParams(lp);
-        bar.setPadding(px(SIDE), px(PT), px(SIDE), px(PB));
+        bar.setPadding(px(SIDE), px(PTP), px(SIDE), px(PB));
         for (int i = 0; i < bar.getChildCount(); i++) {
             View c = bar.getChildAt(i);
             c.setScaleX(1f); c.setScaleY(1f);

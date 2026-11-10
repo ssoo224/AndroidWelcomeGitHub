@@ -336,9 +336,9 @@ public final class MsgViews {
         }
         @Override protected void onDraw(Canvas c) {
             float dens = d(getContext());
-            int n = 40;
             float w = getWidth(), h = getHeight(), bw = 2 * dens;
-            float step = (w - bw) / (n - 1);
+            float step = bw + 2 * dens;                       // عرض العمود 2dp + مسافة ثابتة 2dp (في التشغيل وقبله)
+            int n = Math.max(1, (int) Math.floor((w - bw) / step + 1e-3f) + 1);
             double t = (System.nanoTime() - t0) / 1e9;
             for (int i = 1; i <= n; i++) {
                 float hh = 4;

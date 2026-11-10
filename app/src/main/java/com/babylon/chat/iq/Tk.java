@@ -220,7 +220,7 @@ public final class Tk {
             });
             return true;
         }
-        if (tag.equals("rqnM") || tag.equals("rqnO")) { if (t != null) t.setTextColor(dark ? 0xFFE4C45B : 0xFF9B7410); return true; }   // .reply-quote-name: var(--babylon-gold)
+        if (tag.equals("rqnM") || tag.equals("rqnO")) { if (t != null) t.setTextColor(0xFFFFFFFF); return true; }   // اسم المستخدم في اقتباس الرد: أبيض في النهاري والليلي
         if (tag.equals("rqtM")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.textMine : 0xFFFFFFFF); return true; }
         if (tag.equals("rqtO")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.accent : 0xFFC29D30); return true; }   // HTML: لون .reply-quote في رسائل الطرف الآخر = ذهبي accent-chat
         // ---- شريط الرد أعلى حقل الكتابة (.reply-preview-bar في الـ HTML)

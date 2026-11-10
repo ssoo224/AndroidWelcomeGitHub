@@ -38,10 +38,12 @@
 			<LinearLayout
 				android:id="@+id/hdrStories"
 				android:layout_width="wrap_content"
-				android:layout_height="42dp"
+				android:layout_height="52dp"
 				android:gravity="center_vertical"
 				android:orientation="horizontal"
-				android:layout_marginStart="8dp"
+				android:layout_marginStart="4.7dp"
+				android:clipChildren="false"
+				android:clipToPadding="false"
 				android:clickable="true"
 				android:focusable="true"
 				android:contentDescription="القصص" />

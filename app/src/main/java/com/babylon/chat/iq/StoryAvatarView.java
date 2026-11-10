@@ -37,6 +37,7 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
     private int surface = 0xFF17212B;       // لون حدّ النقطة/علامة +
     private float plusAlpha = 1f;
     private boolean shadow = true;
+    private float padPx = 0f;
 
     /** توهّج الحلقة: box-shadow:0 0 7px rgba(212,160,23,.55) في .avatar.sring::after */
     public static boolean GLOW = false;   // يُقصّ التوهج عند حدود شريط القصص (مربّعات)، لذا معطّل افتراضياً
@@ -74,6 +75,11 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
     public StoryAvatarView textSp(float sp) { this.textSp = sp; invalidate(); return this; }
     public StoryAvatarView shadow(boolean on) { this.shadow = on; invalidate(); return this; }
     public void setPlusAlpha(float a) { plusAlpha = a; invalidate(); }
+    /**
+     * هامش داخلي (dp) تُرسم فيه الحلقة/علامة + بدل الرسم خارج حدود الـ View؛
+     * قطر الجسم = min(w,h) - 2*pad. يمنع قصّ الحلقة من أي حاوية (HorizontalScrollView/overlay/clipToPadding).
+     */
+    public StoryAvatarView pad(float dpv) { this.padPx = dp(dpv); invalidate(); return this; }
 
     /** يشغّل/يوقف القوس الدوّار فوق حلقة القصة (نفس .story-launch-loading في الـ HTML). */
     public StoryAvatarView launching(boolean on) {
@@ -105,6 +111,7 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
     public void copyFrom(StoryAvatarView o) {
         letter = o.letter; photo = o.photo; blue = o.blue; ring = o.ring; seen = o.seen; plus = o.plus;
         online = o.online; dark = o.dark; textSp = o.textSp; surface = o.surface; shadow = o.shadow;
+        padPx = o.padPx;
         invalidate();
     }
 
@@ -135,7 +142,7 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
 
     @Override protected void onDraw(Canvas c) {
         float w = getWidth(), h = getHeight();
-        float d = Math.min(w, h);
+        float d = Math.min(w, h) - 2f * padPx;
         float R = d / 2f, cx = w / 2f, cy = h / 2f;
         int toneShadow = blue ? 0x471F63D8 : 0x47B8861B;   // rgba(.., .28)
 

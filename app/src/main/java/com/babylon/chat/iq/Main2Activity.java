@@ -30,6 +30,7 @@ public class Main2Activity extends Activity {
     private Main2Binding binding;
     private FirebaseAuth auth;
     private FirebaseFirestore db;
+    private boolean dark;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -40,7 +41,9 @@ public class Main2Activity extends Activity {
         auth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
 
+        dark = AuthTheme.isDark(this);
         setupTabs();
+        applyTheme();
         setupSystemBars();
         setupTitleShine();
         setupPressAnim();
@@ -241,7 +244,7 @@ public class Main2Activity extends Activity {
             tabLogin.setBackgroundResource(R.drawable.bg_tab_active);
             tabLogin.setTextColor(0xFFFFFFFF);
             tabRegister.setBackgroundColor(0x00000000);
-            tabRegister.setTextColor(0xFF475569);
+            tabRegister.setTextColor(dark ? AuthTheme.MUTED : 0xFF475569);
         });
 
         tabRegister.setOnClickListener(v -> {
@@ -250,8 +253,28 @@ public class Main2Activity extends Activity {
             tabRegister.setBackgroundResource(R.drawable.bg_tab_active);
             tabRegister.setTextColor(0xFFFFFFFF);
             tabLogin.setBackgroundColor(0x00000000);
-            tabLogin.setTextColor(0xFF475569);
+            tabLogin.setTextColor(dark ? AuthTheme.MUTED : 0xFF475569);
         });
+    }
+
+    /** الطور الليلي: الخلفية، حاوية التبويبات، الحقول، التسميات والنصوص. */
+    private void applyTheme() {
+        if (!dark) return;
+        float d = getResources().getDisplayMetrics().density;
+        binding.root.setBackground(AuthTheme.screenBg(true));
+        binding.subtitle.setTextColor(AuthTheme.MUTED);
+        binding.tabs.setBackground(AuthTheme.box(true, 14 * d, 0, 0, Math.max(1, Math.round(d))));
+        binding.tabRegister.setTextColor(AuthTheme.MUTED);   // التبويب النشط (الدخول) يبقى أبيض على الذهبي
+        TextView[] labels = {binding.labelUser, binding.labelPass, binding.labelName, binding.labelUsername,
+                binding.labelEmail, binding.labelRegPass, binding.btnForgot};
+        for (TextView t : labels) t.setTextColor(AuthTheme.GOLD_LABEL);
+        android.widget.EditText[] inputs = {binding.editUser, binding.editPass, binding.editName,
+                binding.editUsername, binding.editEmail, binding.editRegPass};
+        for (android.widget.EditText e : inputs) {
+            e.setBackground(AuthTheme.box(true, 12 * d, 0, 0, Math.max(1, Math.round(d))));
+            e.setTextColor(AuthTheme.TEXT);
+            e.setHintTextColor(AuthTheme.HINT);
+        }
     }
 
     private void setupPressAnim() {
@@ -286,12 +309,7 @@ public class Main2Activity extends Activity {
             w.setStatusBarContrastEnforced(false);
         }
 
-        int flags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
-        if (Build.VERSION.SDK_INT >= 23) flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
-        if (Build.VERSION.SDK_INT >= 26) flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
-        w.getDecorView().setSystemUiVisibility(flags);
+        AuthTheme.systemBars(w, dark);
 
         final View rootView = binding.root;
         rootView.setOnApplyWindowInsetsListener((v, insets) -> {
