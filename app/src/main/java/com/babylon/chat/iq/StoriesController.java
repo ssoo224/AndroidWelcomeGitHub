@@ -74,6 +74,8 @@ public final class StoriesController {
     private final OnItem onItem;
 
     private StoryAvatarView hdrAv;
+    /** هامش رسم صورة الهيدر (dp): أصغر عند عدم وجود قصة لتصبح بحجم مصغّرة القصة المجاورة (THUMB). */
+    private float hdrPad = RP;
     private LinearLayout hdrStack;
 
     private List<Item> items = new ArrayList<>();
@@ -92,7 +94,7 @@ public final class StoriesController {
     private Fly fl;
 
     private static final class Drag { char mode; float y0, p0, p, v, ly; long lt; }
-    private static final class Fly { StoryAvatarView v; float[] hr, br; boolean plus; StoryAvatarView srcAv; }
+    private static final class Fly { boolean thumb; StoryAvatarView v; float[] hr, br; boolean plus; StoryAvatarView srcAv; }
     /** طيران القصص الأخرى (حتى 3 مصغّرات في الهيدر) من موضع مصغّرتها إلى خليتها في الشريط، مثل «قصتي». */
     private final List<Fly> others = new ArrayList<>();
 
@@ -217,13 +219,18 @@ public final class StoriesController {
     private void rebuildHeader() {
         Item me = items.isEmpty() ? null : items.get(0);
         if (me != null) hdrAv.set(me.letter, me.photo, me.blue).ring(me.ring, me.seen);
+        // بلا قصة: قطر الصورة = قطر مصغّرة القصة المجاورة؛ مع قصة: يبقى الجسم أصغر لتتّسع الحلقة
+        hdrPad = (me != null && me.ring) ? RP : (HDR_AV + 2 * RP - THUMB) / 2f;
+        hdrAv.pad(hdrPad);
         hdrAv.plus(false).theme(dark, cSurface());
         hdrStack.removeAllViews();
         int shown = 0, active = Math.max(0, items.size() - 1);
+        hdrAv.halo(active > 0 ? px(2) : 0f, 1f);
         for (int i = 1; i < items.size() && shown < 3; i++, shown++) {
             Item it = items.get(i);
             ThumbView tv = new ThumbView(act);
             tv.bind(it.letter, it.photo, it.seen, cSurface(), cGold());
+            tv.setTranslationZ(px(3 - shown));   // الأولى فوق الثانية فوق الثالثة (قصتي فوق الجميع)
             LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(px(THUMB), px(THUMB));
             if (shown > 0) p.leftMargin = px(-8);
             hdrStack.addView(tv, p);
@@ -338,7 +345,11 @@ public final class StoriesController {
         return new float[]{r[0] + k, r[1] + k, r[2] - 2 * k, r[3] - 2 * k};
     }
 
-    private float[] hdrRect() { return body(rectIn(hdrAv)); }
+    private float[] hdrRect() {
+        float[] r = rectIn(hdrAv);
+        float k = px(hdrPad);
+        return new float[]{r[0] + k, r[1] + k, r[2] - 2 * k, r[3] - 2 * k};
+    }
 
     /** مستطيل أفاتار «قصتي» داخل الشريط وهو مفتوح بالكامل (يُحسب هندسياً إن لم يكن مرسوماً بعد). */
     private float[] barRect() { return barRect(0); }
@@ -382,17 +393,18 @@ public final class StoriesController {
             float[] b2 = barRect(i);
             if (b2 == null || b2[2] <= 0) continue;
             Fly g = new Fly();
-            g.hr = tr; g.br = b2;
+            g.hr = tr; g.br = b2; g.thumb = true;
             g.srcAv = (StoryAvatarView) cav;
             g.v = new StoryAvatarView(act);
             g.v.copyFrom(g.srcAv);
             int gw = Math.round(b2[2] + 2 * px(RP)), gh = Math.round(b2[3] + 2 * px(RP));
             g.v.measure(View.MeasureSpec.makeMeasureSpec(gw, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(gh, View.MeasureSpec.EXACTLY));
             g.v.layout(0, 0, gw, gh);
-            root.getOverlay().add(g.v);
             g.srcAv.setAlpha(0f);
             others.add(g);
         }
+        // الأولى فوق الثانية فوق الثالثة: تُضاف بترتيب عكسي (الأحدث إضافةً هو الأعلى)
+        for (int j = others.size() - 1; j >= 0; j--) root.getOverlay().add(others.get(j).v);
         root.getOverlay().add(f.v);
         f.srcAv.setAlpha(0f);
         fl = f;
@@ -406,6 +418,10 @@ public final class StoriesController {
         f.v.setTranslationX(cx - (b[2] + 2 * px(RP)) / 2f);
         f.v.setTranslationY(cy - (b[3] + 2 * px(RP)) / 2f);
         f.v.setScaleX(sc); f.v.setScaleY(sc);
+        // القصص الأخرى تهبط على ThumbView (حدّ 2dp)، فيتحوّل شكلها تدريجياً كي لا يحدث قفز في الحجم عند الاستبدال
+        if (f.thumb) f.v.setMorph(1f - p, b[2] / h[2]);
+        // إطار الفصل يظهر تدريجياً مع الوصول إلى الهيدر (بقدر ما في الهيدر حين وجود قصص أخرى)
+        if (f.thumb || (f == fl && hdrStack.getVisibility() == View.VISIBLE)) f.v.halo(px(2) * b[2] / h[2], 1f - p);
     }
 
     private void flyUpdate(float p) {
@@ -706,6 +722,9 @@ public final class StoriesController {
             float d = getResources().getDisplayMetrics().density;
             float r = getWidth() / 2f, cx = r, cy = getHeight() / 2f, b = 2f * d;
             p.setStyle(Paint.Style.FILL);
+            p.setShader(null);
+            p.setColor(surface);
+            c.drawCircle(cx, cy, r + b, p);   // إطار بلون السطح يفصلها عن التي خلفها
             p.setColor(seen ? 0xFF66717D : 0xFFD4AF37);
             c.drawCircle(cx, cy, r, p);
             boolean hasPhoto = photo != null && !photo.isRecycled();

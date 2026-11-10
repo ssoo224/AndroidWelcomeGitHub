@@ -52,6 +52,10 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
     private static final int LAUNCH_BASE = 0xFF4B5A6B, LAUNCH_GOLD = 0xFFD4AF37;
     private static final float LAUNCH_SWEEP = 80f;
     private final RectF arcRect = new RectF();
+    /** تحويل الشكل إلى مصغّرة الهيدر أثناء الطيران: 0 = شكل الشريط، 1 = شكل ThumbView (حدّ 2dp ملاصق للصورة). */
+    private float morph = 0f, morphK = 1f;
+    /** إطار بلون السطح حول الحلقة يفصلها عن الدوائر المتراكبة خلفها (الهيدر). */
+    private float haloPx = 0f, haloA = 1f;
     private boolean ringSmall;   // الحلقة المصغّرة عند طيّ الشريط: inset:-3px; padding:2px
     private float spin;
     private ValueAnimator spinAnim;
@@ -98,6 +102,12 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
     }
     public boolean isLaunching() { return launching; }
     @Override public void setLaunching(boolean on) { launching(on); }
+    /** m: 0..1، k = مقلوب مقياس الطيران عند المصغّرة (حجم الشريط ÷ حجم المصغّرة). */
+    public StoryAvatarView halo(float px, float alpha) {
+        if (px != haloPx || alpha != haloA) { haloPx = px; haloA = alpha; invalidate(); }
+        return this;
+    }
+    public void setMorph(float m, float k) { if (m != morph || k != morphK) { morph = m; morphK = k; invalidate(); } }
     public StoryAvatarView ringSmall(boolean on) { if (ringSmall != on) { ringSmall = on; invalidate(); } return this; }
 
     private void startSpin() {
@@ -120,6 +130,41 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
         online = o.online; dark = o.dark; textSp = o.textSp; surface = o.surface; shadow = o.shadow;
         padPx = o.padPx;
         invalidate();
+    }
+
+
+    // ------------------------------------------------------------ حلقة التحميل المتقطعة (مثل تيليجرام)
+    /** أطوال القطع (بالدرجات) والفراغات بينها؛ المجموع = 360. */
+    private static final float[] DASH = {52f, 24f, 40f, 18f, 46f, 28f, 34f};
+    private static final float[] GAP = {18f, 14f, 20f, 16f, 18f, 14f, 18f};
+    private static final int[] DASH_COLORS = {0xFF8F6810, 0xFFE8D176, 0xFFB98B20, 0xFFE8D991, 0xFFB8860B, 0xFFE6C45B, 0xFF8F6810};
+    private static final float[] DASH_POS = {0f, .18f, .34f, .48f, .65f, .82f, 1f};
+
+    /**
+     * يرسم حلقة من قطع ذهبية متفاوتة الطول تدور حول المركز؛ طول كل قطعة "يتنفس" (يقصر ويطول) أثناء الدوران.
+     * @param spin زاوية الدوران بالدرجات (0..360)
+     */
+    static void drawDashRing(Canvas c, float cx, float cy, float mid, float thick, float spin, Paint p, RectF rect, Matrix m) {
+        p.reset(); p.setAntiAlias(true);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeCap(Paint.Cap.ROUND);
+        p.setStrokeWidth(thick);
+        SweepGradient sg = new SweepGradient(cx, cy, DASH_COLORS, DASH_POS);
+        m.reset(); m.setRotate(spin - 90f, cx, cy);
+        sg.setLocalMatrix(m);
+        p.setShader(sg);
+        rect.set(cx - mid, cy - mid, cx + mid, cy + mid);
+        float cap = (float) Math.toDegrees(thick / mid);   // الرأس المستدير يمدّ كل طرف بنصف السماكة
+        float rad = (float) Math.toRadians(spin);
+        float a = spin - 90f;
+        for (int i = 0; i < DASH.length; i++) {
+            float breathe = 0.62f + 0.38f * (0.5f + 0.5f * (float) Math.sin(2f * rad + i * 1.7f));
+            float len = DASH[i] * breathe - cap;
+            if (len < 0.5f) len = 0.5f;
+            float start = a + (DASH[i] - len - cap) / 2f + cap / 2f;   // القطعة المتقلصة تبقى متمركزة في موضعها
+            c.drawArc(rect, start, len, false, p);
+            a += DASH[i] + GAP[i];
+        }
     }
 
     // ------------------------------------------------------------ نغمة الحساب (نفس toneOf في الـ HTML)
@@ -151,6 +196,8 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
         float w = getWidth(), h = getHeight();
         float d = Math.min(w, h) - 2f * padPx;
         float R = d / 2f, cx = w / 2f, cy = h / 2f;
+        float thumbB = morphK * dp(2);                 // سماكة حدّ المصغّرة بوحدات غير مصغّرة
+        float Rc = R - morph * thumbB;                  // نصف قطر المحتوى (الصورة/الحرف)
         int toneShadow = blue ? 0x471F63D8 : 0x47B8861B;   // rgba(.., .28)
 
         // الظل الناعم: 0 3px 10px
@@ -163,42 +210,46 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
             c.drawCircle(cx, cyS, outer, p);
         }
 
+        // إطار الفصل عن الدوائر الخلفية
+        if (haloPx > 0f && haloA > 0.003f) {
+            float ro = (ring || morph > 0f) ? R + (R + dp(ringSmall ? 3 : 5) - R) * (1f - morph) : R;
+            p.reset(); p.setAntiAlias(true);
+            p.setColor((surface & 0x00FFFFFF) | (Math.round(255 * haloA) << 24));
+            c.drawCircle(cx, cy, ro + haloPx, p);
+        }
+
         // جسم الأفاتار
         p.reset(); p.setAntiAlias(true);
         p.setShader(css145(cx, cy, d, blue ? BLUE_A : GOLD_A, blue ? BLUE_B : GOLD_B));
-        c.drawCircle(cx, cy, R, p);
+        c.drawCircle(cx, cy, Rc, p);
         p.setShader(null);
 
         if (photo != null && !photo.isRecycled()) {
             BitmapShader bs = new BitmapShader(photo, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
-            float sc = Math.max(d / photo.getWidth(), d / photo.getHeight());
+            float sc = Math.max(2f * Rc / photo.getWidth(), 2f * Rc / photo.getHeight());
             mx.reset();
             mx.setScale(sc, sc);
             mx.postTranslate(cx - photo.getWidth() * sc / 2f, cy - photo.getHeight() * sc / 2f);
             bs.setLocalMatrix(mx);
             p.setShader(bs);
-            c.drawCircle(cx, cy, R, p);
+            c.drawCircle(cx, cy, Rc, p);
             p.setShader(null);
         } else {
-            tp.setTextSize(textSp * getResources().getDisplayMetrics().scaledDensity);
+            float tsp = textSp + (11f * morphK - textSp) * morph;
+            tp.setTextSize(tsp * getResources().getDisplayMetrics().scaledDensity);
             Paint.FontMetrics fm = tp.getFontMetrics();
             c.drawText(letter, cx, cy - (fm.ascent + fm.descent) / 2f, tp);
         }
 
         // حلقة القصة (.avatar.sring::after : inset:-5px; padding:3px)
-        if (ring) {
-            float outerR = R + dp(ringSmall ? 3 : 5), thick = dp(ringSmall ? 2 : 3), mid = outerR - thick / 2f;
+        if (ring || morph > 0f) {
+            float outerR = R + dp(ringSmall ? 3 : 5), thick = dp(ringSmall ? 2 : 3);
+            outerR += (R - outerR) * morph;
+            thick += (thumbB - thick) * morph;
+            float mid = outerR - thick / 2f;
             if (launching) {
-                // أثناء الفتح: الحلقة تصبح رمادية ويدور حولها وميض ذهبي موحّد اللون (قوس بلا تدرّج)
-                p.reset(); p.setAntiAlias(true);
-                p.setStyle(Paint.Style.STROKE);
-                p.setStrokeWidth(thick);
-                p.setColor(LAUNCH_BASE);
-                c.drawCircle(cx, cy, mid, p);
-                p.setColor(LAUNCH_GOLD);
-                p.setStrokeCap(Paint.Cap.ROUND);
-                arcRect.set(cx - mid, cy - mid, cx + mid, cy + mid);
-                c.drawArc(arcRect, -90f + spin, LAUNCH_SWEEP, false, p);
+                // أثناء الفتح: قطع ذهبية متفاوتة الطول تدور (مثل تيليجرام)
+                drawDashRing(c, cx, cy, mid, thick, spin, p, arcRect, mx);
             } else {
                 if (GLOW) {   // box-shadow:0 0 7px rgba(212,160,23,.55) خارج حافة الحلقة فقط
                     float g = outerR + dp(8);
@@ -215,7 +266,9 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
                 p.reset(); p.setAntiAlias(true);
                 p.setStyle(Paint.Style.STROKE);
                 p.setStrokeWidth(thick);
-                if (seen) {
+                if (!ring) {
+                    // لا حلقة قصة: لا شيء يُرسم قبل حدّ المصغّرة
+                } else if (seen) {
                     p.setColor(0xFF4B5A6B);
                 } else {
                     SweepGradient sg = new SweepGradient(cx, cy,
@@ -226,7 +279,18 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
                     sg.setLocalMatrix(mx);
                     p.setShader(sg);
                 }
-                c.drawCircle(cx, cy, mid, p);
+                if (ring) {
+                    if (morph > 0f) p.setAlpha(Math.round(255 * (1f - morph)));
+                    c.drawCircle(cx, cy, mid, p);
+                }
+                if (morph > 0f) {   // حدّ المصغّرة الموحَّد اللون يظهر تدريجياً فوق الحلقة
+                    p.reset(); p.setAntiAlias(true);
+                    p.setStyle(Paint.Style.STROKE);
+                    p.setStrokeWidth(thick);
+                    p.setColor(seen ? 0xFF66717D : 0xFFD4AF37);
+                    p.setAlpha(Math.round(255 * morph));
+                    c.drawCircle(cx, cy, mid, p);
+                }
             }
         }
 

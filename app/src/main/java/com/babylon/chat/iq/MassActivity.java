@@ -2357,7 +2357,7 @@ public class MassActivity extends Activity {
                     boolean ringOn = c.length > 4 && storyUntil.get(c[4]) != null && storyUntil.get(c[4]) > System.currentTimeMillis();
                     av.set(dn.length() > 0 ? dn.substring(0, 1).toUpperCase() : "?", null, c.length > 4 && StoryAvatarView.toneBlue(c[4]))
                       .ring(ringOn, false).online(c.length > 4 && Boolean.TRUE.equals(onlineMap.get(c[4])))
-                      .theme(dark, cSf()).textSp(17f).pad(5f);   // الحلقة داخل حدود الـ View فلا تُقصّ
+                      .theme(dark, cSf()).textSp(17f).pad(ringOn ? 5f : 0f);   // الصورة تصغر فقط عند وجود قصة (الحلقة داخل حدود الـ View فلا تُقصّ)
                     if (ringOn) {   // chatAvatarStory: الضغط على أفاتار فيه حلقة يفتح القصة
                         final StoryAvatarView fav = av; final String fUid = rowUid, fName = dn;
                         final boolean fBlue = StoryAvatarView.toneBlue(rowUid);
@@ -2666,7 +2666,14 @@ public class MassActivity extends Activity {
             }
 
             void updateChatSelBar() {
-                if (chatSelCountTv != null) { chatSelCountTv.setText(String.valueOf(chatSel.size())); chatSelCountTv.setTextColor(cGold()); }
+                if (chatSelCountTv != null) { chatSelCountTv.setText(chatSel.size() + " من المحادثات"); chatSelCountTv.setTextColor(cGold()); }
+                // إطار ذهبي مربع بحواف 2dp حول ✕ والتثبيت والحذف (يُحدَّث لون الإطار مع الثيم)
+                if (chatSelXIv != null) chatSelXIv.setBackground(goldFrame());
+                if (chatSelDelIv != null) chatSelDelIv.setBackground(goldFrame());
+                if (chatSelPinIv != null) {
+                    chatSelPinIv.setBackground(goldFrame());
+                    chatSelPinIv.setVisibility(chatSel.size() >= 2 ? View.GONE : View.VISIBLE);   // التثبيت لمحادثة واحدة فقط
+                }
                 // كل عناصر الشريط ذهبية في النهاري والليلي (تُحدَّث عند كل تحديث تحسباً لتبديل الثيم)
                 if (chatSelXIv != null) chatSelXIv.setColorFilter(cGold());
                 if (chatSelDelIv != null) chatSelDelIv.setColorFilter(cGold());
@@ -3633,6 +3640,15 @@ public class MassActivity extends Activity {
             /** أيقونة بلا مربّع خلفها (شريط تحديد المحادثات). */
             ImageView noBg(ImageView iv) { iv.setBackground(null); return iv; }
 
+            /** مربع شفاف بحدّ ذهبي وبنفس انحناء مربع العدسة (14dp). */
+            android.graphics.drawable.Drawable goldFrame() {
+                android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+                g.setColor(0x00000000);
+                g.setCornerRadius(dp(14));
+                g.setStroke(Math.max(1, dp(1.5f)), cGold());
+                return g;
+            }
+
             ImageView selIcon(int iconRes, int tint, int fill, String desc, final Runnable r) {
                 ImageView iv = new ImageView(act);
                 iv.setImageResource(iconRes);
@@ -3940,7 +3956,7 @@ public class MassActivity extends Activity {
                 for (int i = 0; i < n; i++) {
                     View seg = new View(act);
                     GradientDrawable sg = new GradientDrawable();
-                    sg.setCornerRadius(dp(2)); sg.setColor(i == idx ? cGold() : goldA(0x4D));
+                    sg.setCornerRadius(dp(14));
                     seg.setBackground(sg);
                     LinearLayout.LayoutParams sl = new LinearLayout.LayoutParams(-1, 0, 1f);
                     if (i > 0) sl.topMargin = dp(2);

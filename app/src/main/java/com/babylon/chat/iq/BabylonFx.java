@@ -152,7 +152,7 @@ public final class BabylonFx {
     private static final boolean FOLD_HINGE_RIGHT = true;
     /** زاوية بداية الطي (درجة) ومدته (ms). إشارتها تحدّد اتجاه الدوران؛ اعكسها إن ظهر الدوران معكوساً. */
     private static final float FOLD_START_DEG = 78f;
-    private static final long FOLD_MS = 440;
+    private static final long FOLD_MS = 320;
     /** وقت (uptime) انتهاء حركة الطيّ؛ تنتظره المحادثة قبل رسم الرسائل كي لا تتداخل معها ولا تُقطّعها. */
     private static volatile long foldEndUptime = 0L;
 
@@ -162,7 +162,7 @@ public final class BabylonFx {
     /** ms المتبقية حتى تنتهي حركة الطيّ (0 إن لم تكن جارية). */
     public static long chatFoldRemaining() { return Math.max(0L, foldEndUptime - SystemClock.uptimeMillis()); }
 
-    /** فتح غرفة المحادثة بحركة «طيّ/فتح صفحة»: الصفحة تنفتح من مفصلة على حافتها مع تظليل يزول تدريجياً. */
+    /** فتح غرفة المحادثة بحركة دخول عادية (تلاشٍ + ارتفاع خفيف) مثل باقي الشاشات الثانوية. */
     public static void chatGrow(final View chat, View header, View composer) {
         if (chat == null) return;
         reset(chat);
@@ -175,37 +175,14 @@ public final class BabylonFx {
         final int w = chat.getWidth(), h = chat.getHeight();
         if (w <= 0 || h <= 0) return;
         foldEndUptime = SystemClock.uptimeMillis() + FOLD_MS + 30;   // التوقيت الدقيق بعد بدء الرسم الفعلي
-        final float sign = FOLD_HINGE_RIGHT ? 1f : -1f;
-        chat.setCameraDistance(9000f * chat.getResources().getDisplayMetrics().density);
-        chat.setPivotX(FOLD_HINGE_RIGHT ? w : 0f);
-        chat.setPivotY(h / 2f);
-        chat.setRotationY(sign * FOLD_START_DEG);
-        final int oldLayer = chat.getLayerType();
-        chat.setLayerType(View.LAYER_TYPE_HARDWARE, null);
-        final ColorDrawable shade = new ColorDrawable(Color.BLACK);
-        shade.setBounds(0, 0, w, h);
-        shade.setAlpha(150);
-        chat.getOverlay().add(shade);
-        final ValueAnimator va = ValueAnimator.ofFloat(0f, 1f);
-        va.setDuration(FOLD_MS);
-        va.setInterpolator(easeOut());
-        va.addUpdateListener(a -> {
-            float t = (float) a.getAnimatedValue();
-            chat.setRotationY(sign * FOLD_START_DEG * (1f - t));
-            shade.setAlpha(Math.round(150f * (1f - t)));
-        });
-        va.addListener(new AnimatorListenerAdapter() {
-            private void done() {
-                try { chat.getOverlay().remove(shade); } catch (Throwable ignored) { }
-                chat.setRotationY(0f);
-                chat.setPivotX(chat.getWidth() / 2f);
-                chat.setPivotY(chat.getHeight() / 2f);
-                chat.setLayerType(oldLayer, null);
-            }
-            @Override public void onAnimationEnd(Animator an) { done(); }
-            @Override public void onAnimationCancel(Animator an) { done(); }
-        });
-        va.start();
+        // دخول عادي متناسق مع بقية الشاشات الثانوية (bbViewIn): تلاشٍ + ارتفاع خفيف + تكبير بسيط
+        chat.setAlpha(0f);
+        chat.setTranslationY(dp(chat, 10));
+        chat.setScaleX(0.985f);
+        chat.setScaleY(0.985f);
+        chat.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f)
+                .setDuration(FOLD_MS).setInterpolator(easeOut())
+                .withEndAction(() -> reset(chat)).start();
     }
 
     /**

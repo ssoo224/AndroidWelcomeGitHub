@@ -31,6 +31,7 @@ public final class ProfileRing extends Drawable implements StoryViewer.Spin {
     private final Flag hasStory, seen;
     private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Matrix mx = new Matrix();
+    private final android.graphics.RectF dashRect = new android.graphics.RectF();
     private boolean launching;
     private float spin;
     private ValueAnimator anim;
@@ -59,12 +60,17 @@ public final class ProfileRing extends Drawable implements StoryViewer.Spin {
         this.hasStory = hasStory; this.seen = seen;
     }
 
-    @Override protected void onBoundsChange(Rect b) {
-        int t = Math.round(outerPx + ringPx);
+    /** الصورة تصغر فقط عند وجود قصة (لتفسح مكاناً للحلقة) وتعود كبيرة عندما تنتهي. */
+    private void fitInner() {
+        Rect b = getBounds();
+        int t = Math.round(outerPx + (hasStory.get() ? ringPx : 0f));
         inner.setBounds(b.left + t, b.top + t, b.right - t, b.bottom - t);
     }
 
+    @Override protected void onBoundsChange(Rect b) { fitInner(); }
+
     @Override public void draw(Canvas c) {
+        fitInner();
         Rect b = getBounds();
         float cx = b.exactCenterX(), cy = b.exactCenterY();
         float R = Math.min(b.width(), b.height()) / 2f;
@@ -78,9 +84,9 @@ public final class ProfileRing extends Drawable implements StoryViewer.Spin {
             float rr = R - outerPx - ringPx / 2f;
             p.setStrokeWidth(ringPx);
             if (launching) {
-                SweepGradient lg = new SweepGradient(cx, cy, LC, LP);
-                mx.reset(); mx.setRotate(-90 + spin, cx, cy); lg.setLocalMatrix(mx);
-                p.setShader(lg);
+                StoryAvatarView.drawDashRing(c, cx, cy, rr, ringPx, spin, p, dashRect, mx);
+                inner.draw(c);
+                return;
             } else if (seen.get()) {
                 p.setColor(0xFF4B5A6B);
             } else {
