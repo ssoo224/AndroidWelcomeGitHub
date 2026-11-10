@@ -533,7 +533,10 @@ public final class StoryComposer {
         caption.setFilters(new InputFilter[]{new InputFilter.LengthFilter(MAX_CAPTION)});
         caption.setBackground(box(spInput(), 13, spBorder()));
         caption.setPadding(px(13), px(12), px(13), px(12));
-        caption.setOnFocusChangeListener((v, has) -> caption.setBackground(box(spInput(), 13, has ? spGold() : spBorder())));
+        caption.setOnFocusChangeListener((v, has) -> {
+            caption.setBackground(box(spInput(), 13, has ? spGold() : spBorder()));
+            if (has) { caption.postDelayed(this::revealCaption, 150); caption.postDelayed(this::revealCaption, 400); }
+        });
         capCard.addView(caption, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout foot = new LinearLayout(act);
         foot.setOrientation(LinearLayout.HORIZONTAL);
@@ -553,9 +556,10 @@ public final class StoryComposer {
         caption.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
             @Override public void onTextChanged(CharSequence s, int a, int b, int c) { }
-            @Override public void afterTextChanged(Editable s) { countTv.setText(s.length() + "/" + MAX_CAPTION); }
+            @Override public void afterTextChanged(Editable s) { countTv.setText(s.length() + "/" + MAX_CAPTION); revealCaption(); }
         });
         body.addView(capCard, spCardLp());
+        scrollRef = sv; bodyRef = body; capCardRef = capCard;
 
         // ---- بطاقة المدة (.sc-chips: شبكة 4 أعمدة، gap 8)
         LinearLayout durCard = newCard();
@@ -664,6 +668,13 @@ public final class StoryComposer {
             int st = ins.getSystemWindowInsetTop();
             if (st > 0) header.setPadding(px(18), px(17) + st, px(18), px(17));
             footer.setPadding(px(14), px(12), px(14), fPadB + Math.max(0, bt));
+            // الكيبورد ظاهر: مساحة إضافية أسفل المحتوى ليصعد الوصف فوق شريط الإيموجي/الاقتراحات
+            boolean kb = bt > px(160);
+            if (kb != kbUp) {
+                kbUp = kb;
+                body.setPadding(px(14), px(14), px(14), kb ? px(72) : px(6));
+            }
+            if (kb) { caption.postDelayed(this::revealCaption, 120); caption.postDelayed(this::revealCaption, 380); }
             return ins;
         });
 
@@ -682,6 +693,21 @@ public final class StoryComposer {
             w.getDecorView().setSystemUiVisibility(uiFlags);
         }
         dlg.show();
+    }
+
+    private ScrollView scrollRef;
+    private LinearLayout bodyRef, capCardRef;
+    private boolean kbUp;
+
+    /** يُبقي بطاقة الوصف كاملة فوق الكيبورد (وشريط الإيموجي/الاقتراحات) بهامش أسفلها. */
+    private void revealCaption() {
+        final ScrollView sv = scrollRef; final LinearLayout card = capCardRef;
+        if (sv == null || card == null || caption == null || !caption.hasFocus() || sv.getHeight() <= 0) return;
+        int margin = px(kbUp ? 40 : 16);
+        int target = card.getBottom() + margin - sv.getHeight();
+        target = Math.min(target, card.getTop() - px(8));   // لا يخرج رأس البطاقة من الأعلى إن كانت أطول من المساحة
+        int cur = sv.getScrollY();
+        if (target > cur) sv.smoothScrollTo(0, target);
     }
 
     private int statusBarH() {

@@ -244,7 +244,7 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
 
         // حلقة القصة (.avatar.sring::after : inset:-5px; padding:3px)
         if (ring || morph > 0f) {
-            float outerR = R + dp(ringSmall ? 3 : 5), thick = dp(2);   // سماكة حلقة القصة 2dp في كل الحالات
+            float outerR = R + dp(ringSmall ? 3 : 5), thick = dp(launching || !seen ? 3 : 2);   // سماكة الحلقة: 3dp غير مشاهَدة وعند الدوران، 2dp بعد المشاهدة
             outerR += (R - outerR) * morph;
             thick += (thumbB - thick) * morph;
             float mid = outerR - thick / 2f;

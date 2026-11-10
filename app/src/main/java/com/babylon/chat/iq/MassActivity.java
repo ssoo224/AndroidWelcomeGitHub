@@ -381,6 +381,9 @@ public class MassActivity extends Activity {
                 return 0xFF000000 | (r << 16) | (g << 8) | b;
             }
             int cRed() { return dark ? 0xFFFB7185 : 0xFFDC2626; }
+            /** زر الحظر بنفس ألوان زر حذف القصة (أحمر StoryViewer: أيقونة 0xFFFF6A70 على خلفية/حدّ أحمرين شفافين). */
+            int blockFg() { return dark ? 0xFFFF6A70 : 0xFFC52D3A; }
+            GradientDrawable blockBg() { return shape(dark ? 0x4D781419 : 0x14C52D3A, 16, dark ? 0x66FF6464 : 0x4DC52D3A); }
             int cMine() { return dark ? 0xFF2B5278 : 0xFFD9FDD3; }
             int cOther() { return dark ? 0xFF182533 : 0xFFFFFFFF; }
             int cChatBg() { return Tk.chatSurface(dark); }
@@ -388,7 +391,7 @@ public class MassActivity extends Activity {
             /** حقل الكتابة: #f1f5fa / rgba(127,140,160,.10) ، عند التركيز أبيض / .16 وحدّ #c9cfd8 / #8b94a1 ، انحناء 15 */
             GradientDrawable msgInpBg(boolean focus) {
                 GradientDrawable g = new GradientDrawable();
-                if (dark && Tk.chatPal != null) {   // الطور الليلي فقط: ألوان الثيم (داخل شريط الكتابة --cr-card)
+                if (Tk.chatPal != null) {   // الطورين الليلي والنهاري: ألوان الثيم (داخل شريط الكتابة --cr-card)
                     g.setColor(Tk.chatPal.chatBg);
                     g.setCornerRadius(dp(15));
                     g.setStroke(dp(1), focus ? ((Tk.chatPal.accent & 0x00FFFFFF) | 0x99000000) : 0x00000000);
@@ -448,7 +451,7 @@ public class MassActivity extends Activity {
                         else if (k.equals("card")) {
                             ViewGroup.LayoutParams clp = x.getLayoutParams();
                             boolean small = clp != null && clp.height > 0 && clp.height <= dp(48);
-                            x.setBackground(shape(cSf(), small ? 14 : 20, cBorder()));
+                            x.setBackground(x.getId() == R.id.otherBlockBtn ? blockBg() : shape(cSf(), small ? 14 : 20, cBorder()));
                             if (isQuickBtn(x)) x.setStateListAnimator(null);
                         }
                         else if (k.equals("row")) { x.setBackground(shape(cSf(), 18, 0)); }
@@ -483,7 +486,7 @@ public class MassActivity extends Activity {
                         else if (k.equals("msginp")) {
                             x.setBackground(msgInpBg(x.hasFocus()));
                             if (T != null) {
-                                boolean th = dark && Tk.chatPal != null;   // الليلي فقط يتبع الثيم
+                                boolean th = Tk.chatPal != null;   // الليلي والنهاري يتبعان الثيم
                                 T.setTextColor(th ? Tk.crInk(cText()) : cText());
                                 T.setHintTextColor(th ? Tk.crMuted(cMuted()) : cMuted());
                             }
@@ -515,7 +518,7 @@ public class MassActivity extends Activity {
                             GradientDrawable g = new GradientDrawable();
                             g.setShape(GradientDrawable.OVAL); g.setColor(cGold()); x.setBackground(g);
                             if (x.getId() == R.id.sxAvatar) x.setBackground(Tk.ringAvatar(x, dark));
-                            if (x.getId() == R.id.chatAvatar) { x.setBackground(Tk.chatAvatar(x, dark)); if (T != null) T.setTextColor(dark ? 0xFF17212B : 0xFFFFFFFF); }   // النهاري: الحرف أبيض
+                            if (x.getId() == R.id.chatAvatar) { x.setBackground(Tk.chatAvatar(x, dark)); if (T != null) T.setTextColor(dark ? 0xFF17212B : 0xFFFFFFFF); try { applyChatPhoto(); } catch (Throwable ignored) { } }   // النهاري: الحرف أبيض
                             if (photoBmp != null && x instanceof TextView && (x == v("pAvatarText") || x == v("sxAvatar"))) applyPhotoTo((TextView) x);
                             if (otherPhotoBmp != null && x instanceof TextView && x == v("otherAvatarText")) applyOtherPhotoTo((TextView) x);
                         } else if (k.equals("circRed")) {
@@ -564,7 +567,7 @@ public class MassActivity extends Activity {
                         else if (T != null) {
                             if (k.equals("t")) T.setTextColor((x.getTag() instanceof String && ((String) x.getTag()).contains("rbtn")) || x.getId() == R.id.chatTitle ? Tk.crInk(cText()) : cText());
                             else if (k.equals("m")) T.setTextColor(x.getId() == R.id.chatSub || (Tk.chatPal != null && (x.getId() == R.id.btnMic || x.getId() == R.id.btnAttach)) ? Tk.crMuted(cMuted()) : cMuted());
-                            else if (k.equals("g")) T.setTextColor(cGold());
+                            else if (k.equals("g")) T.setTextColor(x.getId() == R.id.otherBlockBtn ? blockFg() : cGold());
                             else if (k.equals("red")) T.setTextColor(cRed());
                             else if (k.equals("green")) T.setTextColor(0xFF4ADE80);
                             else if (k.equals("wh")) T.setTextColor(0xFFFFFFFF);
@@ -1043,6 +1046,13 @@ public class MassActivity extends Activity {
                 // داخل المحادثة (بلا لوحة مفاتيح) لا نحجز مساحة الإيماءات في الجذر: الطبقة الزجاجية للمدخل تمتد خلف شريط الإيماءات الشفاف
                 boolean kbUp = padBottom - navBottom > dp(100);
                 r.setPadding(0, edge ? 0 : sbTop, 0, (chat && !kbUp) ? 0 : padBottom);
+                // الصفحة الرئيسية تبقى ظاهرة خلف حركة دخول/خروج المحادثة: نُبقي لها إزاحة شريط النظام بنفسها
+                // حتى لا تصعد تحت شريط الحالة ولا تنزل تحت أزرار التنقل أثناء الحركة.
+                View mp = v("mainPage");
+                if (mp != null) {
+                    if (chat) mp.setPadding(0, isProfilePage(curPage) ? 0 : sbTop, 0, padBottom);
+                    else mp.setPadding(0, 0, 0, 0);
+                }
                 if (chat) applyChatInsets();
             }
 
@@ -1499,12 +1509,17 @@ public class MassActivity extends Activity {
             /** زرا رسالة/حظر: أيقونة وكلمة بلون ذهبي (أصفر) في النهاري والليلي. */
             void refreshOtherButtons() {
                 quick("otherMsgBtn", "ic_chat", cGold());
-                quick("otherBlockBtn", "ic_block", cGold());
+                quick("otherBlockBtn", "ic_block", blockFg());
                 View mb = v("otherMsgBtn"), bb0 = v("otherBlockBtn");
                 if (mb != null) mb.setTag("card g");
                 if (bb0 != null) bb0.setTag("card g");
                 TextView ob = tv("otherBlockBtn");
-                if (ob != null) ob.setText(blocked ? "إلغاء الحظر" : "حظر");
+                if (ob != null) {
+                    ob.setText(blocked ? "إلغاء الحظر" : "حظر");
+                    ob.setBackground(blockBg());
+                    ob.setTextColor(blockFg());
+                    tintIcons(ob);
+                }
             }
 
             void toggleBlock() {
@@ -2074,6 +2089,28 @@ public class MassActivity extends Activity {
                 }
             }
 
+            /** صورة الطرف الآخر في رأس المحادثة (دائرية)، وإلا الحرف الأول على دائرة الثيم. */
+            void applyChatPhoto() {
+                TextView t = tv("chatAvatar");
+                if (t == null || !chatOpen()) return;
+                Bitmap b = (otherUid == null || otherUid.isEmpty()) ? null : peerPhotos.get(otherUid);
+                if (b != null && !b.isRecycled()) {
+                    androidx.core.graphics.drawable.RoundedBitmapDrawable rd =
+                            androidx.core.graphics.drawable.RoundedBitmapDrawableFactory.create(act.getResources(), b);
+                    rd.setCircular(true);
+                    rd.setAntiAlias(true);
+                    rd.setMipMap(true);
+                    b.setHasMipMap(true);
+                    t.setBackground(rd);
+                    t.setText("");
+                } else {
+                    t.setBackground(Tk.chatAvatar(t, dark));
+                    t.setTextColor(dark ? 0xFF17212B : 0xFFFFFFFF);
+                    String n = curChat == null ? "" : curChat;
+                    t.setText(n.length() > 0 ? n.substring(0, 1) : "?");
+                }
+            }
+
             void applyOtherPhotoTo(TextView t) {
                 if (t == null || otherPhotoBmp == null) return;
                 androidx.core.graphics.drawable.RoundedBitmapDrawable rd =
@@ -2518,6 +2555,7 @@ public class MassActivity extends Activity {
                             if (peerPhotoRefresh == null) peerPhotoRefresh = () -> {
                                 try { buildChats(); } catch (Throwable ignored) { }
                                 try { buildStories(); } catch (Throwable ignored) { }
+                                try { applyChatPhoto(); } catch (Throwable ignored) { }
                             };
                             uiH.removeCallbacks(peerPhotoRefresh);
                             uiH.postDelayed(peerPhotoRefresh, 250);
@@ -3077,6 +3115,7 @@ public class MassActivity extends Activity {
                 if (chatTitle != null) chatTitle.setText(dispName(uid, name));
                 TextView chatAv = tv("chatAvatar");
                 if (chatAv != null) chatAv.setText(name.length() > 0 ? name.substring(0, 1) : "?");
+                ensurePeerPhoto(uid);   // صورة المستخدم في رأس المحادثة
                 TextView chatSub = tv("chatSub");
                 if (chatSub != null) chatSub.setText("\u200B");
                 listenChatPresence(uid);
@@ -3097,6 +3136,7 @@ public class MassActivity extends Activity {
                 restoreRecording(currentChatId);   // تعود الصوتية المسجّلة إن وُجدت
                 listenPins(currentChatId);
                 vis("chatView", true);
+                applyChatPhoto();
                 final View cv = v("chatView");
                 syncBars();
                 if (cv != null) BabylonFx.chatGrowNow(cv, v("chatTopBar"), v("chatBottomBar"));
@@ -4253,15 +4293,15 @@ public class MassActivity extends Activity {
 
             private final Map<View, android.animation.ValueAnimator> flashAnims = new HashMap<>();
 
-            /** تمييز الرسالة المردود عليها: رسالتي أبيض 5%، والمستلَمة بلون الثيم؛ ينبض مرتين ويتلاشى + نبضة تكبير خفيفة، بلا أي إطار. */
+            /** تمييز الرسالة المردود عليها: رسالتي أبيض 20%، والمستلَمة بلون الثيم؛ ينبض مرتين ويتلاشى + نبضة تكبير خفيفة، بلا أي إطار. */
             void flashMsg(final View mv, final String id) {
                 if (mv == null) return;
                 android.animation.ValueAnimator prev = flashAnims.remove(mv);
                 if (prev != null) prev.cancel();
-                // رسالتي: أبيض بنسبة 5% — رسالة المستلَم: لون الثيم (accent) أو الذهبي في ثيم بابل
+                // رسالتي: أبيض بنسبة 20% — رسالة المستلَم: لون الثيم (accent) أو الذهبي في ثيم بابل
                 Object[] fm = id != null ? msgMeta.get(id) : null;
                 final boolean fMine = fm != null && Boolean.TRUE.equals(fm[4]);
-                final float peak = fMine ? 0.05f : 0.42f;
+                final float peak = fMine ? 0.20f : 0.42f;
                 final GradientDrawable g = new GradientDrawable();
                 g.setColor(fMine ? 0xFFFFFFFF : (Tk.chatPal != null ? (Tk.chatPal.accent | 0xFF000000) : cGold()));
                 g.setCornerRadii(bubbleRadii(mv, 0));
@@ -4277,7 +4317,7 @@ public class MassActivity extends Activity {
                     float fade = 1f - 0.55f * t;                                            // تخفت تدريجياً
                     float k = pulse * fade;
                     if (fg) g.setAlpha(Math.round(255 * peak * k));
-                    else mv.setAlpha(1f - (fMine ? 0.05f : 0.3f) * k);
+                    else mv.setAlpha(1f - (fMine ? 0.20f : 0.3f) * k);
                     float sc = 1f + 0.025f * (float) Math.sin(Math.PI * Math.min(1f, t * 1.6f));
                     mv.setScaleX(sc); mv.setScaleY(sc);
                 });
