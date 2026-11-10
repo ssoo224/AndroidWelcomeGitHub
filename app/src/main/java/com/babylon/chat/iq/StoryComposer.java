@@ -15,6 +15,11 @@ import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.provider.OpenableColumns;
 import android.text.Editable;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.style.ImageSpan;
+import android.graphics.Canvas;
+import android.graphics.Paint;
 import android.text.InputFilter;
 import android.text.TextWatcher;
 import android.util.Base64;
@@ -386,12 +391,11 @@ public final class StoryComposer {
         LinearLayout row = new LinearLayout(act);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.addView(spIcon(iconRes, spGold(), 34, 19, spSoft(), 11));
         TextView t = new TextView(act);
         t.setText(text); tsz(t, 14); t.setTypeface(null, Typeface.BOLD); t.setTextColor(spText());
+        t.setGravity(Gravity.RIGHT); t.setTextDirection(View.TEXT_DIRECTION_RTL);
         LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(0, -2, 1f);
-        tl.setMarginStart(px(10));
-        row.addView(t, tl);
+        tl.setMarginEnd(px(10));
         if (optional) {
             TextView o = new TextView(act);
             o.setText("اختياري"); tsz(o, 11);
@@ -401,6 +405,8 @@ public final class StoryComposer {
             o.setPadding(px(9), px(3), px(9), px(3));
             row.addView(o);
         }
+        row.addView(t, tl);
+        row.addView(spIcon(iconRes, spGold(), 34, 19, spSoft(), 11));   // الأيقونة في اليمين
         return row;
     }
 
@@ -438,19 +444,22 @@ public final class StoryComposer {
         bil.gravity = Gravity.CENTER;
         back.addView(bi, bil);
         back.setOnClickListener(v -> close());
-        header.addView(back, new LinearLayout.LayoutParams(px(42), px(42)));
         LinearLayout titles = new LinearLayout(act);
         titles.setOrientation(LinearLayout.VERTICAL);
+        titles.setGravity(Gravity.RIGHT);
         TextView t1 = new TextView(act);
+        t1.setGravity(Gravity.RIGHT); t1.setTextDirection(View.TEXT_DIRECTION_RTL);
         t1.setText("قصة جديدة"); tsz(t1, 18); t1.setTypeface(null, Typeface.BOLD); t1.setTextColor(spText());
         TextView t2 = new TextView(act);
+        t2.setGravity(Gravity.RIGHT); t2.setTextDirection(View.TEXT_DIRECTION_RTL);
         t2.setText("شارك لحظتك مع أصدقائك"); tsz(t2, 12); t2.setTextColor(spSub());
-        LinearLayout.LayoutParams t2l = new LinearLayout.LayoutParams(-2, -2);
+        LinearLayout.LayoutParams t2l = new LinearLayout.LayoutParams(-1, -2);
         t2l.topMargin = px(4);
-        titles.addView(t1); titles.addView(t2, t2l);
+        titles.addView(t1, new LinearLayout.LayoutParams(-1, -2)); titles.addView(t2, t2l);
         LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(0, -2, 1f);
-        tl.setMarginStart(px(12));
+        tl.setMarginEnd(px(12));
         header.addView(titles, tl);
+        header.addView(back, new LinearLayout.LayoutParams(px(42), px(42)));   // سهم الخروج في اليمين
         root.addView(header, new LinearLayout.LayoutParams(-1, -2));
         View hl = new View(act);
         hl.setBackgroundColor(hdrLine());
@@ -519,7 +528,7 @@ public final class StoryComposer {
         caption.setMinHeight(px(92));
         caption.setMinLines(3);
         caption.setMaxLines(3);
-        caption.setGravity(Gravity.TOP | Gravity.START);
+        caption.setGravity(Gravity.TOP | Gravity.RIGHT);
         caption.setTextDirection(View.TEXT_DIRECTION_RTL);
         caption.setFilters(new InputFilter[]{new InputFilter.LengthFilter(MAX_CAPTION)});
         caption.setBackground(box(spInput(), 13, spBorder()));
@@ -531,12 +540,13 @@ public final class StoryComposer {
         TextView hint = new TextView(act);
         hint.setText("أضف تفاصيل تساعد أصدقاءك على فهم القصة");
         tsz(hint, 11); hint.setTextColor(spSub());
-        foot.addView(hint, new LinearLayout.LayoutParams(0, -2, 1f));
+        hint.setGravity(Gravity.RIGHT); hint.setTextDirection(View.TEXT_DIRECTION_RTL);
         countTv = new TextView(act);
         countTv.setText("0/" + MAX_CAPTION); tsz(countTv, 11); countTv.setTextColor(spSub());
         LinearLayout.LayoutParams cnl = new LinearLayout.LayoutParams(-2, -2);
-        cnl.setMarginStart(px(10));
+        cnl.setMarginEnd(px(10));
         foot.addView(countTv, cnl);
+        foot.addView(hint, new LinearLayout.LayoutParams(0, -2, 1f));
         LinearLayout.LayoutParams fl = new LinearLayout.LayoutParams(-1, -2);
         fl.topMargin = px(8);
         capCard.addView(foot, fl);
@@ -577,20 +587,21 @@ public final class StoryComposer {
         LinearLayout pinRow = new LinearLayout(act);
         pinRow.setOrientation(LinearLayout.HORIZONTAL);
         pinRow.setGravity(Gravity.CENTER_VERTICAL);
-        pinRow.addView(spIcon(R.drawable.ic_sp_pin, spGold(), 34, 19, spSoft(), 11));
         LinearLayout copy = new LinearLayout(act);
         copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setGravity(Gravity.RIGHT);
         TextView pt = new TextView(act);
+        pt.setGravity(Gravity.RIGHT); pt.setTextDirection(View.TEXT_DIRECTION_RTL);
         pt.setText("تثبيت بالملف الشخصي"); tsz(pt, 14); pt.setTypeface(null, Typeface.BOLD); pt.setTextColor(spText());
         TextView ps = new TextView(act);
+        ps.setGravity(Gravity.RIGHT); ps.setTextDirection(View.TEXT_DIRECTION_RTL);
         ps.setText("تبقى القصة ظاهرة دائماً بعد انتهاء مدتها"); tsz(ps, 11.5f); ps.setTextColor(spSub());
         ps.setLineSpacing(0, 1.15f);
-        LinearLayout.LayoutParams psl = new LinearLayout.LayoutParams(-2, -2);
+        LinearLayout.LayoutParams psl = new LinearLayout.LayoutParams(-1, -2);
         psl.topMargin = px(3);
-        copy.addView(pt); copy.addView(ps, psl);
+        copy.addView(pt, new LinearLayout.LayoutParams(-1, -2)); copy.addView(ps, psl);
         LinearLayout.LayoutParams cpl = new LinearLayout.LayoutParams(0, -2, 1f);
         cpl.setMarginStart(px(12)); cpl.setMarginEnd(px(12));
-        pinRow.addView(copy, cpl);
         FrameLayout sw = new FrameLayout(act);
         pinSwitchTrack = new View(act);
         pinSwitchKnob = new View(act);
@@ -599,6 +610,8 @@ public final class StoryComposer {
         kp.topMargin = px(3);
         sw.addView(pinSwitchKnob, kp);
         pinRow.addView(sw, new LinearLayout.LayoutParams(px(48), px(28)));
+        pinRow.addView(copy, cpl);
+        pinRow.addView(spIcon(R.drawable.ic_sp_pin, spGold(), 34, 19, spSoft(), 11));   // الأيقونة في اليمين
         pinRow.setOnClickListener(v -> { if (!publishing) { pin = !pin; refreshPin(); } });
         pinCard.addView(pinRow, new LinearLayout.LayoutParams(-1, -2));
         refreshPin();
@@ -621,7 +634,6 @@ public final class StoryComposer {
         footer.addView(errTv, erl);
 
         publishBtn = new TextView(act);
-        publishBtn.setText(LBL_PUBLISH);
         tsz(publishBtn, 16);
         publishBtn.setTypeface(null, Typeface.BOLD);
         publishBtn.setTextColor(0xFFFFFFFF);
@@ -629,10 +641,7 @@ public final class StoryComposer {
         publishBtn.setBackground(goldGrad(14));
         publishBtn.setElevation(px(4));
         try { if (android.os.Build.VERSION.SDK_INT >= 28) publishBtn.setOutlineSpotShadowColor(0x52B8861B); } catch (Throwable ignored) { }
-        android.graphics.drawable.Drawable sendIco = act.getResources().getDrawable(R.drawable.ic_sp_send, null);
-        sendIco.setBounds(0, 0, px(20), px(20));
-        publishBtn.setCompoundDrawablesRelative(sendIco, null, null, null);
-        publishBtn.setCompoundDrawablePadding(px(9));
+        publishBtn.setText(publishLabel(LBL_PUBLISH));   // سهم نشر متجه للأعلى + النص في منتصف الزر
         publishBtn.setOnClickListener(v -> publish());
         footer.addView(publishBtn, new LinearLayout.LayoutParams(-1, px(50)));
 
@@ -739,7 +748,27 @@ public final class StoryComposer {
         if (publishBtn != null) {
             publishBtn.setEnabled(!busy);
             publishBtn.setAlpha(busy ? 0.7f : 1f);
-            publishBtn.setText(label);
+            publishBtn.setText(LBL_PUBLISH.equals(label) ? publishLabel(label) : label);
+        }
+    }
+
+    /** سهم نشر ↑ يسبق النص ويتوسّط الزر معه. */
+    private CharSequence publishLabel(String label) {
+        android.graphics.drawable.Drawable ico = act.getResources().getDrawable(R.drawable.ic_sp_publish, null).mutate();
+        ico.setBounds(0, 0, px(21), px(21));
+        SpannableString ss = new SpannableString("\u200F \u00A0" + label);
+        ss.setSpan(new CenteredIconSpan(ico), 1, 2, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        return ss;
+    }
+
+    private static final class CenteredIconSpan extends ImageSpan {
+        CenteredIconSpan(android.graphics.drawable.Drawable d) { super(d); }
+        @Override public void draw(Canvas c, CharSequence text, int start, int end, float x, int top, int y, int bottom, Paint paint) {
+            android.graphics.drawable.Drawable d = getDrawable();
+            c.save();
+            c.translate(x, top + (bottom - top - d.getBounds().height()) / 2f);
+            d.draw(c);
+            c.restore();
         }
     }
 

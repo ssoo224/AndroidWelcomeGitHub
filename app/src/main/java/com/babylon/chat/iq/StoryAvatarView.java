@@ -25,7 +25,7 @@ import android.view.animation.LinearInterpolator;
  *  - .cl-online : نقطة اتصال خضراء بحدّ بلون السطح وهالة 5px
  * العنصر يرسم خارج حدوده (الحلقة والتوهج والظل) لذلك يجب أن تكون الحاويات clipChildren=false.
  */
-public class StoryAvatarView extends View {
+public class StoryAvatarView extends View implements StoryViewer.Spin {
 
     public static final int GOLD_A = 0xFFF2D268, GOLD_B = 0xFFB8861B;
     public static final int BLUE_A = 0xFF59CDF8, BLUE_B = 0xFF1F63D8;
@@ -39,11 +39,12 @@ public class StoryAvatarView extends View {
     private boolean shadow = true;
 
     /** توهّج الحلقة: box-shadow:0 0 7px rgba(212,160,23,.55) في .avatar.sring::after */
-    public static boolean GLOW = true;
+    public static boolean GLOW = false;   // يُقصّ التوهج عند حدود شريط القصص (مربّعات)، لذا معطّل افتراضياً
     /** مؤشر الفتح: .story-launch-loading — قوس ذهبي دوّار (conic-gradient) 2.15s linear infinite */
     private static final int[] LAUNCH_COLORS = {0x00B98710, 0x00B98710, 0xFFB98710, 0xFFD4AF37, 0xFFFFE9A0, 0xFFD4AF37, 0x00D4AF37, 0x00D4AF37};
     private static final float[] LAUNCH_POS = {0f, 205f / 360f, 225f / 360f, 255f / 360f, 285f / 360f, 320f / 360f, 340f / 360f, 1f};
     private boolean launching;
+    private boolean ringSmall;   // الحلقة المصغّرة عند طيّ الشريط: inset:-3px; padding:2px
     private float spin;
     private ValueAnimator spinAnim;
 
@@ -83,6 +84,8 @@ public class StoryAvatarView extends View {
         return this;
     }
     public boolean isLaunching() { return launching; }
+    @Override public void setLaunching(boolean on) { launching(on); }
+    public StoryAvatarView ringSmall(boolean on) { if (ringSmall != on) { ringSmall = on; invalidate(); } return this; }
 
     private void startSpin() {
         stopSpin();
@@ -170,7 +173,7 @@ public class StoryAvatarView extends View {
 
         // حلقة القصة (.avatar.sring::after : inset:-5px; padding:3px)
         if (ring) {
-            float outerR = R + dp(5), thick = dp(3), mid = outerR - thick / 2f;
+            float outerR = R + dp(ringSmall ? 3 : 5), thick = dp(ringSmall ? 2 : 3), mid = outerR - thick / 2f;
             if (launching) {
                 // أثناء التحميل تُستبدل الحلقة بقوس دوّار فقط (بلا توهّج) — كما في الـ CSS
                 p.reset(); p.setAntiAlias(true);

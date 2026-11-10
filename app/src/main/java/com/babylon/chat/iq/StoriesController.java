@@ -136,7 +136,7 @@ public final class StoriesController {
         hdrBtn.setPadding(px(2), 0, px(2), 0);
         if (hdrBtn.getParent() instanceof ViewGroup) ((ViewGroup) hdrBtn.getParent()).setClipChildren(false);
         hdrAv = new StoryAvatarView(act);
-        hdrAv.shadow(true).textSp(15.6f);
+        hdrAv.shadow(true).textSp(15.6f).ringSmall(true);
         hdrBtn.addView(hdrAv, new LinearLayout.LayoutParams(px(HDR_AV), px(HDR_AV)));
         hdrStack = new LinearLayout(act);
         hdrStack.setOrientation(LinearLayout.HORIZONTAL);

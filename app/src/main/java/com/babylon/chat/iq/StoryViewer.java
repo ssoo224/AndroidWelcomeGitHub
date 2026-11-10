@@ -6,12 +6,18 @@ import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.Outline;
 import android.graphics.Typeface;
+import android.database.Cursor;
+import android.media.MediaMetadataRetriever;
+import android.provider.OpenableColumns;
+import android.text.InputFilter;
+import android.widget.ScrollView;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
@@ -49,6 +55,11 @@ import com.google.firebase.firestore.SetOptions;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import org.json.JSONObject;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
@@ -70,6 +81,14 @@ import java.util.concurrent.Executors;
  */
 public final class StoryViewer {
 
+    /** أي حلقة تدعم القوس الدوّار (أفاتار القصص أو حلقة الملف الشخصي). */
+    public interface Spin { void setLaunching(boolean on); boolean isLaunching(); }
+
+    /** عنوان إشعار الرد على القصة (نفس /api/index في الموقع) مثل: https://موقعك/api/index — فارغ = بلا إشعار. */
+    public static String NOTIFY_URL = "";
+    private static final String CLD_CLOUD = "xuljmnmh", CLD_PRESET = "stories_unsigned";
+    private static final int REQ_PICK = 1004;
+
     public interface Listener {
         void onClosed();
         void openChat(String uid);
@@ -90,7 +109,15 @@ public final class StoryViewer {
     // ------------------------------------------------------------ واجهة ثابتة
     public static boolean handleBack() {
         if (current == null) return false;
+        if (current.modal != null) { current.closeModal(); return true; }
         current.close();
+        return true;
+    }
+
+    /** نتيجة اختيار ملف بديل لتعديل القصة (من Activity.onActivityResult). */
+    public static boolean onActivityResult(int req, int res, Intent data) {
+        if (req != REQ_PICK) return false;
+        if (current != null && res == Activity.RESULT_OK && data != null && data.getData() != null) current.setPicked(data.getData());
         return true;
     }
 
@@ -102,24 +129,24 @@ public final class StoryViewer {
     }
 
     /** ضغطة على أفاتار قصة: قوس دوّار 220ms ثم يُفتح العارض ويبقى القوس ثانية بعد الفتح (launchStoryWithGlow). */
-    public static void launch(final Activity act, final FirebaseFirestore db, final String me, final StoryAvatarView av,
+    public static void launch(final Activity act, final FirebaseFirestore db, final String me, final Spin av,
                               final String uid, final String name, final String letter, final Bitmap photo,
                               final boolean blue, final Listener l) {
         if (act == null || db == null || me == null || uid == null || current != null) return;
-        if (av != null) { if (av.isLaunching()) return; av.launching(true); }
+        if (av != null) { if (av.isLaunching()) return; av.setLaunching(true); }
         final Handler h = new Handler(Looper.getMainLooper());
         h.postDelayed(() -> {
             try {
                 final StoryViewer sv = new StoryViewer(act, db, me, uid, name, letter, photo, blue, l);
                 sv.open(new Runnable() {          // بعد بدء الفتح: يبقى المؤشر ثانية كاملة
                     @Override public void run() {
-                        if (av != null) h.postDelayed(() -> av.launching(false), 1000);
+                        if (av != null) h.postDelayed(() -> av.setLaunching(false), 1000);
                     }
                 }, new Runnable() {               // فشل/لا قصص: يختفي فوراً
-                    @Override public void run() { if (av != null) av.launching(false); }
+                    @Override public void run() { if (av != null) av.setLaunching(false); }
                 });
             } catch (Throwable t) {
-                if (av != null) av.launching(false);
+                if (av != null) av.setLaunching(false);
             }
         }, 220);
     }
@@ -156,6 +183,11 @@ public final class StoryViewer {
     private LinearLayout sendBtn;
     private ImageView pinBtn;
     private int oldSb, oldNb;
+    private FrameLayout modal;
+    private boolean modalOpen;
+    private Uri pickedUri;
+    private TextView pickedName, saveBtnTv;
+    private EditText capEt;
 
     private float dX, dY, lastY;
     private long downAt, lastMoveAt;
@@ -381,17 +413,19 @@ public final class StoryViewer {
         info.addView(col, cp);
         top.addView(info, new LinearLayout.LayoutParams(0, -2, 1f));
 
-        // أزرار صاحب القصة: تثبيت / حذف (.sv-action)
+        // أزرار صاحب القصة: تعديل / تثبيت / حذف (.sv-action)
         if (mine) {
+            ImageView edit = action(R.drawable.ic_sv_edit, 0x59FFFFFF, 0x1FFFFFFF);
+            edit.setOnClickListener(v -> showEditModal());
             pinBtn = action(R.drawable.ic_sv_pin, 0x73F5CF55, 0x3D916708);
             pinBtn.setOnClickListener(v -> togglePin());
             ImageView del = action(R.drawable.ic_sv_trash, 0x66FF6464, 0x4D781419);
-            del.setOnClickListener(v -> confirmDelete());
-            LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(dp(34 * S), dp(34 * S));
-            ap.setMarginEnd(dp(5));
+            del.setOnClickListener(v -> showDeleteModal());
+            LinearLayout.LayoutParams ep = new LinearLayout.LayoutParams(dp(34 * S), dp(34 * S)); ep.setMarginEnd(dp(5));
+            top.addView(edit, ep);
+            LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(dp(34 * S), dp(34 * S)); ap.setMarginEnd(dp(5));
             top.addView(pinBtn, ap);
-            LinearLayout.LayoutParams ap2 = new LinearLayout.LayoutParams(dp(34 * S), dp(34 * S));
-            ap2.setMarginEnd(dp(7));
+            LinearLayout.LayoutParams ap2 = new LinearLayout.LayoutParams(dp(34 * S), dp(34 * S)); ap2.setMarginEnd(dp(7));
             top.addView(del, ap2);
         }
 
@@ -423,6 +457,7 @@ public final class StoryViewer {
         statsTv.setGravity(Gravity.CENTER);
         statsTv.setPadding(dp(13), dp(7), dp(13), dp(7));
         statsTv.setBackground(round(0xB8080C12, 999, 0x4DFFFFFF, 1));
+        statsTv.setOnClickListener(v -> openViewers());
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
         lp.bottomMargin = dp(18) + sab;
         stage.addView(statsTv, lp);
@@ -697,7 +732,7 @@ public final class StoryViewer {
             try {
                 Story s = (idx >= 0 && idx < list.size()) ? list.get(idx) : null;
                 boolean isVid = s != null && !s.videoUrl.isEmpty();
-                if (paused || hold) {
+                if (paused || hold || modalOpen) {
                     if (isVid && videoReady && vid.isPlaying()) vid.pause();
                 } else if (isVid) {
                     if (videoReady && !videoEnded && !vid.isPlaying()) vid.start();
@@ -929,6 +964,7 @@ public final class StoryViewer {
             m.put("createdAt", System.currentTimeMillis());
             db.collection("chats").document(chatId).collection("messages").add(m)
                 .addOnSuccessListener(r -> {
+                    notifyPeer(chatId, text);
                     Toast.makeText(act, okMsg, Toast.LENGTH_SHORT).show();
                     if (clear && replyIn != null) { replyIn.setText(""); replyIn.clearFocus(); }
                 })
@@ -979,25 +1015,456 @@ public final class StoryViewer {
         });
     }
 
-    private void confirmDelete() {
-        if (idx >= list.size()) return;
-        paused = true;
+
+    // ------------------------------------------------------------ إشعار الرد (notifyPeer)
+    private void notifyPeer(final String chatId, final String text) {
+        if (NOTIFY_URL == null || NOTIFY_URL.isEmpty()) return;
+        final FirebaseUser u = FirebaseAuth.getInstance().getCurrentUser();
+        if (u == null) return;
+        u.getIdToken(false).addOnSuccessListener(r -> {
+            final String token = r.getToken();
+            if (token == null) return;
+            db.collection("users").document(me).get().addOnCompleteListener(task -> {
+                String nm = "رسالة جديدة";
+                try {
+                    DocumentSnapshot d = task.getResult();
+                    if (d != null) { String x = d.getString("displayName"); if (x == null || x.isEmpty()) x = d.getString("name"); if (x != null && !x.isEmpty()) nm = x; }
+                } catch (Throwable ignored) { }
+                final String sender = nm;
+                IO.execute(() -> {
+                    try {
+                        JSONObject j = new JSONObject();
+                        j.put("recipientId", uid); j.put("chatId", chatId); j.put("senderName", sender); j.put("messageText", text);
+                        byte[] body = j.toString().getBytes(StandardCharsets.UTF_8);
+                        HttpURLConnection c = (HttpURLConnection) new URL(NOTIFY_URL).openConnection();
+                        c.setRequestMethod("POST"); c.setDoOutput(true); c.setConnectTimeout(12000); c.setReadTimeout(15000);
+                        c.setRequestProperty("Content-Type", "application/json");
+                        c.setRequestProperty("Authorization", "Bearer " + token);
+                        OutputStream os = c.getOutputStream(); os.write(body); os.close();
+                        c.getResponseCode(); c.disconnect();
+                    } catch (Throwable ignored) { }
+                });
+            });
+        });
+    }
+
+    // ------------------------------------------------------------ نوافذ الإدارة (#storyManageModal)
+    private FrameLayout openScrim(int color) {
+        closeModal();
+        modal = new FrameLayout(act);
+        modal.setBackgroundColor(color);
+        modal.setClickable(true);
+        modal.setOnClickListener(v -> closeModal());
+        modalOpen = true;
+        overlay.addView(modal, new FrameLayout.LayoutParams(-1, -1));
+        return modal;
+    }
+
+    private void closeModal() {
+        try {
+            if (capEt != null) {
+                android.view.inputmethod.InputMethodManager im =
+                    (android.view.inputmethod.InputMethodManager) act.getSystemService(Context.INPUT_METHOD_SERVICE);
+                if (im != null) im.hideSoftInputFromWindow(capEt.getWindowToken(), 0);
+            }
+        } catch (Throwable ignored) { }
+        if (modal != null) { try { overlay.removeView(modal); } catch (Throwable ignored) { } modal = null; }
+        modalOpen = false; pickedUri = null; pickedName = null; capEt = null; saveBtnTv = null;
+    }
+
+    private LinearLayout manageCard() {
+        LinearLayout c = new LinearLayout(act);
+        c.setOrientation(LinearLayout.VERTICAL);
+        c.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        c.setPadding(dp(20), dp(20), dp(20), dp(20));
+        GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0xFA1E222B, 0xFA0C0F15});
+        g.setCornerRadius(dp(20));
+        g.setStroke(Math.max(1, dp(1)), 0x21FFFFFF);
+        c.setBackground(g);
+        c.setClickable(true);
+        return c;
+    }
+
+    private void addTitleSub(LinearLayout card, String title, String sub) {
+        TextView t = tv(title, 18f * S, Color.WHITE, true);
+        t.setGravity(Gravity.START);
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1, -2); tp.bottomMargin = dp(7);
+        card.addView(t, tp);
+        TextView sTv = tv(sub, 13f * S, 0xA6FFFFFF, false);
+        sTv.setGravity(Gravity.START);
+        sTv.setLineSpacing(0f, 1.35f);
+        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-1, -2); sp.bottomMargin = dp(16);
+        card.addView(sTv, sp);
+    }
+
+    private TextView actionBtn(String text, int textColor, Drawable bg) {
+        TextView b = tv(text, 14f * S, textColor, true);
+        b.setGravity(Gravity.CENTER);
+        b.setMinHeight(dp(43 * S));
+        b.setBackground(bg);
+        return b;
+    }
+
+    private void placeCard(FrameLayout scrim, LinearLayout card) {
+        int sw = act.getResources().getDisplayMetrics().widthPixels;
+        scrim.addView(card, new FrameLayout.LayoutParams(Math.min(sw - dp(44), dp(390)), -2, Gravity.CENTER));
+    }
+
+    private void showEditModal() {
+        if (idx >= list.size() || modal != null) return;
         final Story s = list.get(idx);
-        new AlertDialog.Builder(act)
-            .setTitle("حذف القصة")
-            .setMessage("هل تريد حذف هذه القصة نهائياً؟")
-            .setNegativeButton("إلغاء", (d, w) -> paused = false)
-            .setOnCancelListener(d -> paused = false)
-            .setPositiveButton("حذف", (d, w) -> {
-                paused = false;
-                db.collection("stories").document(s.id).delete().addOnSuccessListener(v -> {
+        FrameLayout sc = openScrim(0xAD000000);
+        LinearLayout card = manageCard();
+        addTitleSub(card, "تعديل القصة", "عدّل الوصف، أو اختر صورة أو فيديو جديدًا لاستبدال القصة الحالية.");
+
+        capEt = new EditText(act);
+        capEt.setText(s.caption);
+        capEt.setHint("اكتب وصف القصة هنا…");
+        capEt.setHintTextColor(0x80FFFFFF);
+        capEt.setTextColor(Color.WHITE);
+        capEt.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f * S);
+        capEt.setFilters(new InputFilter[]{new InputFilter.LengthFilter(200)});
+        capEt.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
+        capEt.setGravity(Gravity.TOP | Gravity.START);
+        capEt.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        capEt.setTextDirection(View.TEXT_DIRECTION_RTL);
+        capEt.setMinHeight(dp(94 * S));
+        capEt.setPadding(dp(12), dp(12), dp(12), dp(12));
+        capEt.setBackground(round(0x0FFFFFFF, 13, 0x29FFFFFF, 1));
+        capEt.setSelection(capEt.getText().length());
+        card.addView(capEt, new LinearLayout.LayoutParams(-1, -2));
+
+        LinearLayout media = new LinearLayout(act);
+        media.setOrientation(LinearLayout.HORIZONTAL);
+        media.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        media.setGravity(Gravity.CENTER_VERTICAL);
+        media.setPadding(dp(11), dp(11), dp(11), dp(11));
+        media.setBackground(round(0x14F5CF55, 12, 0x4DF5CF55, 1));
+        ImageView mi = new ImageView(act);
+        mi.setImageResource(R.drawable.ic_sv_image);
+        media.addView(mi, new LinearLayout.LayoutParams(dp(20 * S), dp(20 * S)));
+        pickedName = tv("اختيار صورة أو فيديو جديد (اختياري)", 13f * S, 0xFFF5CF55, true);
+        LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(-2, -2); np.setMarginStart(dp(9));
+        media.addView(pickedName, np);
+        media.setOnClickListener(v -> {
+            try {
+                Intent i = new Intent(Intent.ACTION_GET_CONTENT);
+                i.setType("*/*");
+                i.addCategory(Intent.CATEGORY_OPENABLE);
+                i.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"image/*", "video/*"});
+                act.startActivityForResult(Intent.createChooser(i, "اختر صورة أو فيديو"), REQ_PICK);
+            } catch (Throwable e) { Toast.makeText(act, "لا توجد تطبيقات لاختيار الملفات", Toast.LENGTH_SHORT).show(); }
+        });
+        LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-1, -2); mp.topMargin = dp(11);
+        card.addView(media, mp);
+
+        LinearLayout acts = new LinearLayout(act);
+        acts.setOrientation(LinearLayout.HORIZONTAL);
+        acts.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        TextView cancel = actionBtn("إلغاء", Color.WHITE, round(0x17FFFFFF, 12, 0, 0));
+        cancel.setOnClickListener(v -> closeModal());
+        GradientDrawable gold = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFF5D875, 0xFFB98B23});
+        gold.setCornerRadius(dp(12));
+        saveBtnTv = actionBtn("حفظ التعديلات", 0xFF171717, gold);
+        saveBtnTv.setOnClickListener(v -> saveEdit(s));
+        LinearLayout.LayoutParams a1 = new LinearLayout.LayoutParams(0, -2, 1f);
+        LinearLayout.LayoutParams a2 = new LinearLayout.LayoutParams(0, -2, 1f); a2.setMarginStart(dp(9));
+        acts.addView(cancel, a1); acts.addView(saveBtnTv, a2);
+        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2); ap.topMargin = dp(17);
+        card.addView(acts, ap);
+        placeCard(sc, card);
+        capEt.requestFocus();
+    }
+
+    private void setPicked(Uri u) {
+        pickedUri = u;
+        if (pickedName == null) return;
+        String nm = null;
+        try {
+            Cursor c = act.getContentResolver().query(u, new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null);
+            if (c != null) { if (c.moveToFirst()) nm = c.getString(0); c.close(); }
+        } catch (Throwable ignored) { }
+        pickedName.setText(nm != null && !nm.isEmpty() ? nm : "تم اختيار ملف جديد");
+    }
+
+    private void saveEdit(final Story s) {
+        if (saveBtnTv == null || capEt == null || !saveBtnTv.isEnabled()) return;
+        String c0 = capEt.getText().toString().trim();
+        final String caption = c0.length() > 200 ? c0.substring(0, 200) : c0;
+        final Uri file = pickedUri;
+        saveBtnTv.setEnabled(false); saveBtnTv.setText("جارٍ الحفظ…"); saveBtnTv.setAlpha(.55f);
+        IO.execute(() -> {
+            try {
+                final Map<String, Object> upd = new HashMap<>();
+                upd.put("caption", caption);
+                String upUrl = null; boolean isVideo = false; double duration = s.duration > 0 ? s.duration : 30;
+                if (file != null) {
+                    String mime = act.getContentResolver().getType(file);
+                    if (mime == null) mime = "";
+                    isVideo = mime.startsWith("video/");
+                    if (!isVideo && !mime.startsWith("image/")) throw new Exception("اختر صورة أو فيديو صالحًا");
+                    long size = -1;
+                    try {
+                        Cursor c = act.getContentResolver().query(file, new String[]{OpenableColumns.SIZE}, null, null, null);
+                        if (c != null) { if (c.moveToFirst() && !c.isNull(0)) size = c.getLong(0); c.close(); }
+                    } catch (Throwable ignored) { }
+                    if (isVideo) {
+                        if (size > 100L * 1024 * 1024) throw new Exception("حجم الفيديو كبير جدًا");
+                        MediaMetadataRetriever mr = new MediaMetadataRetriever();
+                        try {
+                            mr.setDataSource(act, file);
+                            String d = mr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
+                            double sec = d == null ? 0 : Long.parseLong(d) / 1000.0;
+                            if (sec <= 0 || sec > 30.5) throw new Exception("مدة الفيديو تتجاوز الحد المسموح");
+                            duration = Math.min(sec, 30);
+                        } finally { try { mr.release(); } catch (Throwable ignored) { } }
+                    }
+                    upUrl = uploadMedia(file, isVideo, size);
+                    upd.put("imageUrl", isVideo ? upUrl.replace("/video/upload/", "/video/upload/so_0/").replaceAll("\\.[^/.]+$", ".jpg") : upUrl);
+                    upd.put("mediaType", isVideo ? "video" : "image");
+                    upd.put("videoUrl", isVideo ? (Object) upUrl : FieldValue.delete());
+                    upd.put("videoPath", "");
+                    upd.put("duration", isVideo ? (Object) Double.valueOf(duration) : FieldValue.delete());
+                }
+                final String fUp = upUrl; final boolean fVid = isVideo; final double fDur = duration;
+                db.collection("stories").document(s.id).update(upd).addOnSuccessListener(v -> {
+                    s.caption = caption;
+                    if (fUp != null) {
+                        s.imageUrl = (String) upd.get("imageUrl");
+                        if (fVid) { s.videoUrl = fUp; s.duration = fDur; } else { s.videoUrl = ""; s.duration = 0; }
+                    }
+                    if (closed) return;
+                    closeModal();
+                    Toast.makeText(act, "تم تعديل القصة بنجاح", Toast.LENGTH_SHORT).show();
+                    showStory();
+                    notifyChanged();
+                }).addOnFailureListener(e -> editFailed("تعذر تعديل القصة"));
+            } catch (final Throwable e) {
+                editFailed(e.getMessage() != null && !e.getMessage().isEmpty() ? e.getMessage() : "تعذر تعديل القصة");
+            }
+        });
+    }
+
+    private void editFailed(final String msg) {
+        handler.post(() -> {
+            Toast.makeText(act, msg, Toast.LENGTH_SHORT).show();
+            if (saveBtnTv != null) { saveBtnTv.setEnabled(true); saveBtnTv.setText("حفظ التعديلات"); saveBtnTv.setAlpha(1f); }
+        });
+    }
+
+    private String uploadMedia(Uri uri, boolean video, long fileSize) throws Exception {
+        final String boundary = "----BabylonStory" + System.currentTimeMillis();
+        final String crlf = "\r\n";
+        StringBuilder pre = new StringBuilder();
+        pre.append("--").append(boundary).append(crlf)
+           .append("Content-Disposition: form-data; name=\"upload_preset\"").append(crlf).append(crlf)
+           .append(CLD_PRESET).append(crlf);
+        pre.append("--").append(boundary).append(crlf)
+           .append("Content-Disposition: form-data; name=\"folder\"").append(crlf).append(crlf)
+           .append("stories").append(crlf);
+        pre.append("--").append(boundary).append(crlf)
+           .append("Content-Disposition: form-data; name=\"file\"; filename=\"").append(video ? "story.mp4" : "story.jpg").append("\"").append(crlf)
+           .append("Content-Type: application/octet-stream").append(crlf).append(crlf);
+        byte[] head = pre.toString().getBytes(StandardCharsets.UTF_8);
+        byte[] tail = (crlf + "--" + boundary + "--" + crlf).getBytes(StandardCharsets.UTF_8);
+        HttpURLConnection c = (HttpURLConnection) new URL("https://api.cloudinary.com/v1_1/" + CLD_CLOUD + (video ? "/video" : "/image") + "/upload").openConnection();
+        c.setRequestMethod("POST"); c.setDoOutput(true); c.setConnectTimeout(20000); c.setReadTimeout(120000);
+        c.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+        if (fileSize > 0) c.setFixedLengthStreamingMode(head.length + fileSize + tail.length); else c.setChunkedStreamingMode(65536);
+        InputStream in = null;
+        try {
+            OutputStream out = c.getOutputStream();
+            out.write(head);
+            in = act.getContentResolver().openInputStream(uri);
+            if (in == null) throw new Exception("تعذر قراءة الملف");
+            byte[] buf = new byte[32768]; int n;
+            while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+            out.write(tail); out.flush(); out.close();
+            int code = c.getResponseCode();
+            InputStream rs = code >= 200 && code < 300 ? c.getInputStream() : c.getErrorStream();
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            if (rs != null) { byte[] b2 = new byte[8192]; int k; while ((k = rs.read(b2)) > 0) bos.write(b2, 0, k); rs.close(); }
+            JSONObject r = null;
+            try { r = new JSONObject(bos.toString("UTF-8")); } catch (Throwable ignored) { }
+            if (code >= 200 && code < 300 && r != null && r.optString("secure_url", "").length() > 0) return r.getString("secure_url");
+            String em = r != null && r.optJSONObject("error") != null ? r.optJSONObject("error").optString("message", "" + code) : "" + code;
+            throw new Exception("فشل رفع الوسائط: " + em);
+        } finally {
+            try { if (in != null) in.close(); } catch (Throwable ignored) { }
+            c.disconnect();
+        }
+    }
+
+    private void showDeleteModal() {
+        if (idx >= list.size() || modal != null) return;
+        final Story s = list.get(idx);
+        FrameLayout sc = openScrim(0xAD000000);
+        LinearLayout card = manageCard();
+        addTitleSub(card, "حذف القصة؟", "هل تريد حذف هذه القصة نهائيًا؟ لن تتمكن من استعادتها بعد الحذف.");
+        LinearLayout acts = new LinearLayout(act);
+        acts.setOrientation(LinearLayout.HORIZONTAL);
+        acts.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        TextView cancel = actionBtn("إلغاء", Color.WHITE, round(0x17FFFFFF, 12, 0, 0));
+        cancel.setOnClickListener(v -> closeModal());
+        GradientDrawable red = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFFF6A70, 0xFFC52D3A});
+        red.setCornerRadius(dp(12));
+        final TextView ok = actionBtn("حذف القصة", Color.WHITE, red);
+        ok.setOnClickListener(v -> {
+            if (!ok.isEnabled()) return;
+            ok.setEnabled(false); ok.setText("جارٍ الحذف…"); ok.setAlpha(.55f);
+            db.collection("stories").document(s.id).collection("views").get().addOnCompleteListener(vt -> {
+                try { if (vt.isSuccessful() && vt.getResult() != null) for (DocumentSnapshot d : vt.getResult().getDocuments()) d.getReference().delete(); } catch (Throwable ignored) { }
+                db.collection("stories").document(s.id).delete().addOnSuccessListener(x -> {
+                    if (closed) return;
+                    closeModal();
+                    Toast.makeText(act, "تم حذف القصة", Toast.LENGTH_SHORT).show();
                     list.remove(s);
                     syncMeta();
                     if (list.isEmpty()) { close(); return; }
                     if (idx >= list.size()) idx = list.size() - 1;
                     showStory();
-                }).addOnFailureListener(e -> Toast.makeText(act, "تعذر حذف القصة", Toast.LENGTH_SHORT).show());
-            }).show();
+                }).addOnFailureListener(e -> {
+                    Toast.makeText(act, "تعذر الحذف", Toast.LENGTH_SHORT).show();
+                    ok.setEnabled(true); ok.setText("حذف القصة"); ok.setAlpha(1f);
+                });
+            });
+        });
+        LinearLayout.LayoutParams a1 = new LinearLayout.LayoutParams(0, -2, 1f);
+        LinearLayout.LayoutParams a2 = new LinearLayout.LayoutParams(0, -2, 1f); a2.setMarginStart(dp(9));
+        acts.addView(cancel, a1); acts.addView(ok, a2);
+        card.addView(acts, new LinearLayout.LayoutParams(-1, -2));
+        placeCard(sc, card);
+    }
+
+    private void notifyChanged() {
+        long now = System.currentTimeMillis(), until = 0;
+        for (Story x : list) if (x.expiresAt > now) until = Math.max(until, x.expiresAt);
+        if (listener != null) listener.onStoriesChanged(until);
+    }
+
+    // ------------------------------------------------------------ قائمة المشاهدين (#viewersModal)
+    private void openViewers() {
+        if (idx >= list.size() || modal != null) return;
+        final Story s = list.get(idx);
+        final FrameLayout sc = openScrim(0xCC000000);
+        final int maxH = (int) (overlay.getHeight() * 0.70f);
+        LinearLayout card = new LinearLayout(act) {
+            @Override protected void onMeasure(int w, int h) {
+                super.onMeasure(w, h);
+                if (getMeasuredHeight() > maxH) super.onMeasure(w, View.MeasureSpec.makeMeasureSpec(maxH, View.MeasureSpec.EXACTLY));
+            }
+        };
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        card.setClickable(true);
+        card.setPadding(dp(16), dp(16), dp(16), dp(16) + Math.max(0, sab - dp(24)));
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(0xFF17212B);
+        g.setCornerRadii(new float[]{dp(20), dp(20), dp(20), dp(20), 0, 0, 0, 0});
+        card.setBackground(g);
+        final TextView title = tv("المشاهدون", 16f * S, Color.WHITE, true);
+        title.setGravity(Gravity.START);
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1, -2); tp.bottomMargin = dp(12);
+        card.addView(title, tp);
+        ScrollView sv = new ScrollView(act);
+        final LinearLayout listBox = new LinearLayout(act);
+        listBox.setOrientation(LinearLayout.VERTICAL);
+        listBox.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        sv.addView(listBox, new ViewGroup.LayoutParams(-1, -2));
+        card.addView(sv, new LinearLayout.LayoutParams(-1, 0, 1f));
+        sc.addView(card, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
+
+        db.collection("stories").document(s.id).collection("views").get().addOnSuccessListener(q -> {
+            if (modal != sc || closed) return;
+            List<DocumentSnapshot> docs = new ArrayList<>(q.getDocuments());
+            Collections.sort(docs, new Comparator<DocumentSnapshot>() {
+                @Override public int compare(DocumentSnapshot a, DocumentSnapshot b) {
+                    Long x = a.getLong("at"), y = b.getLong("at");
+                    return Long.compare(y == null ? 0 : y, x == null ? 0 : x);
+                }
+            });
+            title.setText("المشاهدون (" + docs.size() + ")");
+            if (docs.isEmpty()) {
+                TextView e = tv("لا توجد مشاهدات بعد", 14f * S, 0x99FFFFFF, false);
+                e.setGravity(Gravity.CENTER);
+                e.setPadding(dp(10), dp(10), dp(10), dp(10));
+                listBox.addView(e, new LinearLayout.LayoutParams(-1, -2));
+                return;
+            }
+            for (DocumentSnapshot d : docs) addViewerRow(listBox, d);
+        });
+    }
+
+    private void addViewerRow(final LinearLayout box, DocumentSnapshot vd) {
+        final String vUid = vd.getId();
+        Long at = vd.getLong("at");
+        final long when = at == null ? 0 : at;
+        final String re = vd.getString("reaction");
+        final LinearLayout row = new LinearLayout(act);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(8), 0, dp(8));
+        final StoryAvatarView av = new StoryAvatarView(act);
+        av.set("?", null, StoryAvatarView.toneBlue(vUid)).ring(false, false).shadow(false).textSp(15f * S);
+        row.addView(av, new LinearLayout.LayoutParams(dp(36 * S), dp(36 * S)));
+        LinearLayout col = new LinearLayout(act);
+        col.setOrientation(LinearLayout.VERTICAL);
+        final TextView nm = tv("...", 14f * S, Color.WHITE, true);
+        nm.setGravity(Gravity.START);
+        final TextView sub = tv(ago(when), 11f * S, 0x99FFFFFF, false);
+        sub.setGravity(Gravity.START);
+        col.addView(nm, new LinearLayout.LayoutParams(-2, -2));
+        col.addView(sub, new LinearLayout.LayoutParams(-2, -2));
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, -2, 1f); cp.setMarginStart(dp(10));
+        row.addView(col, cp);
+        if (re != null && !re.isEmpty()) {
+            row.addView(tv(re, 20f * S, Color.WHITE, false), new LinearLayout.LayoutParams(-2, -2));
+        }
+        box.addView(row, new LinearLayout.LayoutParams(-1, -2));
+        View div = new View(act);
+        div.setBackgroundColor(0x0DFFFFFF);
+        box.addView(div, new LinearLayout.LayoutParams(-1, 1));
+
+        db.collection("users").document(vUid).get().addOnSuccessListener(u -> {
+            if (modal == null || !u.exists()) return;
+            String n = u.getString("displayName"); if (n == null || n.isEmpty()) n = u.getString("name"); if (n == null || n.isEmpty()) n = "مستخدم";
+            String un = u.getString("username");
+            nm.setText(n);
+            sub.setText("@" + (un == null ? "" : un) + " · " + ago(when));
+            final String letterV = n.substring(0, 1).toUpperCase();
+            av.set(letterV, null, StoryAvatarView.toneBlue(vUid));
+            String ph = u.getString("photo"); if (ph == null || ph.isEmpty()) ph = u.getString("avatarUrl"); if (ph == null || ph.isEmpty()) ph = u.getString("photoURL");
+            if (ph != null && !ph.isEmpty()) {
+                final String fph = ph;
+                IO.execute(() -> {
+                    final Bitmap b = decodeSrc(fph);
+                    if (b != null) handler.post(() -> { if (modal != null) av.set(letterV, b, StoryAvatarView.toneBlue(vUid)); });
+                });
+            }
+        });
+    }
+
+    private static Bitmap decodeSrc(String src) {
+        try {
+            byte[] data;
+            if (src.startsWith("data:")) data = Base64.decode(src.substring(src.indexOf(',') + 1), Base64.DEFAULT);
+            else if (src.startsWith("http")) {
+                HttpURLConnection c = (HttpURLConnection) new URL(src).openConnection();
+                c.setConnectTimeout(12000); c.setReadTimeout(20000);
+                InputStream is = c.getInputStream();
+                ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                byte[] buf = new byte[16384]; int n;
+                while ((n = is.read(buf)) > 0) { bos.write(buf, 0, n); if (bos.size() > 8 * 1024 * 1024) break; }
+                is.close(); data = bos.toByteArray();
+            } else data = Base64.decode(src, Base64.DEFAULT);
+            BitmapFactory.Options o = new BitmapFactory.Options(); o.inJustDecodeBounds = true;
+            BitmapFactory.decodeByteArray(data, 0, data.length, o);
+            int sample = 1, mx = Math.max(o.outWidth, o.outHeight);
+            while (mx / sample > 256) sample *= 2;
+            BitmapFactory.Options o2 = new BitmapFactory.Options(); o2.inSampleSize = sample;
+            return BitmapFactory.decodeByteArray(data, 0, data.length, o2);
+        } catch (Throwable t) { return null; }
     }
 
     private void syncMeta() {

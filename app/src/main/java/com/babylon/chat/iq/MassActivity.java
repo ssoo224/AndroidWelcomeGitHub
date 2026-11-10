@@ -214,6 +214,7 @@ public class MassActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        try { if (StoryViewer.onActivityResult(requestCode, resultCode, data)) return; } catch (Throwable ignored) { }
         try { if (storyComposer != null && storyComposer.onActivityResult(requestCode, resultCode, data)) return; } catch (Throwable ignored) { }
         if (requestCode == REQ_PICK_IMAGE && resultCode == RESULT_OK && data != null && data.getData() != null) {
             java.util.function.Consumer<Uri> cb = pendingImageCallback;
@@ -749,7 +750,30 @@ public class MassActivity extends Activity {
 
             android.graphics.drawable.Drawable withRing(android.graphics.drawable.Drawable inner, final boolean mine) {
                 return new ProfileRing(inner, dp(2), dp(4), dark ? 0xFF0E1621 : 0xFFEEF1F6,
-                        () -> hasStoryFor(mine), () -> false);   // لا تتبّع «شوهدت» في الأندرويد بعد
+                        () -> hasStoryFor(mine), () -> {
+                            String su = mine ? myUid : otherUid; Long ue = mine ? Long.valueOf(myStoryUntil) : storyUntil.get(otherUid);
+                            return ue != null && StoryViewer.isSeen(act, myUid, su, ue);
+                        });
+            }
+
+            /** handleAvatarClick / openOtherStories: الضغط على صورة الملف الشخصي يفتح القصة بقوس دوّار (أو النشر إن لم توجد قصة). */
+            void wireProfileAvatarClicks() {
+                final TextView mineAv = tv("pAvatarText"), otherAv = tv("otherAvatarText");
+                if (mineAv != null) mineAv.setOnClickListener(vw -> {
+                    if (hasStoryFor(true)) {
+                        android.graphics.drawable.Drawable bg = mineAv.getBackground();
+                        CharSequence lt = mineAv.getText();
+                        openStory(myUid, "قصتي", lt != null && lt.length() > 0 ? lt.toString().substring(0, 1) : "?", photoBmp, false,
+                                bg instanceof ProfileRing ? (StoryViewer.Spin) bg : null);
+                    } else startStoryPublish();
+                });
+                if (otherAv != null) otherAv.setOnClickListener(vw -> {
+                    if (otherUid == null || otherUid.isEmpty() || !hasStoryFor(false)) return;
+                    android.graphics.drawable.Drawable bg = otherAv.getBackground();
+                    String nm = dispName(otherUid, "");
+                    openStory(otherUid, nm, nm.length() > 0 ? nm.substring(0, 1).toUpperCase() : "?", otherPhotoBmp, StoryAvatarView.toneBlue(otherUid),
+                            bg instanceof ProfileRing ? (StoryViewer.Spin) bg : null);
+                });
             }
 
             void refreshProfileRings() {
@@ -863,6 +887,7 @@ public class MassActivity extends Activity {
                     if (c2 != null) fixCover((View) c2.getParent());
                     fixAvatar("pAvatarText");
                     fixAvatar("otherAvatarText");
+                    wireProfileAvatarClicks();
                     for (String id : new String[]{"pHeaderName", "otherHeaderName"}) {
                         TextView t = tv(id);
                         if (t != null) { t.setTextSize(23); t.setTypeface(null, android.graphics.Typeface.BOLD); }
@@ -1160,6 +1185,7 @@ public class MassActivity extends Activity {
                             Long createdAt = doc.getLong("createdAt");
 
                             if (userName.isEmpty()) userName = "Mohammed";
+                            try { buildStories(); } catch (Throwable ignored) { }   // حرف «قصتي» بعد وصول الاسم
                             if (userUsername.isEmpty()) userUsername = "mohamed";
                             if (userBio.isEmpty()) userBio = "الشارع مالتي منو كال ملك عام";
                             if (userGov.isEmpty()) userGov = "المثنى";
@@ -2053,10 +2079,10 @@ public class MassActivity extends Activity {
             }
 
             /** فتح عارض القصص: قوس ذهبي دوّار على الحلقة ثم نافذة منبثقة (launchStoryWithGlow + startViewer في الـ HTML). */
-            void openStory(final String uid, final String name, final String letter, final Bitmap photo, final boolean blue, final StoryAvatarView av) {
+            void openStory(final String uid, final String name, final String letter, final Bitmap photo, final boolean blue, final StoryViewer.Spin av) {
                 if (myUid == null || myUid.isEmpty() || db == null) return;
                 StoryViewer.launch(act, db, myUid, av, uid, name, letter, photo, blue, new StoryViewer.Listener() {
-                    @Override public void onClosed() { try { buildStories(); } catch (Throwable ignored) { } }
+                    @Override public void onClosed() { try { buildStories(); } catch (Throwable ignored) { } try { refreshProfileRings(); } catch (Throwable ignored) { } }
                     @Override public void openChat(String u) { try { UI.this.openChat(name, u); } catch (Throwable ignored) { } }
                     @Override public void onStoriesChanged(long until) {
                         if (uid.equals(myUid)) myStoryUntil = until; else storyUntil.put(uid, until);
@@ -2269,8 +2295,8 @@ public class MassActivity extends Activity {
                     if (rowSel) {   // التحديد: ذهبي معتم يغطي الصف بالكامل (لا تظهر النقوش خلفه) + إطار ذهبي
                         GradientDrawable sg = new GradientDrawable();
                         int selBase = cSf() | 0xFF000000;   // طبقة أساس معتمة
-                        sg.setColor(androidx_blend(selBase, cGold(), 0.30f));
-                        sg.setCornerRadius(dp(18)); sg.setStroke(dp(1.5f), cGold());
+                        sg.setColor(androidx_blend(selBase, cGold(), 0.15f));   // الذهبي أخفّ بنسبة 50%
+                        sg.setCornerRadius(dp(18)); sg.setStroke(dp(1.5f), androidx_blend(selBase, cGold(), 0.5f));
                         row.setBackground(sg);
                     }
                 }
@@ -2491,7 +2517,7 @@ public class MassActivity extends Activity {
                 row.setBackgroundColor(cBg());
                 row.setVisibility(View.GONE);
 
-                row.addView(selIcon(R.drawable.ic_mm_x, cText(), cSf(), "إلغاء التحديد", () -> exitChatSel(true)),
+                row.addView(noBg(selIcon(R.drawable.ic_mm_x, cText(), cSf(), "إلغاء التحديد", () -> exitChatSel(true))),
                         new LinearLayout.LayoutParams(dp(42), dp(42)));
 
                 chatSelCountTv = new TextView(act);
@@ -2502,12 +2528,12 @@ public class MassActivity extends Activity {
                 cl.setMarginStart(dp(12));
                 row.addView(chatSelCountTv, cl);
 
-                chatSelPinIv = selIcon(R.drawable.ic_mm_pin, cGold(), goldA(0x1F), "تثبيت", this::selPinChats);
+                chatSelPinIv = noBg(selIcon(R.drawable.ic_mm_pin, cGold(), goldA(0x1F), "تثبيت", this::selPinChats));
                 LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(dp(42), dp(42));
                 pl.setMarginEnd(dp(8));
                 row.addView(chatSelPinIv, pl);
 
-                row.addView(selIcon(R.drawable.ic_mm_delete, 0xFFF0605D, 0x1FF0605D, "حذف", this::selDeleteChats),
+                row.addView(noBg(selIcon(R.drawable.ic_mm_delete, 0xFFF0605D, 0x1FF0605D, "حذف", this::selDeleteChats)),
                         new LinearLayout.LayoutParams(dp(42), dp(42)));
 
                 par.addView(row, par.indexOfChild(mh), new LinearLayout.LayoutParams(-1, dp(62)));
@@ -3407,6 +3433,9 @@ public class MassActivity extends Activity {
             }
 
             /** زر أيقونة مربّع بحواف 12dp (مثل #selBar .icon-btn في الـ HTML). */
+            /** أيقونة بلا مربّع خلفها (شريط تحديد المحادثات). */
+            ImageView noBg(ImageView iv) { iv.setBackground(null); return iv; }
+
             ImageView selIcon(int iconRes, int tint, int fill, String desc, final Runnable r) {
                 ImageView iv = new ImageView(act);
                 iv.setImageResource(iconRes);
@@ -4087,6 +4116,7 @@ public class MassActivity extends Activity {
                 }
                 applyPhotoTo(tv("pAvatarText"));
                 applyPhotoTo(tv("sxAvatar"));
+                try { buildStories(); } catch (Throwable ignored) { }   // صورتي في «قصتي» بعد وصولها
             }
 
             void toggleRecording() {
