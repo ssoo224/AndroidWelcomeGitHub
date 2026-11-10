@@ -71,6 +71,14 @@ public final class ChatThemes {
         return (a << 24) | (r << 16) | (g << 8) | b;
     }
 
+    /** مزج لونين بنسبة t من الثاني (alpha يبقى للأول). */
+    private static int mix(int a, int b, float t) {
+        int r = Math.round(((a >> 16) & 255) * (1f - t) + ((b >> 16) & 255) * t);
+        int g = Math.round(((a >> 8) & 255) * (1f - t) + ((b >> 8) & 255) * t);
+        int bl = Math.round((a & 255) * (1f - t) + (b & 255) * t);
+        return (a & 0xFF000000) | (r << 16) | (g << 8) | bl;
+    }
+
     private static Pal pal(String chatBg, String mine, String other, String textMine, String textOther,
                            String accent, String tick, String metaOther, String line, String pattern, float patternOp) {
         float ang = -1f; int from, to;
@@ -79,7 +87,13 @@ public final class ChatThemes {
             String[] p = in.split(",");
             ang = Float.parseFloat(p[0].replace("deg", "").trim());
             from = col(p[1]); to = col(p[2]);
-        } else { from = to = col(mine); }
+        } else {
+            // لون صلب (لوحات الليل/النهار): نحوّله إلى تدرّج 145° مثل ثيم بابل الذهبي (أفتح قليلاً ← أغمق قليلاً من نفس اللون)
+            int c = col(mine);
+            ang = 145f;
+            from = mix(c, 0xFFFFFFFF, 0.16f);
+            to = mix(c, 0xFF000000, 0.12f);
+        }
         return new Pal(col(chatBg), ang, from, to, col(other), col(textMine), col(textOther),
                 col(accent), col(tick), col(metaOther), col(line), col(pattern), patternOp);
     }

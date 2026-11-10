@@ -107,8 +107,19 @@ public final class StoryViewer {
     private static StoryViewer current;
 
     // ------------------------------------------------------------ واجهة ثابتة
+    /** فتح قيد التحميل (القوس يدور ولم يُبنَ العارض بعد): الرجوع يلغيه. */
+    private static boolean pendingLaunch, cancelLaunch;
+    private static Spin pendingAv;
+
     public static boolean handleBack() {
-        if (current == null) return false;
+        if (current == null) {
+            if (pendingLaunch) {
+                cancelLaunch = true;
+                if (pendingAv != null) { try { pendingAv.setLaunching(false); } catch (Throwable ignored) { } }
+                return true;
+            }
+            return false;
+        }
         if (current.modal != null) { current.closeModal(); return true; }
         current.close();
         return true;
@@ -141,19 +152,24 @@ public final class StoryViewer {
                               final boolean blue, final String startId, final java.util.Set<String> playIds, final Listener l) {
         if (act == null || db == null || me == null || uid == null || current != null) return;
         if (av != null) { if (av.isLaunching()) return; av.setLaunching(true); }
+        pendingLaunch = true; cancelLaunch = false; pendingAv = av;
         final Handler h = new Handler(Looper.getMainLooper());
+        h.postDelayed(() -> { pendingLaunch = false; }, 12000);   // أمان: لا يبقى الرجوع محجوزاً إن لم يكتمل التحميل
         h.postDelayed(() -> {
             try {
+                if (cancelLaunch) { pendingLaunch = false; cancelLaunch = false; if (av != null) av.setLaunching(false); return; }
                 final StoryViewer sv = new StoryViewer(act, db, me, uid, name, letter, photo, blue, l);
                 sv.startId = startId; sv.playIds = playIds;
                 sv.open(new Runnable() {          // بعد بدء الفتح: يبقى المؤشر ثانية كاملة
                     @Override public void run() {
-                        if (av != null) h.postDelayed(() -> av.setLaunching(false), 1000);
+                        pendingLaunch = false;
+                        if (av != null) av.setLaunching(false);   // يتوقف الدوران فور ظهور القصة
                     }
-                }, new Runnable() {               // فشل/لا قصص: يختفي فوراً
-                    @Override public void run() { if (av != null) av.setLaunching(false); }
+                }, new Runnable() {               // فشل/لا قصص/إلغاء: يختفي فوراً
+                    @Override public void run() { pendingLaunch = false; cancelLaunch = false; if (av != null) av.setLaunching(false); }
                 });
             } catch (Throwable t) {
+                pendingLaunch = false;
                 if (av != null) av.setLaunching(false);
             }
         }, 220);
@@ -194,6 +210,7 @@ public final class StoryViewer {
     private int oldSb, oldNb;
     private FrameLayout modal;
     private boolean modalOpen;
+    private Object backCb;               // OnBackInvokedCallback (API 33+) لإيماءة الرجوع
     private boolean navTinted;           // شريط الإيماءات مصبوغ بلون قائمة المشاهدين حالياً
     private int navUiBefore;             // أعلام واجهة النظام قبل الصبغ لاستعادتها
     private static boolean sMuted = false;               // كتم صوت القصص (يبقى بين القصص)
@@ -259,6 +276,7 @@ public final class StoryViewer {
                 }
                 idx = start;
                 final Runnable go = () -> {
+                    if (cancelLaunch) { cancelLaunch = false; if (onFail != null) onFail.run(); return; }
                     try { build(); } catch (Throwable e) { if (onFail != null) onFail.run(); return; }
                     if (onOpened != null) onOpened.run();
                 };
@@ -428,6 +446,14 @@ public final class StoryViewer {
 
         decor.addView(overlay, new FrameLayout.LayoutParams(-1, -1));
         current = this;
+        // إيماءة/زر رجوع الهاتف يغلق القصة (أو النافذة المفتوحة فوقها) — بأولوية فوق أي معالج آخر
+        if (Build.VERSION.SDK_INT >= 33) {
+            try {
+                final android.window.OnBackInvokedCallback cb = () -> handleBack();
+                act.getOnBackInvokedDispatcher().registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_OVERLAY, cb);
+                backCb = cb;
+            } catch (Throwable ignored) { }
+        }
         // ارتفاع حقل الرد + التفاعلات + التعليق مع لوحة المفاتيح (الشاشة تستخدم أعلام fullscreen فلا يعمل adjustResize وحده)
         overlay.setOnApplyWindowInsetsListener((v, ins) -> {
             kbBottom = ins.getSystemWindowInsetBottom();
@@ -1691,9 +1717,13 @@ public final class StoryViewer {
     private void close() {
         if (closed) return;
         closed = true;
+        if (Build.VERSION.SDK_INT >= 33 && backCb != null) {
+            try { act.getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback((android.window.OnBackInvokedCallback) backCb); } catch (Throwable ignored) { }
+            backCb = null;
+        }
         handler.removeCallbacksAndMessages(null);
         try { vid.stopPlayback(); } catch (Throwable ignored) { }
-        restoreNav();
+        try { restoreNav(); } catch (Throwable ignored) { }
         try { act.getWindow().setStatusBarColor(oldSb); act.getWindow().setNavigationBarColor(oldNb); } catch (Throwable ignored) { }
         try {
             if (replyIn != null) {
@@ -1704,6 +1734,6 @@ public final class StoryViewer {
         } catch (Throwable ignored) { }
         try { ViewGroup p = (ViewGroup) overlay.getParent(); if (p != null) p.removeView(overlay); } catch (Throwable ignored) { }
         if (current == this) current = null;
-        if (listener != null) listener.onClosed();
+        try { if (listener != null) listener.onClosed(); } catch (Throwable ignored) { }
     }
 }

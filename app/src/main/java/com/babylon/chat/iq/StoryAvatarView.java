@@ -49,7 +49,9 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
     /** مدة دورة الوميض الذهبي (كانت 2150ms؛ أسرع بنحو 1.5×). */
     private static final int LAUNCH_MS = 1400;
     /** الحلقة الرمادية أثناء الفتح + الوميض الذهبي الموحَّد (بلا تدرّج) وزاوية قوسه. */
-    private static final int LAUNCH_BASE = 0xFF4B5A6B, LAUNCH_GOLD = 0xFFD4AF37;
+    /** الرمادي (مسار حلقة التقدّم + حلقة القصة المشاهَدة): أفتح قليلاً من #4b5a6b السابق. */
+    public static final int RING_GRAY = 0xFF6B7889;
+    private static final int LAUNCH_BASE = RING_GRAY, LAUNCH_GOLD = 0xFFD4AF37;
     private static final float LAUNCH_SWEEP = 80f;
     private final RectF arcRect = new RectF();
     /** تحويل الشكل إلى مصغّرة الهيدر أثناء الطيران: 0 = شكل الشريط، 1 = شكل ThumbView (حدّ 2dp ملاصق للصورة). */
@@ -146,30 +148,24 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
     private static final float[] DASH_POS = {0f, .18f, .34f, .48f, .65f, .82f, 1f};
 
     /**
-     * يرسم حلقة من قطع ذهبية متفاوتة الطول تدور حول المركز؛ طول كل قطعة "يتنفس" (يقصر ويطول) أثناء الدوران.
+     * Animated Circular Progress Ring: مسار دائري رمادي كامل + قوس ذهبي دوّار حول الصورة،
+     * يطول ويقصر أثناء الدوران (مثل مؤشر التقدّم الدائري).
      * @param spin زاوية الدوران بالدرجات (0..360)
      */
     static void drawDashRing(Canvas c, float cx, float cy, float mid, float thick, float spin, Paint p, RectF rect, Matrix m) {
         p.reset(); p.setAntiAlias(true);
         p.setStyle(Paint.Style.STROKE);
-        p.setStrokeCap(Paint.Cap.ROUND);
         p.setStrokeWidth(thick);
-        SweepGradient sg = new SweepGradient(cx, cy, DASH_COLORS, DASH_POS);
-        m.reset(); m.setRotate(spin - 90f, cx, cy);
-        sg.setLocalMatrix(m);
-        p.setShader(sg);
+        // المسار الرمادي
+        p.setColor(RING_GRAY);
+        c.drawCircle(cx, cy, mid, p);
+        // القوس الذهبي المتحرك
         rect.set(cx - mid, cy - mid, cx + mid, cy + mid);
-        float cap = (float) Math.toDegrees(thick / mid);   // الرأس المستدير يمدّ كل طرف بنصف السماكة
         float rad = (float) Math.toRadians(spin);
-        float a = spin - 90f;
-        for (int i = 0; i < DASH.length; i++) {
-            float breathe = 0.62f + 0.38f * (0.5f + 0.5f * (float) Math.sin(2f * rad + i * 1.7f));
-            float len = DASH[i] * breathe - cap;
-            if (len < 0.5f) len = 0.5f;
-            float start = a + (DASH[i] - len - cap) / 2f + cap / 2f;   // القطعة المتقلصة تبقى متمركزة في موضعها
-            c.drawArc(rect, start, len, false, p);
-            a += DASH[i] + GAP[i];
-        }
+        float sweep = 60f + 150f * (0.5f - 0.5f * (float) Math.cos(rad));   // 60° .. 210°
+        p.setStrokeCap(Paint.Cap.ROUND);
+        p.setColor(0xFFD4AF37);
+        c.drawArc(rect, spin * 2f - 90f, sweep, false, p);
     }
 
     // ------------------------------------------------------------ نغمة الحساب (نفس toneOf في الـ HTML)
@@ -248,7 +244,7 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
 
         // حلقة القصة (.avatar.sring::after : inset:-5px; padding:3px)
         if (ring || morph > 0f) {
-            float outerR = R + dp(ringSmall ? 3 : 5), thick = dp(ringSmall ? 2 : 3);
+            float outerR = R + dp(ringSmall ? 3 : 5), thick = dp(2);   // سماكة حلقة القصة 2dp في كل الحالات
             outerR += (R - outerR) * morph;
             thick += (thumbB - thick) * morph;
             float mid = outerR - thick / 2f;
@@ -274,7 +270,7 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
                 if (!ring) {
                     // لا حلقة قصة: لا شيء يُرسم قبل حدّ المصغّرة
                 } else if (seen) {
-                    p.setColor(0xFF4B5A6B);
+                    p.setColor(RING_GRAY);
                 } else {
                     SweepGradient sg = new SweepGradient(cx, cy,
                             new int[]{0xFF8F6810, 0xFFE8D176, 0xFFB98B20, 0xFFE8D991, 0xFFB8860B, 0xFFE6C45B, 0xFF8F6810},

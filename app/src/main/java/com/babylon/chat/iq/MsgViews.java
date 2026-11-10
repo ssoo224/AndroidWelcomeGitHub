@@ -227,14 +227,15 @@ public final class MsgViews {
                 : ("audio".equals(qKind) && "بصمة صوتية".equals(qText)) ? R.drawable.ic_rq_mic : 0;
         if (icoRes != 0) {
             android.graphics.drawable.Drawable ico = a.getResources().getDrawable(icoRes, null).mutate();
-            ico.setColorFilter(mine ? 0xFFFFFFFF : 0xFFC29D30, android.graphics.PorterDuff.Mode.SRC_IN);
+            ico.setColorFilter(Tk.chatPal == null ? (mine ? 0xFFFFFFFF : 0xFFC29D30) : Tk.rqAccent(mine), android.graphics.PorterDuff.Mode.SRC_IN);
             q.setCompoundDrawablePadding(dp(a, 4));
             q.setCompoundDrawablesWithIntrinsicBounds(null, null, ico, null);
         }
         col.addView(q, new LinearLayout.LayoutParams(-1, -2));
         box.addView(col, new LinearLayout.LayoutParams(0, -2, 1f));
         View bar = new View(a);
-        bar.setBackgroundColor(0xFFC29D30);
+        bar.setBackgroundColor(Tk.rqAccent(mine));      // هامش الرد يتبع الثيم (بابل: ذهبي)
+        bar.setTag(mine ? "rqbM" : "rqbO");
         box.addView(bar, new LinearLayout.LayoutParams(dp(a, 3), -1));
         if (qId.length() > 0) {
             final String rid = qId;

@@ -46,7 +46,7 @@ public final class ProfileRing extends Drawable implements StoryViewer.Spin {
         if (anim != null) { anim.removeAllUpdateListeners(); anim.cancel(); anim = null; }
         if (on) {
             anim = ValueAnimator.ofFloat(0f, 360f);
-            anim.setDuration(2150);
+            anim.setDuration(1400);
             anim.setInterpolator(new android.view.animation.LinearInterpolator());
             anim.setRepeatCount(ValueAnimator.INFINITE);
             anim.addUpdateListener(a -> { spin = (Float) a.getAnimatedValue(); invalidateSelf(); });
@@ -88,7 +88,7 @@ public final class ProfileRing extends Drawable implements StoryViewer.Spin {
                 inner.draw(c);
                 return;
             } else if (seen.get()) {
-                p.setColor(0xFF4B5A6B);
+                p.setColor(StoryAvatarView.RING_GRAY);
             } else {
                 float s = (R - outerPx) * 2f, a = (float) Math.toRadians(135);
                 float dx = (float) Math.sin(a), dy = (float) -Math.cos(a);   // CSS: 135deg = نحو أسفل اليمين

@@ -120,6 +120,7 @@ public class MassActivity extends Activity {
                 return;
             }
             myUid = currentUser.getUid();
+            try { LocalCache.init(this, myUid); } catch (Throwable ignored) { }
         } catch (Throwable e) {
             saveAndDie(e, "firebase_init");
             return;
@@ -387,6 +388,12 @@ public class MassActivity extends Activity {
             /** حقل الكتابة: #f1f5fa / rgba(127,140,160,.10) ، عند التركيز أبيض / .16 وحدّ #c9cfd8 / #8b94a1 ، انحناء 15 */
             GradientDrawable msgInpBg(boolean focus) {
                 GradientDrawable g = new GradientDrawable();
+                if (dark && Tk.chatPal != null) {   // الطور الليلي فقط: ألوان الثيم (داخل شريط الكتابة --cr-card)
+                    g.setColor(Tk.chatPal.chatBg);
+                    g.setCornerRadius(dp(15));
+                    g.setStroke(dp(1), focus ? ((Tk.chatPal.accent & 0x00FFFFFF) | 0x99000000) : 0x00000000);
+                    return g;
+                }
                 g.setColor(focus ? (dark ? 0x297F8CA0 : 0xFFFFFFFF) : (dark ? 0x1A7F8CA0 : 0xFFF1F5FA));
                 g.setCornerRadius(dp(15));
                 g.setStroke(dp(1), focus ? (dark ? 0xFF8B94A1 : 0xFFC9CFD8) : 0x00000000);
@@ -475,7 +482,11 @@ public class MassActivity extends Activity {
                         }
                         else if (k.equals("msginp")) {
                             x.setBackground(msgInpBg(x.hasFocus()));
-                            if (T != null) { T.setTextColor(cText()); T.setHintTextColor(cMuted()); }   // حقل الكتابة خارج الثيم
+                            if (T != null) {
+                                boolean th = dark && Tk.chatPal != null;   // الليلي فقط يتبع الثيم
+                                T.setTextColor(th ? Tk.crInk(cText()) : cText());
+                                T.setHintTextColor(th ? Tk.crMuted(cMuted()) : cMuted());
+                            }
                         }
                         else if (k.equals("gold")) {
                             boolean chip = x.getId() == R.id.fltAll || x.getId() == R.id.fltUnread;
@@ -552,7 +563,7 @@ public class MassActivity extends Activity {
                         }
                         else if (T != null) {
                             if (k.equals("t")) T.setTextColor((x.getTag() instanceof String && ((String) x.getTag()).contains("rbtn")) || x.getId() == R.id.chatTitle ? Tk.crInk(cText()) : cText());
-                            else if (k.equals("m")) T.setTextColor(x.getId() == R.id.chatSub ? Tk.crMuted(cMuted()) : cMuted());
+                            else if (k.equals("m")) T.setTextColor(x.getId() == R.id.chatSub || (Tk.chatPal != null && (x.getId() == R.id.btnMic || x.getId() == R.id.btnAttach)) ? Tk.crMuted(cMuted()) : cMuted());
                             else if (k.equals("g")) T.setTextColor(cGold());
                             else if (k.equals("red")) T.setTextColor(cRed());
                             else if (k.equals("green")) T.setTextColor(0xFF4ADE80);
@@ -799,6 +810,8 @@ public class MassActivity extends Activity {
                 a.setTextColor(0xFFFFFFFF);
                 if (photoBmp != null && id.equals("pAvatarText")) {
                     applyPhotoTo(a);
+                } else if (otherPhotoBmp != null && id.equals("otherAvatarText")) {
+                    applyOtherPhotoTo(a);   // كانت تُستبدل بالحرف الذهبي عند كل إعادة تنسيق (مثلاً بعد تصغير الصورة المسحوبة)
                 } else {
                     GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{dark ? 0xFFF0D77A : 0xFFE8C25A, dark ? 0xFFC9A227 : 0xFFB88A1C});
                     g.setShape(GradientDrawable.OVAL);
@@ -1033,6 +1046,35 @@ public class MassActivity extends Activity {
                 if (chat) applyChatInsets();
             }
 
+            /** صفحة تعديل الملف: يبقى الحقل المحرَّر (النبذة خصوصاً) فوق لوحة المفاتيح وشريط الإيموجي/الاقتراحات ولا يُغطّى بهما. */
+            boolean editKbWired;
+            void keepEditVisible() {
+                View ep = v("editProfileView");
+                if (ep == null || ep.getVisibility() != View.VISIBLE) return;
+                View fo = act.getCurrentFocus();
+                if (!(fo instanceof EditText)) return;
+                final EditText e = (EditText) fo;
+                e.postDelayed(() -> {
+                    try { e.requestRectangleOnScreen(new android.graphics.Rect(0, 0, e.getWidth(), e.getHeight() + dp(56)), false); }
+                    catch (Throwable ignored) { }
+                }, 120);
+            }
+
+            void wireEditKeyboard() {
+                if (editKbWired) return;
+                editKbWired = true;
+                for (String id : new String[]{"modalNameInput", "modalUsernameInput", "modalBioInput"}) {
+                    EditText e = et(id);
+                    if (e == null) continue;
+                    e.setOnFocusChangeListener((vw, hasF) -> { if (hasF) { keepEditVisible(); vw.postDelayed(this::keepEditVisible, 350); } });
+                    e.addTextChangedListener(new android.text.TextWatcher() {
+                        @Override public void beforeTextChanged(CharSequence c, int a, int b, int d) { }
+                        @Override public void onTextChanged(CharSequence c, int a, int b, int d) { }
+                        @Override public void afterTextChanged(android.text.Editable ed) { keepEditVisible(); }
+                    });
+                }
+            }
+
             /** حواف المحادثة: الرأس ينزل بقدر شريط الإشعارات (+4dp) ، والمدخل يترك مسافة سفلية كما في .chat-input-container. */
             void applyChatInsets() {
                 View tb = v("chatTopBar"), bb = v("chatBottomBar");
@@ -1190,9 +1232,55 @@ public class MassActivity extends Activity {
                 }
             }
 
-            void loadMyProfile() {
-                db.collection("users").document(myUid).get()
+            /** يطبّق بيانات المستخدم المحفوظة محلياً فوراً (بدون انتظار السيرفر). يرجع true إن وُجد خزن. */
+            boolean applyMyProfileCache() {
+                try {
+                    org.json.JSONObject j = LocalCache.getMyProfile();
+                    if (j == null || j.optString("name").isEmpty()) return false;
+                    userName = j.optString("name");
+                    userUsername = j.optString("username");
+                    userBio = j.optString("bio");
+                    userGov = j.optString("gov");
+                    userEmail = j.optString("email");
+                    userPhoto = j.optString("photo");
+                    String cv = j.optString("cover");
+                    String cvId = CoverThemes.has(cv) ? cv : CoverThemes.DEFAULT_ID;
+                    sp.edit().putString("coverId", cvId).apply();
+                    applyCover(true, cvId);
+                    if (userName.isEmpty()) userName = "Mohammed";
+                    if (userUsername.isEmpty()) userUsername = "mohamed";
+                    if (userBio.isEmpty()) userBio = "الشارع مالتي منو كال ملك عام";
+                    if (userGov.isEmpty()) userGov = "المثنى";
+                    if (userEmail.isEmpty()) userEmail = "hamodeygame45@gmail.com";
+                    long created = j.optLong("createdAt", System.currentTimeMillis());
+                    userJoin = new SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(new Date(created));
+                    myStoryUntil = j.optLong("storyUntil", 0L);
+                    try { refreshProfileRings(); } catch (Throwable ignored) { }
+                    try { applyProfilePhoto(); } catch (Throwable ignored) { }
+                    try { buildStories(); } catch (Throwable ignored) { }
+                    try { fillProfile(); } catch (Throwable ignored) { }
+                    return true;
+                } catch (Throwable t) { return false; }
+            }
+
+            /** عند فتح التطبيق: الخزن المحلي أولاً؛ السيرفر فقط إن مضى أكثر من 10 دقائق (أو لا يوجد خزن). */
+            void loadMyProfileSmart() {
+                boolean had = applyMyProfileCache();
+                long age = Long.MAX_VALUE;
+                try { org.json.JSONObject j = LocalCache.getMyProfile(); if (j != null) age = System.currentTimeMillis() - j.optLong("_t", 0L); } catch (Throwable ignored) { }
+                if (had && age < 10 * 60 * 1000L) fetchMyProfile(com.google.firebase.firestore.Source.CACHE, true);   // نسخة Firestore المحلية (تشمل تعديلاتي) بلا إنترنت
+                else fetchMyProfile(com.google.firebase.firestore.Source.DEFAULT, false);
+            }
+
+            void loadMyProfile() { fetchMyProfile(com.google.firebase.firestore.Source.DEFAULT, false); }
+
+            void fetchMyProfile(final com.google.firebase.firestore.Source src, final boolean fallbackServer) {
+                db.collection("users").document(myUid).get(src)
                     .addOnSuccessListener(doc -> {
+                        if (src == com.google.firebase.firestore.Source.CACHE && fallbackServer && !doc.exists()) {
+                            fetchMyProfile(com.google.firebase.firestore.Source.DEFAULT, false);
+                            return;
+                        }
                         if (doc.exists()) {
                             userName = safe(doc.getString("name"));
                             userUsername = safe(doc.getString("username"));
@@ -1218,13 +1306,23 @@ public class MassActivity extends Activity {
 
                             userJoin = new SimpleDateFormat("yyyy/MM/dd", Locale.getDefault()).format(new Date(createdAt));
                             try { Long msu = doc.getLong("storyUntil"); myStoryUntil = msu != null ? msu : 0L; refreshProfileRings(); } catch (Throwable ignored) { }
+                            try {
+                                org.json.JSONObject cj = new org.json.JSONObject();
+                                cj.put("name", userName); cj.put("username", userUsername); cj.put("bio", userBio);
+                                cj.put("gov", userGov); cj.put("email", userEmail); cj.put("photo", userPhoto);
+                                cj.put("cover", cvId); cj.put("createdAt", createdAt); cj.put("storyUntil", myStoryUntil);
+                                LocalCache.putMyProfile(cj, src != com.google.firebase.firestore.Source.CACHE);
+                            } catch (Throwable ignored) { }
                             try { applyProfilePhoto(); } catch (Throwable ignored) { }
                             try { buildStories(); } catch (Throwable ignored) { }
                             try { fillProfile(); } catch (Throwable ignored) { }
                             try { loadProfileStories(true); } catch (Throwable ignored) { }
                         }
                     })
-                    .addOnFailureListener(e -> { });
+                    .addOnFailureListener(e -> {
+                        if (src == com.google.firebase.firestore.Source.CACHE && fallbackServer)
+                            fetchMyProfile(com.google.firebase.firestore.Source.DEFAULT, false);
+                    });
             }
             String safe(String s) { return s != null ? s : ""; }
 
@@ -1302,6 +1400,7 @@ public class MassActivity extends Activity {
                         if (govs[i].equals(userGov)) ((Spinner) govV).setSelection(i);
                 }
                 vis("modalUserError", false);
+                wireEditKeyboard();
                 show("editProfileView");
             }
 
@@ -2000,6 +2099,70 @@ public class MassActivity extends Activity {
                 }
                 return best;
             }
+            // ---------- خزن محلي لقائمة المحادثات ----------
+            final java.util.HashMap<String, String> nameCache = new java.util.HashMap<>();     // uid -> اسم الطرف الآخر
+            final java.util.HashMap<String, String> unreadByUid = new java.util.HashMap<>();  // uid -> عدد غير المقروءة
+            final java.util.HashMap<String, Long> userFetchAt = new java.util.HashMap<>();     // آخر جلب لوثيقة المستخدم من السيرفر
+            final Runnable persistChatsRun = () -> {
+                try {
+                    org.json.JSONArray arr = new org.json.JSONArray();
+                    for (String[] r : chatData) {
+                        if (r == null || r.length < 5 || r[4] == null) continue;
+                        org.json.JSONObject o = new org.json.JSONObject();
+                        o.put("name", r[0]); o.put("last", r[1]); o.put("unread", r[3]); o.put("uid", r[4]);
+                        Long t = chatTsMap.get(r[4]);
+                        o.put("ts", t == null ? 0L : t);
+                        String cid = chatIdByUid.get(r[4]);
+                        o.put("cid", cid == null ? "" : cid);
+                        arr.put(o);
+                    }
+                    LocalCache.putChats(arr);
+                } catch (Throwable ignored) { }
+            };
+            /** يحفظ قائمة المحادثات بعد هدوء 800ms (تجميع الكتابات المتتالية). */
+            void persistChats() { uiH.removeCallbacks(persistChatsRun); uiH.postDelayed(persistChatsRun, 800); }
+
+            /** يعرض آخر قائمة محادثات محفوظة فوراً قبل وصول السيرفر. */
+            void restoreChatsFromCache() {
+                try {
+                    org.json.JSONArray arr = LocalCache.getChats();
+                    if (arr == null || arr.length() == 0) return;
+                    chatData.clear();
+                    for (int i = 0; i < arr.length(); i++) {
+                        org.json.JSONObject o = arr.getJSONObject(i);
+                        String uid = o.optString("uid");
+                        if (uid.isEmpty()) continue;
+                        String nm = o.optString("name", "?");
+                        long ts = o.optLong("ts", 0L);
+                        String un = o.optString("unread", "0");
+                        String cid = o.optString("cid");
+                        if (!"?".equals(nm)) nameCache.put(uid, nm);
+                        unreadByUid.put(uid, un);
+                        chatTsMap.put(uid, ts);
+                        if (!cid.isEmpty()) chatIdByUid.put(uid, cid);
+                        chatData.add(new String[]{nm, o.optString("last"), ts > 0 ? listTime(ts) : "", un, uid});
+                    }
+                    sortChats();
+                    buildChats();
+                } catch (Throwable ignored) { }
+            }
+
+            /** وثيقة مستخدم آخر: إن جُلبت من السيرفر قبل أقل من دقيقتين نقرأ من نسخة Firestore المحلية بدل الشبكة. */
+            void fetchUserDoc(final String uid, final com.google.android.gms.tasks.OnSuccessListener<DocumentSnapshot> ok) {
+                Long at = userFetchAt.get(uid);
+                if (at != null && System.currentTimeMillis() - at < 120000L) {
+                    db.collection("users").document(uid).get(com.google.firebase.firestore.Source.CACHE)
+                        .addOnSuccessListener(ok)
+                        .addOnFailureListener(e -> serverUserDoc(uid, ok));
+                } else serverUserDoc(uid, ok);
+            }
+            void serverUserDoc(final String uid, final com.google.android.gms.tasks.OnSuccessListener<DocumentSnapshot> ok) {
+                db.collection("users").document(uid).get().addOnSuccessListener(d -> {
+                    userFetchAt.put(uid, System.currentTimeMillis());
+                    ok.onSuccess(d);
+                });
+            }
+
             void sortChats() {
                 Collections.sort(chatData, (a, b) -> {
                     Long ta = chatTsMap.get(a[4]), tb = chatTsMap.get(b[4]);
@@ -2044,11 +2207,11 @@ public class MassActivity extends Activity {
                             // يظهر الصف فوراً (حتى قبل جلب بيانات الطرف الآخر أو إن فشل الجلب) ثم يُحدَّث الاسم
                             boolean exists = false;
                             for (String[] r0 : chatData) if (r0[4].equals(fOtherId)) { exists = true; break; }
-                            if (!exists) { chatData.add(new String[]{"?", lastMsg, lastTime, "0", fOtherId}); sortChats(); try { buildChats(); } catch (Throwable ignored) { } }
-                            db.collection("users").document(fOtherId).get()
-                                .addOnSuccessListener(udoc -> {
+                            if (!exists) { String cn = nameCache.get(fOtherId); String cu = unreadByUid.get(fOtherId); chatData.add(new String[]{cn != null ? cn : "?", lastMsg, lastTime, cu != null ? cu : "0", fOtherId}); sortChats(); try { buildChats(); } catch (Throwable ignored) { } }
+                            fetchUserDoc(fOtherId, udoc -> {
                                     if (chatIsCleared(fChatId, lastAt)) return;
-                                    String oName = udoc.exists() && udoc.getString("name") != null ? udoc.getString("name") : "?";
+                                    String oName = udoc.exists() && udoc.getString("name") != null ? udoc.getString("name") : (nameCache.get(fOtherId) != null ? nameCache.get(fOtherId) : "?");
+                                    if (!"?".equals(oName)) nameCache.put(fOtherId, oName);
                                     try {
                                         Long su = udoc.getLong("storyUntil");
                                         storyUntil.put(fOtherId, su != null ? su : 0L);
@@ -2060,11 +2223,12 @@ public class MassActivity extends Activity {
                                     boolean found = false;
                                     for (int i = 0; i < chatData.size(); i++) {
                                         if (chatData.get(i)[4].equals(fOtherId)) {
-                                            chatData.set(i, new String[]{oName, lastMsg, lastTime, "0", fOtherId});
+                                            String keepUn = chatData.get(i)[3];
+                                            chatData.set(i, new String[]{oName, lastMsg, lastTime, keepUn != null ? keepUn : "0", fOtherId});
                                             found = true; break;
                                         }
                                     }
-                                    if (!found) chatData.add(new String[]{oName, lastMsg, lastTime, "0", fOtherId});
+                                    if (!found) { String cu2 = unreadByUid.get(fOtherId); chatData.add(new String[]{oName, lastMsg, lastTime, cu2 != null ? cu2 : "0", fOtherId}); }
                                     sortChats();
                                     try { buildChats(); } catch (Throwable ignored) { }
                                     try { buildStories(); } catch (Throwable ignored) { }
@@ -2080,6 +2244,7 @@ public class MassActivity extends Activity {
                                                 if (chatData.get(i)[4].equals(fOtherId)) {
                                                     String[] row = chatData.get(i);
                                                     String nv = String.valueOf(cnt);
+                                                    unreadByUid.put(fOtherId, nv);
                                                     if (!row[3].equals(nv)) {
                                                         row[3] = nv;
                                                         try { buildChats(); } catch (Throwable ignored) { }
@@ -2294,16 +2459,78 @@ public class MassActivity extends Activity {
                     it.name = dispName(c[4], c[0]);
                     it.letter = c[0].length() > 0 ? c[0].substring(0, 1).toUpperCase() : "?";
                     it.ring = true; it.blue = StoryAvatarView.toneBlue(c[4]);
+                    it.photo = peerPhotos.get(c[4]); ensurePeerPhoto(c[4]);
                     it.seen = StoryViewer.isSeen(act, myUid, c[4], u);
                     list.add(it);
                 }
                 stories.setItems(list, dark);
             }
 
+            // ---- صور الأشخاص في قائمة المحادثات وشريط القصص (كانت تُمرَّر null فيظهر الحرف دائماً) ----
+            final java.util.HashMap<String, Bitmap> peerPhotos = new java.util.HashMap<>();
+            final java.util.HashMap<String, String> peerPhotoSig = new java.util.HashMap<>();
+            final java.util.HashMap<String, Long> peerPhotoAt = new java.util.HashMap<>();
+            final java.util.HashSet<String> peerPhotoReq = new java.util.HashSet<>();
+            Runnable peerPhotoRefresh;
+
+            Bitmap decodePeerPhoto(String ph) {
+                try {
+                    byte[] b;
+                    if (ph.startsWith("http")) {
+                        java.io.InputStream is = new java.net.URL(ph).openStream();
+                        java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+                        byte[] buf = new byte[8192]; int n;
+                        while ((n = is.read(buf)) > 0) bo.write(buf, 0, n);
+                        is.close(); b = bo.toByteArray();
+                    } else {
+                        b = android.util.Base64.decode(ph.contains(",") ? ph.substring(ph.indexOf(',') + 1) : ph, android.util.Base64.DEFAULT);
+                    }
+                    BitmapFactory.Options o = new BitmapFactory.Options();
+                    o.inJustDecodeBounds = true;
+                    BitmapFactory.decodeByteArray(b, 0, b.length, o);
+                    int ss = 1;
+                    while (Math.min(o.outWidth, o.outHeight) / (ss * 2) >= 256) ss *= 2;   // الأفاتار صغير: لا حاجة لـ 1080px لكل صف
+                    o = new BitmapFactory.Options();
+                    o.inSampleSize = ss;
+                    return BitmapFactory.decodeByteArray(b, 0, b.length, o);
+                } catch (Throwable t) { return null; }
+            }
+
+            void ensurePeerPhoto(final String uid) {
+                if (uid == null || uid.isEmpty() || myBlocks.contains(uid)) return;
+                Long at = peerPhotoAt.get(uid);
+                if (at != null && System.currentTimeMillis() - at < 120000) return;
+                if (!peerPhotoReq.add(uid)) return;
+                db.collection("users").document(uid).get().addOnSuccessListener(d -> {
+                    final boolean hidden = d == null || !d.exists() || Boolean.TRUE.equals(d.getBoolean("hideAvatar"));
+                    final String ph = hidden ? "" : firstNonEmpty(d.getString("photo"), d.getString("avatarUrl"));
+                    if (ph.equals(peerPhotoSig.get(uid)) && (ph.isEmpty() || peerPhotos.containsKey(uid))) {
+                        peerPhotoAt.put(uid, System.currentTimeMillis()); peerPhotoReq.remove(uid); return;
+                    }
+                    new Thread(() -> {
+                        final Bitmap bmp = ph.isEmpty() ? null : decodePeerPhoto(ph);
+                        act.runOnUiThread(() -> {
+                            peerPhotoReq.remove(uid);
+                            peerPhotoAt.put(uid, System.currentTimeMillis());
+                            if (!ph.isEmpty() && bmp == null) return;
+                            peerPhotoSig.put(uid, ph);
+                            if (bmp != null) peerPhotos.put(uid, bmp); else peerPhotos.remove(uid);
+                            if (peerPhotoRefresh == null) peerPhotoRefresh = () -> {
+                                try { buildChats(); } catch (Throwable ignored) { }
+                                try { buildStories(); } catch (Throwable ignored) { }
+                            };
+                            uiH.removeCallbacks(peerPhotoRefresh);
+                            uiH.postDelayed(peerPhotoRefresh, 250);
+                        });
+                    }).start();
+                }).addOnFailureListener(e -> peerPhotoReq.remove(uid));
+            }
+
             void buildChats() {
                 startBlocksListener();
                 LinearLayout list = (LinearLayout) v("chatList");
                 if (list == null) return;
+                persistChats();
                 syncChatSelWithData();
                 list.removeAllViews();
                 int unreadChats = 0;
@@ -2355,14 +2582,16 @@ public class MassActivity extends Activity {
                     row.setLayoutParams(rp);
                     StoryAvatarView av = new StoryAvatarView(act);
                     boolean ringOn = c.length > 4 && storyUntil.get(c[4]) != null && storyUntil.get(c[4]) > System.currentTimeMillis();
-                    av.set(dn.length() > 0 ? dn.substring(0, 1).toUpperCase() : "?", null, c.length > 4 && StoryAvatarView.toneBlue(c[4]))
+                    final Bitmap rowPhoto = c.length > 4 ? peerPhotos.get(c[4]) : null;
+                    if (c.length > 4) ensurePeerPhoto(c[4]);
+                    av.set(dn.length() > 0 ? dn.substring(0, 1).toUpperCase() : "?", rowPhoto, c.length > 4 && StoryAvatarView.toneBlue(c[4]))
                       .ring(ringOn, false).online(c.length > 4 && Boolean.TRUE.equals(onlineMap.get(c[4])))
                       .theme(dark, cSf()).textSp(17f).pad(ringOn ? 5f : 0f);   // الصورة تصغر فقط عند وجود قصة (الحلقة داخل حدود الـ View فلا تُقصّ)
                     if (ringOn) {   // chatAvatarStory: الضغط على أفاتار فيه حلقة يفتح القصة
                         final StoryAvatarView fav = av; final String fUid = rowUid, fName = dn;
                         final boolean fBlue = StoryAvatarView.toneBlue(rowUid);
                         av.ring(true, StoryViewer.isSeen(act, myUid, rowUid, storyUntil.get(rowUid)));
-                        av.setOnClickListener(vv -> openStory(fUid, fName, fName.length() > 0 ? fName.substring(0, 1).toUpperCase() : "?", null, fBlue, fav));
+                        av.setOnClickListener(vv -> openStory(fUid, fName, fName.length() > 0 ? fName.substring(0, 1).toUpperCase() : "?", rowPhoto, fBlue, fav));
                         av.setOnLongClickListener(vv -> row.performLongClick());
                     }
                     // الأفاتار بحجم منطقة محتوى الصف نفسها (65.8 - 2*6.9 ≈ 52dp) بلا هوامش سالبة؛
@@ -2926,8 +3155,10 @@ public class MassActivity extends Activity {
                 };
                 final com.google.firebase.firestore.EventListener<com.google.firebase.firestore.QuerySnapshot> onSnap = (snapshots, e) -> {
                         if (e != null || snapshots == null) return;
-                        final boolean liveBatch = !firstSnap[0];
+                        final boolean wasFirst = firstSnap[0];
                         firstSnap[0] = false;
+                        final boolean rebuilt = !cacheRenderedIds.isEmpty() && reconcileCachedMsgs(snapshots);
+                        final boolean liveBatch = !wasFirst && !rebuilt;
                         for (DocumentChange dc : snapshots.getDocumentChanges()) {
                             if (dc.getType() == DocumentChange.Type.REMOVED) {
                                 removeMsgView(dc.getDocument().getId(), null);
@@ -2947,42 +3178,178 @@ public class MassActivity extends Activity {
                                 DocumentSnapshot doc = dc.getDocument();
                                 if (!doc.exists()) continue;
                                 String id = doc.getId();
-                                if (renderedMsgIds.contains(id)) continue;
-                                renderedMsgIds.add(id);
-                                if (msgCleared(doc, chatClearedAt(chatId))) continue;   // قبل حذف المحادثة
-                                if (hiddenSet().contains(id)) continue;   // محذوفة "لدي فقط"
+                                if (renderedMsgIds.contains(id)) { if (cacheRenderedIds.contains(id)) syncRenderedMsg(id, doc); continue; }
+                                renderMsgData(chatId, id, doc.getData(), doc.getMetadata().hasPendingWrites(), liveBatch, doc.getReference());
+                            }
 
-                                String type = doc.getString("type");
+                        }
+                        saveMsgCache(chatId, snapshots);   // آخر 50 رسالة نصية للمحادثة في الخزن المحلي
+                        if (!liveBatch) revealChatBottom();
+                    };
+                // لا تُعالَج الرسائل أثناء حركة الدخول (تفادياً للتقطيع والتداخل)؛ تُؤجَّل بالترتيب إلى نهايتها
+                renderCachedMessages(chatId);   // آخر رسائل نصية محفوظة تظهر فوراً قبل وصول السيرفر
+                messagesListener = db.collection("chats").document(chatId).collection("messages")
+                    .orderBy("timestamp", Query.Direction.ASCENDING)
+                    .addSnapshotListener(com.google.firebase.firestore.MetadataChanges.INCLUDE,
+                        (sn, er) -> deferSnap(onSnap, chatId, sn, er));
+            }
+
+            // ================= خزن محلي لرسائل المحادثة (آخر 50 رسالة نصية فقط) =================
+            final java.util.HashSet<String> cacheRenderedIds = new java.util.HashSet<>();   // رسائل رُسمت من الخزن وتنتظر تأكيد السيرفر
+            long cacheMaxTs = 0L;
+
+            String gStr(Map<String, Object> d, String k) { Object o = d == null ? null : d.get(k); return o instanceof String ? (String) o : null; }
+            Long gLong(Map<String, Object> d, String k) { Object o = d == null ? null : d.get(k); return o instanceof Number ? Long.valueOf(((Number) o).longValue()) : null; }
+            Boolean gBool(Map<String, Object> d, String k) { Object o = d == null ? null : d.get(k); return o instanceof Boolean ? (Boolean) o : null; }
+
+            boolean msgClearedMap(Map<String, Object> d, long clr) {
+                if (clr <= 0) return false;
+                Long t = gLong(d, "timestamp");
+                if (t == null) t = gLong(d, "createdAt");
+                return t != null && t > 0 && t <= clr;
+            }
+
+            /** يرسم رسائل المحادثة المحفوظة محلياً (نصية فقط) فوراً. */
+            void renderCachedMessages(String chatId) {
+                cacheRenderedIds.clear(); cacheMaxTs = 0L;
+                try {
+                    org.json.JSONArray arr = LocalCache.getMessages(chatId);
+                    if (arr == null || arr.length() == 0) return;
+                    java.util.Set<String> hid = hiddenSet();
+                    long clr = chatClearedAt(chatId);
+                    for (int i = 0; i < arr.length(); i++) {
+                        org.json.JSONObject o = arr.getJSONObject(i);
+                        String id = o.optString("id");
+                        if (id.isEmpty() || renderedMsgIds.contains(id) || hid.contains(id)) continue;
+                        HashMap<String, Object> d = new HashMap<>();
+                        d.put("type", "text");
+                        d.put("text", o.optString("text"));
+                        d.put("sender", o.optString("sender"));
+                        long ts = o.optLong("timestamp", 0L);
+                        if (ts > 0) d.put("timestamp", ts);
+                        if (o.has("read")) d.put("read", o.optBoolean("read"));
+                        if (o.has("forwarded")) d.put("forwarded", o.optBoolean("forwarded"));
+                        for (String k : new String[]{"replyTo", "replyToSenderId", "replyToId", "replyToType"})
+                            if (o.has(k)) d.put(k, o.optString(k));
+                        if (msgClearedMap(d, clr)) continue;
+                        renderMsgData(chatId, id, d, false, false, null);
+                        if (msgViewsById.containsKey(id)) { cacheRenderedIds.add(id); if (ts > cacheMaxTs) cacheMaxTs = ts; }
+                    }
+                } catch (Throwable ignored) { }
+            }
+
+            /** يحفظ آخر 50 رسالة نصية من لقطة السيرفر (بدون الصور والفيديوهات والصوتيات والمخفية/المحذوفة). */
+            void saveMsgCache(String chatId, com.google.firebase.firestore.QuerySnapshot sn) {
+                try {
+                    long clr = chatClearedAt(chatId);
+                    java.util.Set<String> hid = hiddenSet();
+                    org.json.JSONArray out = new org.json.JSONArray();
+                    for (DocumentSnapshot dd : sn.getDocuments()) {
+                        String ty = dd.getString("type");
+                        if (ty != null && !"text".equals(ty)) continue;
+                        Map<String, Object> m = dd.getData();
+                        String text = gStr(m, "text");
+                        if (text == null || hid.contains(dd.getId()) || msgClearedMap(m, clr)) continue;
+                        org.json.JSONObject o = new org.json.JSONObject();
+                        o.put("id", dd.getId());
+                        o.put("text", text);
+                        String sender = gStr(m, "sender");
+                        o.put("sender", sender == null ? "" : sender);
+                        Long ts = gLong(m, "timestamp");
+                        if (ts != null) o.put("timestamp", ts.longValue());
+                        Boolean rd = gBool(m, "read");
+                        if (rd != null) o.put("read", rd.booleanValue());
+                        Boolean fw = gBool(m, "forwarded");
+                        if (fw != null) o.put("forwarded", fw.booleanValue());
+                        for (String k : new String[]{"replyTo", "replyToSenderId", "replyToId", "replyToType"}) {
+                            String v = gStr(m, k);
+                            if (v != null) o.put(k, v);
+                        }
+                        out.put(o);
+                    }
+                    LocalCache.putMessages(chatId, out);
+                } catch (Throwable ignored) { }
+            }
+
+            /** يوفّق الرسائل المرسومة من الخزن مع لقطة السيرفر. يرجع true إذا أُعيد بناء المحادثة بالكامل. */
+            boolean reconcileCachedMsgs(com.google.firebase.firestore.QuerySnapshot sn) {
+                boolean needRebuild = false;
+                java.util.HashSet<String> srv = new java.util.HashSet<>();
+                for (DocumentSnapshot dd : sn.getDocuments()) {
+                    srv.add(dd.getId());
+                    if (!renderedMsgIds.contains(dd.getId())) {
+                        Long t = dd.getLong("timestamp");
+                        // رسالة أقدم من آخر رسالة محفوظة (مثل صورة) ليست في الخزن: إضافتها بالنهاية تُفسد الترتيب
+                        if (t != null && t < cacheMaxTs) { needRebuild = true; break; }
+                    }
+                }
+                if (needRebuild) {
+                    LinearLayout ma = (LinearLayout) v("messagesArea");
+                    if (ma != null) ma.removeAllViews();
+                    renderedMsgIds.clear(); lastDayKey = ""; msgViewsById.clear(); msgMeta.clear();
+                    cacheRenderedIds.clear();
+                    return true;
+                }
+                if (!sn.getMetadata().isFromCache()) {
+                    // السيرفر أكّد: ما حُذف من الطرف الآخر يُزال من العرض
+                    for (String id : new ArrayList<>(cacheRenderedIds)) if (!srv.contains(id)) removeMsgView(id, null);
+                    cacheRenderedIds.clear();
+                }
+                return false;
+            }
+
+            /** رسالة رُسمت من الخزن ثم وصلت من السيرفر: حدّث علامات القراءة والتفاعلات وعلّمها مقروءة إن لزم. */
+            void syncRenderedMsg(String id, DocumentSnapshot md) {
+                View mv = msgViewsById.get(id);
+                if (mv == null) return;
+                try { applyReactions(id, mv, md.get("reactions")); } catch (Throwable ignored) { }
+                boolean rd = Boolean.TRUE.equals(md.getBoolean("read"));
+                if (myUid.equals(md.getString("sender"))) {
+                    try { MsgViews.setState(mv, rd ? MsgViews.READ : (md.getMetadata().hasPendingWrites() ? MsgViews.WAIT : MsgViews.SENT)); } catch (Throwable ignored) { }
+                } else if (!rd) {
+                    try { md.getReference().update("read", true); } catch (Throwable ignored) { }
+                }
+            }
+
+            /** رسم رسالة واحدة (من السيرفر أو من الخزن المحلي). ref = null للرسائل المحفوظة. */
+            void renderMsgData(final String chatId, final String id, final Map<String, Object> d, final boolean pending,
+                               final boolean liveBatch, final com.google.firebase.firestore.DocumentReference ref) {
+                if (d == null) return;
+                renderedMsgIds.add(id);
+                                if (msgClearedMap(d, chatClearedAt(chatId))) return;   // قبل حذف المحادثة
+                                if (hiddenSet().contains(id)) return;   // محذوفة "لدي فقط"
+
+                                String type = gStr(d, "type");
                                 if (type == null) type = "text";
-                                String text = doc.getString("text");
-                                String rTo = doc.getString("replyTo");
+                                String text = gStr(d, "text");
+                                String rTo = gStr(d, "replyTo");
                                 if (text != null && rTo != null && rTo.length() > 0 && !text.startsWith("\u21A9 ")) {
-                                    String rSid = doc.getString("replyToSenderId");
+                                    String rSid = gStr(d, "replyToSenderId");
                                     String rNm = rSid == null || rSid.isEmpty() ? "" : replyOwner(rSid.equals(myUid));
-                                    String rId = doc.getString("replyToId"), rTy = doc.getString("replyToType");
+                                    String rId = gStr(d, "replyToId"), rTy = gStr(d, "replyToType");
                                     text = "\u21A9 " + (rNm.isEmpty() ? "" : rNm + "\u0001") + rTo.replace('\n', ' ').replace('\u0002', ' ')
                                             + "\u0002" + (rId == null ? "" : rId) + "\u0002" + (rTy == null ? "" : rTy) + "\n" + text;
                                 }
                                 mediaQuote = null;
                                 if (rTo != null && rTo.length() > 0 && ("image".equals(type) || "audio".equals(type))) {
-                                    String qSid = doc.getString("replyToSenderId");
+                                    String qSid = gStr(d, "replyToSenderId");
                                     String qNm = qSid == null || qSid.isEmpty() ? "" : replyOwner(qSid.equals(myUid));
-                                    String qId = doc.getString("replyToId"), qTy = doc.getString("replyToType");
+                                    String qId = gStr(d, "replyToId"), qTy = gStr(d, "replyToType");
                                     mediaQuote = (qNm.isEmpty() ? "" : qNm + "\u0001") + rTo.replace('\n', ' ').replace('\u0002', ' ')
                                             + "\u0002" + (qId == null ? "" : qId) + "\u0002" + (qTy == null ? "" : qTy);
                                 }
-                                String url = doc.getString("data");
-                                if (url == null) url = doc.getString("url");
-                                String sender = doc.getString("sender");
-                                Long time = doc.getLong("timestamp");
-                                Long dur = doc.getLong("duration");
+                                String url = gStr(d, "data");
+                                if (url == null) url = gStr(d, "url");
+                                String sender = gStr(d, "sender");
+                                Long time = gLong(d, "timestamp");
+                                Long dur = gLong(d, "duration");
                                 boolean mine = myUid.equals(sender);
                                 final long ts = time != null ? time : System.currentTimeMillis();
                                 String timeStr = timeLabel(ts);
-                                Boolean readFlag = doc.getBoolean("read");
+                                Boolean readFlag = gBool(d, "read");
                                 boolean isRead = Boolean.TRUE.equals(readFlag);
-                                if (!mine && !isRead) { try { doc.getReference().update("read", true); } catch (Throwable ignored) { } }
-                                int state = mine ? (isRead ? MsgViews.READ : (doc.getMetadata().hasPendingWrites() ? MsgViews.WAIT : MsgViews.SENT)) : MsgViews.SENT;
+                                if (!mine && !isRead) { try { if (ref != null) ref.update("read", true); } catch (Throwable ignored) { } }
+                                int state = mine ? (isRead ? MsgViews.READ : (pending ? MsgViews.WAIT : MsgViews.SENT)) : MsgViews.SENT;
 
                                 try {
                                     addDaySep(ts);
@@ -2994,7 +3361,7 @@ public class MassActivity extends Activity {
                                         View last = ma0.getChildAt(ma0.getChildCount() - 1);
                                         msgViewsById.put(id, last);
                                         msgMeta.put(id, new Object[]{type, text, url, dur != null ? dur : 0L, mine, ts});
-                                        if (Boolean.TRUE.equals(doc.getBoolean("forwarded")) && last instanceof LinearLayout && !(last instanceof MsgViews.VoiceBubble)) {
+                                        if (Boolean.TRUE.equals(gBool(d, "forwarded")) && last instanceof LinearLayout && !(last instanceof MsgViews.VoiceBubble)) {
                                             TextView fl = new TextView(act);
                                             fl.setText("↪ معاد توجيهها"); fl.setTextSize(11); fl.setTypeface(null, android.graphics.Typeface.BOLD_ITALIC);
                                             fl.setTag(mine ? "mmM" : "mmO");
@@ -3003,7 +3370,7 @@ public class MassActivity extends Activity {
                                             style(fl);
                                         }
                                         if (mine) MsgViews.setState(last, state);
-                                        applyReactions(id, last, doc.get("reactions"));
+                                        applyReactions(id, last, d.get("reactions"));
                                     }
                                     scrollDown();
                                     if (liveBatch) {
@@ -3011,15 +3378,7 @@ public class MassActivity extends Activity {
                                         if (ma != null && ma.getChildCount() > 0) BabylonFx.msgIn(ma.getChildAt(ma.getChildCount() - 1));
                                     }
                                 } catch (Throwable ignored) { }
-                            }
-                        }
-                        if (!liveBatch) revealChatBottom();
-                    };
-                // لا تُعالَج الرسائل أثناء حركة الدخول (تفادياً للتقطيع والتداخل)؛ تُؤجَّل بالترتيب إلى نهايتها
-                messagesListener = db.collection("chats").document(chatId).collection("messages")
-                    .orderBy("timestamp", Query.Direction.ASCENDING)
-                    .addSnapshotListener(com.google.firebase.firestore.MetadataChanges.INCLUDE,
-                        (sn, er) -> deferSnap(onSnap, chatId, sn, er));
+
             }
 
             void deferSnap(final com.google.firebase.firestore.EventListener<com.google.firebase.firestore.QuerySnapshot> l,
@@ -3894,13 +4253,17 @@ public class MassActivity extends Activity {
 
             private final Map<View, android.animation.ValueAnimator> flashAnims = new HashMap<>();
 
-            /** تمييز الرسالة المردود عليها: لون ذهبي ينبض مرتين ويتلاشى + نبضة تكبير خفيفة، بلا أي إطار. */
+            /** تمييز الرسالة المردود عليها: رسالتي أبيض 5%، والمستلَمة بلون الثيم؛ ينبض مرتين ويتلاشى + نبضة تكبير خفيفة، بلا أي إطار. */
             void flashMsg(final View mv, final String id) {
                 if (mv == null) return;
                 android.animation.ValueAnimator prev = flashAnims.remove(mv);
                 if (prev != null) prev.cancel();
+                // رسالتي: أبيض بنسبة 5% — رسالة المستلَم: لون الثيم (accent) أو الذهبي في ثيم بابل
+                Object[] fm = id != null ? msgMeta.get(id) : null;
+                final boolean fMine = fm != null && Boolean.TRUE.equals(fm[4]);
+                final float peak = fMine ? 0.05f : 0.42f;
                 final GradientDrawable g = new GradientDrawable();
-                g.setColor(cGold());
+                g.setColor(fMine ? 0xFFFFFFFF : (Tk.chatPal != null ? (Tk.chatPal.accent | 0xFF000000) : cGold()));
                 g.setCornerRadii(bubbleRadii(mv, 0));
                 g.setAlpha(0);
                 final boolean fg = Build.VERSION.SDK_INT >= 23;
@@ -3913,8 +4276,8 @@ public class MassActivity extends Activity {
                     float pulse = (float) (0.5 - 0.5 * Math.cos(4 * Math.PI * t));          // نبضتان
                     float fade = 1f - 0.55f * t;                                            // تخفت تدريجياً
                     float k = pulse * fade;
-                    if (fg) g.setAlpha(Math.round(255 * 0.42f * k));
-                    else mv.setAlpha(1f - 0.3f * k);
+                    if (fg) g.setAlpha(Math.round(255 * peak * k));
+                    else mv.setAlpha(1f - (fMine ? 0.05f : 0.3f) * k);
                     float sc = 1f + 0.025f * (float) Math.sin(Math.PI * Math.min(1f, t * 1.6f));
                     mv.setScaleX(sc); mv.setScaleY(sc);
                 });
@@ -4725,7 +5088,8 @@ public class MassActivity extends Activity {
                 row.setGravity(Gravity.CENTER_VERTICAL);
                 row.setMinimumHeight(dp(54));
                 row.setPadding(dp(10), dp(8), dp(10), dp(8));
-                GradientDrawable pr = new GradientDrawable(); pr.setColor(goldA(0x26)); pr.setCornerRadius(dp(15));
+                final int mAcc = Tk.chatPal != null ? Tk.chatPal.accent : cGold();   // قائمة ⋮ تتبع ثيم المحادثة
+                GradientDrawable pr = new GradientDrawable(); pr.setColor((mAcc & 0x00FFFFFF) | (0x26 << 24)); pr.setCornerRadius(dp(15));
                 android.graphics.drawable.StateListDrawable sl = new android.graphics.drawable.StateListDrawable();
                 sl.addState(new int[]{android.R.attr.state_pressed}, pr);
                 row.setBackground(sl);
@@ -4749,10 +5113,10 @@ public class MassActivity extends Activity {
 
                 ImageView ic = new ImageView(act);
                 ic.setImageResource(iconRes);
-                ic.setColorFilter(cGold());
+                ic.setColorFilter(mAcc);
                 ic.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
                 ic.setPadding(dp(8), dp(8), dp(8), dp(8));
-                GradientDrawable ibg = new GradientDrawable(); ibg.setColor(goldA(0x24)); ibg.setCornerRadius(dp(13));
+                GradientDrawable ibg = new GradientDrawable(); ibg.setColor((mAcc & 0x00FFFFFF) | (0x24 << 24)); ibg.setCornerRadius(dp(13));
                 ic.setBackground(ibg);
                 row.addView(ic, new LinearLayout.LayoutParams(dp(36), dp(36)));
                 return row;
@@ -5021,6 +5385,7 @@ public class MassActivity extends Activity {
                     .setNegativeButton("إلغاء", null).show();
             }
             void logout() {
+                try { LocalCache.clearAll(); } catch (Throwable ignored) { }
                 mAuth.signOut();
                 sp.edit().putBoolean("logged", false).apply();
                 startActivity(new Intent(act, Main2Activity.class));
@@ -5108,7 +5473,8 @@ public class MassActivity extends Activity {
                 else if (id.equals("itemLogout")) confirm("تسجيل الخروج", "هل تريد تسجيل الخروج؟", this::logout);
                 else if (id.equals("itemDelete")) confirm("حذف الحساب", "سيتم حذف حسابك وبياناتك نهائياً. متأكد؟", () -> {
                     if (currentUser != null) {
-                        db.collection("users").document(myUid).delete();
+                        try { LocalCache.clearAll(); } catch (Throwable ignored) { }
+                db.collection("users").document(myUid).delete();
                         currentUser.delete().addOnCompleteListener(t -> logout());
                     }
                 });
@@ -5310,7 +5676,8 @@ public class MassActivity extends Activity {
                     ((StoriesHost) v("homeView")).setController(stories);
                     buildStories();
                 } catch (Throwable ignored) { }
-                loadMyProfile();
+                loadMyProfileSmart();
+                restoreChatsFromCache();
                 loadChats();
                 show("homeView");
                 try {
@@ -5366,11 +5733,24 @@ public class MassActivity extends Activity {
                 ui.sbTop = top;
                 ui.navBottom = nav;
                 ui.padBottom = bottom;
-                ui.applyInsets();                       // صفحات الملف الشخصي بلا padding علوي (الغلاف خلف الشريط)
+                ui.applyInsets();
+                ui.keepEditVisible();                   // ارتفاع لوحة المفاتيح/شريط الإيموجي تغيّر: أبقِ حقل النبذة ظاهراً
+                // صفحات الملف الشخصي بلا padding علوي (الغلاف خلف الشريط)
                 if (topChanged) ui.polishProfile();     // ارتفاع الغلاف = 176dp + ارتفاع شريط الحالة
                 return insets;
             });
             rootView.requestApplyInsets();
+            noOverScroll(rootView);
+        }
+    }
+
+    /** يعطّل ارتداد/تمدد السحب في كل ScrollView حتى لا يظهر الشريط الأبيض أعلى الشاشة. */
+    private static void noOverScroll(View v) {
+        if (v == null) return;
+        v.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        if (v instanceof android.view.ViewGroup) {
+            android.view.ViewGroup g = (android.view.ViewGroup) v;
+            for (int i = 0; i < g.getChildCount(); i++) noOverScroll(g.getChildAt(i));
         }
     }
 }

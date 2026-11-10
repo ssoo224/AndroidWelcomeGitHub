@@ -35,6 +35,11 @@ public final class Tk {
         if (chatPal == null) return 0xFFFFFFFF;
         return state == MsgViews.READ ? chatPal.tick : chatPal.textMine;
     }
+    /** لون هامش/أيقونة اقتباس الرد: بابل ذهبي؛ ثيم آخر: لون نص رسالتي (في فقاعتي) أو لون التمييز accent (في فقاعة الطرف الآخر). */
+    public static int rqAccent(boolean mine) {
+        if (chatPal == null) return 0xFFC29D30;
+        return mine ? chatPal.textMine : chatPal.accent;
+    }
     /** ثيم غير بابل مطبّق؟ (CSS: html[data-chat-theme]:not([data-chat-theme="babylon"]) → --cr-card = --bubble-other ، --cr-line = --bubble-line ، --cr-ink = --text-other ، --cr-muted = --meta-other) */
     public static boolean themed() { return chatPal != null; }
     /** --cr-card داخل المحادثة */
@@ -223,6 +228,7 @@ public final class Tk {
             });
             return true;
         }
+        if (tag.equals("rqbM") || tag.equals("rqbO")) { x.setBackgroundColor(rqAccent(tag.equals("rqbM"))); return true; }   // الخط الجانبي لاقتباس الرد
         if (tag.equals("rqnM") || tag.equals("rqnO")) { if (t != null) t.setTextColor(0xFFFFFFFF); return true; }   // اسم المستخدم في اقتباس الرد: أبيض في النهاري والليلي
         if (tag.equals("rqtM")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.textMine : GOLD_INK); return true; }
         if (tag.equals("rqtO")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.accent : 0xFFC29D30); return true; }   // HTML: لون .reply-quote في رسائل الطرف الآخر = ذهبي accent-chat
@@ -236,10 +242,10 @@ public final class Tk {
             x.setBackground(null);
             return true;
         }
-        if (tag.equals("rpGold")) { x.setBackgroundColor(dark ? 0xFFC9A45C : 0xFFB58B2A); return true; }
+        if (tag.equals("rpGold")) { x.setBackgroundColor(chatPal != null ? chatPal.accent : (dark ? 0xFFC9A45C : 0xFFB58B2A)); return true; }
         if (tag.equals("rpLabel")) {
             if (t != null) {
-                int c = dark ? 0xFFE4C45B : 0xFF8A6818;
+                int c = chatPal != null ? chatPal.accent : (dark ? 0xFFE4C45B : 0xFF8A6818);
                 t.setTextColor(c);
                 for (android.graphics.drawable.Drawable d : t.getCompoundDrawablesRelative())
                     if (d != null) d.mutate().setColorFilter(c, android.graphics.PorterDuff.Mode.SRC_IN);
@@ -316,7 +322,9 @@ public final class Tk {
         }
         if (tag.equals("composer")) {        // مدخل الرسائل العائم
             // #chatView #textInputBar : --cr-card (#1e2a38 / #fff) ، حدّ --cr-line ، انحناء 19px
-            x.setBackground(shape(dark ? 0xFF1C2836 : 0xFFFFFFFF, dp(x, 19), dark ? 0x14FFFFFF : 0xFFE1E8F1, dp(x, 1)));   // حقل الكتابة خارج الثيم
+            // الشريط الأبيض الحاوي لأزرار الصوتية والوسائط وحدّه يخضعان للثيم في النهاري والليلي (ثيم بابل = chatPal null يبقى كما هو)
+            if (chatPal != null) x.setBackground(shape(chatPal.other, dp(x, 19), chatPal.line, dp(x, 1)));
+            else x.setBackground(shape(dark ? 0xFF1C2836 : 0xFFFFFFFF, dp(x, 19), dark ? 0x14FFFFFF : 0xFFE1E8F1, dp(x, 1)));
             return true;
         }
         if (tag.equals("recbar")) {          // .recording-bar : surface + حدّ ، انحناء 18

@@ -39,6 +39,8 @@ public class PullScrollView extends ScrollView {
         super(c, a);
         setVerticalScrollBarEnabled(false);
         setHorizontalScrollBarEnabled(false);
+        // يمنع ارتداد/تمدد النظام (خصوصاً MIUI/HyperOS) الذي يُنزل المحتوى ويكشف خلفية بيضاء في الأعلى
+        setOverScrollMode(OVER_SCROLL_NEVER);
         slop = ViewConfiguration.get(c).getScaledTouchSlop();
         // الأزرار/الصورة تصعد خارج حدود أبيها أثناء التكبير ولا يجب أن تُقصّ
         setClipChildren(false);
