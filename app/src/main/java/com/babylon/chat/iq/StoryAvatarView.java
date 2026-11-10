@@ -112,8 +112,22 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
     /** نصف قطر الدائرة الخارجية المرئية (الجسم + الحلقة إن وُجدت) بالبكسل. */
     public float outerRadiusPx() {
         float R = (Math.min(getWidth(), getHeight()) - 2f * padPx) / 2f;
-        return (ring || morph > 0f) ? R + dp(ringSmall ? 3 : 5) * (1f - morph) : R;
+        return (ring || morph > 0f) ? R + ringOffPx() * (1f - morph) : R;
     }
+
+    /** سماكة الحلقة (dp): 3 غير مشاهَدة وعند الدوران، 2 بعد المشاهدة. */
+    private float ringThickDp() { return launching || !seen ? 3f : 2f; }
+    /** أثناء طيران «قصتي» بين الهيدر والشريط: مقياس الطيران الحالي (0 = لا طيران) ونسبة التقدّم. */
+    private float flySc = 0f, flyP = 0f;
+    public void setFlyRing(float sc, float p) { if (sc != flySc || p != flyP) { flySc = sc; flyP = p; invalidate(); } }
+    /** بُعد الحافة الخارجية للحلقة عن حافة الصورة (px). في الهيدر المطويّ الحلقة ملاصقة للصورة (بلا فراغ)،
+     *  وأثناء الطيران تنتقل تدريجياً إلى بُعد الشريط (5dp) بسماكة ثابتة على الشاشة كي لا تتبدّل عند الوصول. */
+    private float ringOffPx() {
+        float t = ringThickDp();
+        if (flySc > 0f) return dp(t + (5f - t) * flyP) / flySc;
+        return dp(ringSmall ? t : 5f);
+    }
+    private float ringThickPx() { return flySc > 0f ? dp(ringThickDp()) / flySc : dp(ringThickDp()); }
     public void setMorph(float m, float k) { if (m != morph || k != morphK) { morph = m; morphK = k; invalidate(); } }
     public StoryAvatarView ringSmall(boolean on) { if (ringSmall != on) { ringSmall = on; invalidate(); } return this; }
 
@@ -213,7 +227,7 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
 
         // إطار الفصل عن الدوائر الخلفية
         if (haloPx > 0f && haloA > 0.003f) {
-            float ro = (ring || morph > 0f) ? R + (R + dp(ringSmall ? 3 : 5) - R) * (1f - morph) : R;
+            float ro = (ring || morph > 0f) ? R + ringOffPx() * (1f - morph) : R;
             p.reset(); p.setAntiAlias(true);
             p.setColor((surface & 0x00FFFFFF) | (Math.round(255 * haloA) << 24));
             c.drawCircle(cx, cy, ro + haloPx, p);
@@ -244,7 +258,7 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
 
         // حلقة القصة (.avatar.sring::after : inset:-5px; padding:3px)
         if (ring || morph > 0f) {
-            float outerR = R + dp(ringSmall ? 3 : 5), thick = dp(launching || !seen ? 3 : 2);   // سماكة الحلقة: 3dp غير مشاهَدة وعند الدوران، 2dp بعد المشاهدة
+            float outerR = R + ringOffPx(), thick = ringThickPx();   // سماكة الحلقة: 3dp غير مشاهَدة وعند الدوران، 2dp بعد المشاهدة
             outerR += (R - outerR) * morph;
             thick += (thumbB - thick) * morph;
             float mid = outerR - thick / 2f;

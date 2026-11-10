@@ -381,9 +381,6 @@ public class MassActivity extends Activity {
                 return 0xFF000000 | (r << 16) | (g << 8) | b;
             }
             int cRed() { return dark ? 0xFFFB7185 : 0xFFDC2626; }
-            /** زر الحظر بنفس ألوان زر حذف القصة (أحمر StoryViewer: أيقونة 0xFFFF6A70 على خلفية/حدّ أحمرين شفافين). */
-            int blockFg() { return dark ? 0xFFFF6A70 : 0xFFC52D3A; }
-            GradientDrawable blockBg() { return shape(dark ? 0x4D781419 : 0x14C52D3A, 16, dark ? 0x66FF6464 : 0x4DC52D3A); }
             int cMine() { return dark ? 0xFF2B5278 : 0xFFD9FDD3; }
             int cOther() { return dark ? 0xFF182533 : 0xFFFFFFFF; }
             int cChatBg() { return Tk.chatSurface(dark); }
@@ -432,6 +429,8 @@ public class MassActivity extends Activity {
                     @Override public void afterTextChanged(android.text.Editable e) { syncSend(); hintLeft(mi); }
                 });
                 hintLeft(mi);
+                // ملصقات/GIF/صور من لوحة المفاتيح
+                if (mi instanceof RichEditText) ((RichEditText) mi).setOnRichContent((uri, mime, release) -> sendKeyboardContent(uri, mime, release));
                 mi.setOnFocusChangeListener((vw, f) -> mi.setBackground(msgInpBg(f)));
                 syncSend();
             }
@@ -451,7 +450,7 @@ public class MassActivity extends Activity {
                         else if (k.equals("card")) {
                             ViewGroup.LayoutParams clp = x.getLayoutParams();
                             boolean small = clp != null && clp.height > 0 && clp.height <= dp(48);
-                            x.setBackground(x.getId() == R.id.otherBlockBtn ? blockBg() : shape(cSf(), small ? 14 : 20, cBorder()));
+                            x.setBackground(shape(cSf(), small ? 14 : 20, cBorder()));
                             if (isQuickBtn(x)) x.setStateListAnimator(null);
                         }
                         else if (k.equals("row")) { x.setBackground(shape(cSf(), 18, 0)); }
@@ -567,7 +566,7 @@ public class MassActivity extends Activity {
                         else if (T != null) {
                             if (k.equals("t")) T.setTextColor((x.getTag() instanceof String && ((String) x.getTag()).contains("rbtn")) || x.getId() == R.id.chatTitle ? Tk.crInk(cText()) : cText());
                             else if (k.equals("m")) T.setTextColor(x.getId() == R.id.chatSub || (Tk.chatPal != null && (x.getId() == R.id.btnMic || x.getId() == R.id.btnAttach)) ? Tk.crMuted(cMuted()) : cMuted());
-                            else if (k.equals("g")) T.setTextColor(x.getId() == R.id.otherBlockBtn ? blockFg() : cGold());
+                            else if (k.equals("g")) T.setTextColor(cGold());
                             else if (k.equals("red")) T.setTextColor(cRed());
                             else if (k.equals("green")) T.setTextColor(0xFF4ADE80);
                             else if (k.equals("wh")) T.setTextColor(0xFFFFFFFF);
@@ -620,7 +619,24 @@ public class MassActivity extends Activity {
                     t.setBackground(ld);
                 } else t.setBackground(null);
                 tintIcons(t);
+                centerIconWithText(t);
                 t.requestLayout();
+            }
+
+            /** أيقونة drawableStart تلتصق بحافة الزر عند centered؛ نجمع الأيقونة والنص في مجموعة واحدة في منتصف الزر. */
+            void centerIconWithText(final TextView t) {
+                if (t.getTag(R.id.pTabStoriesBtn) != null) return;
+                t.setTag(R.id.pTabStoriesBtn, Boolean.TRUE);
+                t.addOnLayoutChangeListener((vw, l, tp, r, bt, ol, ot, or, ob) -> {
+                    android.graphics.drawable.Drawable[] ds = t.getCompoundDrawablesRelative();
+                    int w = r - l;
+                    if (ds[0] == null || w <= 0) return;
+                    int iw = ds[0].getBounds().width() > 0 ? ds[0].getBounds().width() : ds[0].getIntrinsicWidth();
+                    int pad = t.getCompoundDrawablePadding();
+                    int tw = (int) Math.ceil(t.getPaint().measureText(t.getText().toString()));
+                    int side = Math.max(0, (w - (iw + pad + tw)) / 2);
+                    if (t.getPaddingStart() != side || t.getPaddingEnd() != side) t.setPaddingRelative(side, 0, side, 0);
+                });
             }
 
             void fixCover(View frame) {
@@ -1509,15 +1525,14 @@ public class MassActivity extends Activity {
             /** زرا رسالة/حظر: أيقونة وكلمة بلون ذهبي (أصفر) في النهاري والليلي. */
             void refreshOtherButtons() {
                 quick("otherMsgBtn", "ic_chat", cGold());
-                quick("otherBlockBtn", "ic_block", blockFg());
+                quick("otherBlockBtn", "ic_block", cGold());
                 View mb = v("otherMsgBtn"), bb0 = v("otherBlockBtn");
                 if (mb != null) mb.setTag("card g");
                 if (bb0 != null) bb0.setTag("card g");
                 TextView ob = tv("otherBlockBtn");
                 if (ob != null) {
                     ob.setText(blocked ? "إلغاء الحظر" : "حظر");
-                    ob.setBackground(blockBg());
-                    ob.setTextColor(blockFg());
+                    ob.setTextColor(cGold());
                     tintIcons(ob);
                 }
             }
@@ -1907,6 +1922,11 @@ public class MassActivity extends Activity {
                 row.setOrientation(LinearLayout.HORIZONTAL);
                 row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
                 TextView ok = danger ? dlgBtn(okText, cRed(), 0xFFFFFFFF, 0) : dlgBtn(okText, cGold(), 0xFFFFFFFF, 0);
+                if (danger) {   // زر التأكيد الأحمر: نفس تدرّج زر «حذف القصة» في StoryViewer
+                    GradientDrawable rg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFFF6A70, 0xFFC52D3A});
+                    rg.setCornerRadius(dp(12));
+                    ok.setBackground(rg);
+                }
                 if (!danger) ok.setBackground(goldShape(14));   // زر «إضافة» وأشباهه: نفس التدرّج الذهبي المعتاد + نص أبيض
                 TextView no = dlgBtn("إلغاء", cSf(), cText(), cBorder());
                 LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(0, dp(46), 1f);
@@ -2767,7 +2787,7 @@ public class MassActivity extends Activity {
                 java.util.ArrayList<String> out = new java.util.ArrayList<>();
                 try {
                     org.json.JSONArray a = new org.json.JSONArray(sp.getString(PIN_KEY, "[]"));
-                    for (int i = 0; i < a.length(); i++) out.add(a.getString(i));
+                    for (int i = 0; i < a.length() && out.size() < MAX_CHAT_PINS; i++) out.add(a.getString(i));   // حدّ أقصى 5 حتى للبيانات القديمة المحفوظة
                 } catch (Throwable ignored) { }
                 return out;
             }
@@ -2895,6 +2915,7 @@ public class MassActivity extends Activity {
             void enterChatSel(String uid) {
                 chatSelMode = true;
                 chatSel.clear(); chatSel.add(uid);
+                if (stories != null) stories.freeze(true);   // شريط التحديد يغطي القصص ولا يُدخَل إليها أثناء التحديد
                 ensureChatSelBar();
                 updateChatSelBar();
                 View mh = v("mainHeader");
@@ -2913,6 +2934,7 @@ public class MassActivity extends Activity {
                 boolean was = chatSelMode;
                 chatSelMode = false;
                 chatSel.clear();
+                if (stories != null) stories.freeze(false);
                 if (chatSelBar != null) chatSelBar.setVisibility(View.GONE);
                 View mh = v("mainHeader");
                 if (was && mh != null && "homeView".equals(curPage) && !chatOpen()) {
@@ -2991,6 +3013,8 @@ public class MassActivity extends Activity {
                 chatSelDelIv = noBg(selIcon(R.drawable.ic_sel_trash, cGold(), goldA(0x1F), "حذف", this::selDeleteChats));
                 row.addView(chatSelDelIv, new LinearLayout.LayoutParams(dp(42), dp(42)));
 
+                // أيقونات الشريط (إلغاء/تثبيت/حذف) أصغر بـ 3dp: الرمز 22dp ← 19dp داخل نفس الإطار 42dp
+                for (ImageView si : new ImageView[]{chatSelXIv, chatSelPinIv, chatSelDelIv}) si.setPadding(dp(11.5f), dp(11.5f), dp(11.5f), dp(11.5f));
                 wrap.addView(row, new FrameLayout.LayoutParams(-1, -1));
                 wrap.addView(chatSelCountTv, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
                 par.addView(wrap, par.indexOfChild(mh), new LinearLayout.LayoutParams(-1, dp(62)));
@@ -3675,6 +3699,21 @@ public class MassActivity extends Activity {
                             is.close();
                         } else {
                             byte[] b = android.util.Base64.decode(url, android.util.Base64.DEFAULT);
+                            if (b.length > 6 && b[0] == 'G' && b[1] == 'I' && b[2] == 'F' && Build.VERSION.SDK_INT >= 28) {   // GIF متحرك
+                                try {
+                                    final android.graphics.drawable.Drawable dr = android.graphics.ImageDecoder.decodeDrawable(
+                                            android.graphics.ImageDecoder.createSource(java.nio.ByteBuffer.wrap(b)));
+                                    act.runOnUiThread(() -> {
+                                        img.setImageDrawable(dr);
+                                        if (dr instanceof android.graphics.drawable.AnimatedImageDrawable) {
+                                            android.graphics.drawable.AnimatedImageDrawable ad = (android.graphics.drawable.AnimatedImageDrawable) dr;
+                                            ad.setRepeatCount(android.graphics.drawable.AnimatedImageDrawable.REPEAT_INFINITE);
+                                            ad.start();
+                                        }
+                                    });
+                                    return;
+                                } catch (Throwable ignored) { }
+                            }
                             bmp = BitmapFactory.decodeByteArray(b, 0, b.length, opts);
                         }
                         final Bitmap fb = bmp;
@@ -4632,12 +4671,53 @@ public class MassActivity extends Activity {
                 db.collection("chats").document(currentChatId).set(chatDoc, com.google.firebase.firestore.SetOptions.merge());   // merge: لا تُمسح pins
             }
 
-            void sendMedia(String type, String base64Data, long duration) {
+            void sendMedia(String type, String base64Data, long duration) { sendMedia(type, base64Data, duration, null); }
+
+            /** ملصق/GIF/صورة قادمة من لوحة المفاتيح: GIF وPNG وWebP الصغيرة تُرسل كما هي (تحافظ على الحركة والشفافية). */
+            void sendKeyboardContent(final Uri uri, final String mime, final Runnable release) {
+                if (currentChatId.isEmpty() || otherUid.isEmpty() || blocked || blockedByThem) { if (release != null) release.run(); return; }
+                new Thread(() -> {
+                    try {
+                        boolean keep = "image/gif".equals(mime) || "image/png".equals(mime) || "image/webp".equals(mime);
+                        String b64 = null, outMime = mime;
+                        if (keep) {
+                            byte[] raw = readCapped(uri, 600 * 1024);
+                            if (raw != null) b64 = android.util.Base64.encodeToString(raw, android.util.Base64.NO_WRAP);
+                        }
+                        if (b64 == null) {
+                            if ("image/gif".equals(mime)) throw new Exception("ملف الـ GIF كبير جداً");
+                            b64 = encodeImage(uri, 1280, 640 * 1024, false);
+                            outMime = "image/jpeg";
+                        }
+                        final String fb = b64, fm = outMime;
+                        act.runOnUiThread(() -> sendMedia("image", fb, 0, fm));
+                    } catch (Exception e) {
+                        act.runOnUiThread(() -> toast("فشل إرسال المحتوى: " + e.getMessage()));
+                    } finally {
+                        if (release != null) release.run();
+                    }
+                }).start();
+            }
+
+            /** يقرأ الملف كاملاً، أو يرجع null إن تجاوز الحدّ (حدّ مستند Firestore 1MB). */
+            byte[] readCapped(Uri uri, int cap) throws Exception {
+                java.io.InputStream in = act.getContentResolver().openInputStream(uri);
+                if (in == null) return null;
+                try {
+                    java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+                    byte[] buf = new byte[16384]; int n, total = 0;
+                    while ((n = in.read(buf)) > 0) { total += n; if (total > cap) return null; bos.write(buf, 0, n); }
+                    return bos.toByteArray();
+                } finally { in.close(); }
+            }
+
+            void sendMedia(String type, String base64Data, long duration, String mime) {
                 if (currentChatId.isEmpty() || otherUid.isEmpty() || blocked || blockedByThem) return;
                 Map<String, Object> msg = new HashMap<>();
                 msg.put("type", type);
                 msg.put("data", base64Data);
                 msg.put("duration", duration);
+                if (mime != null) msg.put("mime", mime);
                 msg.put("sender", myUid);
                 msg.put("timestamp", System.currentTimeMillis());
                 if (replyText != null) {   // الرد على رسالة يشمل الصور والصوتيات أيضاً (bbReplyFields في الـ HTML)
@@ -4650,7 +4730,7 @@ public class MassActivity extends Activity {
                     .add(msg);
                 cancelReply();
 
-                String preview = type.equals("image") ? "📷 صورة"
+                String preview = type.equals("image") ? ("image/gif".equals(mime) ? "🎞 GIF" : "📷 صورة")
                         : type.equals("audio") ? "🎤 رسالة صوتية" : "";
                 updateChatMeta(preview);
             }

@@ -839,7 +839,7 @@ public final class StoryViewer {
         markSeen(s);
 
         if (mine) {
-            if (pinBtn != null) pinBtn.setAlpha(s.pinned ? 1f : .65f);
+            syncPinIcon(s.pinned);
             loadOwnerStats(s);
         } else {
             applyReaction(null);
@@ -1193,16 +1193,23 @@ public final class StoryViewer {
         });
     }
 
+    /** رمزان: دبوس للتثبيت (غير مثبّتة) ودبوس مشطوب لإلغاء التثبيت (مثبّتة). */
+    private void syncPinIcon(boolean pinned) {
+        if (pinBtn == null) return;
+        pinBtn.setAlpha(1f);
+        pinBtn.setImageResource(pinned ? R.drawable.ic_sv_unpin : R.drawable.ic_sv_pin);
+    }
+
     private void togglePin() {
         if (idx >= list.size()) return;
         final Story s = list.get(idx);
         final boolean next = !s.pinned;
         s.pinned = next;
-        if (pinBtn != null) pinBtn.setAlpha(next ? 1f : .65f);
+        syncPinIcon(next);
         refreshTime(s);
         db.collection("stories").document(s.id).update("pinned", next).addOnFailureListener(e -> {
             s.pinned = !next;
-            if (pinBtn != null) pinBtn.setAlpha(s.pinned ? 1f : .65f);
+            syncPinIcon(s.pinned);
             refreshTime(s);
             Toast.makeText(act, "تعذر تحديث التثبيت", Toast.LENGTH_SHORT).show();
         });

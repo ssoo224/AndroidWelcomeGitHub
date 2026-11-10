@@ -823,7 +823,7 @@
 					android:drawableStart="@drawable/ic_attach_22"
 					android:textSize="20sp"
 					android:tag="m" />
-				<EditText
+				<com.babylon.chat.iq.RichEditText
 					android:id="@+id/messageInput"
 					android:layout_width="0dp"
 					android:layout_height="wrap_content"

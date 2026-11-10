@@ -50,7 +50,43 @@ public class MainActivity extends Activity {
     @Override
     public void onBackPressed() { /* شاشة البداية: لا خروج من التطبيق */ }
 
+    private static final int REQ_FIRST_PERMS = 2001;
+
+    /** كل الأذونات المطلوبة للتطبيق (الميكروفون، الصور/الفيديو، الإشعارات، التخزين حسب إصدار أندرويد) التي لم تُمنح بعد. */
+    private String[] missingPermissions() {
+        List<String> all = new ArrayList<>();
+        all.add(android.Manifest.permission.RECORD_AUDIO);
+        if (Build.VERSION.SDK_INT >= 33) {
+            all.add("android.permission.READ_MEDIA_IMAGES");
+            all.add("android.permission.READ_MEDIA_VIDEO");
+            all.add("android.permission.POST_NOTIFICATIONS");
+        } else {
+            all.add(android.Manifest.permission.READ_EXTERNAL_STORAGE);
+            if (Build.VERSION.SDK_INT <= 28) all.add(android.Manifest.permission.WRITE_EXTERNAL_STORAGE);
+        }
+        List<String> need = new ArrayList<>();
+        for (String p : all) if (checkSelfPermission(p) != android.content.pm.PackageManager.PERMISSION_GRANTED) need.add(p);
+        return need.toArray(new String[0]);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQ_FIRST_PERMS) proceed();   // سواء مُنحت أو رُفضت نكمل الدخول
+    }
+
     private void goNext() {
+        if (navigated || isFinishing()) return;
+        android.content.SharedPreferences sp = getSharedPreferences("babylon_boot", MODE_PRIVATE);
+        if (Build.VERSION.SDK_INT >= 23 && !sp.getBoolean("perms_asked", false)) {   // أول دخول فقط
+            sp.edit().putBoolean("perms_asked", true).apply();
+            String[] need = missingPermissions();
+            if (need.length > 0) { requestPermissions(need, REQ_FIRST_PERMS); return; }
+        }
+        proceed();
+    }
+
+    private void proceed() {
         if (navigated || isFinishing()) return;
         navigated = true;
         boolean loggedIn = FirebaseAuth.getInstance().getCurrentUser() != null;

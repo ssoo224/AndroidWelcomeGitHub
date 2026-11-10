@@ -56,6 +56,8 @@ public final class StoriesController {
     static final float PT = 12f, PB = 10f;
     /** هامش رسم الحلقة داخل حدود الأفاتار (≥ 5dp سماكة+إزاحة الحلقة) كي لا تُقصّ من أي حاوية. */
     static final float RP = 5.3f;
+    /** الفراغ (dp) بين حلقة «قصتي» والقصة الملاصقة لها خلفها في الهيدر. */
+    static final float GAP_STACK = 2f;
     static final float PTP = PT - RP;
     static final float HH = 22.9f, HMT = -6f, HMB = 2f, TOP_PB = 2f;
     static final float HDR_AV = 32.3f, THUMB = 37.3f, COUNT = 33.8f;   // AV=52 مثل أفاتار المحادثات، HDR_AV=42 مثل زر العدسة
@@ -254,13 +256,21 @@ public final class StoriesController {
     }
 
     // ============================================================ طيّ/فتح برمجي (النقر)
+    /** أثناء تحديد المحادثات: شريط التحديد يغطي القصص فلا تُفتح ولا تُسحب ولا تُنقر. */
+    private boolean frozen = false;
+    public void freeze(boolean on) {
+        frozen = on;
+        if (on) { pend = null; collapseNow(); }
+    }
+
     public void toggle() {
-        if (hidden) return;
+        if (hidden || frozen) return;
         setCollapsed(!collapsed);
     }
 
     public void setCollapsed(boolean c) {
         if (drag != null) return;
+        if (frozen && !c) return;
         cancelAnim(); clear();
         boolean isC = collapsed;
         if (isC == c || hidden) { collapsed = c; syncStatic(); return; }
@@ -404,7 +414,8 @@ public final class StoriesController {
         // القصص الأخرى تهبط على ThumbView (حدّ 2dp)، فيتحوّل شكلها تدريجياً كي لا يحدث قفز في الحجم عند الاستبدال
         if (f.thumb) f.v.setMorph(1f - p, b[2] / h[2]);
         // إطار الفصل يظهر تدريجياً مع الوصول إلى الهيدر (بقدر ما في الهيدر حين وجود قصص أخرى)
-        if (f.thumb || (f == fl && hdrStack.getVisibility() == View.VISIBLE)) f.v.halo(px(1) * b[2] / h[2], 1f - p);
+        if (!f.thumb) f.v.setFlyRing(sc, p);   // سماكة/بُعد الحلقة ثابتان على الشاشة أثناء الطيران فلا «تسمن» عند الوصول
+        if (f.thumb || (f == fl && hdrStack.getVisibility() == View.VISIBLE)) f.v.halo(px(GAP_STACK) * b[2] / h[2], 1f - p);
     }
 
     private void flyUpdate(float p) {
@@ -557,6 +568,7 @@ public final class StoriesController {
 
     /** يُستدعى من onInterceptTouchEvent. */
     boolean intercept(MotionEvent e) {
+        if (frozen) return false;
         switch (e.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
                 pend = new float[]{e.getX(), e.getY(), chatScroll.getScrollY()};
@@ -578,6 +590,7 @@ public final class StoriesController {
 
     /** يُستدعى من onTouchEvent (عند اعتراض السحب أو عندما لا يستهلك أي ابن اللمسة). */
     boolean touch(MotionEvent e) {
+        if (frozen) return false;
         switch (e.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
                 pend = new float[]{e.getX(), e.getY(), chatScroll.getScrollY()};
@@ -694,8 +707,8 @@ public final class StoriesController {
         if (cutter == null || anc == null || cutter.getWidth() <= 0) return;
         float d = self.getResources().getDisplayMetrics().density;
         float rr;
-        if (cutter instanceof StoryAvatarView) rr = ((StoryAvatarView) cutter).outerRadiusPx() + d;
-        else rr = cutter.getWidth() / 2f + d;
+        if (cutter instanceof StoryAvatarView) rr = ((StoryAvatarView) cutter).outerRadiusPx() + GAP_STACK * d;
+        else rr = cutter.getWidth() / 2f + GAP_STACK * d;
         float[] a = centerIn(cutter, anc), b = centerIn(self, anc);
         c.drawCircle(self.getWidth() / 2f + (a[0] - b[0]), self.getHeight() / 2f + (a[1] - b[1]), rr, clr);
     }
