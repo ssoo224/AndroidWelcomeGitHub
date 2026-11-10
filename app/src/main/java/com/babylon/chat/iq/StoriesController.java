@@ -753,10 +753,10 @@ public final class StoriesController {
             if (hasPhoto) {
                 android.graphics.BitmapShader bs = new android.graphics.BitmapShader(photo, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
                 float dd = (r - b) * 2f;
-                float sc = Math.max(dd / photo.getWidth(), dd / photo.getHeight());
+                float photoScale = Math.max(dd / photo.getWidth(), dd / photo.getHeight());
                 android.graphics.Matrix m = new android.graphics.Matrix();
-                m.setScale(sc, sc);
-                m.postTranslate(cx - photo.getWidth() * sc / 2f, cy - photo.getHeight() * sc / 2f);
+                m.setScale(photoScale, photoScale);
+                m.postTranslate(cx - photo.getWidth() * photoScale / 2f, cy - photo.getHeight() * photoScale / 2f);
                 bs.setLocalMatrix(m);
                 p.setShader(bs);
                 c.drawCircle(cx, cy, r - b, p);
