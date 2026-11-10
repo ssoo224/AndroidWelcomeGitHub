@@ -107,6 +107,11 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
         if (px != haloPx || alpha != haloA) { haloPx = px; haloA = alpha; invalidate(); }
         return this;
     }
+    /** نصف قطر الدائرة الخارجية المرئية (الجسم + الحلقة إن وُجدت) بالبكسل. */
+    public float outerRadiusPx() {
+        float R = (Math.min(getWidth(), getHeight()) - 2f * padPx) / 2f;
+        return (ring || morph > 0f) ? R + dp(ringSmall ? 3 : 5) * (1f - morph) : R;
+    }
     public void setMorph(float m, float k) { if (m != morph || k != morphK) { morph = m; morphK = k; invalidate(); } }
     public StoryAvatarView ringSmall(boolean on) { if (ringSmall != on) { ringSmall = on; invalidate(); } return this; }
 

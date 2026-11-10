@@ -194,6 +194,8 @@ public final class StoryViewer {
     private int oldSb, oldNb;
     private FrameLayout modal;
     private boolean modalOpen;
+    private boolean navTinted;           // شريط الإيماءات مصبوغ بلون قائمة المشاهدين حالياً
+    private int navUiBefore;             // أعلام واجهة النظام قبل الصبغ لاستعادتها
     private static boolean sMuted = false;               // كتم صوت القصص (يبقى بين القصص)
     private android.media.MediaPlayer curMp;             // مشغّل الفيديو الحالي لتطبيق الكتم فوراً
     // لوحة المفاتيح: ارتفاع الـ inset السفلي (نظام + لوحة) والثابت (النظام فقط) وآخر إزاحة مطبّقة
@@ -1225,7 +1227,40 @@ public final class StoryViewer {
         return modal;
     }
 
+    /** الطور الحالي للتطبيق (نفس مفتاح MassActivity: babylon_ui / dark). */
+    private boolean isDark() {
+        try { return act.getSharedPreferences("babylon_ui", Context.MODE_PRIVATE).getBoolean("dark", false); }
+        catch (Throwable t) { return false; }
+    }
+
+    /** يصبغ شريط الإيماءات السفلي بلون القائمة (وأيقوناته فاتحة/داكنة حسب الطور). */
+    private void tintNav(int color, boolean dark) {
+        try {
+            android.view.Window w = act.getWindow();
+            if (!navTinted) navUiBefore = w.getDecorView().getSystemUiVisibility();
+            navTinted = true;
+            w.setNavigationBarColor(color);
+            if (Build.VERSION.SDK_INT >= 26) {
+                int f = w.getDecorView().getSystemUiVisibility();
+                f = dark ? (f & ~View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR) : (f | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+                w.getDecorView().setSystemUiVisibility(f);
+            }
+        } catch (Throwable ignored) { }
+    }
+
+    /** يعيد شريط الإيماءات إلى ما كان عليه أثناء عرض القصة (أسود). */
+    private void restoreNav() {
+        if (!navTinted) return;
+        navTinted = false;
+        try {
+            android.view.Window w = act.getWindow();
+            w.setNavigationBarColor(Color.BLACK);
+            if (Build.VERSION.SDK_INT >= 26) w.getDecorView().setSystemUiVisibility(navUiBefore);
+        } catch (Throwable ignored) { }
+    }
+
     private void closeModal() {
+        restoreNav();
         try {
             if (capEt != null) {
                 android.view.inputmethod.InputMethodManager im =
@@ -1242,20 +1277,23 @@ public final class StoryViewer {
         c.setOrientation(LinearLayout.VERTICAL);
         c.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         c.setPadding(dp(20), dp(20), dp(20), dp(20));
-        GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0xFA1E222B, 0xFA0C0F15});
+        final boolean d = isDark();
+        GradientDrawable g = d
+            ? new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0xFA1E222B, 0xFA0C0F15})
+            : new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0xFFFFFFFF, 0xFFF4F6FA});
         g.setCornerRadius(dp(20));
-        g.setStroke(Math.max(1, dp(1)), 0x21FFFFFF);
+        g.setStroke(Math.max(1, dp(1)), d ? 0x21FFFFFF : Tk.border(false));
         c.setBackground(g);
         c.setClickable(true);
         return c;
     }
 
     private void addTitleSub(LinearLayout card, String title, String sub) {
-        TextView t = tv(title, 18f * S, Color.WHITE, true);
+        TextView t = tv(title, 18f * S, isDark() ? Color.WHITE : Tk.text(false), true);
         t.setGravity(Gravity.START);
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1, -2); tp.bottomMargin = dp(7);
         card.addView(t, tp);
-        TextView sTv = tv(sub, 13f * S, 0xA6FFFFFF, false);
+        TextView sTv = tv(sub, 13f * S, isDark() ? 0xA6FFFFFF : Tk.muted(false), false);
         sTv.setGravity(Gravity.START);
         sTv.setLineSpacing(0f, 1.35f);
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-1, -2); sp.bottomMargin = dp(16);
@@ -1278,15 +1316,16 @@ public final class StoryViewer {
     private void showEditModal() {
         if (idx >= list.size() || modal != null) return;
         final Story s = list.get(idx);
-        FrameLayout sc = openScrim(0xAD000000);
+        FrameLayout sc = openScrim(isDark() ? 0xAD000000 : 0x80000000);
         LinearLayout card = manageCard();
         addTitleSub(card, "تعديل القصة", "عدّل الوصف، أو اختر صورة أو فيديو جديدًا لاستبدال القصة الحالية.");
 
         capEt = new EditText(act);
         capEt.setText(s.caption);
         capEt.setHint("اكتب وصف القصة هنا…");
-        capEt.setHintTextColor(0x80FFFFFF);
-        capEt.setTextColor(Color.WHITE);
+        final boolean dk = isDark();
+        capEt.setHintTextColor(dk ? 0x80FFFFFF : 0xFF9AA7B6);
+        capEt.setTextColor(dk ? Color.WHITE : Tk.text(false));
         capEt.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f * S);
         capEt.setFilters(new InputFilter[]{new InputFilter.LengthFilter(200)});
         capEt.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
@@ -1295,7 +1334,7 @@ public final class StoryViewer {
         capEt.setTextDirection(View.TEXT_DIRECTION_RTL);
         capEt.setMinHeight(dp(94 * S));
         capEt.setPadding(dp(12), dp(12), dp(12), dp(12));
-        capEt.setBackground(round(0x0FFFFFFF, 13, 0x29FFFFFF, 1));
+        capEt.setBackground(dk ? round(0x0FFFFFFF, 13, 0x29FFFFFF, 1) : round(Tk.surface2(false), 13, Tk.border(false), 1));
         capEt.setSelection(capEt.getText().length());
         card.addView(capEt, new LinearLayout.LayoutParams(-1, -2));
 
@@ -1304,11 +1343,12 @@ public final class StoryViewer {
         media.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         media.setGravity(Gravity.CENTER_VERTICAL);
         media.setPadding(dp(11), dp(11), dp(11), dp(11));
-        media.setBackground(round(0x14F5CF55, 12, 0x4DF5CF55, 1));
+        media.setBackground(dk ? round(0x14F5CF55, 12, 0x4DF5CF55, 1) : round(0x14C99A1C, 12, 0x66C99A1C, 1));
         ImageView mi = new ImageView(act);
         mi.setImageResource(R.drawable.ic_sv_image);
+        if (!dk) mi.setColorFilter(Tk.goldInk(false));
         media.addView(mi, new LinearLayout.LayoutParams(dp(20 * S), dp(20 * S)));
-        pickedName = tv("اختيار صورة أو فيديو جديد (اختياري)", 13f * S, 0xFFF5CF55, true);
+        pickedName = tv("اختيار صورة أو فيديو جديد (اختياري)", 13f * S, dk ? 0xFFF5CF55 : Tk.goldInk(false), true);
         LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(-2, -2); np.setMarginStart(dp(9));
         media.addView(pickedName, np);
         media.setOnClickListener(v -> {
@@ -1326,7 +1366,7 @@ public final class StoryViewer {
         LinearLayout acts = new LinearLayout(act);
         acts.setOrientation(LinearLayout.HORIZONTAL);
         acts.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        TextView cancel = actionBtn("إلغاء", Color.WHITE, round(0x17FFFFFF, 12, 0, 0));
+        TextView cancel = actionBtn("إلغاء", isDark() ? Color.WHITE : Tk.chipFg(false), round(isDark() ? 0x17FFFFFF : Tk.chipBg(false), 12, 0, 0));
         cancel.setOnClickListener(v -> closeModal());
         GradientDrawable gold = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFF5D875, 0xFFB98B23});
         gold.setCornerRadius(dp(12));
@@ -1463,13 +1503,13 @@ public final class StoryViewer {
     private void showDeleteModal() {
         if (idx >= list.size() || modal != null) return;
         final Story s = list.get(idx);
-        FrameLayout sc = openScrim(0xAD000000);
+        FrameLayout sc = openScrim(isDark() ? 0xAD000000 : 0x80000000);
         LinearLayout card = manageCard();
         addTitleSub(card, "حذف القصة؟", "هل تريد حذف هذه القصة نهائيًا؟ لن تتمكن من استعادتها بعد الحذف.");
         LinearLayout acts = new LinearLayout(act);
         acts.setOrientation(LinearLayout.HORIZONTAL);
         acts.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        TextView cancel = actionBtn("إلغاء", Color.WHITE, round(0x17FFFFFF, 12, 0, 0));
+        TextView cancel = actionBtn("إلغاء", isDark() ? Color.WHITE : Tk.chipFg(false), round(isDark() ? 0x17FFFFFF : Tk.chipBg(false), 12, 0, 0));
         cancel.setOnClickListener(v -> closeModal());
         GradientDrawable red = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFFF6A70, 0xFFC52D3A});
         red.setCornerRadius(dp(12));
@@ -1522,12 +1562,15 @@ public final class StoryViewer {
         card.setOrientation(LinearLayout.VERTICAL);
         card.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         card.setClickable(true);
-        card.setPadding(dp(16), dp(16), dp(16), dp(16) + Math.max(0, sab - dp(24)));
+        final boolean vd = isDark();
+        final int vSurface = Tk.surface(vd);                     // نفس لون القائمة يُمدّ على شريط الإيماءات
+        final int navPad = kbStable > 0 ? kbStable : Math.max(0, sab - dp(24));
+        card.setPadding(dp(16), dp(16), dp(16), dp(16) + navPad);
         GradientDrawable g = new GradientDrawable();
-        g.setColor(0xFF17212B);
+        g.setColor(vSurface);
         g.setCornerRadii(new float[]{dp(20), dp(20), dp(20), dp(20), 0, 0, 0, 0});
         card.setBackground(g);
-        final TextView title = tv("المشاهدون", 16f * S, Color.WHITE, true);
+        final TextView title = tv("المشاهدون", 16f * S, Tk.text(vd), true);
         title.setGravity(Gravity.START);
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1, -2); tp.bottomMargin = dp(12);
         card.addView(title, tp);
@@ -1538,6 +1581,7 @@ public final class StoryViewer {
         sv.addView(listBox, new ViewGroup.LayoutParams(-1, -2));
         card.addView(sv, new LinearLayout.LayoutParams(-1, 0, 1f));
         sc.addView(card, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
+        tintNav(vSurface, vd);
 
         db.collection("stories").document(s.id).collection("views").get().addOnSuccessListener(q -> {
             if (modal != sc || closed) return;
@@ -1550,7 +1594,7 @@ public final class StoryViewer {
             });
             title.setText("المشاهدون (" + docs.size() + ")");
             if (docs.isEmpty()) {
-                TextView e = tv("لا توجد مشاهدات بعد", 14f * S, 0x99FFFFFF, false);
+                TextView e = tv("لا توجد مشاهدات بعد", 14f * S, isDark() ? 0x99FFFFFF : Tk.muted(false), false);
                 e.setGravity(Gravity.CENTER);
                 e.setPadding(dp(10), dp(10), dp(10), dp(10));
                 listBox.addView(e, new LinearLayout.LayoutParams(-1, -2));
@@ -1575,20 +1619,21 @@ public final class StoryViewer {
         row.addView(av, new LinearLayout.LayoutParams(dp(36 * S), dp(36 * S)));
         LinearLayout col = new LinearLayout(act);
         col.setOrientation(LinearLayout.VERTICAL);
-        final TextView nm = tv("...", 14f * S, Color.WHITE, true);
+        final boolean rd = isDark();
+        final TextView nm = tv("...", 14f * S, Tk.text(rd), true);
         nm.setGravity(Gravity.START);
-        final TextView sub = tv(ago(when), 11f * S, 0x99FFFFFF, false);
+        final TextView sub = tv(ago(when), 11f * S, rd ? 0x99FFFFFF : Tk.muted(false), false);
         sub.setGravity(Gravity.START);
         col.addView(nm, new LinearLayout.LayoutParams(-2, -2));
         col.addView(sub, new LinearLayout.LayoutParams(-2, -2));
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, -2, 1f); cp.setMarginStart(dp(10));
         row.addView(col, cp);
         if (re != null && !re.isEmpty()) {
-            row.addView(tv(re, 20f * S, Color.WHITE, false), new LinearLayout.LayoutParams(-2, -2));
+            row.addView(tv(re, 20f * S, Tk.text(rd), false), new LinearLayout.LayoutParams(-2, -2));
         }
         box.addView(row, new LinearLayout.LayoutParams(-1, -2));
         View div = new View(act);
-        div.setBackgroundColor(0x0DFFFFFF);
+        div.setBackgroundColor(rd ? 0x0DFFFFFF : Tk.border(false));
         box.addView(div, new LinearLayout.LayoutParams(-1, 1));
 
         db.collection("users").document(vUid).get().addOnSuccessListener(u -> {
@@ -1648,6 +1693,7 @@ public final class StoryViewer {
         closed = true;
         handler.removeCallbacksAndMessages(null);
         try { vid.stopPlayback(); } catch (Throwable ignored) { }
+        restoreNav();
         try { act.getWindow().setStatusBarColor(oldSb); act.getWindow().setNavigationBarColor(oldNb); } catch (Throwable ignored) { }
         try {
             if (replyIn != null) {

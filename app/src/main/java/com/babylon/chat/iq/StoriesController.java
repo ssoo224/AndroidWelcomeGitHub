@@ -225,35 +225,18 @@ public final class StoriesController {
         hdrAv.plus(false).theme(dark, cSurface());
         hdrStack.removeAllViews();
         int shown = 0, active = Math.max(0, items.size() - 1);
-        hdrAv.halo(active > 0 ? px(2) : 0f, 1f);
+        hdrAv.halo(0f, 1f);   // الفاصل صار فتحة شفافة 1dp تُقصّ من المصغّرة الخلفية (لا إطار يحيط بقصتي)
+        ThumbView prevThumb = null;
         for (int i = 1; i < items.size() && shown < 3; i++, shown++) {
             Item it = items.get(i);
             ThumbView tv = new ThumbView(act);
             tv.bind(it.letter, it.photo, it.seen, cSurface(), cGold());
+            tv.cut(shown == 0 ? (View) hdrAv : (View) prevThumb, hdrBtn);   // فاصل 1dp شفاف بينها وبين التي أمامها فقط
+            prevThumb = tv;
             tv.setTranslationZ(px(3 - shown));   // الأولى فوق الثانية فوق الثالثة (قصتي فوق الجميع)
             LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(px(THUMB), px(THUMB));
             if (shown > 0) p.leftMargin = px(-8);
             hdrStack.addView(tv, p);
-        }
-        int remaining = Math.max(0, active - 3);
-        if (remaining > 0) {
-            TextView c = new TextView(act);
-            c.setText("+" + remaining);
-            c.setGravity(Gravity.CENTER);
-            c.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.45f);
-            c.setTypeface(Typeface.DEFAULT_BOLD);
-            c.setTextColor(dark ? 0xFFF1F5F9 : 0xFFFFFFFF);
-            c.setIncludeFontPadding(false);
-            c.setMinWidth(px(COUNT));
-            c.setPadding(px(5), 0, px(5), 0);
-            GradientDrawable g = new GradientDrawable();
-            g.setCornerRadius(px(16));
-            g.setColor(cGold());
-            g.setStroke(Math.max(1, px(2)), cSurface());
-            c.setBackground(g);
-            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, px(COUNT));
-            p.leftMargin = px(-7);
-            hdrStack.addView(c, p);
         }
         hdrStack.setVisibility(active > 0 ? View.VISIBLE : View.GONE);
     }
@@ -421,7 +404,7 @@ public final class StoriesController {
         // القصص الأخرى تهبط على ThumbView (حدّ 2dp)، فيتحوّل شكلها تدريجياً كي لا يحدث قفز في الحجم عند الاستبدال
         if (f.thumb) f.v.setMorph(1f - p, b[2] / h[2]);
         // إطار الفصل يظهر تدريجياً مع الوصول إلى الهيدر (بقدر ما في الهيدر حين وجود قصص أخرى)
-        if (f.thumb || (f == fl && hdrStack.getVisibility() == View.VISIBLE)) f.v.halo(px(2) * b[2] / h[2], 1f - p);
+        if (f.thumb || (f == fl && hdrStack.getVisibility() == View.VISIBLE)) f.v.halo(px(1) * b[2] / h[2], 1f - p);
     }
 
     private void flyUpdate(float p) {
@@ -706,14 +689,45 @@ public final class StoriesController {
         }
     }
 
+    /** فتحة شفافة (CLEAR) بنصف قطر الدائرة التي أمام هذا الـ View + 1dp؛ تفصل بينهما فقط ولا تحيط بالمجموعة. */
+    static void punchGap(Canvas c, View self, View cutter, View anc, Paint clr) {
+        if (cutter == null || anc == null || cutter.getWidth() <= 0) return;
+        float d = self.getResources().getDisplayMetrics().density;
+        float rr;
+        if (cutter instanceof StoryAvatarView) rr = ((StoryAvatarView) cutter).outerRadiusPx() + d;
+        else rr = cutter.getWidth() / 2f + d;
+        float[] a = centerIn(cutter, anc), b = centerIn(self, anc);
+        c.drawCircle(self.getWidth() / 2f + (a[0] - b[0]), self.getHeight() / 2f + (a[1] - b[1]), rr, clr);
+    }
+
+    private static float[] centerIn(View v, View anc) {
+        float x = v.getWidth() / 2f, y = v.getHeight() / 2f;
+        View cur = v;
+        while (cur != null && cur != anc) {
+            x += cur.getLeft(); y += cur.getTop();
+            android.view.ViewParent pp = cur.getParent();
+            cur = pp instanceof View ? (View) pp : null;
+        }
+        return new float[]{x, y};
+    }
+
+    private static Paint clearPaint() {
+        Paint q = new Paint(Paint.ANTI_ALIAS_FLAG);
+        q.setXfermode(new android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR));
+        return q;
+    }
+
     /** .hdr-story-thumb : دائرة بحدّ 2px (#d4af37 لم تُشاهَد / #66717d شوهدت) وسطح داخلي وحرف ذهبي أو صورة. */
     static final class ThumbView extends View {
         private String letter = "•";
         private Bitmap photo;
         private boolean seen;
         private int surface, gold;
+        private View cutter, anc;
+        private final Paint clr = clearPaint();
         private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         ThumbView(Activity a) { super(a); p.setTextAlign(Paint.Align.CENTER); }
+        void cut(View cutter, View anc) { this.cutter = cutter; this.anc = anc; invalidate(); }
         void bind(String l, Bitmap ph, boolean seen, int surface, int gold) {
             this.letter = (l == null || l.isEmpty()) ? "•" : l; this.photo = ph; this.seen = seen;
             this.surface = surface; this.gold = gold; invalidate();
@@ -721,10 +735,9 @@ public final class StoriesController {
         @Override protected void onDraw(Canvas c) {
             float d = getResources().getDisplayMetrics().density;
             float r = getWidth() / 2f, cx = r, cy = getHeight() / 2f, b = 2f * d;
+            int sc = c.saveLayer(new android.graphics.RectF(0, 0, getWidth(), getHeight()), null);
             p.setStyle(Paint.Style.FILL);
             p.setShader(null);
-            p.setColor(surface);
-            c.drawCircle(cx, cy, r + b, p);   // إطار بلون السطح يفصلها عن التي خلفها
             p.setColor(seen ? 0xFF66717D : 0xFFD4AF37);
             c.drawCircle(cx, cy, r, p);
             boolean hasPhoto = photo != null && !photo.isRecycled();
@@ -755,6 +768,8 @@ public final class StoriesController {
                 Paint.FontMetrics fm = p.getFontMetrics();
                 c.drawText(letter, cx, cy - (fm.ascent + fm.descent) / 2f, p);
             }
+            punchGap(c, this, cutter, anc, clr);   // فاصل 1dp شفاف عن التي أمامها
+            c.restoreToCount(sc);
         }
     }
 }

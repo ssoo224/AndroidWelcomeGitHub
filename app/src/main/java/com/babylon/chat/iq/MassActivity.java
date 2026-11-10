@@ -328,7 +328,7 @@ public class MassActivity extends Activity {
             java.util.HashMap<String, Long> clrMem = null;
             boolean chatStateLoaded = false;
             Runnable chatStateRun;
-            LinearLayout chatSelBar;
+            FrameLayout chatSelBar;
             TextView chatSelCountTv;
             ImageView chatSelPinIv, chatSelXIv, chatSelDelIv;
             String userName = "", userUsername = "", userBio = "", userGov = "", userEmail = "", userJoin = "";
@@ -2699,9 +2699,12 @@ public class MassActivity extends Activity {
                 row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
                 row.setGravity(Gravity.CENTER_VERTICAL);
                 row.setPadding(dp(12), 0, dp(12), 0);
-                row.setTag("bg");
-                row.setBackgroundColor(cBg());
-                row.setVisibility(View.GONE);
+
+                // الغلاف: يحمل لون الخلفية ويُظهر العدد في منتصف الشريط تماماً (بغض النظر عن أزرار الطرفين)
+                FrameLayout wrap = new FrameLayout(act);
+                wrap.setTag("bg");
+                wrap.setBackgroundColor(cBg());
+                wrap.setVisibility(View.GONE);
 
                 chatSelXIv = noBg(selIcon(R.drawable.ic_mm_x, cGold(), cSf(), "إلغاء التحديد", () -> exitChatSel(true)));
                 row.addView(chatSelXIv, new LinearLayout.LayoutParams(dp(42), dp(42)));
@@ -2710,9 +2713,8 @@ public class MassActivity extends Activity {
                 chatSelCountTv.setTextSize(19); chatSelCountTv.setTextColor(cGold());
                 chatSelCountTv.setTypeface(null, android.graphics.Typeface.BOLD);
                 chatSelCountTv.setIncludeFontPadding(false);
-                LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(0, -2, 1f);
-                cl.setMarginStart(dp(12));
-                row.addView(chatSelCountTv, cl);
+                chatSelCountTv.setGravity(Gravity.CENTER);
+                row.addView(new View(act), new LinearLayout.LayoutParams(0, 1, 1f));   // فاصل يدفع أزرار النهاية
 
                 chatSelPinIv = noBg(selIcon(R.drawable.ic_sel_pin, cGold(), goldA(0x1F), "تثبيت", this::selPinChats));
                 LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(dp(42), dp(42));
@@ -2722,8 +2724,10 @@ public class MassActivity extends Activity {
                 chatSelDelIv = noBg(selIcon(R.drawable.ic_sel_trash, cGold(), goldA(0x1F), "حذف", this::selDeleteChats));
                 row.addView(chatSelDelIv, new LinearLayout.LayoutParams(dp(42), dp(42)));
 
-                par.addView(row, par.indexOfChild(mh), new LinearLayout.LayoutParams(-1, dp(62)));
-                chatSelBar = row;
+                wrap.addView(row, new FrameLayout.LayoutParams(-1, -1));
+                wrap.addView(chatSelCountTv, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
+                par.addView(wrap, par.indexOfChild(mh), new LinearLayout.LayoutParams(-1, dp(62)));
+                chatSelBar = wrap;
             }
 
             // ---- التثبيت (selPin) ----
