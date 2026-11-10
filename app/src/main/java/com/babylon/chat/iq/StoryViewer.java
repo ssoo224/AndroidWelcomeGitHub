@@ -132,12 +132,20 @@ public final class StoryViewer {
     public static void launch(final Activity act, final FirebaseFirestore db, final String me, final Spin av,
                               final String uid, final String name, final String letter, final Bitmap photo,
                               final boolean blue, final Listener l) {
+        launch(act, db, me, av, uid, name, letter, photo, blue, null, null, l);
+    }
+
+    /** من الملف الشخصي (startViewer في الـ HTML): يشغّل القصص المحددة فقط (playIds) من الأقدم للأحدث، ويبدأ من startId. */
+    public static void launch(final Activity act, final FirebaseFirestore db, final String me, final Spin av,
+                              final String uid, final String name, final String letter, final Bitmap photo,
+                              final boolean blue, final String startId, final java.util.Set<String> playIds, final Listener l) {
         if (act == null || db == null || me == null || uid == null || current != null) return;
         if (av != null) { if (av.isLaunching()) return; av.setLaunching(true); }
         final Handler h = new Handler(Looper.getMainLooper());
         h.postDelayed(() -> {
             try {
                 final StoryViewer sv = new StoryViewer(act, db, me, uid, name, letter, photo, blue, l);
+                sv.startId = startId; sv.playIds = playIds;
                 sv.open(new Runnable() {          // بعد بدء الفتح: يبقى المؤشر ثانية كاملة
                     @Override public void run() {
                         if (av != null) h.postDelayed(() -> av.setLaunching(false), 1000);
@@ -162,6 +170,7 @@ public final class StoryViewer {
     private static final ExecutorService IO = Executors.newFixedThreadPool(2);
     private final float dens;
 
+    private String startId; private java.util.Set<String> playIds;
     private final List<Story> list = new ArrayList<>();
     private int idx = 0;
     private long t = 0, dur = SDUR;
@@ -212,7 +221,8 @@ public final class StoryViewer {
                 long now = System.currentTimeMillis();
                 for (DocumentSnapshot d : snap.getDocuments()) {
                     Long ex = d.getLong("expiresAt"), cr = d.getLong("createdAt");
-                    if (ex == null || ex <= now) continue;
+                    boolean keep = ex != null && (playIds != null ? playIds.contains(d.getId()) : ex > now);
+                    if (!keep) continue;
                     Story s = new Story();
                     s.id = d.getId();
                     s.imageUrl = nz(d.getString("imageUrl"));
@@ -232,7 +242,9 @@ public final class StoryViewer {
                     @Override public int compare(Story a, Story b) { return Long.compare(a.createdAt, b.createdAt); }
                 });
                 int start = 0;
-                if (!mine) {
+                if (startId != null) {
+                    for (int k = 0; k < list.size(); k++) if (startId.equals(list.get(k).id)) { start = k; break; }
+                } else if (!mine) {
                     long seen = 0;
                     try { seen = act.getSharedPreferences("story_seen_" + me, Context.MODE_PRIVATE).getLong(uid, 0L); } catch (Throwable ignored) { }
                     for (int k = 0; k < list.size(); k++) if (list.get(k).expiresAt > seen) { start = k; break; }
@@ -379,15 +391,16 @@ public final class StoryViewer {
         tp.topMargin = dp(14) + sat;
         stage.addView(top, tp);
 
-        // الصورة/الفيديو يُعرضان كاملين بين الشريط العلوي والتذييل: لا تُغطّى أجزاء منهما بأزرار القصة
+        // حدود الصورة/الفيديو: تمتد جزئياً خلف أزرار القصة (انظر fitMedia)
         final FrameLayout fMedia = media;
         final Runnable fitMedia = new Runnable() {
             boolean done;
             @Override public void run() {
                 if (done || closed || stage == null || stage.getHeight() <= 0 || top.getHeight() <= 0 || foot.getHeight() <= 0) return;
                 done = true;
-                final int topR = Math.max(0, top.getBottom() + dp(4));
-                final int botR = Math.max(0, stage.getHeight() - (foot.getTop() + dp(24)));
+                // الوسائط تمتد خلف الشريط العلوي (صورتي/المشاهدات) وخلف أزرار التذييل لكن بدون الوصول لحافتي الشاشة
+                final int topR = Math.max(0, top.getTop());
+                final int botR = Math.max(0, sab + dp(8));
                 stage.post(() -> {
                     FrameLayout.LayoutParams mp = (FrameLayout.LayoutParams) fMedia.getLayoutParams();
                     mp.topMargin = topR; mp.bottomMargin = botR;
@@ -877,7 +890,10 @@ public final class StoryViewer {
     private Bitmap preBmp; private String preSrc;
 
     /** تنزيل + فك ترميز (يُستدعى من خيط IO فقط). */
-    private static Bitmap fetchBitmap(String src) {
+    private static Bitmap fetchBitmap(String src) { return fetchBitmap(src, 1800); }
+
+    /** تنزيل/فك صورة مع حدّ أقصى للبعد الأكبر (للمصغّرات في الملف الشخصي). */
+    static Bitmap fetchBitmap(String src, int maxDim) {
         try {
             byte[] data;
             if (src.startsWith("data:")) {
@@ -897,7 +913,7 @@ public final class StoryViewer {
             o.inJustDecodeBounds = true;
             BitmapFactory.decodeByteArray(data, 0, data.length, o);
             int sample = 1, mx = Math.max(o.outWidth, o.outHeight);
-            while (mx / sample > 1800) sample *= 2;
+            while (mx / sample > maxDim) sample *= 2;
             BitmapFactory.Options o2 = new BitmapFactory.Options();
             o2.inSampleSize = sample;
             return BitmapFactory.decodeByteArray(data, 0, data.length, o2);
@@ -1219,7 +1235,7 @@ public final class StoryViewer {
         cancel.setOnClickListener(v -> closeModal());
         GradientDrawable gold = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFF5D875, 0xFFB98B23});
         gold.setCornerRadius(dp(12));
-        saveBtnTv = actionBtn("حفظ التعديلات", 0xFF171717, gold);
+        saveBtnTv = actionBtn("حفظ التعديلات", 0xFFFFFFFF, gold);
         saveBtnTv.setOnClickListener(v -> saveEdit(s));
         LinearLayout.LayoutParams a1 = new LinearLayout.LayoutParams(0, -2, 1f);
         LinearLayout.LayoutParams a2 = new LinearLayout.LayoutParams(0, -2, 1f); a2.setMarginStart(dp(9));

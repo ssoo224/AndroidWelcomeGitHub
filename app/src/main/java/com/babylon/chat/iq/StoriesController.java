@@ -52,13 +52,13 @@ public final class StoriesController {
     public interface OnItem { void click(Item it); }
 
     // ----- القياسات (px الـ HTML عند --bb-s=1.041 ⇒ dp)
-    static final float ITEM_W = 66.6f, AV = 52f, SIDE = 14f, GAP_ITEMS = 14f, GAP_TXT = 7f, TXT_H = 15f;
+    static final float AV = 52f, ITEM_W = AV + 10f, SIDE = 14f, GAP_ITEMS = 5f, GAP_TXT = 7f, TXT_H = 15f;
     static final float PT = 12f, PB = 10f;
     /** هامش رسم الحلقة داخل حدود الأفاتار (≥ 5dp سماكة+إزاحة الحلقة) كي لا تُقصّ من أي حاوية. */
     static final float RP = 5.3f;
     static final float PTP = PT - RP;
     static final float HH = 22.9f, HMT = -6f, HMB = 2f, TOP_PB = 2f;
-    static final float HDR_AV = 42f, THUMB = 38.3f, COUNT = 33.8f;   // AV=52 مثل أفاتار المحادثات، HDR_AV=42 مثل زر العدسة
+    static final float HDR_AV = 32.3f, THUMB = 38.3f, COUNT = 33.8f;   // AV=52 مثل أفاتار المحادثات، HDR_AV=42 مثل زر العدسة
 
     private final Activity act;
     private final float dens;
@@ -141,7 +141,8 @@ public final class StoriesController {
         hdrBtn.setPadding(0, 0, 0, 0);
         if (hdrBtn.getParent() instanceof ViewGroup) ((ViewGroup) hdrBtn.getParent()).setClipChildren(false);
         hdrAv = new StoryAvatarView(act);
-        hdrAv.shadow(true).textSp(15.6f).ringSmall(true);
+        hdrAv.shadow(true).textSp(13f).ringSmall(true);
+        hdrAv.setTranslationZ(px(2));   // حلقة قصتي فوق قصة الشخص الآخر
         hdrAv.pad(RP);
         hdrBtn.addView(hdrAv, new LinearLayout.LayoutParams(px(HDR_AV + 2 * RP), px(HDR_AV + 2 * RP)));
         hdrStack = new LinearLayout(act);
@@ -150,7 +151,7 @@ public final class StoriesController {
         hdrStack.setGravity(Gravity.CENTER_VERTICAL);
         hdrStack.setClipChildren(false);
         LinearLayout.LayoutParams sl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        sl.leftMargin = px(7 - RP);
+        sl.leftMargin = Math.round(-px(RP - 3) - 0.6f * px(THUMB));   // قصة الآخر 60% خلف حلقة قصتي (قطر الحلقة = قطر القصة المجاورة)
         hdrBtn.addView(hdrStack, sl);
         hdrBtn.setOnClickListener(v -> toggle());
     }

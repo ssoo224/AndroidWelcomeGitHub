@@ -64,7 +64,7 @@ public final class Tk {
     // ----- تدرجات ذهبية ثابتة
     /** تدرج الأزرار الذهبية الموحّد = زر «حفظ التعديلات» (ليلي) في تعديل القصة */
     public static final int[] GOLD_REF = {0xFFF5D875, 0xFFB98B23};
-    public static final int GOLD_INK = 0xFF171717;
+    public static final int GOLD_INK = 0xFFFFFFFF;
     public static final int[] GOLD_145 = {0xFFD9AD34, 0xFFB8861B};   // chips / badges
     public static final int[] GOLD_135 = {0xFFE0BD4A, 0xFFB8891A};   // FAB
     public static final int[] GOLD_BTN = {0xFFC29D30, 0xFFF0C94D};   // .sx-seg button.on
@@ -259,13 +259,13 @@ public final class Tk {
         }
         if (tag.equals("vtTM")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.textMine : GOLD_INK); return true; }   // عنوان "رسالة صوتية" في المرسَلة: أبيض
         if (tag.equals("vtTO")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.textOther : (dark ? 0xFFFFFFFF : 0xFFB8861B)); return true; }   // في المستلمة: ذهبي في النهاري فقط، أبيض في الليلي
-        if (tag.equals("vtM")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.textMine : 0xFF292216); return true; }
+        if (tag.equals("vtM")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.textMine : 0xFFFFFFFF); return true; }
         if (tag.equals("vtO")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.metaOther : text(dark)); return true; }
         if (tag.equals("vkM") || tag.equals("vkO")) { if (x instanceof MsgViews.TrackView) { ((MsgViews.TrackView) x).setDark(dark); ((MsgViews.TrackView) x).setAccent(0); ((MsgViews.TrackView) x).setThumbAccent(chatPal != null ? chatPal.accent : 0); } return true; }   // شريط التقدم لا يتبع الثيم: يبقى كما في الـ HTML (أبيض في رسائلي)
         if (tag.equals("wvM") || tag.equals("wvO")) {
             if (x instanceof MsgViews.WaveView) {   // الأعمدة الساكنة تتبع نص الفقاعة؛ لون التشغيل أصلي (لا يتبع الثيم)
                 boolean wm = tag.equals("wvM");
-                int base = chatPal != null ? (wm ? chatPal.textMine : chatPal.textOther) : (wm ? 0xFF292216 : text(dark));
+                int base = chatPal != null ? (wm ? chatPal.textMine : chatPal.textOther) : (wm ? 0xFFFFFFFF : text(dark));
                 ((MsgViews.WaveView) x).setColors(base, wm ? 0xFFFFFFFF : 0xFFC29D30,
                         (wm || dark) ? 0xFFFFFFFF : 0xFFC29D30);   // أبيض عند التشغيل (في الفاتح وفقاعة المستلم: ذهبي كي لا يختفي على الأبيض)
             }

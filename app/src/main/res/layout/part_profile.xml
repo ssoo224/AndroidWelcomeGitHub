@@ -398,18 +398,22 @@
 				android:visibility="gone"
 				android:layout_width="match_parent"
 				android:layout_height="wrap_content"
-				android:padding="14dp"
+				android:paddingBottom="96dp"
 				android:orientation="vertical">
 				<LinearLayout
 					android:id="@+id/myStoriesGrid"
 					android:layout_width="match_parent"
 					android:layout_height="wrap_content"
-					android:orientation="horizontal" />
+					android:padding="2dp"
+					android:orientation="vertical" />
 				<TextView
 					android:id="@+id/myStoriesEmpty"
 					android:layout_width="wrap_content"
 					android:layout_height="wrap_content"
-					android:layout_marginTop="8dp"
+					android:paddingStart="16dp"
+					android:paddingEnd="16dp"
+					android:paddingTop="14dp"
+					android:paddingBottom="14dp"
 					android:text="ما عندك قصص. اضغط على صورتك حتى تنشر."
 					android:textSize="13sp"
 					android:tag="m" />
@@ -744,21 +748,30 @@
 				android:layout_width="wrap_content"
 				android:layout_height="wrap_content"
 				android:layout_marginTop="16dp"
-				android:text="القصص المثبتة"
+				android:text="القصص"
 				android:textSize="14sp"
 				android:textStyle="bold"
 				android:tag="t"
 				android:layout_marginStart="16dp" />
+			<LinearLayout
+				android:id="@+id/otherStoriesGrid"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:padding="2dp"
+				android:orientation="vertical" />
 			<TextView
 				android:id="@+id/otherStoriesEmpty"
 				android:visibility="gone"
-				android:layout_width="wrap_content"
+				android:layout_width="match_parent"
 				android:layout_height="wrap_content"
-				android:layout_marginTop="8dp"
+				android:gravity="center"
+				android:paddingStart="16dp"
+				android:paddingEnd="16dp"
+				android:paddingTop="14dp"
+				android:paddingBottom="14dp"
 				android:text="لا توجد قصص مثبتة"
 				android:textSize="13sp"
-				android:tag="m"
-				android:layout_marginStart="16dp" />
+				android:tag="m" />
 		</LinearLayout>
 	</com.babylon.chat.iq.PullScrollView>
 	<LinearLayout

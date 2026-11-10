@@ -419,9 +419,9 @@ public final class ProfileHero implements PullScrollView.Controller {
 
             int fill = primary ? mix(pal.gold(), 0x8CD4A937, pv) : mix(pal.surface(), 0x29FFFFFF, pv);
             int white = red ? 0xFFFFB4B4 : 0xFFFFFFFF;
-            int txt = mix(primary ? 0xFF171717 : (red ? pal.red() : pal.text()), white, pv);
+            int txt = mix(primary ? 0xFFFFFFFF : (red ? pal.red() : pal.text()), white, pv);
             boolean ibl = s.contains("ibl"), ird = s.contains("ird");
-            int ico = mix(ibl ? pal.blue() : ird ? pal.redIcon() : (primary ? 0xFF171717 : (red ? pal.red() : pal.gold())),
+            int ico = mix(ibl ? pal.blue() : ird ? pal.redIcon() : (primary ? 0xFFFFFFFF : (red ? pal.red() : pal.gold())),
                     ibl ? 0xFFB9D8FF : ird ? 0xFFFFB4B4 : white, pv);
 
             GradientDrawable g = new GradientDrawable();

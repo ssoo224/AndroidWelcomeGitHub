@@ -260,7 +260,7 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
         // نقطة الاتصال
         if (online) {
             float dd = dp(14.6f), r = dd / 2f;
-            float ox = dp(1) + r, oy = h - dp(1) - r;
+            float ox = padPx + dp(1) + r, oy = h - padPx - dp(1) - r;
             p.reset(); p.setAntiAlias(true);
             p.setColor(0x2134C759);
             c.drawCircle(ox, oy, r + dp(5.2f), p);

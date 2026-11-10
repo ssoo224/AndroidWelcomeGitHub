@@ -148,7 +148,7 @@
 				android:text="دخول"
 				android:textSize="15sp"
 				android:textStyle="bold"
-				android:textColor="#171717"
+				android:textColor="#FFFFFF"
 				android:focusable="true" />
 			<TextView
 				android:id="@+id/btn_forgot"
@@ -276,7 +276,7 @@
 				android:text="تسجيل حساب جديد"
 				android:textSize="15sp"
 				android:textStyle="bold"
-				android:textColor="#171717"
+				android:textColor="#FFFFFF"
 				android:focusable="true" />
 		</LinearLayout>
 	</LinearLayout>

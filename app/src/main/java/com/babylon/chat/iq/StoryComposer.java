@@ -636,7 +636,7 @@ public final class StoryComposer {
         publishBtn = new TextView(act);
         tsz(publishBtn, 16);
         publishBtn.setTypeface(null, Typeface.BOLD);
-        publishBtn.setTextColor(0xFF171717);
+        publishBtn.setTextColor(0xFFFFFFFF);
         publishBtn.setGravity(Gravity.CENTER);
         publishBtn.setBackground(goldGrad(14));
         publishBtn.setElevation(px(4));
@@ -698,7 +698,7 @@ public final class StoryComposer {
             boolean on = ((Integer) c.getTag()) == hours;
             if (on) {
                 c.setBackground(goldGrad(12));
-                c.setTextColor(0xFF171717);
+                c.setTextColor(0xFFFFFFFF);
                 c.setTypeface(null, Typeface.BOLD);
             } else {
                 c.setBackground(box(spInput(), 12, spBorder()));

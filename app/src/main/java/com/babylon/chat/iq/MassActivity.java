@@ -483,7 +483,11 @@ public class MassActivity extends Activity {
                                 x.setBackground(chipGold(true));
                                 x.setAlpha(1f);
                             } else x.setBackground(goldShape(rad(x)));
-                            if (T != null) T.setTextColor(0xFF171717);
+                            if (T != null) {
+                                T.setTextColor(0xFFFFFFFF);
+                                for (android.graphics.drawable.Drawable dd : T.getCompoundDrawablesRelative())
+                                    if (dd != null) dd.mutate().setColorFilter(0xFFFFFFFF, android.graphics.PorterDuff.Mode.SRC_IN);
+                            }
                         }
                         else if (k.equals("goldo")) {
                             boolean chipO = x.getId() == R.id.fltAll || x.getId() == R.id.fltUnread;
@@ -520,7 +524,7 @@ public class MassActivity extends Activity {
                             GradientDrawable mg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE8C85D, 0xFFCBA843});
                             mg.setCornerRadii(new float[]{rr, rr, rr, rr, tl, tl, rr, rr});   // الذيل أسفل اليمين كما في الـ HTML
                             x.setBackground(mg);
-                            if (T != null) T.setTextColor(dark ? 0xFFFFFFFF : 0xFF292216);
+                            if (T != null) T.setTextColor(0xFFFFFFFF);
                             }
                         } else if (k.equals("bubOther")) {
                             float rr = dp(radius), tl = dp(6);
@@ -847,7 +851,7 @@ public class MassActivity extends Activity {
                 t.setTextSize(13);
                 t.setTypeface(null, android.graphics.Typeface.BOLD);
                 int ic;
-                if (kind == 0) { t.setBackground(goldShape(16)); t.setTextColor(0xFF171717); ic = 0xFF171717; }
+                if (kind == 0) { t.setBackground(goldShape(16)); t.setTextColor(0xFFFFFFFF); ic = 0xFFFFFFFF; }
                 else if (kind == 1) { t.setBackground(shape(cSf(), 16, cBorder())); t.setTextColor(cText()); ic = cGold(); }
                 else { t.setBackground(shape(cSf(), 16, cBorder())); t.setTextColor(cRed()); ic = cRed(); }
                 android.graphics.drawable.Drawable[] ds = t.getCompoundDrawablesRelative();
@@ -1217,6 +1221,7 @@ public class MassActivity extends Activity {
                             try { applyProfilePhoto(); } catch (Throwable ignored) { }
                             try { buildStories(); } catch (Throwable ignored) { }
                             try { fillProfile(); } catch (Throwable ignored) { }
+                            try { loadProfileStories(true); } catch (Throwable ignored) { }
                         }
                     })
                     .addOnFailureListener(e -> { });
@@ -1787,7 +1792,8 @@ public class MassActivity extends Activity {
                 LinearLayout row = new LinearLayout(act);
                 row.setOrientation(LinearLayout.HORIZONTAL);
                 row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-                TextView ok = danger ? dlgBtn(okText, cRed(), 0xFFFFFFFF, 0) : dlgBtn(okText, cGold(), 0xFF17212B, 0);
+                TextView ok = danger ? dlgBtn(okText, cRed(), 0xFFFFFFFF, 0) : dlgBtn(okText, cGold(), 0xFFFFFFFF, 0);
+                if (!danger) ok.setBackground(goldShape(14));   // زر «إضافة» وأشباهه: نفس التدرّج الذهبي المعتاد + نص أبيض
                 TextView no = dlgBtn("إلغاء", cSf(), cText(), cBorder());
                 LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(0, dp(46), 1f);
                 bl.setMarginEnd(dp(5));
@@ -1933,6 +1939,7 @@ public class MassActivity extends Activity {
 
                 // الحالة: متصل الآن / آخر ظهور (مع احترام إخفاء آخر ظهور)
                 try { Long osu = d.getLong("storyUntil"); if (osu != null && otherUid != null) storyUntil.put(otherUid, osu); refreshProfileRings(); } catch (Throwable ignored) { }
+                try { loadProfileStories(false); } catch (Throwable ignored) { }
                 boolean hideSeen = Boolean.TRUE.equals(d.getBoolean("hideLastSeen"));
                 Long ls = d.getLong("lastSeen");
                 long lastSeen = ls != null ? ls : 0;
@@ -2099,16 +2106,160 @@ public class MassActivity extends Activity {
 
             /** فتح عارض القصص: قوس ذهبي دوّار على الحلقة ثم نافذة منبثقة (launchStoryWithGlow + startViewer في الـ HTML). */
             void openStory(final String uid, final String name, final String letter, final Bitmap photo, final boolean blue, final StoryViewer.Spin av) {
+                openStory(uid, name, letter, photo, blue, av, null, null);
+            }
+
+            void openStory(final String uid, final String name, final String letter, final Bitmap photo, final boolean blue, final StoryViewer.Spin av,
+                           final String startId, final java.util.Set<String> playIds) {
                 if (myUid == null || myUid.isEmpty() || db == null) return;
-                StoryViewer.launch(act, db, myUid, av, uid, name, letter, photo, blue, new StoryViewer.Listener() {
-                    @Override public void onClosed() { try { buildStories(); } catch (Throwable ignored) { } try { refreshProfileRings(); } catch (Throwable ignored) { } }
+                StoryViewer.launch(act, db, myUid, av, uid, name, letter, photo, blue, startId, playIds, new StoryViewer.Listener() {
+                    @Override public void onClosed() { try { buildStories(); } catch (Throwable ignored) { } try { refreshProfileRings(); } catch (Throwable ignored) { } try { refreshProfileStories(); } catch (Throwable ignored) { } }
                     @Override public void openChat(String u) { try { UI.this.openChat(name, u); } catch (Throwable ignored) { } }
                     @Override public void onStoriesChanged(long until) {
                         if (uid.equals(myUid)) myStoryUntil = until; else storyUntil.put(uid, until);
                         try { refreshProfileRings(); } catch (Throwable ignored) { }
                         try { buildStories(); } catch (Throwable ignored) { }
+                        try { refreshProfileStories(); } catch (Throwable ignored) { }
                     }
                 });
+            }
+
+            // ============================================================ قصص الملف الشخصي (قصصي / القصص المثبتة كما في الـ HTML)
+            void refreshProfileStories() {
+                loadProfileStories(true);
+                if (otherUid != null && !otherUid.isEmpty()) loadProfileStories(false);
+            }
+
+            /** مطابق لـ checkUserStories / loadOtherStories في الـ HTML: قصصي = كل قصصي (النشطة + الأرشيف)، ملف الآخر = قصصه المثبتة فقط. */
+            void loadProfileStories(final boolean mine) {
+                final String uid = mine ? myUid : otherUid;
+                if (uid == null || uid.isEmpty() || db == null) return;
+                if (!mine) {   // مسح فوري لما كان معروضاً لشخص آخر
+                    LinearLayout g0 = (LinearLayout) v("otherStoriesGrid");
+                    if (g0 != null) g0.removeAllViews();
+                    vis("textview666", true); vis("otherStoriesEmpty", false);
+                }
+                db.collection("stories").whereEqualTo("userId", uid).get().addOnSuccessListener(snap -> {
+                    if (!mine && !uid.equals(otherUid)) return;
+                    long now = System.currentTimeMillis();
+                    final ArrayList<Object[]> items = new ArrayList<>();   // id, imageUrl, video, pinned, createdAt, active, expiresAt
+                    for (com.google.firebase.firestore.DocumentSnapshot d : snap.getDocuments()) {
+                        Long ex = d.getLong("expiresAt"), cr = d.getLong("createdAt");
+                        Boolean pn = d.getBoolean("pinned");
+                        boolean pinned = pn != null && pn;
+                        if (!mine && !pinned) continue;
+                        long exv = ex == null ? 0L : ex;
+                        String vu = d.getString("videoUrl");
+                        items.add(new Object[]{d.getId(), d.getString("imageUrl") == null ? "" : d.getString("imageUrl"),
+                                vu != null && !vu.isEmpty(), pinned, cr == null ? 0L : cr, exv > now, exv});
+                    }
+                    java.util.Collections.sort(items, (a, b) -> Long.compare((Long) b[4], (Long) a[4]));   // الأحدث أولاً
+                    renderStoryGrid(mine, uid, items);
+                });
+            }
+
+            /** مطابق لـ renderTiles: شبكة 3 أعمدة، مربعات، فجوة 2، شارة الوقت/الأرشيف يسار، دبوس يمين أعلى، شارة فيديو يمين أسفل. */
+            void renderStoryGrid(final boolean mine, final String uid, final ArrayList<Object[]> items) {
+                final LinearLayout grid = (LinearLayout) v(mine ? "myStoriesGrid" : "otherStoriesGrid");
+                if (grid == null) return;
+                grid.removeAllViews();
+                if (mine) { vis("linear655", true); vis("pTabStories", true); vis("myStoriesEmpty", items.isEmpty()); }
+                else { vis("textview666", true); vis("otherStoriesEmpty", items.isEmpty()); }
+                if (items.isEmpty()) return;
+                final java.util.HashSet<String> ids = new java.util.HashSet<>();
+                for (Object[] it : items) ids.add((String) it[0]);
+                final int cols = 3, gap = dp(2);
+                int cw = (act.getResources().getDisplayMetrics().widthPixels - dp(4) - gap * (cols - 1)) / cols;   // 2dp حشوة على الجانبين
+                final long now = System.currentTimeMillis();
+                for (int i = 0; i < items.size(); i += cols) {
+                    LinearLayout row = new LinearLayout(act);
+                    row.setOrientation(LinearLayout.HORIZONTAL);
+                    row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);   // نفس ترتيب شبكة الـ HTML في صفحة RTL
+                    LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(-1, cw);
+                    if (i > 0) rlp.topMargin = gap;
+                    grid.addView(row, rlp);
+                    for (int c = 0; c < cols; c++) {
+                        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(0, cw, 1f);
+                        if (c > 0) clp.setMarginStart(gap);
+                        if (i + c >= items.size()) { row.addView(new View(act), clp); continue; }
+                        final Object[] it = items.get(i + c);
+                        final boolean video = (Boolean) it[2], pinned = (Boolean) it[3], active = (Boolean) it[5];
+                        final long expires = (Long) it[6];
+                        FrameLayout card = new FrameLayout(act);
+                        card.setBackgroundColor(0xFF17212B);
+                        final ImageView iv = new ImageView(act);
+                        iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                        if (!active && !pinned) iv.setAlpha(0.5f);   // .st-old img{opacity:.5}
+                        card.addView(iv, new FrameLayout.LayoutParams(-1, -1));
+                        final String src = (String) it[1];
+                        if (!src.isEmpty()) {
+                            final int md = cw;
+                            new Thread(() -> {
+                                final Bitmap b = StoryViewer.fetchBitmap(src, md * 2);
+                                if (b != null) act.runOnUiThread(() -> iv.setImageBitmap(b));
+                            }).start();
+                        }
+                        final int badgeFg = 0xFFFFFFFF;
+                        if (pinned) {   // .story-pin-mark : top:6 right:6، دائرة 22 بخلفية rgba(0,0,0,.62) ودبوس ذهبي (أبيض في النهاري)
+                            FrameLayout pm = new FrameLayout(act);
+                            GradientDrawable pg = new GradientDrawable();
+                            pg.setShape(GradientDrawable.OVAL); pg.setColor(0x9E000000);
+                            pm.setBackground(pg);
+                            ImageView pi = new ImageView(act);
+                            pi.setImageResource(R.drawable.ic_sv_pin);
+                            pi.setColorFilter(dark ? 0xFFF5C542 : badgeFg, android.graphics.PorterDuff.Mode.SRC_IN);
+                            pm.addView(pi, new FrameLayout.LayoutParams(dp(13), dp(13), Gravity.CENTER));
+                            FrameLayout.LayoutParams plp = new FrameLayout.LayoutParams(dp(22), dp(22), Gravity.TOP | Gravity.RIGHT);
+                            plp.setMargins(0, dp(6), dp(6), 0);
+                            card.addView(pm, plp);
+                        }
+                        if (video) {   // .vid-badge : bottom:4 right:4
+                            FrameLayout vb = new FrameLayout(act);
+                            vb.setBackground(shape(0xA6000000, 10, 0));
+                            ImageView vi = new ImageView(act);
+                            vi.setImageResource(R.drawable.ic_voice_play);
+                            vi.setColorFilter(badgeFg, android.graphics.PorterDuff.Mode.SRC_IN);
+                            vb.addView(vi, new FrameLayout.LayoutParams(dp(15), dp(15), Gravity.CENTER));
+                            FrameLayout.LayoutParams vlp = new FrameLayout.LayoutParams(dp(27), dp(19), Gravity.BOTTOM | Gravity.RIGHT);
+                            vlp.setMargins(0, 0, dp(4), dp(4));
+                            card.addView(vb, vlp);
+                        }
+                        if (mine && !pinned) {   // .st-badge : top:4 left:4 — ساعة + المتبقي، أو «أرشيف»
+                            LinearLayout sb = new LinearLayout(act);
+                            sb.setOrientation(LinearLayout.HORIZONTAL);
+                            sb.setGravity(Gravity.CENTER_VERTICAL);
+                            sb.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                            sb.setBackground(shape(0xA6000000, 10, 0));
+                            sb.setPadding(dp(7), dp(2), dp(7), dp(2));
+                            if (active) {
+                                ImageView ci = new ImageView(act);
+                                ci.setImageResource(R.drawable.ic_sp_clock);
+                                ci.setColorFilter(badgeFg, android.graphics.PorterDuff.Mode.SRC_IN);
+                                LinearLayout.LayoutParams cil = new LinearLayout.LayoutParams(dp(15), dp(15));
+                                cil.setMarginStart(dp(4));
+                                sb.addView(ci, cil);
+                            }
+                            TextView st = new TextView(act);
+                            long m = Math.max(1, (expires - now) / 60000);
+                            st.setText(active ? (m < 60 ? m + " د" : (m / 60) + " س") : "أرشيف");
+                            st.setTextSize(11); st.setTextColor(badgeFg); st.setIncludeFontPadding(false);
+                            sb.addView(st);
+                            FrameLayout.LayoutParams slp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.LEFT);
+                            slp.setMargins(dp(4), dp(4), 0, 0);
+                            card.addView(sb, slp);
+                        }
+                        final String sid = (String) it[0];
+                        card.setOnClickListener(vw -> {   // startViewer(uid, list.reverse(), index): يشغّل من الأقدم للأحدث ويبدأ من المضغوطة
+                            if (mine) {
+                                openStory(myUid, "قصتي", userName != null && userName.length() > 0 ? userName.substring(0, 1).toUpperCase() : "?", photoBmp, false, null, sid, ids);
+                            } else {
+                                String nm = dispName(uid, "");
+                                openStory(uid, nm, nm.length() > 0 ? nm.substring(0, 1).toUpperCase() : "?", otherPhotoBmp, StoryAvatarView.toneBlue(uid), null, sid, ids);
+                            }
+                        });
+                        row.addView(card, clp);
+                    }
+                }
             }
 
             /** نشر قصة جديدة (مثل startStoryPublish في الـ HTML). */
@@ -2118,6 +2269,7 @@ public class MassActivity extends Activity {
                     if (until > 0) myStoryUntil = until;
                     try { refreshProfileRings(); } catch (Throwable ignored) { }
                     try { buildStories(); } catch (Throwable ignored) { }
+                    try { refreshProfileStories(); } catch (Throwable ignored) { }
                 });
                 storyComposer.start();
             }
@@ -2205,7 +2357,7 @@ public class MassActivity extends Activity {
                     boolean ringOn = c.length > 4 && storyUntil.get(c[4]) != null && storyUntil.get(c[4]) > System.currentTimeMillis();
                     av.set(dn.length() > 0 ? dn.substring(0, 1).toUpperCase() : "?", null, c.length > 4 && StoryAvatarView.toneBlue(c[4]))
                       .ring(ringOn, false).online(c.length > 4 && Boolean.TRUE.equals(onlineMap.get(c[4])))
-                      .theme(dark, cSf()).textSp(19.8f);
+                      .theme(dark, cSf()).textSp(19.8f).pad(5.3f);   // الحلقة داخل حدود الـ View فلا تُقصّ
                     if (ringOn) {   // chatAvatarStory: الضغط على أفاتار فيه حلقة يفتح القصة
                         final StoryAvatarView fav = av; final String fUid = rowUid, fName = dn;
                         final boolean fBlue = StoryAvatarView.toneBlue(rowUid);
@@ -2213,7 +2365,8 @@ public class MassActivity extends Activity {
                         av.setOnClickListener(vv -> openStory(fUid, fName, fName.length() > 0 ? fName.substring(0, 1).toUpperCase() : "?", null, fBlue, fav));
                         av.setOnLongClickListener(vv -> row.performLongClick());
                     }
-                    LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(dp(52), dp(52));
+                    LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(dp(62.6f), dp(62.6f));
+                    ap.setMargins(-dp(5.3f), -dp(5.3f), -dp(5.3f), -dp(5.3f));
                     LinearLayout mid = new LinearLayout(act);
                     mid.setOrientation(LinearLayout.VERTICAL);
                     mid.setClipChildren(false);
@@ -2298,7 +2451,7 @@ public class MassActivity extends Activity {
                         ci.setImageResource(R.drawable.ic_sel_check);
                         chk.addView(ci, new FrameLayout.LayoutParams(dp(13), dp(13), Gravity.CENTER));
                         FrameLayout.LayoutParams ckp = new FrameLayout.LayoutParams(dp(22), dp(22), Gravity.RIGHT | Gravity.BOTTOM);
-                        ckp.rightMargin = -dp(3); ckp.bottomMargin = -dp(3);
+                        ckp.rightMargin = dp(2.3f); ckp.bottomMargin = dp(2.3f);
                         avf.addView(chk, ckp);
                         row.addView(avf, ap);
                     } else row.addView(av, ap);
