@@ -194,6 +194,12 @@ public final class StoryViewer {
     private int oldSb, oldNb;
     private FrameLayout modal;
     private boolean modalOpen;
+    private static boolean sMuted = false;               // كتم صوت القصص (يبقى بين القصص)
+    private android.media.MediaPlayer curMp;             // مشغّل الفيديو الحالي لتطبيق الكتم فوراً
+    // لوحة المفاتيح: ارتفاع الـ inset السفلي (نظام + لوحة) والثابت (النظام فقط) وآخر إزاحة مطبّقة
+    private int kbBottom = 0, kbStable = 0;
+    private float kbTarget = 0f;
+    private boolean imeWasOpen = false;
     private Uri pickedUri;
     private TextView pickedName, saveBtnTv;
     private EditText capEt;
@@ -420,6 +426,15 @@ public final class StoryViewer {
 
         decor.addView(overlay, new FrameLayout.LayoutParams(-1, -1));
         current = this;
+        // ارتفاع حقل الرد + التفاعلات + التعليق مع لوحة المفاتيح (الشاشة تستخدم أعلام fullscreen فلا يعمل adjustResize وحده)
+        overlay.setOnApplyWindowInsetsListener((v, ins) -> {
+            kbBottom = ins.getSystemWindowInsetBottom();
+            kbStable = ins.getStableInsetBottom();
+            updateKeyboard();
+            return ins;
+        });
+        overlay.getViewTreeObserver().addOnGlobalLayoutListener(this::updateKeyboard);
+        overlay.requestApplyInsets();
         // تغيير ألوان أشرطة النظام يُرسَل بعد أول إطار من الحركة (لا في إطار البناء نفسه) لتفادي تقطّع الدخول
         overlay.post(() -> {
             try {
@@ -485,14 +500,18 @@ public final class StoryViewer {
             top.addView(del, ap2);
         }
 
-        // زر الإغلاق
-        ImageView close = new ImageView(act);
-        close.setImageResource(R.drawable.ic_sv_close);
-        close.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        // زر الصوت (بدل ×): نقرة تكتم الصوت وتبدّل الأيقونة، ونقرة أخرى تعيده. الإغلاق بالسحب للأسفل أو زر الرجوع.
+        final ImageView snd = new ImageView(act);
+        snd.setImageResource(sMuted ? R.drawable.ic_sv_volume_off : R.drawable.ic_sv_volume);
+        snd.setScaleType(ImageView.ScaleType.FIT_CENTER);
         int cpad = dp((36 * S - 22 * S) / 2f);
-        close.setPadding(cpad, cpad, cpad, cpad);
-        close.setOnClickListener(v -> close());
-        top.addView(close, new LinearLayout.LayoutParams(dp(36 * S), dp(36 * S)));
+        snd.setPadding(cpad, cpad, cpad, cpad);
+        snd.setOnClickListener(v -> {
+            sMuted = !sMuted;
+            snd.setImageResource(sMuted ? R.drawable.ic_sv_volume_off : R.drawable.ic_sv_volume);
+            try { if (curMp != null) curMp.setVolume(sMuted ? 0f : 1f, sMuted ? 0f : 1f); } catch (Throwable ignored) { }
+        });
+        top.addView(snd, new LinearLayout.LayoutParams(dp(36 * S), dp(36 * S)));
     }
 
     private ImageView action(int res, int stroke, int fill) {
@@ -529,25 +548,25 @@ public final class StoryViewer {
         pickerBox.setPadding(dp(10), dp(7), dp(10), dp(7));
         pickerBox.setBackground(round(0x6B12161C, 18, 0x2EFFFFFF, 1));
         pickerBox.setVisibility(View.GONE);
-        final String[] pk = {"😂", "❤️", "👍🏻", "😭", "✨", "😍", "😮", "😢", "🙏", "🔥"};
+        // إيموجيات التفاعل (الضغط المطوّل) مختلفة عن إيموجيات الكتابة السريعة (😂 ❤️ 👍🏻 😭 ✨) كي لا تتكرر
+        final String[] pk = {"😍", "😮", "😢", "🙏", "🔥", "🥰", "👏", "💯", "🤩", "😎"};
         for (int r = 0; r < 2; r++) {
             LinearLayout row = new LinearLayout(act);
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setGravity(Gravity.CENTER);
             for (int k = 0; k < 5; k++) {
                 final String e = pk[r * 5 + k];
-                TextView b = tv(e, 24f * S, Color.WHITE, false);
+                TextView b = tv(e, 24f * S - 2f, Color.WHITE, false);   // أصغر بـ 2
                 b.setGravity(Gravity.CENTER);
                 b.setOnClickListener(v -> setReaction(react != null && react.equals(e) ? null : e));
-                LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(dp(36 * S), dp(36 * S));
+                LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(dp(36 * S) - dp(2), dp(36 * S) - dp(2));   // أصغر بـ 2dp
                 bp.setMargins(dp(4), dp(2), dp(4), dp(2));
                 row.addView(b, bp);
             }
             pickerBox.addView(row, new LinearLayout.LayoutParams(-2, -2));
         }
-        LinearLayout.LayoutParams pbp = new LinearLayout.LayoutParams(-2, -2);
-        pbp.gravity = Gravity.CENTER_HORIZONTAL; pbp.bottomMargin = dp(10);
-        foot.addView(pickerBox, pbp);
+        // المنتقي في الـ stage (لا داخل التذييل) كي يظهر فوق التعليق/النبذة؛ موضعه يُحسب عند الظهور (showPickerAnimated)
+        stage.addView(pickerBox, new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL));
 
         // صف الإيموجي السريعة (يظهر عند التركيز على حقل الرد)
         reactsRow = new LinearLayout(act);
@@ -616,7 +635,7 @@ public final class StoryViewer {
         replyIn.setOnFocusChangeListener((v, has) -> {
             paused = has;
             reactsRow.setVisibility(has ? View.VISIBLE : View.GONE);
-            if (!has) hidePicker();
+            hidePicker();
         });
         replyIn.setOnEditorActionListener((v, a, ev) -> { if (a == EditorInfo.IME_ACTION_SEND) { sendReply(); return true; } return false; });
         replyIn.addTextChangedListener(new TextWatcher() {
@@ -651,13 +670,87 @@ public final class StoryViewer {
         if (typed) hidePicker();
     }
 
-    private void togglePicker() { if (pickerBox == null) return; pickerBox.setVisibility(pickerBox.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE); }
-    private void hidePicker() { if (pickerBox != null) pickerBox.setVisibility(View.GONE); }
+    /** المنتقي وصف الإيموجي السريعة لا يظهران معاً: ظهور أحدهما يخفي الآخر. */
+    private void togglePicker() {
+        if (pickerBox == null) return;
+        if (pickerBox.getVisibility() == View.VISIBLE) { hidePicker(); return; }
+        if (reactsRow != null) reactsRow.setVisibility(View.GONE);
+        showPickerAnimated();
+    }
+
+    /** يظهر المنتقي بحركة (تلاشٍ + تكبير + صعود) فوق التعليق/النبذة، أو فوق صف الرد إن لم يوجد تعليق. */
+    private void showPickerAnimated() {
+        int H = stage.getHeight();
+        int ref = foot.getTop() + (replyRow != null ? replyRow.getTop() : dp(30));
+        if (capTv != null && capTv.getVisibility() == View.VISIBLE) ref = Math.min(ref, capTv.getTop());
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) pickerBox.getLayoutParams();
+        lp.bottomMargin = Math.max(dp(8), H - ref + dp(8));
+        pickerBox.setLayoutParams(lp);
+        pickerBox.animate().cancel();
+        pickerBox.setPivotX(pickerBox.getWidth() > 0 ? pickerBox.getWidth() / 2f : dp(100));
+        pickerBox.setPivotY(pickerBox.getHeight() > 0 ? pickerBox.getHeight() : dp(90));
+        pickerBox.setAlpha(0f);
+        pickerBox.setScaleX(.86f); pickerBox.setScaleY(.86f);
+        pickerBox.setTranslationY(kbTarget + dp(14));
+        pickerBox.setVisibility(View.VISIBLE);
+        pickerBox.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(kbTarget).setDuration(200)
+            .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f)).start();
+    }
+    /** يرفع التذييل (الرد/التفاعلات/المنتقي) والتعليق فوق لوحة المفاتيح، ويخفي منتقي الضغط المطوّل عند ظهورها. */
+    private void updateKeyboard() {
+        if (closed || overlay == null || foot == null) return;
+        int imeH = Math.max(0, kbBottom - kbStable);
+        float shift = 0f;
+        if (imeH > 0) {
+            try {
+                View rv = overlay.getRootView();
+                int[] loc = new int[2];
+                overlay.getLocationInWindow(loc);
+                int ovBottom = loc[1] + overlay.getHeight();
+                int kbTop = rv.getHeight() - kbBottom;
+                // إن كانت الشاشة تتقلّص أصلاً بـ adjustResize فالفرق صفر ولا إزاحة مضاعفة
+                shift = Math.max(0, ovBottom - kbTop) - dp(6) - sab;
+            } catch (Throwable ignored) { }
+            if (shift < 0f) shift = 0f;
+        }
+        boolean open = imeH > 0;
+        if (open && !imeWasOpen) hidePicker();   // فُتحت لوحة المفاتيح للكتابة: اختفاء إيموجيات الضغط المطوّل
+        if (!open && imeWasOpen) {               // الخروج من وضع الكتابة: تختفي إيموجيات الكتابة السريعة وتُسحب بؤرة الحقل
+            try {
+                if (replyIn != null && replyIn.hasFocus()) {
+                    touch.setFocusableInTouchMode(true);
+                    replyIn.clearFocus();
+                    touch.requestFocus();
+                }
+            } catch (Throwable ignored) { }
+            if (reactsRow != null) reactsRow.setVisibility(View.GONE);
+        }
+        imeWasOpen = open;
+        float ty = -shift;
+        if (Math.abs(ty - kbTarget) > 0.5f) {
+            kbTarget = ty;
+            foot.animate().translationY(ty).setDuration(150).start();
+            if (capTv != null) capTv.animate().translationY(ty).setDuration(150).start();
+            if (pickerBox != null) {
+                if (pickerBox.getVisibility() == View.VISIBLE) pickerBox.animate().translationY(ty).setDuration(150).start();
+                else pickerBox.setTranslationY(ty);
+            }
+        }
+    }
+
+    private boolean pickerOpen() { return pickerBox != null && pickerBox.getVisibility() == View.VISIBLE; }
+    private void hidePicker() {
+        boolean was = pickerOpen();
+        if (pickerBox != null) { pickerBox.animate().cancel(); pickerBox.setVisibility(View.GONE); }
+        // أُغلق المنتقي والحقل ما زال مركّزاً: يعود صف الإيموجي السريعة
+        if (was && reactsRow != null && replyIn != null && replyIn.hasFocus()) reactsRow.setVisibility(View.VISIBLE);
+    }
 
     // ------------------------------------------------------------ عرض قصة (showStory)
     private void showStory() {
         if (idx < 0 || idx >= list.size()) { close(); return; }
         final Story s = list.get(idx);
+        hidePicker();   // قصة جديدة: أغلق المنتقي كي لا تبقى القصة متوقفة
         t = 0; videoReady = false; videoEnded = false;
         react = null; reactToken++;
         dur = SDUR;
@@ -693,6 +786,8 @@ public final class StoryViewer {
                 vid.setOnPreparedListener(mp -> {
                     if (token != loadToken) return;
                     try { int d = mp.getDuration(); if (d > 0) dur = Math.min(30000, d); } catch (Throwable ignored) { }
+                    curMp = mp;
+                    try { mp.setVolume(sMuted ? 0f : 1f, sMuted ? 0f : 1f); } catch (Throwable ignored) { }
                     videoReady = true;
                     vid.setVisibility(View.VISIBLE);
                     if (!paused && !hold) vid.start();
@@ -788,7 +883,7 @@ public final class StoryViewer {
             try {
                 Story s = (idx >= 0 && idx < list.size()) ? list.get(idx) : null;
                 boolean isVid = s != null && !s.videoUrl.isEmpty();
-                if (paused || hold || modalOpen) {
+                if (paused || hold || modalOpen || pickerOpen()) {   // منتقي التفاعلات مفتوح: القصة متوقفة حتى يتم التفاعل
                     if (isVid && videoReady && vid.isPlaying()) vid.pause();
                 } else if (isVid) {
                     if (videoReady && !videoEnded && !vid.isPlaying()) vid.start();

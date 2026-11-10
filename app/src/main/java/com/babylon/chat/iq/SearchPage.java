@@ -77,19 +77,24 @@ final class SearchPage {
 
     // ------------------------------------------------------------------ الألوان (--sr-*)
     private static final class P {
-        final int bg, topA, topB, field, fieldBorder, card, line, chip, gold, text, mute, icon;
+        final int bg, topA, topB, field, fieldBorder, card, line, chip, gold, text, mute, icon, soft, clearBg;
 
         P(int bg, int topA, int topB, int field, int fieldBorder, int card, int line, int chip,
-          int gold, int text, int mute, int icon) {
+          int gold, int text, int mute, int icon, int soft, int clearBg) {
+            this.soft = soft; this.clearBg = clearBg;
             this.bg = bg; this.topA = topA; this.topB = topB; this.field = field; this.fieldBorder = fieldBorder;
             this.card = card; this.line = line; this.chip = chip; this.gold = gold; this.text = text;
             this.mute = mute; this.icon = icon;
         }
 
-        static final P DARK = new P(0xFF0F172A, 0xFF1E293B, 0xFF17212B, 0xFF0F172A, 0x00000000,
-                0xFF1B2636, 0x2994A3B8, 0x1FE4C45B, 0xFFE4C45B, 0xFFF1F5F9, 0xFF8EA0B4, 0xFFD4AF37);
-        static final P LIGHT = new P(0xFFF3F6FB, 0xFFFFFFFF, 0xFFF8FAFD, 0xFFEEF2F8, 0xFFDCE4EE,
-                0xFFFFFFFF, 0xFFE3E9F2, 0x21C29D30, 0xFFB98710, 0xFF17212B, 0xFF6B7A8C, 0xFF000000);
+        // خلفية الصفحة والبطاقات والحدود والنصوص من نفس قيم صفحة الإعدادات (Tk.pageBg / surface / border / muted)
+        // soft: لون × الإلغاء وكلمة «جاري البحث» (أسود رمادي نهاري / أبيض رمادي ليلي) بدل الذهبي
+        static final P DARK = new P(Tk.pageBg(true), Tk.surface(true), Tk.surface(true), Tk.surface2(true), 0x00000000,
+                Tk.surface(true), Tk.border(true), 0x1FE4C45B, 0xFFE4C45B, Tk.text(true), Tk.muted(true), 0xFFD4AF37,
+                0xFFCBD5E1, 0x1FFFFFFF);
+        static final P LIGHT = new P(Tk.pageBg(false), Tk.surface(false), Tk.surface(false), Tk.chipBg(false), 0xFFE3E9F1,
+                Tk.surface(false), Tk.border(false), 0x21C29D30, 0xFFB98710, Tk.text(false), Tk.muted(false), 0xFF000000,
+                0xFF4B5563, 0x14000000);
 
         static P of(boolean dark) { return dark ? DARK : LIGHT; }
     }
@@ -209,9 +214,9 @@ final class SearchPage {
 
         GradientDrawable cg = new GradientDrawable();
         cg.setShape(GradientDrawable.OVAL);
-        cg.setColor(p.chip);
+        cg.setColor(p.clearBg);
         clearBtn.setBackground(cg);
-        clearIcon.setColorFilter(p.gold);
+        clearIcon.setColorFilter(p.soft);
 
         setHint(hintText, hintKind);
         renderCurrent();
@@ -787,7 +792,7 @@ final class SearchPage {
         hintKind = kind;
         if (hint == null) return;
         hint.setText(s);
-        hint.setTextColor(kind == HINT_LOADING ? p.gold : kind == HINT_ERROR ? RED : p.mute);
+        hint.setTextColor(kind == HINT_LOADING ? p.soft : kind == HINT_ERROR ? RED : p.mute);
     }
 
     private void hideKeyboard() {

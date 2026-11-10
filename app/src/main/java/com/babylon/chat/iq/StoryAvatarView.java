@@ -11,6 +11,7 @@ import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RadialGradient;
+import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.SweepGradient;
 import android.graphics.Typeface;
@@ -45,6 +46,12 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
     private static final int[] LAUNCH_COLORS = {0x00B98710, 0x00B98710, 0xFFB98710, 0xFFD4AF37, 0xFFFFE9A0, 0xFFD4AF37, 0x00D4AF37, 0x00D4AF37};
     private static final float[] LAUNCH_POS = {0f, 205f / 360f, 225f / 360f, 255f / 360f, 285f / 360f, 320f / 360f, 340f / 360f, 1f};
     private boolean launching;
+    /** مدة دورة الوميض الذهبي (كانت 2150ms؛ أسرع بنحو 1.5×). */
+    private static final int LAUNCH_MS = 1400;
+    /** الحلقة الرمادية أثناء الفتح + الوميض الذهبي الموحَّد (بلا تدرّج) وزاوية قوسه. */
+    private static final int LAUNCH_BASE = 0xFF4B5A6B, LAUNCH_GOLD = 0xFFD4AF37;
+    private static final float LAUNCH_SWEEP = 80f;
+    private final RectF arcRect = new RectF();
     private boolean ringSmall;   // الحلقة المصغّرة عند طيّ الشريط: inset:-3px; padding:2px
     private float spin;
     private ValueAnimator spinAnim;
@@ -96,7 +103,7 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
     private void startSpin() {
         stopSpin();
         spinAnim = ValueAnimator.ofFloat(0f, 360f);
-        spinAnim.setDuration(2150);
+        spinAnim.setDuration(LAUNCH_MS);
         spinAnim.setInterpolator(new LinearInterpolator());
         spinAnim.setRepeatCount(ValueAnimator.INFINITE);
         spinAnim.addUpdateListener(a -> { spin = (Float) a.getAnimatedValue(); invalidate(); });
@@ -182,16 +189,16 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
         if (ring) {
             float outerR = R + dp(ringSmall ? 3 : 5), thick = dp(ringSmall ? 2 : 3), mid = outerR - thick / 2f;
             if (launching) {
-                // أثناء التحميل تُستبدل الحلقة بقوس دوّار فقط (بلا توهّج) — كما في الـ CSS
+                // أثناء الفتح: الحلقة تصبح رمادية ويدور حولها وميض ذهبي موحّد اللون (قوس بلا تدرّج)
                 p.reset(); p.setAntiAlias(true);
                 p.setStyle(Paint.Style.STROKE);
                 p.setStrokeWidth(thick);
-                SweepGradient lg = new SweepGradient(cx, cy, LAUNCH_COLORS, LAUNCH_POS);
-                mx.reset();
-                mx.setRotate(-90 + spin, cx, cy);   // conic من الأعلى + دوران الأنيميشن
-                lg.setLocalMatrix(mx);
-                p.setShader(lg);
+                p.setColor(LAUNCH_BASE);
                 c.drawCircle(cx, cy, mid, p);
+                p.setColor(LAUNCH_GOLD);
+                p.setStrokeCap(Paint.Cap.ROUND);
+                arcRect.set(cx - mid, cy - mid, cx + mid, cy + mid);
+                c.drawArc(arcRect, -90f + spin, LAUNCH_SWEEP, false, p);
             } else {
                 if (GLOW) {   // box-shadow:0 0 7px rgba(212,160,23,.55) خارج حافة الحلقة فقط
                     float g = outerR + dp(8);

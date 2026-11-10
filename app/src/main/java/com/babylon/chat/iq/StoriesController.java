@@ -58,7 +58,7 @@ public final class StoriesController {
     static final float RP = 5.3f;
     static final float PTP = PT - RP;
     static final float HH = 22.9f, HMT = -6f, HMB = 2f, TOP_PB = 2f;
-    static final float HDR_AV = 32.3f, THUMB = 38.3f, COUNT = 33.8f;   // AV=52 مثل أفاتار المحادثات، HDR_AV=42 مثل زر العدسة
+    static final float HDR_AV = 32.3f, THUMB = 37.3f, COUNT = 33.8f;   // AV=52 مثل أفاتار المحادثات، HDR_AV=42 مثل زر العدسة
 
     private final Activity act;
     private final float dens;
@@ -93,6 +93,8 @@ public final class StoriesController {
 
     private static final class Drag { char mode; float y0, p0, p, v, ly; long lt; }
     private static final class Fly { StoryAvatarView v; float[] hr, br; boolean plus; StoryAvatarView srcAv; }
+    /** طيران القصص الأخرى (حتى 3 مصغّرات في الهيدر) من موضع مصغّرتها إلى خليتها في الشريط، مثل «قصتي». */
+    private final List<Fly> others = new ArrayList<>();
 
     public StoriesController(Activity act, FrameLayout root, StoriesHost home, ScrollView chatScroll,
                              LinearLayout top, HorizontalScrollView scroll, LinearLayout bar,
@@ -339,14 +341,16 @@ public final class StoriesController {
     private float[] hdrRect() { return body(rectIn(hdrAv)); }
 
     /** مستطيل أفاتار «قصتي» داخل الشريط وهو مفتوح بالكامل (يُحسب هندسياً إن لم يكن مرسوماً بعد). */
-    private float[] barRect() {
-        View first = bar.getChildCount() > 0 ? ((ViewGroup) bar.getChildAt(0)).getChildAt(0) : null;
+    private float[] barRect() { return barRect(0); }
+
+    private float[] barRect(int idx) {
+        View first = bar.getChildCount() > idx ? ((ViewGroup) bar.getChildAt(idx)).getChildAt(0) : null;
         if (first != null && top.getVisibility() == View.VISIBLE && first.getWidth() > 0 && scroll.getHeight() >= H - 2 && curP >= 0.999f) {
             return body(rectIn(first));
         }
         int[] a = new int[2], r = new int[2];
         home.getLocationInWindow(a); root.getLocationInWindow(r);
-        float x = a[0] - r[0] + px(SIDE) + (px(ITEM_W) - px(AV)) / 2f - scroll.getScrollX();
+        float x = a[0] - r[0] + px(SIDE) + idx * (px(ITEM_W) + px(GAP_ITEMS)) + (px(ITEM_W) - px(AV)) / 2f - scroll.getScrollX();
         float y = a[1] - r[1] - chatScroll.getScrollY() + px(PT);
         return new float[]{x, y, px(AV), px(AV)};
     }
@@ -366,30 +370,64 @@ public final class StoriesController {
         int w = Math.round(br[2] + 2 * px(RP)), h = Math.round(br[3] + 2 * px(RP));
         f.v.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY));
         f.v.layout(0, 0, w, h);
+        // القصص الأخرى: تطير من مصغّراتها في الهيدر (تحت «قصتي» في الترتيب) إلى خلاياها في الشريط
+        others.clear();
+        int n = Math.min(3, items.size() - 1);
+        for (int i = 1; i <= n; i++) {
+            if (i >= bar.getChildCount() || i - 1 >= hdrStack.getChildCount()) break;
+            View tvw = hdrStack.getChildAt(i - 1);
+            View cav = ((ViewGroup) bar.getChildAt(i)).getChildAt(0);
+            if (!(tvw instanceof ThumbView) || !(cav instanceof StoryAvatarView) || tvw.getWidth() <= 0) continue;
+            float[] tr = rectIn(tvw);
+            float[] b2 = barRect(i);
+            if (b2 == null || b2[2] <= 0) continue;
+            Fly g = new Fly();
+            g.hr = tr; g.br = b2;
+            g.srcAv = (StoryAvatarView) cav;
+            g.v = new StoryAvatarView(act);
+            g.v.copyFrom(g.srcAv);
+            int gw = Math.round(b2[2] + 2 * px(RP)), gh = Math.round(b2[3] + 2 * px(RP));
+            g.v.measure(View.MeasureSpec.makeMeasureSpec(gw, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(gh, View.MeasureSpec.EXACTLY));
+            g.v.layout(0, 0, gw, gh);
+            root.getOverlay().add(g.v);
+            g.srcAv.setAlpha(0f);
+            others.add(g);
+        }
         root.getOverlay().add(f.v);
         f.srcAv.setAlpha(0f);
         fl = f;
     }
 
-    private void flyUpdate(float p) {
-        if (fl == null) return;
-        float[] h = fl.hr, b = fl.br;
+    private void place(Fly f, float p) {
+        float[] h = f.hr, b = f.br;
         float hx = h[0] + h[2] / 2f, hy = h[1] + h[3] / 2f, bx = b[0] + b[2] / 2f, by = b[1] + b[3] / 2f;
         float cx = hx + (bx - hx) * p, cy = hy + (by - hy) * p;
         float sc = (h[2] + (b[2] - h[2]) * p) / b[2];
-        fl.v.setTranslationX(cx - (b[2] + 2 * px(RP)) / 2f);
-        fl.v.setTranslationY(cy - (b[3] + 2 * px(RP)) / 2f);
-        fl.v.setScaleX(sc); fl.v.setScaleY(sc);
+        f.v.setTranslationX(cx - (b[2] + 2 * px(RP)) / 2f);
+        f.v.setTranslationY(cy - (b[3] + 2 * px(RP)) / 2f);
+        f.v.setScaleX(sc); f.v.setScaleY(sc);
+    }
+
+    private void flyUpdate(float p) {
+        if (fl == null) return;
+        for (Fly g : others) place(g, p);
+        place(fl, p);
         if (fl.plus) fl.v.setPlusAlpha(p);
     }
 
     private void endFly() {
+        boolean hadOthers = !others.isEmpty();
+        for (Fly g : others) {
+            try { root.getOverlay().remove(g.v); } catch (Throwable ignored) { }
+            if (g.srcAv != null) g.srcAv.setAlpha(1f);
+        }
+        others.clear();
         if (fl != null) {
             try { root.getOverlay().remove(fl.v); } catch (Throwable ignored) { }
             if (fl.srcAv != null) fl.srcAv.setAlpha(1f);
             fl = null;
         }
-        releaseHeader();
+        releaseHeader(hadOthers);
     }
 
     // ============================================================ صورة الهيدر
@@ -415,12 +453,14 @@ public final class StoriesController {
         hdrStack.setAlpha(0f);
     }
 
-    private void releaseHeader() {
+    private void releaseHeader(boolean flown) {
         if (collapsed || hidden) {
             hdrBtn.setVisibility(View.VISIBLE);
             hdrBtn.setAlpha(1f);
             hdrStack.animate().cancel();
-            if (hdrStack.getAlpha() < 1f) hdrStack.animate().alpha(1f).setDuration(220).start();
+            // القصص الأخرى هبطت فعلاً على مصغّراتها، فتظهر المصغّرات فوراً دون تلاشٍ حتى لا يحدث وميض
+            if (flown) hdrStack.setAlpha(1f);
+            else if (hdrStack.getAlpha() < 1f) hdrStack.animate().alpha(1f).setDuration(220).start();
         } else {
             hdrStack.animate().cancel();
             hdrStack.setAlpha(1f);
@@ -668,9 +708,17 @@ public final class StoriesController {
             p.setStyle(Paint.Style.FILL);
             p.setColor(seen ? 0xFF66717D : 0xFFD4AF37);
             c.drawCircle(cx, cy, r, p);
-            p.setColor(surface);
-            c.drawCircle(cx, cy, r - b, p);
-            if (photo != null && !photo.isRecycled()) {
+            boolean hasPhoto = photo != null && !photo.isRecycled();
+            if (hasPhoto) {
+                p.setColor(surface);
+                c.drawCircle(cx, cy, r - b, p);
+            } else {
+                // بلا صورة: جسم ذهبي متدرج (145°) في النهاري والليلي معاً + حرف أبيض
+                p.setShader(StoryAvatarView.css145(cx, cy, (r - b) * 2f, StoryAvatarView.GOLD_A, StoryAvatarView.GOLD_B));
+                c.drawCircle(cx, cy, r - b, p);
+                p.setShader(null);
+            }
+            if (hasPhoto) {
                 android.graphics.BitmapShader bs = new android.graphics.BitmapShader(photo, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
                 float dd = (r - b) * 2f;
                 float sc = Math.max(dd / photo.getWidth(), dd / photo.getHeight());
@@ -682,7 +730,7 @@ public final class StoriesController {
                 c.drawCircle(cx, cy, r - b, p);
                 p.setShader(null);
             } else {
-                p.setColor(gold);
+                p.setColor(0xFFFFFFFF);
                 p.setTypeface(Typeface.DEFAULT_BOLD);
                 p.setTextSize(11f * getResources().getDisplayMetrics().scaledDensity);
                 Paint.FontMetrics fm = p.getFontMetrics();

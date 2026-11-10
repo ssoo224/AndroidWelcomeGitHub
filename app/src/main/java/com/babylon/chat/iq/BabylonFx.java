@@ -14,6 +14,7 @@ import android.graphics.Path;
 import android.graphics.Shader;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
+import android.os.SystemClock;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -147,24 +148,64 @@ public final class BabylonFx {
                 .withEndAction(() -> reset(v)).start();
     }
 
-    /** bbChatGrow: فتح غرفة المحادثة (تكبر وتظهر) + هيدر + مدخل الرسائل. */
+    /** اتجاه طيّ صفحة المحادثة: المفصلة على الحافة اليمنى (كتاب عربي). غيّرها إلى false لتصير على اليسرى. */
+    private static final boolean FOLD_HINGE_RIGHT = true;
+    /** زاوية بداية الطي (درجة) ومدته (ms). إشارتها تحدّد اتجاه الدوران؛ اعكسها إن ظهر الدوران معكوساً. */
+    private static final float FOLD_START_DEG = 78f;
+    private static final long FOLD_MS = 440;
+    /** وقت (uptime) انتهاء حركة الطيّ؛ تنتظره المحادثة قبل رسم الرسائل كي لا تتداخل معها ولا تُقطّعها. */
+    private static volatile long foldEndUptime = 0L;
+
+    /** يُستدعى فور بدء فتح المحادثة (قبل أول إطار) ليعرف تحميل الرسائل أن الحركة ستبدأ. */
+    public static void chatFoldBegin() { foldEndUptime = SystemClock.uptimeMillis() + FOLD_MS + 80; }
+
+    /** ms المتبقية حتى تنتهي حركة الطيّ (0 إن لم تكن جارية). */
+    public static long chatFoldRemaining() { return Math.max(0L, foldEndUptime - SystemClock.uptimeMillis()); }
+
+    /** فتح غرفة المحادثة بحركة «طيّ/فتح صفحة»: الصفحة تنفتح من مفصلة على حافتها مع تظليل يزول تدريجياً. */
     public static void chatGrow(final View chat, View header, View composer) {
         if (chat == null) return;
         reset(chat);
-        // خلفية المحادثة صلبة منذ أول إطار (تغطي قائمة المحادثات فلا تظهر منزاحة تحت شريط الحالة/الإيماءات
-        // حين يُصفَّر حشو الجذر عند الدخول)، والمحتوى وحده يظهر بتلاشٍ سريع.
         chat.setAlpha(1f);
+        // أي تلاشٍ سابق للأبناء يُلغى: المحتوى يظهر كاملاً داخل الصفحة وهي تنفتح
         if (chat instanceof ViewGroup) {
             ViewGroup g = (ViewGroup) chat;
-            for (int i = 0; i < g.getChildCount(); i++) {
-                final View c = g.getChildAt(i);
-                if (c.getVisibility() != View.VISIBLE) continue;
-                c.animate().cancel();
-                c.setAlpha(0f);
-                c.animate().alpha(1f).setDuration(160).setInterpolator(easeOut())
-                        .withEndAction(() -> c.setAlpha(1f)).start();
-            }
+            for (int i = 0; i < g.getChildCount(); i++) { g.getChildAt(i).animate().cancel(); g.getChildAt(i).setAlpha(1f); }
         }
+        final int w = chat.getWidth(), h = chat.getHeight();
+        if (w <= 0 || h <= 0) return;
+        foldEndUptime = SystemClock.uptimeMillis() + FOLD_MS + 30;   // التوقيت الدقيق بعد بدء الرسم الفعلي
+        final float sign = FOLD_HINGE_RIGHT ? 1f : -1f;
+        chat.setCameraDistance(9000f * chat.getResources().getDisplayMetrics().density);
+        chat.setPivotX(FOLD_HINGE_RIGHT ? w : 0f);
+        chat.setPivotY(h / 2f);
+        chat.setRotationY(sign * FOLD_START_DEG);
+        final int oldLayer = chat.getLayerType();
+        chat.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        final ColorDrawable shade = new ColorDrawable(Color.BLACK);
+        shade.setBounds(0, 0, w, h);
+        shade.setAlpha(150);
+        chat.getOverlay().add(shade);
+        final ValueAnimator va = ValueAnimator.ofFloat(0f, 1f);
+        va.setDuration(FOLD_MS);
+        va.setInterpolator(easeOut());
+        va.addUpdateListener(a -> {
+            float t = (float) a.getAnimatedValue();
+            chat.setRotationY(sign * FOLD_START_DEG * (1f - t));
+            shade.setAlpha(Math.round(150f * (1f - t)));
+        });
+        va.addListener(new AnimatorListenerAdapter() {
+            private void done() {
+                try { chat.getOverlay().remove(shade); } catch (Throwable ignored) { }
+                chat.setRotationY(0f);
+                chat.setPivotX(chat.getWidth() / 2f);
+                chat.setPivotY(chat.getHeight() / 2f);
+                chat.setLayerType(oldLayer, null);
+            }
+            @Override public void onAnimationEnd(Animator an) { done(); }
+            @Override public void onAnimationCancel(Animator an) { done(); }
+        });
+        va.start();
     }
 
     /**

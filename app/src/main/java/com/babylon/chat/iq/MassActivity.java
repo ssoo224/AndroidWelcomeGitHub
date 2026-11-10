@@ -330,7 +330,7 @@ public class MassActivity extends Activity {
             Runnable chatStateRun;
             LinearLayout chatSelBar;
             TextView chatSelCountTv;
-            ImageView chatSelPinIv;
+            ImageView chatSelPinIv, chatSelXIv, chatSelDelIv;
             String userName = "", userUsername = "", userBio = "", userGov = "", userEmail = "", userJoin = "";
             String userPhoto = "", shownPhoto = "";
             Bitmap photoBmp = null;
@@ -2357,7 +2357,7 @@ public class MassActivity extends Activity {
                     boolean ringOn = c.length > 4 && storyUntil.get(c[4]) != null && storyUntil.get(c[4]) > System.currentTimeMillis();
                     av.set(dn.length() > 0 ? dn.substring(0, 1).toUpperCase() : "?", null, c.length > 4 && StoryAvatarView.toneBlue(c[4]))
                       .ring(ringOn, false).online(c.length > 4 && Boolean.TRUE.equals(onlineMap.get(c[4])))
-                      .theme(dark, cSf()).textSp(19.8f).pad(5.3f);   // الحلقة داخل حدود الـ View فلا تُقصّ
+                      .theme(dark, cSf()).textSp(17f).pad(5f);   // الحلقة داخل حدود الـ View فلا تُقصّ
                     if (ringOn) {   // chatAvatarStory: الضغط على أفاتار فيه حلقة يفتح القصة
                         final StoryAvatarView fav = av; final String fUid = rowUid, fName = dn;
                         final boolean fBlue = StoryAvatarView.toneBlue(rowUid);
@@ -2365,8 +2365,9 @@ public class MassActivity extends Activity {
                         av.setOnClickListener(vv -> openStory(fUid, fName, fName.length() > 0 ? fName.substring(0, 1).toUpperCase() : "?", null, fBlue, fav));
                         av.setOnLongClickListener(vv -> row.performLongClick());
                     }
-                    LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(dp(62.6f), dp(62.6f));
-                    ap.setMargins(-dp(5.3f), -dp(5.3f), -dp(5.3f), -dp(5.3f));
+                    // الأفاتار بحجم منطقة محتوى الصف نفسها (65.8 - 2*6.9 ≈ 52dp) بلا هوامش سالبة؛
+                    // قطر الصورة = 52 - 2*5 = 42dp والحلقة (نصف قطر +5dp) تنتهي داخل الـ View تماماً فلا تُقصّ أبداً.
+                    LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(dp(52f), dp(52f));
                     LinearLayout mid = new LinearLayout(act);
                     mid.setOrientation(LinearLayout.VERTICAL);
                     mid.setClipChildren(false);
@@ -2665,12 +2666,17 @@ public class MassActivity extends Activity {
             }
 
             void updateChatSelBar() {
-                if (chatSelCountTv != null) chatSelCountTv.setText(String.valueOf(chatSel.size()));
+                if (chatSelCountTv != null) { chatSelCountTv.setText(String.valueOf(chatSel.size())); chatSelCountTv.setTextColor(cGold()); }
+                // كل عناصر الشريط ذهبية في النهاري والليلي (تُحدَّث عند كل تحديث تحسباً لتبديل الثيم)
+                if (chatSelXIv != null) chatSelXIv.setColorFilter(cGold());
+                if (chatSelDelIv != null) chatSelDelIv.setColorFilter(cGold());
+                if (chatSelPinIv != null) chatSelPinIv.setColorFilter(cGold());
+                if (chatSelBar != null) chatSelBar.setBackgroundColor(cBg());
                 if (chatSelPinIv != null) {
                     java.util.List<String> pins = getPins();
                     boolean all = !chatSel.isEmpty();
                     for (String u : chatSel) if (!pins.contains(chatIdOf(u))) { all = false; break; }
-                    chatSelPinIv.setImageResource(all ? R.drawable.ic_mm_unpin : R.drawable.ic_mm_pin);
+                    chatSelPinIv.setImageResource(all ? R.drawable.ic_sel_unpin : R.drawable.ic_sel_pin);
                     chatSelPinIv.setContentDescription(all ? "إلغاء التثبيت" : "تثبيت");
                 }
             }
@@ -2690,24 +2696,24 @@ public class MassActivity extends Activity {
                 row.setBackgroundColor(cBg());
                 row.setVisibility(View.GONE);
 
-                row.addView(noBg(selIcon(R.drawable.ic_mm_x, cText(), cSf(), "إلغاء التحديد", () -> exitChatSel(true))),
-                        new LinearLayout.LayoutParams(dp(42), dp(42)));
+                chatSelXIv = noBg(selIcon(R.drawable.ic_mm_x, cGold(), cSf(), "إلغاء التحديد", () -> exitChatSel(true)));
+                row.addView(chatSelXIv, new LinearLayout.LayoutParams(dp(42), dp(42)));
 
                 chatSelCountTv = new TextView(act);
-                chatSelCountTv.setTextSize(19); chatSelCountTv.setTextColor(cText());
+                chatSelCountTv.setTextSize(19); chatSelCountTv.setTextColor(cGold());
                 chatSelCountTv.setTypeface(null, android.graphics.Typeface.BOLD);
                 chatSelCountTv.setIncludeFontPadding(false);
                 LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(0, -2, 1f);
                 cl.setMarginStart(dp(12));
                 row.addView(chatSelCountTv, cl);
 
-                chatSelPinIv = noBg(selIcon(R.drawable.ic_mm_pin, cGold(), goldA(0x1F), "تثبيت", this::selPinChats));
+                chatSelPinIv = noBg(selIcon(R.drawable.ic_sel_pin, cGold(), goldA(0x1F), "تثبيت", this::selPinChats));
                 LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(dp(42), dp(42));
                 pl.setMarginEnd(dp(8));
                 row.addView(chatSelPinIv, pl);
 
-                row.addView(noBg(selIcon(R.drawable.ic_mm_delete, 0xFFF0605D, 0x1FF0605D, "حذف", this::selDeleteChats)),
-                        new LinearLayout.LayoutParams(dp(42), dp(42)));
+                chatSelDelIv = noBg(selIcon(R.drawable.ic_sel_trash, cGold(), goldA(0x1F), "حذف", this::selDeleteChats));
+                row.addView(chatSelDelIv, new LinearLayout.LayoutParams(dp(42), dp(42)));
 
                 par.addView(row, par.indexOfChild(mh), new LinearLayout.LayoutParams(-1, dp(62)));
                 chatSelBar = row;
@@ -2824,6 +2830,7 @@ public class MassActivity extends Activity {
             void openChat(String name, String uid) {
                 if (stories != null) stories.collapseNow();   // دخول محادثة يطوي القصص
                 if (chatSelMode) exitChatSel(false);
+                BabylonFx.chatFoldBegin();   // الرسائل تنتظر انتهاء حركة طيّ الصفحة ثم تظهر بتلاشٍ ناعم
                 otherUid = uid; otherName = name; curChat = name;
                 startBlocksListener(); blocked = uid != null && myBlocks.contains(uid); blockedByThem = false; otherOrigName = name == null ? "" : name; muted = isMutedUid(uid);
                 TextView chatTitle = tv("chatTitle");
@@ -2875,7 +2882,9 @@ public class MassActivity extends Activity {
                         if (o.isAlive()) o.removeOnPreDrawListener(this);
                         View c0 = ((ScrollView) ms).getChildAt(0);
                         if (c0 != null) ((ScrollView) ms).scrollTo(0, Math.max(0, c0.getHeight() + ms.getPaddingTop() + ms.getPaddingBottom() - ms.getHeight()));
-                        area.setAlpha(1f);
+                        area.animate().cancel();
+                        area.setAlpha(0f);
+                        area.animate().alpha(1f).setDuration(180).start();   // ظهور ناعم بعد انتهاء حركة الدخول
                         return true;
                     }
                 });
@@ -2904,9 +2913,7 @@ public class MassActivity extends Activity {
                     if (selecting) { toggleSel(bv); return; }
                     jumpToMsg(rid);
                 };
-                messagesListener = db.collection("chats").document(chatId).collection("messages")
-                    .orderBy("timestamp", Query.Direction.ASCENDING)
-                    .addSnapshotListener(com.google.firebase.firestore.MetadataChanges.INCLUDE, (snapshots, e) -> {
+                final com.google.firebase.firestore.EventListener<com.google.firebase.firestore.QuerySnapshot> onSnap = (snapshots, e) -> {
                         if (e != null || snapshots == null) return;
                         final boolean liveBatch = !firstSnap[0];
                         firstSnap[0] = false;
@@ -2996,7 +3003,20 @@ public class MassActivity extends Activity {
                             }
                         }
                         if (!liveBatch) revealChatBottom();
-                    });
+                    };
+                // لا تُعالَج الرسائل أثناء حركة الدخول (تفادياً للتقطيع والتداخل)؛ تُؤجَّل بالترتيب إلى نهايتها
+                messagesListener = db.collection("chats").document(chatId).collection("messages")
+                    .orderBy("timestamp", Query.Direction.ASCENDING)
+                    .addSnapshotListener(com.google.firebase.firestore.MetadataChanges.INCLUDE,
+                        (sn, er) -> deferSnap(onSnap, chatId, sn, er));
+            }
+
+            void deferSnap(final com.google.firebase.firestore.EventListener<com.google.firebase.firestore.QuerySnapshot> l,
+                           final String cid, final com.google.firebase.firestore.QuerySnapshot sn,
+                           final com.google.firebase.firestore.FirebaseFirestoreException er) {
+                long wait = BabylonFx.chatFoldRemaining();
+                if (wait <= 0) { l.onEvent(sn, er); return; }
+                uiH.postDelayed(() -> { if (cid.equals(currentChatId)) deferSnap(l, cid, sn, er); }, wait);
             }
 
             com.google.firebase.firestore.ListenerRegistration chatPresenceReg;
