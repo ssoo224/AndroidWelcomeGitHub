@@ -331,40 +331,53 @@ public final class MsgViews {
         /** أثناء التشغيل: الموجة متحركة مثل موجة التسجيل وكلها بلون واحد (أبيض). */
         public void setAnimating(boolean on) {
             if (on == anim) return;
-            anim = on; t0 = System.nanoTime();
+            anim = on; t0 = System.nanoTime(); lastNs = t0;
             invalidate();
+        }
+        private float mix;          // 0 = الموجة الثابتة نفسها، 1 = الموجة المتحركة بالكامل (انتقال سلس بلا قفزة)
+        private long lastNs;
+        private static int lerpArgb(int a, int b, float f) {
+            int aa = Math.round(((a >>> 24) & 255) + (((b >>> 24) & 255) - ((a >>> 24) & 255)) * f);
+            int rr = Math.round(((a >> 16) & 255) + (((b >> 16) & 255) - ((a >> 16) & 255)) * f);
+            int gg = Math.round(((a >> 8) & 255) + (((b >> 8) & 255) - ((a >> 8) & 255)) * f);
+            int bb = Math.round((a & 255) + ((b & 255) - (a & 255)) * f);
+            return (aa << 24) | (rr << 16) | (gg << 8) | bb;
         }
         @Override protected void onDraw(Canvas c) {
             float dens = d(getContext());
             float w = getWidth(), h = getHeight(), bw = 2 * dens;
             float step = bw + 2 * dens;                       // عرض العمود 2dp + مسافة ثابتة 2dp (في التشغيل وقبله)
             int n = Math.max(1, (int) Math.floor((w - bw) / step + 1e-3f) + 1);
-            double t = (System.nanoTime() - t0) / 1e9;
+            long now = System.nanoTime();
+            float dt = Math.max(0f, Math.min(0.1f, (now - lastNs) / 1e9f));
+            lastNs = now;
+            if (anim) mix = Math.min(1f, mix + dt / 0.35f); else mix = Math.max(0f, mix - dt / 0.25f);
+            double t = (now - t0) / 1e9;
+            int idleCol = (base & 0x00FFFFFF) | (115 << 24);   // الموجة الثابتة: opacity .45
             for (int i = 1; i <= n; i++) {
                 float hh = 4;
                 if (i % 3 == 0) hh = 7; else if (i % 4 == 0) hh = 6; else if (i % 5 == 0) hh = 8;
                 hh += (i * 7 % 6) + (i % 9 == 0 ? 3 : 0);
                 hh *= dens;
                 float x = flip ? (i - 1) * step : w - bw - (i - 1) * step;   // المرسلة: الأول عند اليمين، المستلمة: عند اليسار
-                if (anim) {
+                float cur = hh; int col = idleCol;
+                if (mix > 0f) {
+                    // نفس الأعمدة بالضبط: تتحرك حول ارتفاعها الأصلي وتنتقل تدريجياً من لونها الثابت إلى لون التشغيل
                     int k = i % 4;                    // نفس تأخيرات موجة التسجيل
                     double dly = k == 1 ? 0.2 : k == 2 ? 0.5 : k == 3 ? 0.35 : 0;
                     double xx = (t + dly) / 0.72, fr = xx - Math.floor(xx);
                     double vv = (((long) Math.floor(xx)) % 2 == 0) ? fr : 1 - fr;
                     double e = vv * vv * (3 - 2 * vv);
-                    float hm = Math.min(h, hh * 1.6f);   // ارتفاع أكبر قليلاً ليظهر التحرك
-                    float cur = (float) (hm * (0.45 + 0.55 * e));
-                    p.setColor(playColor);
-                    p.setAlpha((int) (255 * (0.6 + 0.4 * e)));
-                    c.drawRoundRect(x, (h - cur) / 2, x + bw, (h + cur) / 2, bw * 2, bw * 2, p);
-                    continue;
+                    float hm = Math.min(h, hh * 1.6f);
+                    float animH = (float) (hm * (0.45 + 0.55 * e));
+                    cur = hh + (animH - hh) * mix;
+                    int playCol = (playColor & 0x00FFFFFF) | (((int) (255 * (0.6 + 0.4 * e))) << 24);
+                    col = lerpArgb(idleCol, playCol, mix);
                 }
-                // عند الإيقاف: موجة ثابتة بلون واحد (opacity .45) بلا تلوين حسب موضع التشغيل، مثل الـ HTML
-                p.setColor(base);
-                p.setAlpha(115);
-                c.drawRoundRect(x, (h - hh) / 2, x + bw, (h + hh) / 2, bw * 2, bw * 2, p);
+                p.setColor(col);
+                c.drawRoundRect(x, (h - cur) / 2, x + bw, (h + cur) / 2, bw * 2, bw * 2, p);
             }
-            if (anim) postInvalidateOnAnimation();
+            if (anim || mix > 0f) postInvalidateOnAnimation();
         }
     }
 

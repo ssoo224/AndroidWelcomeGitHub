@@ -52,13 +52,13 @@ public final class StoriesController {
     public interface OnItem { void click(Item it); }
 
     // ----- القياسات (px الـ HTML عند --bb-s=1.041 ⇒ dp)
-    static final float ITEM_W = 66.6f, AV = 56.2f, SIDE = 14f, GAP_ITEMS = 14f, GAP_TXT = 7f, TXT_H = 15f;
+    static final float ITEM_W = 66.6f, AV = 52f, SIDE = 14f, GAP_ITEMS = 14f, GAP_TXT = 7f, TXT_H = 15f;
     static final float PT = 12f, PB = 10f;
     /** هامش رسم الحلقة داخل حدود الأفاتار (≥ 5dp سماكة+إزاحة الحلقة) كي لا تُقصّ من أي حاوية. */
     static final float RP = 5.3f;
     static final float PTP = PT - RP;
     static final float HH = 22.9f, HMT = -6f, HMB = 2f, TOP_PB = 2f;
-    static final float HDR_AV = 37.5f, THUMB = 34.2f, COUNT = 30.2f;
+    static final float HDR_AV = 42f, THUMB = 38.3f, COUNT = 33.8f;   // AV=52 مثل أفاتار المحادثات، HDR_AV=42 مثل زر العدسة
 
     private final Activity act;
     private final float dens;

@@ -238,8 +238,24 @@ public final class StoryViewer {
                     for (int k = 0; k < list.size(); k++) if (list.get(k).expiresAt > seen) { start = k; break; }
                 }
                 idx = start;
-                try { build(); } catch (Throwable e) { if (onFail != null) onFail.run(); return; }
-                if (onOpened != null) onOpened.run();
+                final Runnable go = () -> {
+                    try { build(); } catch (Throwable e) { if (onFail != null) onFail.run(); return; }
+                    if (onOpened != null) onOpened.run();
+                };
+                final String firstSrc = list.get(idx).imageUrl;
+                if (firstSrc.isEmpty()) { go.run(); return; }
+                // القوس الدوّار يبقى يدور أثناء التحميل المسبق؛ مهلة 1.2ث كي لا ينتظر المستخدم طويلاً على شبكة بطيئة
+                final boolean[] fired = {false};
+                final Runnable fire = () -> { if (fired[0]) return; fired[0] = true; go.run(); };
+                handler.postDelayed(fire, 1200);
+                IO.execute(() -> {
+                    final Bitmap b = fetchBitmap(firstSrc);
+                    handler.post(() -> {
+                        if (!fired[0]) { preSrc = firstSrc; preBmp = b; }
+                        handler.removeCallbacks(fire);
+                        fire.run();
+                    });
+                });
             })
             .addOnFailureListener(e -> {
                 Toast.makeText(act, "تعذر تحميل القصة، حاول مرة أخرى", Toast.LENGTH_SHORT).show();
@@ -363,15 +379,42 @@ public final class StoryViewer {
         tp.topMargin = dp(14) + sat;
         stage.addView(top, tp);
 
+        // الصورة/الفيديو يُعرضان كاملين بين الشريط العلوي والتذييل: لا تُغطّى أجزاء منهما بأزرار القصة
+        final FrameLayout fMedia = media;
+        final Runnable fitMedia = new Runnable() {
+            boolean done;
+            @Override public void run() {
+                if (done || closed || stage == null || stage.getHeight() <= 0 || top.getHeight() <= 0 || foot.getHeight() <= 0) return;
+                done = true;
+                final int topR = Math.max(0, top.getBottom() + dp(4));
+                final int botR = Math.max(0, stage.getHeight() - (foot.getTop() + dp(24)));
+                stage.post(() -> {
+                    FrameLayout.LayoutParams mp = (FrameLayout.LayoutParams) fMedia.getLayoutParams();
+                    mp.topMargin = topR; mp.bottomMargin = botR;
+                    fMedia.setLayoutParams(mp);
+                });
+            }
+        };
+        top.addOnLayoutChangeListener((v, l, t0, r, b, ol, ot, orr, ob) -> fitMedia.run());
+        foot.addOnLayoutChangeListener((v, l, t0, r, b, ol, ot, orr, ob) -> fitMedia.run());
+        stage.addOnLayoutChangeListener((v, l, t0, r, b, ol, ot, orr, ob) -> fitMedia.run());
+
         // --- ألوان أشرطة النظام أثناء العرض (setStorySystemBars)
         try {
             android.view.Window w = act.getWindow();
             oldSb = w.getStatusBarColor(); oldNb = w.getNavigationBarColor();
-            w.setStatusBarColor(Color.BLACK); w.setNavigationBarColor(Color.BLACK);
         } catch (Throwable ignored) { }
 
         decor.addView(overlay, new FrameLayout.LayoutParams(-1, -1));
         current = this;
+        // تغيير ألوان أشرطة النظام يُرسَل بعد أول إطار من الحركة (لا في إطار البناء نفسه) لتفادي تقطّع الدخول
+        overlay.post(() -> {
+            try {
+                if (closed) return;
+                android.view.Window w = act.getWindow();
+                w.setStatusBarColor(Color.BLACK); w.setNavigationBarColor(Color.BLACK);
+            } catch (Throwable ignored) { }
+        });
 
         // --- حركة الفتح: .story-opening
         ValueAnimator bg = ValueAnimator.ofInt(0, 255);
@@ -380,7 +423,7 @@ public final class StoryViewer {
         bg.addUpdateListener(a -> { if (!swipeDragging && overlay != null) overlay.setBackgroundColor(Color.argb((Integer) a.getAnimatedValue(), 0, 0, 0)); });
         bg.start();
         stage.setScaleX(.88f); stage.setScaleY(.88f); stage.setAlpha(.35f);
-        stage.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(720)
+        stage.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(720).withLayer()
             .setInterpolator(new PathInterpolator(.18f, .78f, .22f, 1f)).start();
 
         showStory();
@@ -830,35 +873,46 @@ public final class StoryViewer {
     }
 
     // ------------------------------------------------------------ تحميل الصور
+    /** صورة القصة الأولى تُحمَّل وتُفكّ مسبقاً (قبل بدء حركة الفتح) كي لا يحدث تقطّع ولا تظهر القصة فارغة ثم تقفز الصورة. */
+    private Bitmap preBmp; private String preSrc;
+
+    /** تنزيل + فك ترميز (يُستدعى من خيط IO فقط). */
+    private static Bitmap fetchBitmap(String src) {
+        try {
+            byte[] data;
+            if (src.startsWith("data:")) {
+                String b64 = src.substring(src.indexOf(',') + 1);
+                data = Base64.decode(b64, Base64.DEFAULT);
+            } else {
+                HttpURLConnection c = (HttpURLConnection) new URL(src).openConnection();
+                c.setConnectTimeout(12000); c.setReadTimeout(20000);
+                InputStream is = c.getInputStream();
+                ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                byte[] buf = new byte[16384]; int n;
+                while ((n = is.read(buf)) > 0) { bos.write(buf, 0, n); if (bos.size() > 25 * 1024 * 1024) break; }
+                is.close();
+                data = bos.toByteArray();
+            }
+            BitmapFactory.Options o = new BitmapFactory.Options();
+            o.inJustDecodeBounds = true;
+            BitmapFactory.decodeByteArray(data, 0, data.length, o);
+            int sample = 1, mx = Math.max(o.outWidth, o.outHeight);
+            while (mx / sample > 1800) sample *= 2;
+            BitmapFactory.Options o2 = new BitmapFactory.Options();
+            o2.inSampleSize = sample;
+            return BitmapFactory.decodeByteArray(data, 0, data.length, o2);
+        } catch (Throwable ignored) { return null; }
+    }
+
     private void loadImage(final String src, final int token) {
         if (src == null || src.isEmpty()) return;
+        if (preBmp != null && src.equals(preSrc)) {          // جاهزة مسبقاً: تظهر فوراً مع أول إطار
+            img.setImageBitmap(preBmp);
+            preBmp = null; preSrc = null;
+            return;
+        }
         IO.execute(() -> {
-            Bitmap bmp = null;
-            try {
-                byte[] data;
-                if (src.startsWith("data:")) {
-                    String b64 = src.substring(src.indexOf(',') + 1);
-                    data = Base64.decode(b64, Base64.DEFAULT);
-                } else {
-                    HttpURLConnection c = (HttpURLConnection) new URL(src).openConnection();
-                    c.setConnectTimeout(12000); c.setReadTimeout(20000);
-                    InputStream is = c.getInputStream();
-                    ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                    byte[] buf = new byte[16384]; int n;
-                    while ((n = is.read(buf)) > 0) { bos.write(buf, 0, n); if (bos.size() > 25 * 1024 * 1024) break; }
-                    is.close();
-                    data = bos.toByteArray();
-                }
-                BitmapFactory.Options o = new BitmapFactory.Options();
-                o.inJustDecodeBounds = true;
-                BitmapFactory.decodeByteArray(data, 0, data.length, o);
-                int sample = 1, mx = Math.max(o.outWidth, o.outHeight);
-                while (mx / sample > 1800) sample *= 2;
-                BitmapFactory.Options o2 = new BitmapFactory.Options();
-                o2.inSampleSize = sample;
-                bmp = BitmapFactory.decodeByteArray(data, 0, data.length, o2);
-            } catch (Throwable ignored) { }
-            final Bitmap fb = bmp;
+            final Bitmap fb = fetchBitmap(src);
             handler.post(() -> { if (!closed && token == loadToken && fb != null) img.setImageBitmap(fb); });
         });
     }

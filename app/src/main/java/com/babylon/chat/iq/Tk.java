@@ -62,6 +62,9 @@ public final class Tk {
     public static int backFg(boolean d)  { return d ? 0xFFF5D76E : 0xFF52657A; }
 
     // ----- تدرجات ذهبية ثابتة
+    /** تدرج الأزرار الذهبية الموحّد = زر «حفظ التعديلات» (ليلي) في تعديل القصة */
+    public static final int[] GOLD_REF = {0xFFF5D875, 0xFFB98B23};
+    public static final int GOLD_INK = 0xFF171717;
     public static final int[] GOLD_145 = {0xFFD9AD34, 0xFFB8861B};   // chips / badges
     public static final int[] GOLD_135 = {0xFFE0BD4A, 0xFFB8891A};   // FAB
     public static final int[] GOLD_BTN = {0xFFC29D30, 0xFFF0C94D};   // .sx-seg button.on
@@ -196,7 +199,7 @@ public final class Tk {
 
     public static boolean handle(String tag, View x, TextView t, boolean dark) {
         // ---- فقاعات الرسائل (MsgViews)
-        if (tag.equals("mtM")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.textMine : 0xFFFFFFFF); return true; }
+        if (tag.equals("mtM")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.textMine : GOLD_INK); return true; }
         if (tag.equals("mtO")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.textOther : text(dark)); return true; }
         if (tag.equals("mmM")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.textMine : 0xF2FFFFFF); return true; }
         if (tag.equals("mmO")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.metaOther : (dark ? 0xFF94A3B8 : 0xFF7C8B9C)); return true; }
@@ -221,7 +224,7 @@ public final class Tk {
             return true;
         }
         if (tag.equals("rqnM") || tag.equals("rqnO")) { if (t != null) t.setTextColor(0xFFFFFFFF); return true; }   // اسم المستخدم في اقتباس الرد: أبيض في النهاري والليلي
-        if (tag.equals("rqtM")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.textMine : 0xFFFFFFFF); return true; }
+        if (tag.equals("rqtM")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.textMine : GOLD_INK); return true; }
         if (tag.equals("rqtO")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.accent : 0xFFC29D30); return true; }   // HTML: لون .reply-quote في رسائل الطرف الآخر = ذهبي accent-chat
         // ---- شريط الرد أعلى حقل الكتابة (.reply-preview-bar في الـ HTML)
         if (tag.equals("rpBar")) {      // بطاقة عائمة: radius 22، حدّ 1px، خلفية --cr-card، ظل خفيف (reply-bar-rounder)
@@ -254,7 +257,7 @@ public final class Tk {
             }
             return true;
         }
-        if (tag.equals("vtTM")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.textMine : 0xFFFFFFFF); return true; }   // عنوان "رسالة صوتية" في المرسَلة: أبيض
+        if (tag.equals("vtTM")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.textMine : GOLD_INK); return true; }   // عنوان "رسالة صوتية" في المرسَلة: أبيض
         if (tag.equals("vtTO")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.textOther : (dark ? 0xFFFFFFFF : 0xFFB8861B)); return true; }   // في المستلمة: ذهبي في النهاري فقط، أبيض في الليلي
         if (tag.equals("vtM")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.textMine : 0xFF292216); return true; }
         if (tag.equals("vtO")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.metaOther : text(dark)); return true; }
@@ -274,10 +277,10 @@ public final class Tk {
             if (tag.equals("vpM")) {
                 x.setBackground(shape(0xFFFFFFFF, r, 0, 0));
             } else {
-                x.setBackground(grad(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE8C85D, 0xFFC29D30}, r));
+                x.setBackground(grad(GradientDrawable.Orientation.TL_BR, GOLD_REF, r));
             }
             // الثيم يُطبَّق على مثلث التشغيل فقط: .voice-play-btn{color:var(--bubble-mine)}
-            int tri = chatPal != null ? chatPal.mineFrom : (tag.equals("vpM") ? 0xFFA9791A : 0xFFFFFFFF);
+            int tri = chatPal != null ? chatPal.mineFrom : (tag.equals("vpM") ? 0xFFA9791A : GOLD_INK);
             if (x instanceof android.view.ViewGroup && ((android.view.ViewGroup) x).getChildCount() > 0) {
                 View ic = ((android.view.ViewGroup) x).getChildAt(0);
                 if (ic instanceof android.widget.ImageView) ((android.widget.ImageView) ic).setColorFilter(tri);
@@ -321,31 +324,31 @@ public final class Tk {
             return true;
         }
         if (tag.equals("recbtn")) {          // زر الإيقاف/الإرسال: دائرة 42 بتدرّج ذهبي 145deg وظل ذهبي
-            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, accentPair(0xFFE8C85D, 0xFFC29D30));
+            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, accentPair(0xFFF5D875, 0xFFB98B23));
             g.setShape(GradientDrawable.OVAL);
             x.setBackground(g);
-            if (t != null) t.setTextColor(chatPal != null ? chatPal.textMine : 0xFFFFFFFF);
+            if (t != null) t.setTextColor(chatPal != null ? chatPal.textMine : GOLD_INK);
             return true;
         }
         if (tag.equals("recleft")) {         // .rec-left : عمود 38 بتدرّج ذهبي وانحناء 12
-            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, accentPair(0xFFE8C85D, 0xFFC29D30));
+            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, accentPair(0xFFF5D875, 0xFFB98B23));
             g.setCornerRadius(dp(x, 12));
             x.setBackground(g);
             return true;
         }
         if (tag.equals("sendbtn")) {         // زر الإرسال: تدرّج ذهبي 145deg ، انحناء 15/15/7/15 ، سهم أبيض ، ظل ذهبي
-            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, accentPair(0xFFE9C957, 0xFFC59B24));
+            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, accentPair(0xFFF5D875, 0xFFB98B23));
             float r = dp(x, 15), s = dp(x, 7);
             g.setCornerRadii(new float[]{r, r, r, r, s, s, r, r});   // TL, TR, BR(7), BL
             x.setBackground(g);
-            if (t != null) t.setTextColor(chatPal != null ? chatPal.textMine : 0xFFFFFFFF);
+            if (t != null) t.setTextColor(chatPal != null ? chatPal.textMine : GOLD_INK);
             return true;
         }
         if (tag.equals("fab")) {
-            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, GOLD_135);
+            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, GOLD_REF);
             g.setShape(GradientDrawable.OVAL);
             x.setBackground(g);
-            if (t != null) t.setTextColor(0xFFFFFFFF);
+            if (t != null) t.setTextColor(GOLD_INK);
             return true;
         }
         if (tag.equals("navbg")) {           // #bottomNav.telegram-bottom-nav : كريمي نهاري / #17212B ليلي

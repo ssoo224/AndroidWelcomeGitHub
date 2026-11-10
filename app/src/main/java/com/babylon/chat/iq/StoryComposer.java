@@ -332,7 +332,7 @@ public final class StoryComposer {
     private int hdrBackFg() { return dark ? 0xFF8696A7 : 0xFF536579; }
     private int spGold()   { return dark ? 0xFFE4C45B : 0xFFB8861B; }
     private int spSoft()   { return dark ? 0x24E4C45B : 0x1FB8861B; }   // .14 / .12
-    private static final int G1 = 0xFFE6BD45, G2 = 0xFFB8861B;           // linear-gradient(135deg,#e6bd45,#b8861b)
+    private static final int G1 = 0xFFF5D875, G2 = 0xFFB98B23;           // linear-gradient(135deg,#e6bd45,#b8861b)
 
     /** مقياس --bb-s: sqrt(w/360) محصور بين 0.9 و 1.25 (w = أصغر بُعد للشاشة بالـ dp). */
     private float bbScale() {
@@ -636,7 +636,7 @@ public final class StoryComposer {
         publishBtn = new TextView(act);
         tsz(publishBtn, 16);
         publishBtn.setTypeface(null, Typeface.BOLD);
-        publishBtn.setTextColor(0xFFFFFFFF);
+        publishBtn.setTextColor(0xFF171717);
         publishBtn.setGravity(Gravity.CENTER);
         publishBtn.setBackground(goldGrad(14));
         publishBtn.setElevation(px(4));
@@ -698,7 +698,7 @@ public final class StoryComposer {
             boolean on = ((Integer) c.getTag()) == hours;
             if (on) {
                 c.setBackground(goldGrad(12));
-                c.setTextColor(0xFFFFFFFF);
+                c.setTextColor(0xFF171717);
                 c.setTypeface(null, Typeface.BOLD);
             } else {
                 c.setBackground(box(spInput(), 12, spBorder()));

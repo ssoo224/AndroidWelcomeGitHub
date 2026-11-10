@@ -352,6 +352,12 @@ public class MassActivity extends Activity {
                     if (root != null) m.hideSoftInputFromWindow(root.getWindowToken(), 0);
                 } catch (Exception e) { }
             }
+            /** زر ذهبي موحّد: نفس تدرج وألوان زر «حفظ التعديلات» */
+            GradientDrawable goldShape(float rDp) {
+                GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFF5D875, 0xFFB98B23});
+                g.setCornerRadius(dp(rDp));
+                return g;
+            }
             GradientDrawable shape(int fill, float rDp, int stroke) {
                 GradientDrawable g = new GradientDrawable();
                 g.setColor(fill);
@@ -476,8 +482,8 @@ public class MassActivity extends Activity {
                             if (chip) {
                                 x.setBackground(chipGold(true));
                                 x.setAlpha(1f);
-                            } else x.setBackground(shape(cGold(), rad(x), 0));
-                            if (T != null) T.setTextColor(chip ? 0xFFFFFFFF : 0xFF17212B);
+                            } else x.setBackground(goldShape(rad(x)));
+                            if (T != null) T.setTextColor(0xFF171717);
                         }
                         else if (k.equals("goldo")) {
                             boolean chipO = x.getId() == R.id.fltAll || x.getId() == R.id.fltUnread;
@@ -559,7 +565,7 @@ public class MassActivity extends Activity {
             /** تدرّج ذهبي مثل زر تسجيل الدخول: #e6c566 -> #d3a93b -> #bc8e24 (135°)، حواف كبسولة. */
             GradientDrawable chipGold(boolean on) {
                 GradientDrawable cg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                        new int[]{0xFFD9AD34, 0xFFB8861B});
+                        new int[]{0xFFF5D875, 0xFFB98B23});
                 cg.setCornerRadius(dp(20));
                 return cg;
             }
@@ -841,7 +847,7 @@ public class MassActivity extends Activity {
                 t.setTextSize(13);
                 t.setTypeface(null, android.graphics.Typeface.BOLD);
                 int ic;
-                if (kind == 0) { t.setBackground(shape(cGold(), 16, 0)); t.setTextColor(0xFF17212B); ic = 0xFF17212B; }
+                if (kind == 0) { t.setBackground(goldShape(16)); t.setTextColor(0xFF171717); ic = 0xFF171717; }
                 else if (kind == 1) { t.setBackground(shape(cSf(), 16, cBorder())); t.setTextColor(cText()); ic = cGold(); }
                 else { t.setBackground(shape(cSf(), 16, cBorder())); t.setTextColor(cRed()); ic = cRed(); }
                 android.graphics.drawable.Drawable[] ds = t.getCompoundDrawablesRelative();
@@ -2193,7 +2199,7 @@ public class MassActivity extends Activity {
                     row.setElevation(0f);
                     LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2);
                     rp.bottomMargin = dp(3);                              // المسافة بين المحادثات 3dp
-                    if (rowSel) { rp.topMargin = dp(2); rp.bottomMargin = dp(5); }   // المحدَّدة تبتعد أكثر (7dp بين محدَّدتين) كي لا يتشابك إطارها
+                    if (rowSel) { rp.topMargin = 0; rp.bottomMargin = dp(2); }   // المسافة بين محادثتين محدَّدتين = 2dp
                     row.setLayoutParams(rp);
                     StoryAvatarView av = new StoryAvatarView(act);
                     boolean ringOn = c.length > 4 && storyUntil.get(c[4]) != null && storyUntil.get(c[4]) > System.currentTimeMillis();
@@ -3690,8 +3696,46 @@ public class MassActivity extends Activity {
                 if (mv == null || !(ms instanceof ScrollView)) { toast("الرسالة غير موجودة في المحادثة"); return; }
                 int y = mv.getTop() - Math.max(0, (ms.getHeight() - mv.getHeight()) / 2);
                 ((ScrollView) ms).smoothScrollTo(0, Math.max(0, y));
-                uiH.postDelayed(() -> markSel(mv, true), 450);
-                uiH.postDelayed(() -> { if (!selIds.contains(id)) markSel(mv, false); }, 1900);
+                uiH.postDelayed(() -> flashMsg(mv, id), 350);
+            }
+
+            private final Map<View, android.animation.ValueAnimator> flashAnims = new HashMap<>();
+
+            /** تمييز الرسالة المردود عليها: لون ذهبي ينبض مرتين ويتلاشى + نبضة تكبير خفيفة، بلا أي إطار. */
+            void flashMsg(final View mv, final String id) {
+                if (mv == null) return;
+                android.animation.ValueAnimator prev = flashAnims.remove(mv);
+                if (prev != null) prev.cancel();
+                final GradientDrawable g = new GradientDrawable();
+                g.setColor(cGold());
+                g.setCornerRadii(bubbleRadii(mv, 0));
+                g.setAlpha(0);
+                final boolean fg = Build.VERSION.SDK_INT >= 23;
+                if (fg) mv.setForeground(g);
+                final android.animation.ValueAnimator va = android.animation.ValueAnimator.ofFloat(0f, 1f);
+                va.setDuration(1500);
+                va.setInterpolator(new android.view.animation.LinearInterpolator());
+                va.addUpdateListener(a -> {
+                    float t = (float) a.getAnimatedValue();
+                    float pulse = (float) (0.5 - 0.5 * Math.cos(4 * Math.PI * t));          // نبضتان
+                    float fade = 1f - 0.55f * t;                                            // تخفت تدريجياً
+                    float k = pulse * fade;
+                    if (fg) g.setAlpha(Math.round(255 * 0.42f * k));
+                    else mv.setAlpha(1f - 0.3f * k);
+                    float sc = 1f + 0.025f * (float) Math.sin(Math.PI * Math.min(1f, t * 1.6f));
+                    mv.setScaleX(sc); mv.setScaleY(sc);
+                });
+                final Runnable done = () -> {
+                    flashAnims.remove(mv);
+                    mv.setScaleX(1f); mv.setScaleY(1f); mv.setAlpha(1f);
+                    if (fg) { if (selIds.contains(id)) markSel(mv, true); else mv.setForeground(null); }
+                };
+                va.addListener(new android.animation.AnimatorListenerAdapter() {
+                    @Override public void onAnimationEnd(android.animation.Animator an) { done.run(); }
+                    @Override public void onAnimationCancel(android.animation.Animator an) { done.run(); }
+                });
+                flashAnims.put(mv, va);
+                va.start();
             }
 
             /** شريط الرسالة المثبتة تحت رأس المحادثة: خطوط المؤشر + «رسالة مثبتة #n» + النص + زر إلغاء التثبيت. */

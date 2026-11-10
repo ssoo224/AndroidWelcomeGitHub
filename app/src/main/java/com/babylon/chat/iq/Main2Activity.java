@@ -242,7 +242,7 @@ public class Main2Activity extends Activity {
             loginForm.setVisibility(View.VISIBLE);
             registerForm.setVisibility(View.GONE);
             tabLogin.setBackgroundResource(R.drawable.bg_tab_active);
-            tabLogin.setTextColor(0xFFFFFFFF);
+            tabLogin.setTextColor(0xFF171717);
             tabRegister.setBackgroundColor(0x00000000);
             tabRegister.setTextColor(dark ? AuthTheme.MUTED : 0xFF475569);
         });
@@ -251,7 +251,7 @@ public class Main2Activity extends Activity {
             loginForm.setVisibility(View.GONE);
             registerForm.setVisibility(View.VISIBLE);
             tabRegister.setBackgroundResource(R.drawable.bg_tab_active);
-            tabRegister.setTextColor(0xFFFFFFFF);
+            tabRegister.setTextColor(0xFF171717);
             tabLogin.setBackgroundColor(0x00000000);
             tabLogin.setTextColor(dark ? AuthTheme.MUTED : 0xFF475569);
         });

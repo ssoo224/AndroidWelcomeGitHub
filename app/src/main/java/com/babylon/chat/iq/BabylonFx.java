@@ -151,10 +151,20 @@ public final class BabylonFx {
     public static void chatGrow(final View chat, View header, View composer) {
         if (chat == null) return;
         reset(chat);
-        // دخول سريع بالظهور فقط (بدون تصغير/إزاحة): لا تظهر قائمة المحادثات من خلف الغرفة لفترة طويلة
-        chat.setAlpha(0f);
-        chat.animate().alpha(1f).setDuration(140).setInterpolator(easeOut())
-                .withEndAction(() -> reset(chat)).start();
+        // خلفية المحادثة صلبة منذ أول إطار (تغطي قائمة المحادثات فلا تظهر منزاحة تحت شريط الحالة/الإيماءات
+        // حين يُصفَّر حشو الجذر عند الدخول)، والمحتوى وحده يظهر بتلاشٍ سريع.
+        chat.setAlpha(1f);
+        if (chat instanceof ViewGroup) {
+            ViewGroup g = (ViewGroup) chat;
+            for (int i = 0; i < g.getChildCount(); i++) {
+                final View c = g.getChildAt(i);
+                if (c.getVisibility() != View.VISIBLE) continue;
+                c.animate().cancel();
+                c.setAlpha(0f);
+                c.animate().alpha(1f).setDuration(160).setInterpolator(easeOut())
+                        .withEndAction(() -> c.setAlpha(1f)).start();
+            }
+        }
     }
 
     /**
