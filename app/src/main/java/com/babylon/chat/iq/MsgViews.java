@@ -225,6 +225,11 @@ public final class MsgViews {
 
     /** الإيموجي المتحرك (Noto) من gstatic كما في الـ HTML؛ إن لم يوجد يبقى الإيموجي الأصلي بحركة خفيفة. */
     private static void loadAnimatedEmoji(final Activity a, final String emoji, final ImageView iv, final TextView fb, final int sizePx) {
+        loadAnimatedEmoji(a, emoji, iv, fb, sizePx, true);
+    }
+
+    /** animate=false: يُعرض الإطار الأول ثابتاً (صورة بدقة عالية) بلا أي حركة — يُستعمل مع الإيموجيات المتعددة. */
+    private static void loadAnimatedEmoji(final Activity a, final String emoji, final ImageView iv, final TextView fb, final int sizePx, final boolean animate) {
         if (android.os.Build.VERSION.SDK_INT < 28) return;
         final StringBuilder sb = new StringBuilder();
         final java.util.ArrayList<String> tries = new java.util.ArrayList<>();
@@ -262,9 +267,11 @@ public final class MsgViews {
                 }
             }
             try {
-                final Drawable d = android.graphics.ImageDecoder.decodeDrawable(
-                        android.graphics.ImageDecoder.createSource(java.nio.ByteBuffer.wrap(data)),
-                        (dec, info, src) -> dec.setTargetSize(sizePx, sizePx));
+                final android.graphics.ImageDecoder.Source src0 = android.graphics.ImageDecoder.createSource(java.nio.ByteBuffer.wrap(data));
+                final Drawable d = animate
+                        ? android.graphics.ImageDecoder.decodeDrawable(src0, (dec, info, src) -> dec.setTargetSize(sizePx, sizePx))
+                        : new android.graphics.drawable.BitmapDrawable(a.getResources(),
+                                android.graphics.ImageDecoder.decodeBitmap(src0, (dec, info, src) -> dec.setTargetSize(sizePx, sizePx)));
                 a.runOnUiThread(() -> {
                     iv.setImageDrawable(d);
                     iv.setVisibility(View.VISIBLE);
@@ -373,10 +380,10 @@ public final class MsgViews {
         final int perRowMax = 10;                                      // حتى 10 في السطر الواحد (يصغر ليتسع)، وما زاد ينزل لسطر جديد
         int perRow = Math.min(n, perRowMax);
         sz = clampDp(Math.min(sz, (wdp * 0.8f - 16f) / perRow * 0.95f), 24, sz);
-        sz = Math.max(16, sz - 8);   // أصغر بـ 8 من الحجم السابق
+        sz = Math.max(20, sz - 8);   // أصغر حجم للإيموجيات الكثيرة 20dp (كان 16)
         // كل إيموجي صورة مستقلة بدقة 512 (حادة) بدل نص يُكبَّر من خط نقطي؛ والنص الأصلي احتياط حتى تُحمَّل الصورة
         LinearLayout box = new LinearLayout(a);
-        box.setTag("emojiBox");
+        box.setTag("emojiRowBox");   // بلا حركة ظهور/طفو
         box.setOrientation(LinearLayout.VERTICAL);
         box.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
         LinearLayout rowL = null;
@@ -402,7 +409,7 @@ public final class MsgViews {
             iv.setVisibility(View.GONE);
             cell.addView(iv, new FrameLayout.LayoutParams(-1, -1));
             rowL.addView(cell, new LinearLayout.LayoutParams(dp(a, sz), dp(a, sz)));
-            loadAnimatedEmoji(a, e, iv, tv, (int) (sz * d(a)));
+            loadAnimatedEmoji(a, e, iv, tv, (int) (sz * d(a)), false);   // عدة إيموجي: بلا انميشن
         }
         LinearLayout.LayoutParams boxLp = new LinearLayout.LayoutParams(-2, -2);
 

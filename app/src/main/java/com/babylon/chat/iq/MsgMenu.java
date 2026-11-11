@@ -630,11 +630,11 @@ public final class MsgMenu {
             tick.setScaleType(ImageView.ScaleType.FIT_CENTER);
             box.addView(tick, new FrameLayout.LayoutParams(dp(act, 18), dp(act, 18), Gravity.CENTER));
             final GradientDrawable boxBg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                    new int[]{blend(accC, 0xFFFFFFFF, .28f), blend(accC, 0xFF000000, .22f)});   // ذهبي متدرج
+                    new int[]{0xFFF5D875, 0xFFB98B23});   // ذهبي متدرج (نفس goldShape)
             boxBg.setCornerRadius(dp(act, 7));
             box.setBackground(boxBg);
             final Runnable paintBox = () -> {
-                if (both[0]) { boxBg.setColors(new int[]{blend(accC, 0xFFFFFFFF, .28f), blend(accC, 0xFF000000, .22f)}); boxBg.setStroke(0, 0); }
+                if (both[0]) { boxBg.setColors(new int[]{0xFFF5D875, 0xFFB98B23}); boxBg.setStroke(0, 0); }
                 else { boxBg.setColor(0); boxBg.setStroke(dp(act, 2), subC); }
                 tick.setVisibility(both[0] ? View.VISIBLE : View.INVISIBLE);
             };
@@ -653,7 +653,7 @@ public final class MsgMenu {
         TextView ok = new TextView(act);
         ok.setText("حذف"); ok.setTextSize(15.5f); ok.setTypeface(null, Typeface.BOLD);
         ok.setTextColor(0xFFFFFFFF); ok.setGravity(Gravity.CENTER); ok.setClickable(true);
-        GradientDrawable og = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFF0605D, 0xFFD94545});
+        GradientDrawable og = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFFF6A70, 0xFFC52D3A});
         og.setCornerRadius(dp(act, 16));
         ok.setBackground(og);
         ok.setOnClickListener(v -> { final boolean b = both[0]; dismiss(); cb.onDelete(b); });

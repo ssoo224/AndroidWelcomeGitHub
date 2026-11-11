@@ -22,8 +22,9 @@ import android.graphics.drawable.Drawable;
 public final class ProfileRing extends Drawable implements StoryViewer.Spin {
     public interface Flag { boolean get(); }
 
-    private static final int[] GRAD = {0xFF8F6810, 0xFFF8E7A0, 0xFFC29D30, 0xFFFFF1A8, 0xFFC69A20, 0xFFF5DC7A};
-    private static final float[] POS = {0f, .18f, .38f, .52f, .72f, 1f};
+    // نفس تدرّج حلقة القصة في قائمة القصص (StoryAvatarView): ذهبي بثلاث درجات من أعلى اليسار إلى أسفل اليمين
+    private static final int[] GRAD = {StoryAvatarView.GOLD_A, 0xFFE6BC4C, StoryAvatarView.GOLD_B};
+    private static final float[] POS = {0f, .5f, 1f};
 
     private final Drawable inner;
     private final float outerPx, ringPx;
@@ -90,11 +91,8 @@ public final class ProfileRing extends Drawable implements StoryViewer.Spin {
             } else if (seen.get()) {
                 p.setColor(StoryAvatarView.RING_GRAY);
             } else {
-                float s = (R - outerPx) * 2f, a = (float) Math.toRadians(135);
-                float dx = (float) Math.sin(a), dy = (float) -Math.cos(a);   // CSS: 135deg = نحو أسفل اليمين
-                float len = (float) (Math.abs(s * Math.sin(a)) + Math.abs(s * Math.cos(a)));
-                p.setShader(new LinearGradient(cx - dx * len / 2, cy - dy * len / 2, cx + dx * len / 2, cy + dy * len / 2,
-                        GRAD, POS, Shader.TileMode.CLAMP));
+                float ro = R - outerPx;   // نصف القطر الخارجي للحلقة (مثل outerR في القائمة)
+                p.setShader(new LinearGradient(cx - ro, cy - ro, cx + ro, cy + ro, GRAD, POS, Shader.TileMode.CLAMP));
             }
             c.drawCircle(cx, cy, rr, p);
             p.setShader(null);

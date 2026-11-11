@@ -3333,7 +3333,7 @@ public class MassActivity extends Activity {
                         if (c0 != null) ((ScrollView) ms).scrollTo(0, Math.max(0, c0.getHeight() + ms.getPaddingTop() + ms.getPaddingBottom() - ms.getHeight()));
                         area.animate().cancel();
                         area.setAlpha(0f);
-                        area.animate().alpha(1f).setDuration(180).start();   // ظهور ناعم بعد انتهاء حركة الدخول
+                        area.animate().alpha(1f).setDuration(100).start();   // ظهور أسرع (كان 180)؛ ناعم بعد انتهاء حركة الدخول
                         return true;
                     }
                 });
@@ -3379,7 +3379,7 @@ public class MassActivity extends Activity {
                             }
                         });
                     }
-                    uiH.postDelayed(() -> { View a1 = v("messagesArea"); if (a1 != null && a1.getAlpha() < 1f) a1.animate().alpha(1f).setDuration(120).start(); }, 900);
+                    uiH.postDelayed(() -> { View a1 = v("messagesArea"); if (a1 != null && a1.getAlpha() < 1f) a1.animate().alpha(1f).setDuration(80).start(); }, 600);
                 }
                 MsgViews.replyJump = (bv, rid) -> {
                     if (selecting) { toggleSel(bv); return; }
@@ -4317,7 +4317,7 @@ public class MassActivity extends Activity {
             android.graphics.drawable.Drawable themeFrame() {
                 android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
                 g.setColor(0x00000000);
-                g.setCornerRadius(dp(14));
+                g.setCornerRadius(dp(12));
                 g.setStroke(Math.max(1, dp(1.5f)), selAcc());   // الإطار أنحف بـ 1dp (2.5 ← 1.5)
                 return g;
             }
@@ -4326,7 +4326,7 @@ public class MassActivity extends Activity {
             ImageView selBarIcon(int iconRes, String desc, Runnable r) {
                 ImageView iv = noBg(selIcon(iconRes, selAcc(), 0, desc, r));
                 iv.setBackground(themeFrame());
-                iv.setPadding(dp(12f), dp(12f), dp(12f), dp(12f));   // الرمز أصغر بـ 3dp (19 ← 16) داخل المربع 40dp
+                iv.setPadding(dp(7f), dp(7f), dp(7f), dp(7f));   // مثل أزرار تحديد المحادثات: مربع 34dp والرمز 20dp
                 return iv;
             }
 
@@ -4334,7 +4334,7 @@ public class MassActivity extends Activity {
             android.graphics.drawable.Drawable goldFrame() {
                 android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
                 g.setColor(0x00000000);
-                g.setCornerRadius(dp(14));
+                g.setCornerRadius(dp(12));   // انحناء الحواف 12dp
                 g.setStroke(Math.max(1, dp(1.5f)), cGold());
                 return g;
             }
@@ -4387,22 +4387,22 @@ public class MassActivity extends Activity {
 
                 // ---- مطابق لشريط تحديد المحادثات: ✕ عند البداية، العدد في منتصف الشريط، وعند النهاية تثبيت | إعادة توجيه | حذف
                 final ImageView selXIv = selBarIcon(R.drawable.ic_mm_x, "إلغاء التحديد", this::clearSel);
-                row.addView(selXIv, new LinearLayout.LayoutParams(dp(40), dp(40)));
+                row.addView(selXIv, new LinearLayout.LayoutParams(dp(34), dp(34)));
                 row.addView(new View(act), new LinearLayout.LayoutParams(0, 1, 1f));   // فاصل يدفع أزرار النهاية
 
                 selPinIv = selBarIcon(R.drawable.ic_sel_pin, "تثبيت الرسالة",
                         () -> { String id = firstSel(); clearSel(); togglePin(id); });
                 selPinBtn = selPinIv;
-                LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(dp(40), dp(40));
+                LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(dp(34), dp(34));
                 pl.setMarginEnd(dp(8));
                 row.addView(selPinIv, pl);
 
-                LinearLayout.LayoutParams fl = new LinearLayout.LayoutParams(dp(40), dp(40));
+                LinearLayout.LayoutParams fl = new LinearLayout.LayoutParams(dp(34), dp(34));
                 fl.setMarginEnd(dp(8));
                 row.addView(selBarIcon(R.drawable.ic_sel_forward, "إعادة توجيه", this::forwardSel), fl);
 
                 row.addView(selBarIcon(R.drawable.ic_sel_trash, "حذف الرسائل المحددة", this::multiDelete),
-                        new LinearLayout.LayoutParams(dp(40), dp(40)));
+                        new LinearLayout.LayoutParams(dp(34), dp(34)));
 
                 // العدد «N من الرسائل» في منتصف الشريط تماماً (مثل «N من المحادثات»: حجم 17 عريض)
                 selCountTv = new TextView(act);

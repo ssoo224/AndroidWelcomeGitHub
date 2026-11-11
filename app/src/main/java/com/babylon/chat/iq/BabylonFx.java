@@ -144,7 +144,7 @@ public final class BabylonFx {
         v.setScaleX(0.94f);
         v.setScaleY(0.94f);
         v.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f)
-                .setDuration(260).setInterpolator(easeOut())
+                .setDuration(160).setInterpolator(easeOut())   // ظهور الرسالة أسرع (كان 260)
                 .withEndAction(() -> reset(v)).start();
     }
 
@@ -152,12 +152,12 @@ public final class BabylonFx {
     private static final boolean FOLD_HINGE_RIGHT = true;
     /** زاوية بداية الطي (درجة) ومدته (ms). إشارتها تحدّد اتجاه الدوران؛ اعكسها إن ظهر الدوران معكوساً. */
     private static final float FOLD_START_DEG = 78f;
-    private static final long FOLD_MS = 320;
+    private static final long FOLD_MS = 200;   // أسرع (كان 320)
     /** وقت (uptime) انتهاء حركة الطيّ؛ تنتظره المحادثة قبل رسم الرسائل كي لا تتداخل معها ولا تُقطّعها. */
     private static volatile long foldEndUptime = 0L;
 
     /** يُستدعى فور بدء فتح المحادثة (قبل أول إطار) ليعرف تحميل الرسائل أن الحركة ستبدأ. */
-    public static void chatFoldBegin() { foldEndUptime = SystemClock.uptimeMillis() + FOLD_MS + 80; }
+    public static void chatFoldBegin() { foldEndUptime = SystemClock.uptimeMillis() + FOLD_MS + 40; }
 
     /** ms المتبقية حتى تنتهي حركة الطيّ (0 إن لم تكن جارية). */
     public static long chatFoldRemaining() { return Math.max(0L, foldEndUptime - SystemClock.uptimeMillis()); }
