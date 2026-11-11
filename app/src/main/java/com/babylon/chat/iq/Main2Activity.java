@@ -287,7 +287,7 @@ public class Main2Activity extends Activity {
     }
 
     private void toast(String s) {
-        // لا إشعارات Toast في التطبيق
+        AppToast.show(this, s, dark);   // نفس إشعارات الـ HTML
     }
 
     @Override

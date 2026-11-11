@@ -350,8 +350,8 @@ public class MassActivity extends Activity {
             TextView tv(String n) { View x = v(n); return x instanceof TextView ? (TextView) x : null; }
             EditText et(String n) { View x = v(n); return x instanceof EditText ? (EditText) x : null; }
             String txt(String n) { EditText e = et(n); return e != null ? e.getText().toString().trim() : ""; }
-            /** لا إشعارات Toast في التطبيق: الدالة فارغة عمداً (كل استدعاءاتها لا تعرض شيئاً). */
-            void toast(String s) { }
+            /** إشعارات التطبيق: نفس تصميم showToast في الـ HTML (انظر AppToast). */
+            void toast(String s) { AppToast.show(act, s, dark); }
             void vis(String n, boolean on) { View x = v(n); if (x != null) x.setVisibility(on ? View.VISIBLE : View.GONE); }
             String now() { return new SimpleDateFormat("h:mm", Locale.getDefault()).format(new Date()); }
             void hideKb() {
@@ -1472,7 +1472,7 @@ public class MassActivity extends Activity {
                             .addOnSuccessListener(a -> {
                                 userName = n; userUsername = u; userBio = bio; userGov = gov;
                                 try { fillProfile(); } catch (Throwable ignored) { }
-                                toast("تم حفظ التغييرات");
+                                toast("تم حفظ التعديلات");
                                 show("profileView");
                             })
                             .addOnFailureListener(e -> toast("فشل الحفظ: " + e.getMessage()));
@@ -2502,6 +2502,7 @@ public class MassActivity extends Activity {
                 if (myUid == null || myUid.isEmpty()) return;
                 storyComposer = new StoryComposer(act, db, myUid, dark, until -> {
                     if (until > 0) myStoryUntil = until;
+                    toast("تم نشر القصة");
                     try { refreshProfileRings(); } catch (Throwable ignored) { }
                     try { buildStories(); } catch (Throwable ignored) { }
                     try { refreshProfileStories(); } catch (Throwable ignored) { }
@@ -3179,8 +3180,7 @@ public class MassActivity extends Activity {
                     java.util.ArrayList<String> np = new java.util.ArrayList<>(pins);
                     for (String id : ids) if (!np.contains(id)) np.add(0, id);
                     if (np.size() > MAX_CHAT_PINS) {
-                        // الاستثناء الوحيد لإشعار Toast: رفض التثبيت لا يجوز أن يمرّ بصمت (مثل رسالة الـ HTML)
-                        android.widget.Toast.makeText(act, "يمكنك تثبيت " + MAX_CHAT_PINS + " محادثات كحد أقصى", android.widget.Toast.LENGTH_SHORT).show();
+                        toast("يمكنك تثبيت " + MAX_CHAT_PINS + " محادثات كحد أقصى");
                         return;
                     }
                     setPins(np);
@@ -3294,7 +3294,7 @@ public class MassActivity extends Activity {
                 renderedMsgIds.clear(); lastDayKey = ""; daySeps.clear(); msgViewsById.clear(); msgMeta.clear();
                 pins = new ArrayList<>(); pinIdx = -1; renderPinnedBar();
                 cancelReply();
-                vis("chatSearchPanel", false);
+                closeChatSearch();
                 parkRecording();   // لا حذف: يُحفظ تسجيل المحادثة السابقة بدل إلغائه
                 vis("recordingBar", false);
 
@@ -5719,9 +5719,7 @@ public class MassActivity extends Activity {
                 View search = chatMenuItem(R.drawable.ic_menu_search, "البحث عن رسالة");
                 search.setOnClickListener(x -> {
                     pw.dismiss();
-                    vis("chatSearchPanel", true);
-                    EditText et1 = et("chatMessageSearchInput");
-                    if (et1 != null) { et1.setText(""); et1.requestFocus(); }
+                    openChatSearch();
                 });
                 LinearLayout.LayoutParams sLp = new LinearLayout.LayoutParams(-1, -2);
                 sLp.topMargin = dp(2);
@@ -5760,21 +5758,439 @@ public class MassActivity extends Activity {
                 }
             }
 
-            void searchInChat(String q) {
-                LinearLayout a = (LinearLayout) v("messagesArea");
-                if (a == null) return;
-                q = q.trim().toLowerCase();
-                int found = 0; View first = null;
-                for (int i = 0; i < a.getChildCount(); i++) {
-                    View c = a.getChildAt(i);
-                    boolean hit = q.length() > 0 && String.valueOf(c.getContentDescription()).toLowerCase().contains(q);
-                    c.setAlpha(q.length() == 0 || hit ? 1f : 0.3f);
-                    if (hit) { found++; if (first == null) first = c; }
+            // ====================== بحث الرسائل داخل المحادثة (مطابق لـ babylon-chat-search-pro في الـ HTML) ======================
+            final ArrayList<Object[]> csHits = new ArrayList<>();   // {id, النص, النص المُوحَّد, رسالتي؟, الوقت}
+            int csIdx = -1;
+            boolean csCompact = false, csSilent = false;
+            String[] csTok = new String[0];
+            String csTargetId = null;
+
+            /** توحيد النص العربي: حذف التشكيل والتطويل، توحيد الألف والياء والتاء المربوطة والأرقام (-1 = حذف). */
+            int csMapChar(char c) {
+                if ((c >= 0x064B && c <= 0x065F) || c == 0x0670 || c == 0x0640) return -1;
+                if (c == '\u0623' || c == '\u0625' || c == '\u0622' || c == '\u0671') return '\u0627';
+                if (c == '\u0649' || c == '\u0626') return '\u064A';
+                if (c == '\u0629') return '\u0647';
+                if (c == '\u0624') return '\u0648';
+                if (c >= 0x0660 && c <= 0x0669) return '0' + (c - 0x0660);
+                if (c >= 0x06F0 && c <= 0x06F9) return '0' + (c - 0x06F0);
+                return Character.toLowerCase(c);
+            }
+
+            /** {النص المُوحَّد, خريطة موضع المحرف المُوحَّد → موضعه في النص الأصلي} */
+            Object[] csNorm(String s) {
+                StringBuilder b = new StringBuilder(s.length());
+                int[] map = new int[s.length()];
+                int n = 0;
+                for (int i = 0; i < s.length(); i++) {
+                    int r = csMapChar(s.charAt(i));
+                    if (r < 0) continue;
+                    b.append((char) r);
+                    map[n++] = i;
                 }
-                TextView csc = tv("csCount");
-                if (csc != null) csc.setText(q.length() == 0 ? "" : (found + " نتيجة"));
-                View ms = v("messagesScroll");
-                if (first != null && ms != null) ((ScrollView) ms).smoothScrollTo(0, first.getTop());
+                return new Object[]{b.toString(), map};
+            }
+
+            String[] csTokens(String q) {
+                ArrayList<String> o = new ArrayList<>();
+                for (String t : ((String) csNorm(q)[0]).split("\\s+")) if (!t.isEmpty() && !o.contains(t) && o.size() < 6) o.add(t);
+                return o.toArray(new String[0]);
+            }
+
+            ArrayList<int[]> csRanges(String text, String[] tk) {
+                Object[] nm = csNorm(text);
+                String n = (String) nm[0];
+                int[] map = (int[]) nm[1];
+                ArrayList<int[]> r = new ArrayList<>();
+                for (String t : tk) {
+                    int p = 0, i;
+                    while ((i = n.indexOf(t, p)) >= 0) { r.add(new int[]{map[i], map[i + t.length() - 1] + 1}); p = i + t.length(); }
+                }
+                Collections.sort(r, (x, y) -> x[0] - y[0]);
+                ArrayList<int[]> m = new ArrayList<>();
+                for (int[] x : r) {
+                    int[] l = m.isEmpty() ? null : m.get(m.size() - 1);
+                    if (l != null && x[0] <= l[1]) l[1] = Math.max(l[1], x[1]); else m.add(new int[]{x[0], x[1]});
+                }
+                return m;
+            }
+
+            /** مقتطف النتيجة: يُقصّ حول أول تطابق إن طال عن 150 حرفاً، والكلمات المطابقة مظلَّلة. */
+            CharSequence csSnippet(String text, String[] tk) {
+                ArrayList<int[]> r = csRanges(text, tk);
+                int a = 0, b = text.length();
+                String pre = "", suf = "";
+                if (text.length() > 150) {
+                    int f = r.isEmpty() ? 0 : r.get(0)[0];
+                    a = Math.max(0, f - 40); b = Math.min(text.length(), a + 150);
+                    if (a > 0) pre = "\u2026 ";
+                    if (b < text.length()) suf = " \u2026";
+                }
+                SpannableStringBuilder sb = new SpannableStringBuilder(pre);
+                int pos = a;
+                for (int[] x : r) {
+                    int st = Math.max(x[0], a), en = Math.min(x[1], b);
+                    if (en <= st || st < pos) continue;
+                    sb.append(text, pos, st);
+                    int from = sb.length();
+                    sb.append(text, st, en);
+                    sb.setSpan(new android.text.style.BackgroundColorSpan(0x4DC99A1C), from, sb.length(), 0);
+                    pos = en;
+                }
+                sb.append(text, pos, b).append(suf);
+                return sb;
+            }
+
+            String csN(long n) {
+                try { return java.text.NumberFormat.getInstance(new Locale("ar", "EG")).format(n); } catch (Throwable e) { return String.valueOf(n); }
+            }
+
+            String csTime(long ts) {
+                if (ts <= 0) return "";
+                try {
+                    java.util.Calendar n = java.util.Calendar.getInstance(), c = java.util.Calendar.getInstance();
+                    c.setTimeInMillis(ts);
+                    Locale ar = new Locale("ar", "EG");
+                    if (n.get(java.util.Calendar.YEAR) == c.get(java.util.Calendar.YEAR) && n.get(java.util.Calendar.DAY_OF_YEAR) == c.get(java.util.Calendar.DAY_OF_YEAR))
+                        return new SimpleDateFormat("h:mm a", ar).format(new Date(ts));
+                    return new SimpleDateFormat(n.get(java.util.Calendar.YEAR) != c.get(java.util.Calendar.YEAR) ? "d MMM yyyy" : "d MMM", ar).format(new Date(ts));
+                } catch (Throwable e) { return ""; }
+            }
+
+            /** رسائل المحادثة النصية المرسومة، الأحدث أولاً (يُزال اقتباس الرد من بدايتها). */
+            ArrayList<Object[]> csItems() {
+                ArrayList<Object[]> out = new ArrayList<>();
+                for (Map.Entry<String, Object[]> en : msgMeta.entrySet()) {
+                    Object[] m = en.getValue();
+                    if (m == null || m.length < 6 || !"text".equals(m[0]) || !(m[1] instanceof String)) continue;
+                    String t = (String) m[1];
+                    if (t.startsWith("\u21A9 ")) { int nl = t.indexOf('\n'); if (nl >= 0) t = t.substring(nl + 1); }
+                    if (t.trim().isEmpty()) continue;
+                    long ts = m[5] instanceof Number ? ((Number) m[5]).longValue() : 0L;
+                    out.add(new Object[]{en.getKey(), t, csNorm(t)[0], Boolean.TRUE.equals(m[4]), ts});
+                }
+                Collections.sort(out, (x, y) -> Long.compare((Long) y[4], (Long) x[4]));
+                return out;
+            }
+
+            GradientDrawable csGoldBg(float rDp, boolean oval) {
+                GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE0BD4A, 0xFFB8891A});
+                if (oval) g.setShape(GradientDrawable.OVAL); else g.setCornerRadius(dp(rDp));
+                return g;
+            }
+
+            /** ألوان اللوحة: بطاقة بيضاء/#17212B، حقل بلون chip، أزرار الأسهم ذهبية. */
+            void csTheme() {
+                View p = v("chatSearchPanel");
+                if (p == null) return;
+                int chip = dark ? 0xFF2A3A4D : 0xFFE3E9F1;
+                float r = dp(csCompact ? 20 : 24);
+                GradientDrawable pg = new GradientDrawable();
+                pg.setColor(dark ? 0xFF17212B : 0xFFFFFFFF);
+                pg.setCornerRadii(new float[]{0, 0, 0, 0, r, r, r, r});
+                p.setBackground(pg);
+                if (Build.VERSION.SDK_INT >= 21) p.setElevation(dp(6));
+                View back = v("csX");
+                if (back instanceof ImageView) { back.setBackground(shape(chip, 14, 0)); ((ImageView) back).setColorFilter(cText()); }
+                View fld = v("csField");
+                if (fld != null) fld.setBackground(shape(chip, 15, 0));
+                View ic = v("csIc");
+                if (ic instanceof ImageView) ((ImageView) ic).setColorFilter(cMuted());
+                EditText in = et("chatMessageSearchInput");
+                if (in != null) { in.setTextColor(cText()); in.setHintTextColor(cMuted()); }
+                View cl = v("csClear");
+                if (cl instanceof ImageView) {
+                    GradientDrawable cg = new GradientDrawable();
+                    cg.setShape(GradientDrawable.OVAL); cg.setColor(0x38808080);
+                    cl.setBackground(cg);
+                    ((ImageView) cl).setColorFilter(cMuted());
+                }
+                TextView cc = tv("csCount");
+                if (cc != null) cc.setTextColor(cMuted());
+                for (String id : new String[]{"csUp", "csDown"}) {
+                    View b = v(id);
+                    if (b instanceof ImageView) { b.setBackground(csGoldBg(12, false)); ((ImageView) b).setColorFilter(0xFFFFFFFF); }
+                }
+            }
+
+            void openChatSearch() {
+                View p = v("chatSearchPanel");
+                final EditText in = et("chatMessageSearchInput");
+                if (p == null || in == null) return;
+                csClearTarget();
+                csHits.clear(); csIdx = -1; csCompact = false;
+                csTheme();
+                vis("linear607", false);                  // اللوحة تحلّ محلّ رأس المحادثة كما في الـ HTML
+                View pb = v("chatTopBar") instanceof ViewGroup ? ((ViewGroup) v("chatTopBar")).findViewWithTag("pinnedBar") : null;
+                if (pb != null) pb.setVisibility(View.GONE);
+                p.setVisibility(View.VISIBLE);
+                csSilent = true; in.setText(""); csSilent = false;
+                vis("csClear", false); vis("csNav", false); vis("chatMessageSearchResults", false);
+                LinearLayout list = (LinearLayout) v("csList");
+                if (list != null) list.removeAllViews();
+                in.requestFocus();
+                uiH.postDelayed(() -> {
+                    try { ((InputMethodManager) act.getSystemService(Context.INPUT_METHOD_SERVICE)).showSoftInput(in, InputMethodManager.SHOW_IMPLICIT); } catch (Throwable ignored) { }
+                }, 60);
+            }
+
+            void closeChatSearch() {
+                View p = v("chatSearchPanel");
+                boolean wasOpen = p != null && p.getVisibility() == View.VISIBLE;
+                csClearTarget();
+                csHits.clear(); csIdx = -1; csCompact = false;
+                EditText in = et("chatMessageSearchInput");
+                if (in != null) { csSilent = true; in.setText(""); csSilent = false; }
+                if (p != null) p.setVisibility(View.GONE);
+                vis("linear607", true);
+                if (wasOpen) { try { renderPinnedBar(); } catch (Throwable ignored) { } hideKb(); }
+            }
+
+            void csClearTarget() {
+                if (csTargetId == null) return;
+                View mv = msgViewsById.get(csTargetId);
+                if (mv != null) markSel(mv, selIds.contains(csTargetId));
+                csTargetId = null;
+            }
+
+            /** الرسالة المحدَّدة: إطار ذهبي 2dp يبقى حتى النتيجة التالية أو إغلاق البحث (.msg-bubble.search-match). */
+            void csMarkTarget(String id) {
+                csClearTarget();
+                View mv = msgViewsById.get(id);
+                if (mv == null) return;
+                csTargetId = id;
+                if (Build.VERSION.SDK_INT >= 23) {
+                    GradientDrawable g = new GradientDrawable();
+                    g.setColor(0x00000000);
+                    g.setStroke(dp(2), cGold());
+                    g.setCornerRadii(bubbleRadii(mv, 0));
+                    mv.setForeground(g);
+                }
+            }
+
+            void csJump(String id) {
+                View mv = msgViewsById.get(id), ms = v("messagesScroll"), area = v("messagesArea");
+                if (mv == null || !(ms instanceof ScrollView) || area == null) { toast("الرسالة غير موجودة في المحادثة"); return; }
+                int padT = ms.getPaddingTop(), padB = ms.getPaddingBottom();
+                float regionCenter = padT + (ms.getHeight() - padT - padB) / 2f;
+                float contentCenter = area.getTop() + mv.getTop() + mv.getHeight() / 2f;
+                ((ScrollView) ms).smoothScrollTo(0, Math.max(0, Math.round(contentCenter - regionCenter)));
+                csMarkTarget(id);
+            }
+
+            void csUpdateNav() {
+                View nav = v("csNav");
+                TextView cnt = tv("csCount");
+                View up = v("csUp"), dn = v("csDown");
+                if (nav == null || cnt == null) return;
+                int n = csHits.size();
+                nav.setVisibility(n > 0 ? View.VISIBLE : View.GONE);
+                if (n == 0) return;
+                cnt.setText(csIdx < 0 ? (csN(n) + " نتيجة") : (csN(csIdx + 1) + " من " + csN(n)));
+                boolean canUp = csIdx < n - 1, canDn = csIdx > 0;
+                if (up != null) { up.setEnabled(canUp); up.setAlpha(canUp ? 1f : 0.32f); }
+                if (dn != null) { dn.setEnabled(canDn); dn.setAlpha(canDn ? 1f : 0.32f); }
+            }
+
+            void csStyleRow(View row, boolean active) {
+                row.setBackground(active ? shape(0x21C99A1C, 14, 0) : null);
+                if (row instanceof ViewGroup && ((ViewGroup) row).getChildCount() > 0)
+                    ((ViewGroup) row).getChildAt(0).setBackgroundColor(active ? cGold() : 0x00000000);
+            }
+
+            void csMarkActive() {
+                LinearLayout list = (LinearLayout) v("csList");
+                View sv = v("chatMessageSearchResults");
+                if (list == null) return;
+                View cur = null;
+                for (int i = 0; i < list.getChildCount(); i++) {
+                    View c = list.getChildAt(i);
+                    if (c.getTag() instanceof Integer) { boolean on = (Integer) c.getTag() == csIdx; csStyleRow(c, on); if (on) cur = c; }
+                }
+                if (cur != null && sv instanceof ScrollView) {
+                    ScrollView s2 = (ScrollView) sv;
+                    if (cur.getTop() < s2.getScrollY()) s2.smoothScrollTo(0, cur.getTop());
+                    else if (cur.getBottom() > s2.getScrollY() + s2.getHeight()) s2.smoothScrollTo(0, cur.getBottom() - s2.getHeight());
+                }
+            }
+
+            /** أقصى ارتفاع لقائمة النتائج: min(54% من الشاشة، 460dp) كما في الـ HTML. */
+            void csFit() {
+                View sv = v("chatMessageSearchResults"), list = v("csList");
+                if (sv == null || list == null) return;
+                android.util.DisplayMetrics dm = act.getResources().getDisplayMetrics();
+                list.measure(View.MeasureSpec.makeMeasureSpec(dm.widthPixels - dp(20), View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+                int max = (int) Math.min(dm.heightPixels * 0.54f, dp(460));
+                ViewGroup.LayoutParams lp = sv.getLayoutParams();
+                lp.height = Math.min(list.getMeasuredHeight(), max);
+                sv.setLayoutParams(lp);
+            }
+
+            void csSetCompact(boolean c) {
+                csCompact = c;
+                EditText in = et("chatMessageSearchInput");
+                boolean has = in != null && in.getText().toString().trim().length() > 0;
+                vis("chatMessageSearchResults", !c && has);
+                csTheme();
+                if (!c && has) csFit();
+            }
+
+            void csRenderList() {
+                LinearLayout list = (LinearLayout) v("csList");
+                if (list == null) return;
+                list.removeAllViews();
+                int muted = cMuted(), text = cText(), gold = cGold();
+                if (csHits.isEmpty()) {
+                    LinearLayout e = new LinearLayout(act);
+                    e.setOrientation(LinearLayout.VERTICAL); e.setGravity(Gravity.CENTER_HORIZONTAL);
+                    e.setPadding(dp(14), dp(26), dp(14), dp(26));
+                    ImageView ei = new ImageView(act);
+                    ei.setImageResource(R.drawable.ic_cs_empty); ei.setColorFilter(gold); ei.setAlpha(0.7f);
+                    LinearLayout.LayoutParams eip = new LinearLayout.LayoutParams(dp(40), dp(40));
+                    eip.bottomMargin = dp(10);
+                    e.addView(ei, eip);
+                    TextView t1 = new TextView(act);
+                    t1.setText("لا توجد نتائج مطابقة"); t1.setTextSize(14.5f); t1.setTextColor(muted); t1.setGravity(Gravity.CENTER);
+                    e.addView(t1);
+                    TextView t2 = new TextView(act);
+                    t2.setText("جرّب كلمة أخرى أو جزءًا أقصر منها"); t2.setTextSize(12.5f); t2.setTextColor(muted); t2.setAlpha(0.85f); t2.setGravity(Gravity.CENTER);
+                    e.addView(t2);
+                    list.addView(e, new LinearLayout.LayoutParams(-1, -2));
+                    return;
+                }
+                TextView sum = new TextView(act);
+                sum.setText(csN(csHits.size()) + " نتيجة"); sum.setTextSize(12.5f); sum.setTypeface(null, android.graphics.Typeface.BOLD); sum.setTextColor(muted);
+                sum.setPadding(dp(12), dp(2), dp(12), dp(6));
+                list.addView(sum);
+                int cap = Math.min(csHits.size(), 80);
+                String lastDay = "";
+                boolean prevItem = false;
+                for (int i = 0; i < cap; i++) {
+                    Object[] x = csHits.get(i);
+                    boolean mine = Boolean.TRUE.equals(x[3]);
+                    long ts = (Long) x[4];
+                    if (ts > 0) {
+                        String dl = dayLabel(ts);
+                        if (!dl.equals(lastDay)) {
+                            lastDay = dl;
+                            TextView dh = new TextView(act);
+                            dh.setText(dl); dh.setTextSize(12f); dh.setTypeface(null, android.graphics.Typeface.BOLD); dh.setTextColor(muted);
+                            dh.setPadding(dp(12), dp(7), dp(12), dp(5));
+                            list.addView(dh);
+                            prevItem = false;
+                        }
+                    }
+                    String who = mine ? "أنت" : (otherName == null || otherName.isEmpty() ? "" : otherName);
+                    String ini = mine ? (userName != null && !userName.trim().isEmpty() ? userName.trim() : "\u0623") : (who.isEmpty() ? "\u061F" : who);
+                    ini = new String(Character.toChars(ini.codePointAt(0)));
+
+                    LinearLayout row = new LinearLayout(act);
+                    row.setOrientation(LinearLayout.HORIZONTAL);
+                    row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                    row.setTag(Integer.valueOf(i));
+                    View bar = new View(act);
+                    row.addView(bar, new LinearLayout.LayoutParams(dp(3), -1));
+                    LinearLayout inner = new LinearLayout(act);
+                    inner.setOrientation(LinearLayout.HORIZONTAL);
+                    inner.setPadding(dp(10), dp(9), dp(10), dp(9));
+                    row.addView(inner, new LinearLayout.LayoutParams(0, -2, 1f));
+
+                    TextView av = new TextView(act);
+                    av.setText(ini); av.setTextSize(15f); av.setTypeface(null, android.graphics.Typeface.BOLD); av.setTextColor(0xFFFFFFFF); av.setGravity(Gravity.CENTER);
+                    av.setBackground(csGoldBg(0, true));
+                    LinearLayout.LayoutParams avp = new LinearLayout.LayoutParams(dp(36), dp(36));
+                    avp.setMarginEnd(dp(10));
+                    inner.addView(av, avp);
+
+                    LinearLayout body = new LinearLayout(act);
+                    body.setOrientation(LinearLayout.VERTICAL);
+                    LinearLayout meta = new LinearLayout(act);
+                    meta.setOrientation(LinearLayout.HORIZONTAL); meta.setGravity(Gravity.CENTER_VERTICAL);
+                    TextView nm = new TextView(act);
+                    nm.setText(who); nm.setTextSize(12f); nm.setTypeface(null, android.graphics.Typeface.BOLD); nm.setTextColor(gold);
+                    nm.setSingleLine(true); nm.setEllipsize(TextUtils.TruncateAt.END);
+                    meta.addView(nm, new LinearLayout.LayoutParams(0, -2, 1f));
+                    TextView tm = new TextView(act);
+                    tm.setText(csTime(ts)); tm.setTextSize(12f); tm.setTextColor(muted);
+                    LinearLayout.LayoutParams tmp = new LinearLayout.LayoutParams(-2, -2);
+                    tmp.setMarginStart(dp(8));
+                    meta.addView(tm, tmp);
+                    LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-1, -2);
+                    mp.bottomMargin = dp(2);
+                    body.addView(meta, mp);
+                    TextView tx = new TextView(act);
+                    tx.setText(csSnippet((String) x[1], csTok)); tx.setTextSize(14.5f); tx.setTextColor(text);
+                    tx.setLineSpacing(0, 1.25f); tx.setMaxLines(2); tx.setEllipsize(TextUtils.TruncateAt.END);
+                    tx.setGravity(Gravity.START);
+                    body.addView(tx, new LinearLayout.LayoutParams(-1, -2));
+                    inner.addView(body, new LinearLayout.LayoutParams(0, -2, 1f));
+
+                    csStyleRow(row, i == csIdx);
+                    final int fi = i;
+                    row.setOnClickListener(vw -> csSelect(fi));
+                    LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(-1, -2);
+                    if (prevItem) rlp.topMargin = dp(2);
+                    list.addView(row, rlp);
+                    prevItem = true;
+                }
+                if (csHits.size() > cap) {
+                    TextView more = new TextView(act);
+                    more.setText("يتم عرض أول " + csN(cap) + " نتيجة، حدّد البحث أكثر لتضييق النتائج");
+                    more.setTextSize(12f); more.setTextColor(muted); more.setGravity(Gravity.CENTER);
+                    more.setPadding(dp(12), dp(8), dp(12), dp(8));
+                    list.addView(more);
+                }
+            }
+
+            void searchInChat(String q0) {
+                if (csSilent) return;
+                csRun(false);
+            }
+
+            void csRun(boolean keep) {
+                EditText in = et("chatMessageSearchInput");
+                View sv = v("chatMessageSearchResults");
+                LinearLayout list = (LinearLayout) v("csList");
+                if (in == null || sv == null || list == null) return;
+                String raw = in.getText().toString(), q = raw.trim();
+                vis("csClear", raw.length() > 0);
+                csCompact = false; csTheme();
+                if (!keep) csIdx = -1;
+                list.removeAllViews();
+                if (q.isEmpty()) { csHits.clear(); csIdx = -1; sv.setVisibility(View.GONE); csUpdateNav(); return; }
+                csTok = csTokens(q);
+                csHits.clear();
+                for (Object[] x : csItems()) {
+                    boolean ok = true;
+                    for (String t : csTok) if (!((String) x[2]).contains(t)) { ok = false; break; }
+                    if (ok) csHits.add(x);
+                }
+                if (csIdx >= csHits.size()) csIdx = -1;
+                csRenderList();
+                sv.setVisibility(View.VISIBLE);
+                csFit();
+                csUpdateNav();
+            }
+
+            void csSelect(final int i) {
+                if (i < 0 || i >= csHits.size()) return;
+                csIdx = i;
+                csSetCompact(true);                       // على الجوال: تختفي القائمة ويبقى الشريط وأسهم التنقل
+                hideKb();
+                csUpdateNav(); csMarkActive();
+                final String id = (String) csHits.get(i)[0];
+                uiH.postDelayed(() -> { if (csIdx == i) csJump(id); }, 260);
+                uiH.postDelayed(() -> { if (csIdx == i) csJump(id); }, 700);   // بعد استقرار حجم الشاشة وإخفاء الكيبورد
+            }
+
+            void csStep(int d) {
+                int n = csHits.size();
+                if (n == 0) return;
+                csSelect(csIdx < 0 ? 0 : Math.max(0, Math.min(n - 1, csIdx + d)));
+            }
+
+            void csEnter() {
+                if (csIdx < 0 && !csHits.isEmpty()) csSelect(0); else csStep(1);
             }
 
             /** بحث المستخدمين: كل الواجهة والمنطق في SearchPage (مطابقة لصفحة البحث في الـ HTML). */
@@ -6073,12 +6489,13 @@ public class MassActivity extends Activity {
                 else if (id.equals("chatBack")) closeChat();
                 else if (id.equals("chatUserInfo")) { hideKb(); vis("chatView", false); openOther(curChat, otherUser, otherUid); profileFromChat = true; }
                 else if (id.equals("chatMore")) chatMenu();
-                else if (id.equals("csX")) {
-                    vis("chatSearchPanel", false);
+                else if (id.equals("csX")) closeChatSearch();
+                else if (id.equals("csClear")) {
                     EditText cs = et("chatMessageSearchInput");
-                    if (cs != null) cs.setText("");
-                    searchInChat("");
+                    if (cs != null) { cs.setText(""); cs.requestFocus(); }
                 }
+                else if (id.equals("csUp")) csStep(1);
+                else if (id.equals("csDown")) csStep(-1);
                 else if (id.equals("replyCancel")) {
                     cancelReply();
                     EditText mi = et("messageInput");
@@ -6162,7 +6579,7 @@ public class MassActivity extends Activity {
                         "itemChangeEmail", "itemBlocked", "segLastSeen_show", "segLastSeen_hide",
                         "segAvatar_show", "segAvatar_hide", "itemClearCache", "itemWipe", "itemAbout",
                         "pushOnBtn", "pushOffBtn", "soundOnBtn", "soundOffBtn", "chatBack", "chatUserInfo",
-                        "chatMore", "csX", "replyCancel", "btnSend", "btnMic", "btnAttach", "recSend", "recCancel", "recStop", "recPlay"};
+                        "chatMore", "csX", "csClear", "csUp", "csDown", "replyCancel", "btnSend", "btnMic", "btnAttach", "recSend", "recCancel", "recStop", "recPlay"};
                 for (String id : ids) {
                     View x = v(id);
                     if (x != null) x.setOnClickListener(L);
@@ -6190,6 +6607,9 @@ public class MassActivity extends Activity {
                         public void onTextChanged(CharSequence s, int a, int b, int c) { try { searchInChat(s.toString()); } catch (Throwable ignored) {} }
                         public void afterTextChanged(Editable s) { }
                     });
+                    cms.setOnEditorActionListener((t, actionId, ev) -> { csEnter(); return true; });
+                    cms.setOnFocusChangeListener((vw, f) -> { if (f && csCompact) csSetCompact(false); });
+                    cms.setOnClickListener(vw -> { if (csCompact) csSetCompact(false); });
                 }
 
                 SeekBar fr = (SeekBar) v("fontRange");

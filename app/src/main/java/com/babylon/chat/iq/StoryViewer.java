@@ -260,7 +260,7 @@ public final class StoryViewer {
                     list.add(s);
                 }
                 if (list.isEmpty()) {
-                    Toast.makeText(act, "لا توجد قصص حالياً", Toast.LENGTH_SHORT).show();
+                    AppToast.show(act, "لا توجد قصص حالياً");
                     if (onFail != null) onFail.run();
                     return;
                 }
@@ -297,7 +297,7 @@ public final class StoryViewer {
                 });
             })
             .addOnFailureListener(e -> {
-                Toast.makeText(act, "تعذر تحميل القصة، حاول مرة أخرى", Toast.LENGTH_SHORT).show();
+                AppToast.show(act, "تعذر تحميل القصة، حاول مرة أخرى");
                 if (onFail != null) onFail.run();
             });
     }
@@ -1224,7 +1224,7 @@ public final class StoryViewer {
                 if (my != reactToken) return;
                 cacheReaction(s.id, fprev);
                 if (idx < list.size() && list.get(idx) == s) { react = fprev; applyReaction(fprev); }
-                Toast.makeText(act, "تعذّر حفظ التفاعل. تحقق من اتصالك.", Toast.LENGTH_SHORT).show();
+                AppToast.show(act, "تعذّر حفظ التفاعل. تحقق من اتصالك.");
             });
     }
 
@@ -1288,11 +1288,11 @@ public final class StoryViewer {
             db.collection("chats").document(chatId).collection("messages").add(m)
                 .addOnSuccessListener(r -> {
                     notifyPeer(chatId, text);
-                    Toast.makeText(act, okMsg, Toast.LENGTH_SHORT).show();
+                    AppToast.show(act, okMsg);
                     if (clear && replyIn != null) { replyIn.setText(""); replyIn.clearFocus(); }
                 })
-                .addOnFailureListener(err -> Toast.makeText(act, errMsg, Toast.LENGTH_SHORT).show());
-        }).addOnFailureListener(err -> Toast.makeText(act, errMsg, Toast.LENGTH_SHORT).show());
+                .addOnFailureListener(err -> AppToast.show(act, errMsg));
+        }).addOnFailureListener(err -> AppToast.show(act, errMsg));
     }
 
     // ------------------------------------------------------------ صاحب القصة: إحصاءات / تثبيت / حذف
@@ -1341,7 +1341,7 @@ public final class StoryViewer {
             s.pinned = !next;
             syncPinIcon(s.pinned);
             refreshTime(s);
-            Toast.makeText(act, "تعذر تحديث التثبيت", Toast.LENGTH_SHORT).show();
+            AppToast.show(act, "تعذر تحديث التثبيت");
         });
     }
 
@@ -1521,7 +1521,7 @@ public final class StoryViewer {
                 i.addCategory(Intent.CATEGORY_OPENABLE);
                 i.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"image/*", "video/*"});
                 act.startActivityForResult(Intent.createChooser(i, "اختر صورة أو فيديو"), REQ_PICK);
-            } catch (Throwable e) { Toast.makeText(act, "لا توجد تطبيقات لاختيار الملفات", Toast.LENGTH_SHORT).show(); }
+            } catch (Throwable e) { AppToast.show(act, "لا توجد تطبيقات لاختيار الملفات"); }
         });
         LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-1, -2); mp.topMargin = dp(11);
         card.addView(media, mp);
@@ -1603,7 +1603,7 @@ public final class StoryViewer {
                     }
                     if (closed) return;
                     closeModal();
-                    Toast.makeText(act, "تم تعديل القصة بنجاح", Toast.LENGTH_SHORT).show();
+                    AppToast.show(act, "تم تعديل القصة بنجاح");
                     showStory();
                     notifyChanged();
                 }).addOnFailureListener(e -> editFailed("تعذر تعديل القصة"));
@@ -1615,7 +1615,7 @@ public final class StoryViewer {
 
     private void editFailed(final String msg) {
         handler.post(() -> {
-            Toast.makeText(act, msg, Toast.LENGTH_SHORT).show();
+            AppToast.show(act, msg);
             if (saveBtnTv != null) { saveBtnTv.setEnabled(true); saveBtnTv.setText("حفظ التعديلات"); saveBtnTv.setAlpha(1f); }
         });
     }
@@ -1689,14 +1689,14 @@ public final class StoryViewer {
                 db.collection("stories").document(s.id).delete().addOnSuccessListener(x -> {
                     if (closed) return;
                     closeModal();
-                    Toast.makeText(act, "تم حذف القصة", Toast.LENGTH_SHORT).show();
+                    AppToast.show(act, "تم حذف القصة");
                     list.remove(s);
                     syncMeta();
                     if (list.isEmpty()) { close(); return; }
                     if (idx >= list.size()) idx = list.size() - 1;
                     showStory();
                 }).addOnFailureListener(e -> {
-                    Toast.makeText(act, "تعذر الحذف", Toast.LENGTH_SHORT).show();
+                    AppToast.show(act, "تعذر الحذف");
                     ok.setEnabled(true); ok.setText("حذف القصة"); ok.setAlpha(1f);
                 });
             });

@@ -128,8 +128,7 @@ public final class StoryComposer {
     }
 
     private void msg(String m) {
-        try { new AlertDialog.Builder(act).setMessage(m).setPositiveButton("حسناً", null).show(); }
-        catch (Throwable ignored) { }
+        AppToast.show(act, m);   // إشعار مثل showToast في الـ HTML
     }
 
     // ============================================================ startStoryPublish
@@ -873,6 +872,7 @@ public final class StoryComposer {
             .addOnFailureListener(e -> {
                 setBusy(false, LBL_PUBLISH);
                 showErr("تعذر نشر القصة");
+                AppToast.show(act, "تعذر نشر القصة");
             });
     }
 

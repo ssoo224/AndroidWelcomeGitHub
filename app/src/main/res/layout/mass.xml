@@ -549,45 +549,111 @@
 				android:id="@+id/chatSearchPanel"
 				android:layout_width="match_parent"
 				android:layout_height="wrap_content"
-				android:padding="10dp"
+				android:paddingStart="10dp"
+				android:paddingEnd="10dp"
+				android:paddingTop="8dp"
+				android:paddingBottom="8dp"
+				android:layoutDirection="rtl"
 				android:orientation="vertical"
-				android:visibility="gone"
-				android:tag="sf">
+				android:visibility="gone">
 				<LinearLayout
-					android:id="@+id/linear609"
+					android:id="@+id/csBar"
 					android:layout_width="match_parent"
 					android:layout_height="wrap_content"
 					android:gravity="center_vertical"
 					android:orientation="horizontal">
-					<EditText
-						android:id="@+id/chatMessageSearchInput"
+					<ImageView
+						android:id="@+id/csX"
+						android:layout_width="42dp"
+						android:layout_height="42dp"
+						android:scaleType="center"
+						android:contentDescription="إغلاق البحث"
+						android:src="@drawable/ic_cs_back" />
+					<LinearLayout
+						android:id="@+id/csField"
+						android:layout_width="0dp"
+						android:layout_height="42dp"
+						android:layout_weight="1"
+						android:layout_marginStart="8dp"
+						android:gravity="center_vertical"
+						android:orientation="horizontal">
+						<ImageView
+							android:id="@+id/csIc"
+							android:layout_width="19dp"
+							android:layout_height="19dp"
+							android:layout_marginStart="12dp"
+							android:src="@drawable/ic_menu_search" />
+						<EditText
+							android:id="@+id/chatMessageSearchInput"
+							android:layout_width="0dp"
+							android:layout_height="match_parent"
+							android:layout_weight="1"
+							android:background="@null"
+							android:textSize="15sp"
+							android:hint="ابحث في هذه المحادثة..."
+							android:inputType="text"
+							android:imeOptions="actionSearch"
+							android:singleLine="true"
+							android:paddingStart="10dp"
+							android:paddingEnd="10dp" />
+						<ImageView
+							android:id="@+id/csClear"
+							android:layout_width="28dp"
+							android:layout_height="28dp"
+							android:layout_marginEnd="6dp"
+							android:padding="7dp"
+							android:contentDescription="مسح"
+							android:src="@drawable/ic_close_16"
+							android:visibility="gone" />
+					</LinearLayout>
+				</LinearLayout>
+				<LinearLayout
+					android:id="@+id/csNav"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:gravity="center_vertical"
+					android:orientation="horizontal"
+					android:paddingStart="4dp"
+					android:paddingEnd="4dp"
+					android:paddingTop="9dp"
+					android:paddingBottom="2dp"
+					android:visibility="gone">
+					<TextView
+						android:id="@+id/csCount"
 						android:layout_width="0dp"
 						android:layout_height="wrap_content"
-						android:textSize="14sp"
-						android:hint="ابحث في هذه المحادثة..."
-						android:singleLine="true"
 						android:layout_weight="1"
-						android:minHeight="48dp"
-						android:paddingStart="14dp"
-						android:paddingEnd="14dp"
-						android:tag="inp" />
-					<TextView
-						android:id="@+id/csX"
-						android:layout_width="44dp"
-						android:layout_height="44dp"
-						android:gravity="center_horizontal|center_vertical"
-						android:text=""
-						android:drawableStart="@drawable/ic_close_22"
-						android:textSize="20sp"
-						android:tag="t" />
+						android:textSize="13sp"
+						android:textStyle="bold" />
+					<ImageView
+						android:id="@+id/csUp"
+						android:layout_width="38dp"
+						android:layout_height="38dp"
+						android:layout_marginEnd="8dp"
+						android:scaleType="center"
+						android:contentDescription="الرسالة الأقدم"
+						android:src="@drawable/ic_cs_up" />
+					<ImageView
+						android:id="@+id/csDown"
+						android:layout_width="38dp"
+						android:layout_height="38dp"
+						android:scaleType="center"
+						android:contentDescription="الرسالة الأحدث"
+						android:src="@drawable/ic_cs_down" />
 				</LinearLayout>
-				<TextView
-					android:id="@+id/csCount"
-					android:layout_width="wrap_content"
+				<ScrollView
+					android:id="@+id/chatMessageSearchResults"
+					android:layout_width="match_parent"
 					android:layout_height="wrap_content"
-					android:layout_marginTop="4dp"
-					android:textSize="12sp"
-					android:tag="m" />
+					android:layout_marginTop="8dp"
+					android:overScrollMode="never"
+					android:visibility="gone">
+					<LinearLayout
+						android:id="@+id/csList"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:orientation="vertical" />
+				</ScrollView>
 			</LinearLayout>
 		</LinearLayout>
 		<LinearLayout
