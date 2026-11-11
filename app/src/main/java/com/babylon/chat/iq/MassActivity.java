@@ -4145,7 +4145,7 @@ public class MassActivity extends Activity {
 
             /** انحناءات الفقاعة (TL,TR,BR,BL) + إزاحة: الزاوية المدبّبة 6dp (أسفل اليمين للمرسلة وأسفل اليسار للمستلمة). */
             float[] bubbleRadii(View mv, float add) {
-                float big = (mv instanceof FrameLayout ? dp(12) : dp(radius)) + add, tail = dp(6) + add;
+                float big = (mv instanceof FrameLayout ? dp(12) : "bubEmoji".equals(mv.getTag()) ? dp(14) : dp(radius)) + add, tail = dp(6) + add;
                 float[] r = {big, big, big, big, big, big, big, big};
                 Object t = mv.getTag();
                 String ts = t instanceof String ? (String) t : "";

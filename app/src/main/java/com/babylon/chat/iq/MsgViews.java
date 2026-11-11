@@ -108,9 +108,11 @@ public final class MsgViews {
         public Bub(Context c) { super(c); }
         @Override protected void onMeasure(int w, int h) {
             int mode = MeasureSpec.getMode(w), size = MeasureSpec.getSize(w);
-            if (mode != MeasureSpec.EXACTLY && size > 0) {
-                int cap = Math.max((int) (size * 0.8f), getMinimumWidth());
-                if (cap < size) w = MeasureSpec.makeMeasureSpec(cap, MeasureSpec.AT_MOST);
+            if (mode != MeasureSpec.EXACTLY) {
+                int screen = getResources().getDisplayMetrics().widthPixels;
+                int base = size > 0 ? Math.max(size, (int) (screen * 0.6f)) : screen;   // لا يضيق إن قاسه الأب بعرض صغير
+                int cap = Math.max((int) (Math.min(base, screen) * 0.8f), getMinimumWidth());
+                w = MeasureSpec.makeMeasureSpec(cap, MeasureSpec.AT_MOST);
             }
             super.onMeasure(w, h);
         }
@@ -168,11 +170,11 @@ public final class MsgViews {
     }
     private static boolean isMod(int c) { return c == 0xFE0F || (c >= 0x1F3FB && c <= 0x1F3FF) || (c >= 0xE0020 && c <= 0xE007F); }
 
-    /** يقسّم النص إلى إيموجيات (علم، keycap، رمز مع معدِّلات/ZWJ). يعيد null إن احتوى على أي شيء غير إيموجي (المسافات مسموحة) أو زاد عن 10. */
+    /** يقسّم النص إلى إيموجيات (علم، keycap، رمز مع معدِّلات/ZWJ). يعيد null إن احتوى على أي شيء غير إيموجي (المسافات مسموحة) (بلا حد للعدد). */
     public static java.util.ArrayList<String> emojiClusters(String raw) {
         if (raw == null) return null;
         String t = raw.trim();
-        if (t.isEmpty() || t.length() > 300) return null;
+        if (t.isEmpty()) return null;
         int[] cp = cps(t);
         int n = cp.length, i = 0;
         java.util.ArrayList<String> out = new java.util.ArrayList<>();
@@ -198,7 +200,6 @@ public final class MsgViews {
                 if (c < 0x231A && !vs) return null;                               // © ® ™ بدون FE0F ليست إيموجي
             }
             out.add(new String(cp, s, i - s));
-            if (out.size() > 40) return null;
         }
         return out.isEmpty() ? null : out;
     }
@@ -209,7 +210,7 @@ public final class MsgViews {
         return l != null && l.size() == 1;
     }
 
-    /** هل النص كله إيموجيات فقط (واحد أو أكثر، حتى 10)؟ */
+    /** هل النص كله إيموجيات فقط (واحد أو أكثر، بلا حد)؟ */
     public static boolean isEmojiOnly(String raw) { return emojiClusters(raw) != null; }
 
     private static int[] cps(String t) {   // بدون String.codePoints() (API 24+)
@@ -371,7 +372,7 @@ public final class MsgViews {
     private static void bindEmojiRow(Activity a, LinearLayout b, java.util.ArrayList<String> ems, String quote, boolean mine, String time, int state) {
         b.setTag("bubEmoji");
         b.setBackground(null);
-        b.setPadding(dp(a, 4), dp(a, 2), dp(a, 4), dp(a, 2));
+        b.setPadding(dp(a, 8), dp(a, 4), dp(a, 8), dp(a, 4));   // التضليل والإطار يحيطان بكل الإيموجيات كرسالة واحدة
         b.setMinimumWidth(0);
         b.setGravity(Gravity.CENTER_HORIZONTAL);
         int n = ems.size();
@@ -409,9 +410,10 @@ public final class MsgViews {
             iv.setVisibility(View.GONE);
             cell.addView(iv, new FrameLayout.LayoutParams(-1, -1));
             rowL.addView(cell, new LinearLayout.LayoutParams(dp(a, sz), dp(a, sz)));
-            loadAnimatedEmoji(a, e, iv, tv, (int) (sz * d(a)), false);   // عدة إيموجي: بلا انميشن
+            if (n <= 60) loadAnimatedEmoji(a, e, iv, tv, (int) (sz * d(a)), false);   // عدة إيموجي: بلا انميشن (فوق 60 تبقى نصاً لتفادي مئات الطلبات)
         }
         LinearLayout.LayoutParams boxLp = new LinearLayout.LayoutParams(-2, -2);
+        noTouch(box);   // كل الإيموجيات وحدة واحدة: لا يلتقط أي إيموجي النقر لوحده
 
         if (quote != null) {
             LinearLayout row = new LinearLayout(a);
@@ -441,6 +443,15 @@ public final class MsgViews {
         ml.gravity = Gravity.LEFT; ml.topMargin = -dp(a, 2);   // الوقت والعلامة يسار الإيموجي
         meta.setLayoutParams(ml);
         b.addView(meta);
+    }
+
+    /** يجعل كل أبناء العرض غير قابلين للنقر/التركيز فيذهب النقر والتحديد للرسالة كلها. */
+    private static void noTouch(View v) {
+        v.setClickable(false); v.setLongClickable(false); v.setFocusable(false);
+        if (v instanceof android.view.ViewGroup) {
+            android.view.ViewGroup g = (android.view.ViewGroup) v;
+            for (int i = 0; i < g.getChildCount(); i++) noTouch(g.getChildAt(i));
+        }
     }
 
     private static android.graphics.drawable.GradientDrawable rounded(int color, int r) {
