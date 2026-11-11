@@ -53,6 +53,10 @@ public class Main2Activity extends Activity {
         binding.btnLogin.setOnClickListener(v -> doLogin());
         binding.btnRegister.setOnClickListener(v -> doRegister());
         binding.btnForgot.setOnClickListener(v -> doForgot());
+
+        // إشعار قادم من الشاشة السابقة (مثل «تم تسجيل الخروج»)
+        final String carried = getIntent() != null ? getIntent().getStringExtra("bb_toast") : null;
+        if (carried != null) binding.getRoot().postDelayed(() -> toast(carried), 450);
     }
 
     // ======================= حركة الدخول من السبلاش =======================
@@ -130,6 +134,7 @@ public class Main2Activity extends Activity {
             return;
         }
         setBusy(binding.btnLogin, true);
+        toast("جاري تسجيل الدخول...");
 
         if (input.indexOf('@') > 0) {
             signIn(input, pass); // بريد إلكتروني
@@ -160,7 +165,7 @@ public class Main2Activity extends Activity {
 
     private void signIn(String email, String pass) {
         auth.signInWithEmailAndPassword(email, pass)
-                .addOnSuccessListener(r -> goToMass())
+                .addOnSuccessListener(r -> goToMass("تم تسجيل الدخول بنجاح"))
                 .addOnFailureListener(e -> {
                     setBusy(binding.btnLogin, false);
                     toast("البريد/اسم المستخدم أو كلمة المرور غير صحيحة");
@@ -198,6 +203,7 @@ public class Main2Activity extends Activity {
         }
 
         setBusy(binding.btnRegister, true);
+        toast("جاري إنشاء الحساب...");
 
         // 1) إنشاء حساب المصادقة
         auth.createUserWithEmailAndPassword(email, pass)
@@ -244,8 +250,7 @@ public class Main2Activity extends Activity {
 
         db.collection("users").document(user.getUid()).set(data)
                 .addOnSuccessListener(v -> {
-                    toast("تم إنشاء الحساب بنجاح");
-                    goToMass();
+                    goToMass("تم إنشاء الحساب بنجاح");
                 })
                 .addOnFailureListener(e -> {
                     setBusy(binding.btnRegister, false);
@@ -269,6 +274,7 @@ public class Main2Activity extends Activity {
             toast("اكتب بريدك الإلكتروني في الحقل أولاً");
             return;
         }
+        toast("جاري إرسال رابط الاستعادة...");
         auth.sendPasswordResetEmail(input)
                 .addOnSuccessListener(v -> toast("تم إرسال رابط إعادة التعيين إلى بريدك"))
                 .addOnFailureListener(e -> toast("تعذّر الإرسال، تأكد من البريد"));
@@ -276,8 +282,10 @@ public class Main2Activity extends Activity {
 
     // ======================= مساعدات =======================
 
-    private void goToMass() {
-        startActivity(new Intent(this, MassActivity.class));
+    private void goToMass(String welcomeToast) {
+        Intent i = new Intent(this, MassActivity.class);
+        if (welcomeToast != null) i.putExtra("bb_toast", welcomeToast);   // يُعرض في الشاشة التالية لأن هذه تُغلق
+        startActivity(i);
         finish();
     }
 

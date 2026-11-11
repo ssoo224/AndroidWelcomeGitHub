@@ -44,6 +44,7 @@ public final class AppToast {
 
     /** toastKind في الـ HTML. */
     static String kindOf(String m) {
+        m = m.replaceAll("[\u064B-\u0652\u0670]", "");   // يتجاهل التشكيل (تعذّر = تعذر) فيُصنَّف الخطأ صحيحاً
         if (P_DANGER.matcher(m).find()) return "danger";
         if (P_LOADING.matcher(m).find()) return "loading";
         if (P_ERROR.matcher(m).find()) return "error";
@@ -135,10 +136,13 @@ public final class AppToast {
 
         TextView tv = new TextView(act);
         tv.setText(text);
-        tv.setTextSize(14f);
+        tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, 14f);   // 14px كما في CSS (لا يتأثر بحجم خط النظام)
         tv.setTextColor(fg);
         tv.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        tv.setLineSpacing(0, 1.18f);
+        // line-height:1.45 كما في CSS: نحسب الفرق عن ارتفاع السطر الطبيعي للخط
+        android.graphics.Paint.FontMetrics fm = tv.getPaint().getFontMetrics();
+        float natural = fm.descent - fm.ascent + fm.leading;
+        tv.setLineSpacing(Math.max(0f, dp(act, 14f * 1.45f) - natural), 1f);
         tv.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         tv.setTextDirection(View.TEXT_DIRECTION_ANY_RTL);
         row.addView(tv, new LinearLayout.LayoutParams(0, -2, 1f));

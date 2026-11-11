@@ -133,6 +133,10 @@ public class MassActivity extends Activity {
             return;
         }
 
+        // إشعار قادم من شاشة الدخول (تم تسجيل الدخول / تم إنشاء الحساب)
+        final String carried = getIntent() != null ? getIntent().getStringExtra("bb_toast") : null;
+        if (carried != null) getWindow().getDecorView().postDelayed(() -> AppToast.show(this, carried), 450);
+
         try {
             makeAllTextBold(getWindow().getDecorView().getRootView());
             try {   // التلميح فقط بخط عادي (النص المكتوب يبقى غامقاً)
@@ -2098,7 +2102,11 @@ public class MassActivity extends Activity {
                 if (!Boolean.TRUE.equals(d.getBoolean("hideAvatar"))) {
                     final String ph = firstNonEmpty(d.getString("photo"), d.getString("avatarUrl"));
                     final String reqUid = otherUid;
-                    if (!ph.isEmpty()) {
+                    Bitmap cachedAv = (ph.isEmpty() || reqUid == null) ? null : peerPhotos.get(reqUid);
+                    if (cachedAv != null && !cachedAv.isRecycled() && sigOf(ph).equals(peerPhotoSig.get(reqUid))) {   // الصورة محفوظة ولم تتغير: بلا فك ولا تحميل
+                        otherPhotoBmp = cachedAv;
+                        applyOtherPhotoTo(tv("otherAvatarText"));
+                    } else if (!ph.isEmpty()) {
                         new Thread(() -> {
                             Bitmap bmp = null;
                             try {
@@ -2266,7 +2274,12 @@ public class MassActivity extends Activity {
                             for (Object po2 : parts) { String p = String.valueOf(po2); if (!p.equals(myUid)) { otherId = p; break; } }
                             if (otherId == null) continue;
                             final String fOtherId = otherId;
-                            final String lastMsg = m.get("lastMessage") != null ? m.get("lastMessage").toString() : "";
+                            String lastMsg0 = m.get("lastMessage") != null ? m.get("lastMessage").toString() : "";
+                            if (Boolean.TRUE.equals(m.get("lastStoryReply")) && !lastMsg0.trim().isEmpty()) {   // آخر نشاط رد على قصة (نص أو إيموجي)
+                                boolean byMe = myUid.equals(String.valueOf(m.get("lastSender")));
+                                lastMsg0 = (byMe ? "رداً على القصة" : "رداً على قصتك") + " \"" + lastMsg0.trim().replace('\n', ' ') + "\"";
+                            }
+                            final String lastMsg = lastMsg0;
                             final long lastAt = chatTs(m);
                             final String lastTime = lastAt > 0 ? listTime(lastAt) : "";
                             final String fChatId = String.valueOf(m.get("__id"));
@@ -2567,33 +2580,114 @@ public class MassActivity extends Activity {
                 } catch (Throwable t) { return null; }
             }
 
+            // ===== حفظ دائم لصور المستخدمين في ذاكرة التطبيق (filesDir/avatars) =====
+            static final long AVATAR_TTL = 10 * 60 * 1000L;   // لا نسأل السيرفر عن تغيّر الصورة قبل مرور 10 دقائق على آخر تحقق
+
+            java.io.File avatarFile(String uid) { return new java.io.File(new java.io.File(act.getFilesDir(), "avatars"), uid.replaceAll("[^A-Za-z0-9_-]", "_") + ".jpg"); }
+            java.io.File avatarSigFile(String uid) { return new java.io.File(new java.io.File(act.getFilesDir(), "avatars"), uid.replaceAll("[^A-Za-z0-9_-]", "_") + ".sig"); }
+
+            String sigOf(String ph) {
+                try {
+                    byte[] h = java.security.MessageDigest.getInstance("SHA-1").digest(ph.getBytes("UTF-8"));
+                    StringBuilder sb = new StringBuilder();
+                    for (byte x : h) sb.append(String.format("%02x", x));
+                    return sb.toString();
+                } catch (Throwable t) { return ph.length() + ":" + ph.hashCode(); }
+            }
+
+            String readSmall(java.io.File f) {
+                try {
+                    java.io.FileInputStream in = new java.io.FileInputStream(f);
+                    java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+                    byte[] b = new byte[512]; int n;
+                    while ((n = in.read(b)) > 0) bo.write(b, 0, n);
+                    in.close();
+                    return bo.toString("UTF-8");
+                } catch (Throwable t) { return null; }
+            }
+
+            /** يحفظ الصورة (أو علامة «بلا صورة» "-") على القرص مع بصمتها. يُستدعى من خيط خلفي. */
+            void avatarSave(String uid, String sig, Bitmap bmp) {
+                try {
+                    java.io.File f = avatarFile(uid), sg = avatarSigFile(uid);
+                    f.getParentFile().mkdirs();
+                    if (bmp != null) {
+                        java.io.File tmp = new java.io.File(f.getPath() + ".tmp");
+                        java.io.FileOutputStream fo = new java.io.FileOutputStream(tmp);
+                        bmp.compress(Bitmap.CompressFormat.JPEG, 92, fo);
+                        fo.close();
+                        if (!tmp.renameTo(f)) tmp.delete();
+                    } else if (f.exists()) f.delete();
+                    java.io.FileOutputStream so = new java.io.FileOutputStream(sg);
+                    so.write(sig.getBytes("UTF-8")); so.close();
+                } catch (Throwable ignored) { }
+            }
+
+            void avatarsClear() {
+                try {
+                    java.io.File[] fs = new java.io.File(act.getFilesDir(), "avatars").listFiles();
+                    if (fs != null) for (java.io.File f : fs) f.delete();
+                } catch (Throwable ignored) { }
+            }
+
+            void schedulePeerRefresh() {
+                if (peerPhotoRefresh == null) peerPhotoRefresh = () -> {
+                    try { buildChats(); } catch (Throwable ignored) { }
+                    try { buildStories(); } catch (Throwable ignored) { }
+                    try { applyChatPhoto(); } catch (Throwable ignored) { }
+                    try { refreshAllReactions(); } catch (Throwable ignored) { }
+                };
+                uiH.removeCallbacks(peerPhotoRefresh);
+                uiH.postDelayed(peerPhotoRefresh, 250);
+            }
+
             void ensurePeerPhoto(final String uid) {
                 if (uid == null || uid.isEmpty() || myBlocks.contains(uid)) return;
                 Long at = peerPhotoAt.get(uid);
                 if (at != null && System.currentTimeMillis() - at < 120000) return;
                 if (!peerPhotoReq.add(uid)) return;
+                // 1) من القرص أولاً: تظهر الصورة فوراً بعد فتح التطبيق بلا انتظار الشبكة
+                new Thread(() -> {
+                    Bitmap b0 = null; String sg0 = null; long age0 = Long.MAX_VALUE;
+                    try {
+                        java.io.File f = avatarFile(uid), sg = avatarSigFile(uid);
+                        if (sg.isFile()) { sg0 = readSmall(sg); age0 = System.currentTimeMillis() - sg.lastModified(); }
+                        if (f.isFile()) b0 = BitmapFactory.decodeFile(f.getPath());
+                    } catch (Throwable ignored) { }
+                    final Bitmap fb0 = b0; final String fsg0 = sg0; final long fage0 = age0;
+                    act.runOnUiThread(() -> {
+                        if (fb0 != null && !peerPhotos.containsKey(uid)) {
+                            peerPhotos.put(uid, fb0);
+                            if (fsg0 != null) peerPhotoSig.put(uid, fsg0);
+                            schedulePeerRefresh();
+                        }
+                        boolean known = fsg0 != null && (fb0 != null || "-".equals(fsg0));   // لدينا صورة محفوظة (أو علمنا أنه بلا صورة)
+                        if (known && fage0 < AVATAR_TTL) { peerPhotoReq.remove(uid); peerPhotoAt.put(uid, System.currentTimeMillis()); return; }
+                        checkPeerPhotoOnServer(uid);   // 2) التحقق من تغيّر الصورة من السيرفر (تُحمَّل فقط إن تغيّرت)
+                    });
+                }).start();
+            }
+
+            void checkPeerPhotoOnServer(final String uid) {
                 db.collection("users").document(uid).get().addOnSuccessListener(d -> {
                     final boolean hidden = d == null || !d.exists() || Boolean.TRUE.equals(d.getBoolean("hideAvatar"));
                     final String ph = hidden ? "" : firstNonEmpty(d.getString("photo"), d.getString("avatarUrl"));
-                    if (ph.equals(peerPhotoSig.get(uid)) && (ph.isEmpty() || peerPhotos.containsKey(uid))) {
-                        peerPhotoAt.put(uid, System.currentTimeMillis()); peerPhotoReq.remove(uid); return;
+                    final String sig = ph.isEmpty() ? "-" : sigOf(ph);
+                    if (sig.equals(peerPhotoSig.get(uid)) && (ph.isEmpty() || peerPhotos.containsKey(uid))) {   // لم تتغير: لا فك ولا حفظ
+                        peerPhotoAt.put(uid, System.currentTimeMillis()); peerPhotoReq.remove(uid);
+                        new Thread(() -> { try { avatarSigFile(uid).setLastModified(System.currentTimeMillis()); } catch (Throwable ignored) { } }).start();
+                        return;
                     }
                     new Thread(() -> {
                         final Bitmap bmp = ph.isEmpty() ? null : decodePeerPhoto(ph);
+                        if (ph.isEmpty() || bmp != null) avatarSave(uid, sig, bmp);   // حفظ دائم
                         act.runOnUiThread(() -> {
                             peerPhotoReq.remove(uid);
                             peerPhotoAt.put(uid, System.currentTimeMillis());
                             if (!ph.isEmpty() && bmp == null) return;
-                            peerPhotoSig.put(uid, ph);
+                            peerPhotoSig.put(uid, sig);
                             if (bmp != null) peerPhotos.put(uid, bmp); else peerPhotos.remove(uid);
-                            if (peerPhotoRefresh == null) peerPhotoRefresh = () -> {
-                                try { buildChats(); } catch (Throwable ignored) { }
-                                try { buildStories(); } catch (Throwable ignored) { }
-                                try { applyChatPhoto(); } catch (Throwable ignored) { }
-                                try { refreshAllReactions(); } catch (Throwable ignored) { }
-                            };
-                            uiH.removeCallbacks(peerPhotoRefresh);
-                            uiH.postDelayed(peerPhotoRefresh, 250);
+                            schedulePeerRefresh();
                         });
                     }).start();
                 }).addOnFailureListener(e -> peerPhotoReq.remove(uid));
@@ -3381,6 +3475,19 @@ public class MassActivity extends Activity {
                     }
                     uiH.postDelayed(() -> { View a1 = v("messagesArea"); if (a1 != null && a1.getAlpha() < 1f) a1.animate().alpha(1f).setDuration(80).start(); }, 600);
                 }
+                MsgViews.storyOpen = (bv, sid, byMe) -> {   // اقتباس «رد على القصة»: يفتح القصة نفسها
+                    if (selecting) { if (bv != null) toggleSel(bv); return; }
+                    final String owner = byMe ? otherUid : myUid;   // رددتُ أنا => القصة للطرف الآخر؛ ردّ هو => القصة قصتي
+                    if (owner == null || owner.isEmpty() || sid == null || sid.isEmpty()) return;
+                    java.util.Set<String> ids = new java.util.HashSet<>();
+                    ids.add(sid);
+                    if (owner.equals(myUid)) {
+                        openStory(myUid, "قصتي", userName != null && userName.length() > 0 ? userName.substring(0, 1).toUpperCase() : "?", photoBmp, false, null, sid, ids);
+                    } else {
+                        String nm = dispName(owner, "");
+                        openStory(owner, nm, nm.length() > 0 ? nm.substring(0, 1).toUpperCase() : "?", otherPhotoBmp, StoryAvatarView.toneBlue(owner), null, sid, ids);
+                    }
+                };
                 MsgViews.replyJump = (bv, rid) -> {
                     if (selecting) { toggleSel(bv); return; }
                     jumpToMsg(rid);
@@ -3479,6 +3586,7 @@ public class MassActivity extends Activity {
                             Map<String, Object> sdc = new HashMap<>();
                             sdc.put("caption", o.optString("storyCap"));
                             sdc.put("videoUrl", o.optBoolean("storyVid", false) ? "1" : "");
+                            sdc.put("storyId", o.optString("storyId"));
                             d.put("storyReplyData", sdc);
                         }
                         if (msgClearedMap(d, clr)) continue;
@@ -3536,6 +3644,8 @@ public class MassActivity extends Activity {
                                 Object c2 = ((Map<?, ?>) sdo2).get("caption"), v2 = ((Map<?, ?>) sdo2).get("videoUrl");
                                 o.put("storyCap", c2 instanceof String ? (String) c2 : "");
                                 o.put("storyVid", v2 instanceof String && ((String) v2).length() > 0);
+                                Object i2 = ((Map<?, ?>) sdo2).get("storyId");
+                                o.put("storyId", i2 instanceof String ? (String) i2 : "");
                             }
                         }
                         rev.add(o);
@@ -3606,19 +3716,20 @@ public class MassActivity extends Activity {
                                 }
                                 if (text != null && Boolean.TRUE.equals(gBool(d, "storyReply")) && !text.startsWith("\u21A9 ")) {
                                     // رد على قصة: يظهر فوق الرسالة اقتباس «رد على القصة» (نص التعليق أو صورة/فيديو)
-                                    String sCap = "", sKind = "";
+                                    String sCap = "", sKind = "", sSid = "";
                                     boolean sVid = false;
                                     Object sdo = d.get("storyReplyData");
                                     if (sdo instanceof Map) {
                                         Map<?, ?> sd = (Map<?, ?>) sdo;
-                                        Object c0 = sd.get("caption"), v0 = sd.get("videoUrl");
+                                        Object c0 = sd.get("caption"), v0 = sd.get("videoUrl"), i0 = sd.get("storyId");
+                                        if (i0 instanceof String) sSid = (String) i0;
                                         if (c0 instanceof String) sCap = ((String) c0).trim();
                                         sVid = v0 instanceof String && ((String) v0).length() > 0;
                                     }
                                     boolean sMine = myUid.equals(gStr(d, "sender"));
                                     String sQt = sCap.length() > 0 ? sCap.replace('\n', ' ').replace('\u0002', ' ').replace('\u0001', ' ') : (sVid ? "فيديو" : "صورة");
                                     if (sCap.length() == 0 && !sVid) sKind = "image";
-                                    text = "\u21A9 " + (sMine ? "رد على القصة" : "رد على قصتك") + "\u0001" + sQt + "\u0002\u0002" + sKind + "\n" + text;
+                                    text = "\u21A9 " + (sMine ? "رد على القصة" : "رد على قصتك") + "\u0001" + sQt + "\u0002" + (sSid.length() > 0 ? "story:" + sSid : "") + "\u0002" + sKind + "\n" + text;
                                 }
                                 mediaQuote = null;
                                 if (rTo != null && rTo.length() > 0 && ("image".equals(type) || "audio".equals(type))) {
@@ -4514,6 +4625,7 @@ public class MassActivity extends Activity {
                 cd.put("lastMessage", last);
                 cd.put("lastMessageAt", System.currentTimeMillis());
                 cd.put("lastSender", myUid);
+                cd.put("lastStoryReply", false);
                 db.collection("chats").document(tcid).set(cd, com.google.firebase.firestore.SetOptions.merge());
                 clearSel();
                 toast("تمت إعادة توجيه " + sent + (sent == 1 ? " رسالة" : " رسائل"));
@@ -5100,6 +5212,7 @@ public class MassActivity extends Activity {
                 chatDoc.put("lastMessage", preview);
                 chatDoc.put("lastMessageAt", System.currentTimeMillis());
                 chatDoc.put("lastSender", myUid);
+                chatDoc.put("lastStoryReply", false);   // رسالة عادية: يزول عنوان «رداً على القصة»
                 db.collection("chats").document(currentChatId).set(chatDoc, com.google.firebase.firestore.SetOptions.merge());   // merge: لا تُمسح pins
             }
 
@@ -6367,10 +6480,14 @@ public class MassActivity extends Activity {
                     .setNegativeButton("إلغاء", null).show();
             }
             void logout() {
+                toast("جاري تسجيل الخروج...");
+                avatarsClear();
                 try { LocalCache.clearAll(); } catch (Throwable ignored) { }
                 mAuth.signOut();
                 sp.edit().putBoolean("logged", false).apply();
-                startActivity(new Intent(act, Main2Activity.class));
+                Intent out = new Intent(act, Main2Activity.class);
+                out.putExtra("bb_toast", "تم تسجيل الخروج");   // يُعرض في شاشة الدخول
+                startActivity(out);
                 act.finish();
             }
             void input(String title, String hint, final String key, final String okMsg) {

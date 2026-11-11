@@ -31,6 +31,9 @@ public final class MsgViews {
     /** النقر على اقتباس الرد داخل الفقاعة: الرجوع للرسالة الأصلية (goToReplied في الـ HTML). */
     public interface ReplyJump { void go(View bubble, String replyId); }
     public static ReplyJump replyJump;
+    /** النقر على اقتباس «رد على القصة»: يفتح القصة نفسها (يُضبط من MassActivity). */
+    public interface StoryOpen { void go(View bubble, String storyId, boolean byMe); }
+    public static StoryOpen storyOpen;
 
     private static float d(Context c) { return c.getResources().getDisplayMetrics().density; }
     private static int dp(Context c, float v) { return (int) (v * d(c) + 0.5f); }
@@ -309,7 +312,20 @@ public final class MsgViews {
     /** مفتاح وسم ImageView: الإطار الثابت للإيموجي المتحرك (يستعمله MsgMenu عند اللقطة). */
     public static final int STILL_KEY = 0x7F0B1E70;
 
-    private static final java.util.HashMap<String, byte[]> EMOJI_BYTES = new java.util.HashMap<>();
+    /** ذاكرة سريعة للإيموجيات المحمّلة (LRU: تُطرد الأقدم استعمالاً فقط) — تُشارَك بين كل الرسائل. */
+    private static final java.util.HashMap<String, byte[]> EMOJI_BYTES = new java.util.LinkedHashMap<String, byte[]>(64, 0.75f, true) {
+        @Override protected boolean removeEldestEntry(java.util.Map.Entry<String, byte[]> eldest) { return size() > 120; }
+    };
+    /** مفتاح وسم TextView: حركة الطفو للإيموجي الأصلي (تبدأ إن فشل تحميل الصورة وظهر الأصلي). */
+    public static final int IDLE_KEY = 0x7F0B1E71;
+
+    /** هدف عرض ينتظر إيموجياً معيناً (رسالة واحدة أو أكثر تطلب نفس الإيموجي). */
+    private static final class Target {
+        final ImageView iv; final TextView fb; final int sizePx; final boolean animate;
+        Target(ImageView iv, TextView fb, int sizePx, boolean animate) { this.iv = iv; this.fb = fb; this.sizePx = sizePx; this.animate = animate; }
+    }
+    /** طلبات التحميل الجارية: مفتاح الإيموجي -> كل الأهداف المنتظرة (تحميل واحد يخدم كل الرسائل). */
+    private static final java.util.HashMap<String, java.util.ArrayList<Target>> PENDING = new java.util.HashMap<>();
     private static final java.util.HashSet<String> EMOJI_FAILED = new java.util.HashSet<>();
 
     /** الإيموجي المتحرك (Noto) من gstatic كما في الـ HTML؛ إن لم يوجد يبقى الإيموجي الأصلي بحركة خفيفة. */
@@ -319,7 +335,62 @@ public final class MsgViews {
 
     /** animate=false: يُعرض الإطار الأول ثابتاً (صورة بدقة عالية) بلا أي حركة — يُستعمل مع الإيموجيات المتعددة. */
     private static void loadAnimatedEmoji(final Activity a, final String emoji, final ImageView iv, final TextView fb, final int sizePx, final boolean animate) {
-        if (android.os.Build.VERSION.SDK_INT < 28) return;
+        java.util.ArrayList<ImageView> ivs = new java.util.ArrayList<>(); ivs.add(iv);
+        java.util.ArrayList<TextView> fbs = new java.util.ArrayList<>(); fbs.add(fb);
+        loadAnimatedEmojiGroup(a, emoji, ivs, fbs, sizePx, animate);
+    }
+
+    /** مفتاح وسم ImageView: أنيميشن نبض شكل «غير محمّل». */
+    public static final int PULSE_KEY = 0x7F0B1E72;
+
+    /** شكل «إيموجي غير محمّل»: دائرة رمادية شفافة بحجم الوجه تنبض ببطء إلى أن تصل الصورة. */
+    private static void showPlaceholder(final ImageView iv) {
+        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+        g.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        g.setColor(0x4D8794A8);
+        iv.setImageDrawable(new android.graphics.drawable.InsetDrawable(g, 0.14f));
+        iv.setTag(STILL_KEY, null);
+        iv.setVisibility(View.VISIBLE);
+        stopPlaceholder(iv);
+        final android.animation.ObjectAnimator an = android.animation.ObjectAnimator.ofFloat(iv, View.ALPHA, 0.35f, 1f);
+        an.setDuration(900);
+        an.setRepeatCount(android.animation.ValueAnimator.INFINITE);
+        an.setRepeatMode(android.animation.ValueAnimator.REVERSE);
+        an.start();
+        iv.setTag(PULSE_KEY, an);
+        iv.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {   // لا يبقى النبض شغالاً بعد زوال الرسالة
+            @Override public void onViewAttachedToWindow(View v) { }
+            @Override public void onViewDetachedFromWindow(View v) { stopPlaceholder(iv); iv.removeOnAttachStateChangeListener(this); }
+        });
+    }
+
+    private static void stopPlaceholder(ImageView iv) {
+        Object o = iv.getTag(PULSE_KEY);
+        if (o instanceof android.animation.ObjectAnimator) ((android.animation.ObjectAnimator) o).cancel();
+        iv.setTag(PULSE_KEY, null);
+        iv.setAlpha(1f);
+    }
+
+    /** فشل التحميل: يظهر الإيموجي الأصلي (كان مخفياً) وتعمل حركته الخفيفة. */
+    private static void showFallback(Activity a, final java.util.List<Target> ts) {
+        a.runOnUiThread(() -> {
+            for (Target t : ts) {
+                stopPlaceholder(t.iv);
+                t.iv.setImageDrawable(null);
+                t.iv.setVisibility(View.GONE);
+                t.fb.setVisibility(View.VISIBLE);
+                Object o = t.fb.getTag(IDLE_KEY);
+                if (o instanceof android.animation.ObjectAnimator && t.fb.isAttachedToWindow() && !((android.animation.ObjectAnimator) o).isStarted()) ((android.animation.ObjectAnimator) o).start();
+            }
+        });
+    }
+
+    /**
+     * يحمّل الإيموجي مرة واحدة فقط ثم يعرضه في كل مكان يطلبه (كل الخلايا المتماثلة وكل الرسائل) دفعة واحدة.
+     * حتى وصول الصورة يكون الإيموجي مخفياً تماماً (بلا ظهور للإيموجي الأصلي)؛ وإن فشل التحميل يظهر الأصلي.
+     */
+    private static void loadAnimatedEmojiGroup(final Activity a, final String emoji, final java.util.List<ImageView> ivs, final java.util.List<TextView> fbs, final int sizePx, final boolean animate) {
+        if (android.os.Build.VERSION.SDK_INT < 28) return;   // أجهزة قديمة: يبقى الإيموجي الأصلي ظاهراً
         final StringBuilder sb = new StringBuilder();
         final java.util.ArrayList<String> tries = new java.util.ArrayList<>();
         StringBuilder noVs = new StringBuilder();
@@ -331,9 +402,38 @@ public final class MsgViews {
         tries.add(sb.toString());
         if (noVs.length() > 0 && !noVs.toString().equals(sb.toString())) tries.add(noVs.toString());
         final String key = tries.get(0);
+
+        final java.util.ArrayList<Target> mine = new java.util.ArrayList<>();
+        for (int k = 0; k < ivs.size(); k++) mine.add(new Target(ivs.get(k), fbs.get(k), sizePx, animate));
+        for (Target t : mine) { t.fb.setVisibility(View.INVISIBLE); showPlaceholder(t.iv); }   // الإيموجي مخفي، ومكانه يعرض شكل «غير محمّل» إلى أن يصل
+
+        boolean startThread = false, failed = false;
+        synchronized (EMOJI_BYTES) {
+            if (EMOJI_FAILED.contains(key)) failed = true;
+            else {
+                java.util.ArrayList<Target> list = PENDING.get(key);
+                if (list == null) { list = new java.util.ArrayList<>(); PENDING.put(key, list); startThread = true; }
+                list.addAll(mine);   // إن كان التحميل جارياً من رسالة أخرى ننضم إليه بدل طلب جديد
+            }
+        }
+        if (failed) { showFallback(a, mine); return; }
+        if (!startThread) return;
+
         new Thread(() -> {
             byte[] data;
-            synchronized (EMOJI_BYTES) { data = EMOJI_BYTES.get(key); if (data == null && EMOJI_FAILED.contains(key)) return; }
+            synchronized (EMOJI_BYTES) { data = EMOJI_BYTES.get(key); }
+            // تخزين دائم في ذاكرة التطبيق (filesDir): لا يُمسح بمسح الكاش ولا بإغلاق التطبيق
+            final java.io.File cacheFile = new java.io.File(new java.io.File(a.getFilesDir(), "emoji_noto"), key + ".webp");
+            if (data == null && cacheFile.isFile() && cacheFile.length() > 0) {
+                try {
+                    java.io.FileInputStream fi = new java.io.FileInputStream(cacheFile);
+                    java.io.ByteArrayOutputStream bo0 = new java.io.ByteArrayOutputStream();
+                    byte[] b0 = new byte[8192]; int r0;
+                    while ((r0 = fi.read(b0)) > 0) bo0.write(b0, 0, r0);
+                    fi.close();
+                    data = bo0.toByteArray();
+                } catch (Throwable ignored) { data = null; }
+            }
             if (data == null) {
                 for (String code : tries) {
                     try {
@@ -349,40 +449,66 @@ public final class MsgViews {
                         break;
                     } catch (Throwable ignored) { }
                 }
-                synchronized (EMOJI_BYTES) {
-                    if (data == null) { EMOJI_FAILED.add(key); return; }
-                    if (EMOJI_BYTES.size() > 60) EMOJI_BYTES.clear();
-                    EMOJI_BYTES.put(key, data);
-                }
-            }
-            try {
-                final android.graphics.ImageDecoder.Source src0 = android.graphics.ImageDecoder.createSource(java.nio.ByteBuffer.wrap(data));
-                final Drawable d = animate
-                        ? android.graphics.ImageDecoder.decodeDrawable(src0, (dec, info, src) -> dec.setTargetSize(sizePx, sizePx))
-                        : new android.graphics.drawable.BitmapDrawable(a.getResources(),
-                                android.graphics.ImageDecoder.decodeBitmap(src0, (dec, info, src) -> { dec.setTargetSize(sizePx, sizePx); dec.setAllocator(android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE); }));   // برمجي: حتى تُرسم في لقطة القائمة
-                // إطار ثابت يُستعمل عند التقاط لقطة الرسالة (AnimatedImageDrawable لا يُرسم على Canvas برمجي فتظهر فارغة)
-                Drawable still0 = null;
-                if (animate) {
+                if (data != null) {   // حفظ على القرص (كتابة مؤقتة ثم إعادة تسمية لتفادي ملف ناقص)
                     try {
-                        still0 = new android.graphics.drawable.BitmapDrawable(a.getResources(),
-                                android.graphics.ImageDecoder.decodeBitmap(android.graphics.ImageDecoder.createSource(java.nio.ByteBuffer.wrap(data)),
-                                        (dec, info, src) -> { dec.setTargetSize(sizePx, sizePx); dec.setAllocator(android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE); }));
+                        cacheFile.getParentFile().mkdirs();
+                        java.io.File tmp = new java.io.File(cacheFile.getPath() + ".tmp");
+                        java.io.FileOutputStream fo = new java.io.FileOutputStream(tmp);
+                        fo.write(data); fo.close();
+                        if (!tmp.renameTo(cacheFile)) tmp.delete();
                     } catch (Throwable ignored) { }
                 }
-                final Drawable still = still0;
-                a.runOnUiThread(() -> {
-                    iv.setImageDrawable(d);
-                    iv.setTag(STILL_KEY, still);
-                    iv.setVisibility(View.VISIBLE);
-                    fb.setVisibility(View.GONE);
-                    if (d instanceof android.graphics.drawable.AnimatedImageDrawable) {
-                        android.graphics.drawable.AnimatedImageDrawable ad = (android.graphics.drawable.AnimatedImageDrawable) d;
-                        ad.setRepeatCount(android.graphics.drawable.AnimatedImageDrawable.REPEAT_INFINITE);
-                        ad.start();
+            }
+            final java.util.ArrayList<Target> all;
+            synchronized (EMOJI_BYTES) {
+                if (data == null) EMOJI_FAILED.add(key); else EMOJI_BYTES.put(key, data);
+                all = PENDING.remove(key);
+            }
+            if (all == null) return;
+            if (data == null) { showFallback(a, all); return; }
+            try {
+                final byte[] bytes = data;
+                final int cnt = all.size();
+                final Drawable[] ds = new Drawable[cnt];
+                final Drawable[] stills = new Drawable[cnt];
+                final java.util.HashMap<Integer, android.graphics.Bitmap> bmps = new java.util.HashMap<>();   // إطار ثابت: يُفك مرة لكل حجم ويُشارَك
+                for (int k = 0; k < cnt; k++) {
+                    final int sz = all.get(k).sizePx;
+                    if (all.get(k).animate) {
+                        ds[k] = android.graphics.ImageDecoder.decodeDrawable(android.graphics.ImageDecoder.createSource(java.nio.ByteBuffer.wrap(bytes)),
+                                (dec, info, src) -> dec.setTargetSize(sz, sz));
+                        // إطار ثابت للقطة الرسالة (AnimatedImageDrawable لا يُرسم على Canvas برمجي فتظهر فارغة)
+                        try {
+                            stills[k] = new android.graphics.drawable.BitmapDrawable(a.getResources(),
+                                    android.graphics.ImageDecoder.decodeBitmap(android.graphics.ImageDecoder.createSource(java.nio.ByteBuffer.wrap(bytes)),
+                                            (dec, info, src) -> { dec.setTargetSize(sz, sz); dec.setAllocator(android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE); }));
+                        } catch (Throwable ignored) { }
+                    } else {
+                        android.graphics.Bitmap bm = bmps.get(sz);
+                        if (bm == null) {
+                            bm = android.graphics.ImageDecoder.decodeBitmap(android.graphics.ImageDecoder.createSource(java.nio.ByteBuffer.wrap(bytes)),
+                                    (dec, info, src) -> { dec.setTargetSize(sz, sz); dec.setAllocator(android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE); });   // برمجي: حتى تُرسم في لقطة القائمة
+                            bmps.put(sz, bm);
+                        }
+                        ds[k] = new android.graphics.drawable.BitmapDrawable(a.getResources(), bm);
+                    }
+                }
+                a.runOnUiThread(() -> {   // كل الأهداف (كل الرسائل) تظهر معاً في نفس اللحظة
+                    for (int k = 0; k < cnt; k++) {
+                        Target t = all.get(k);
+                        stopPlaceholder(t.iv);
+                        t.iv.setImageDrawable(ds[k]);
+                        t.iv.setTag(STILL_KEY, stills[k]);
+                        t.iv.setVisibility(View.VISIBLE);
+                        t.fb.setVisibility(View.GONE);
+                        if (ds[k] instanceof android.graphics.drawable.AnimatedImageDrawable) {
+                            android.graphics.drawable.AnimatedImageDrawable ad = (android.graphics.drawable.AnimatedImageDrawable) ds[k];
+                            ad.setRepeatCount(android.graphics.drawable.AnimatedImageDrawable.REPEAT_INFINITE);
+                            ad.start();
+                        }
                     }
                 });
-            } catch (Throwable ignored) { }
+            } catch (Throwable ignored) { showFallback(a, all); }
         }).start();
     }
 
@@ -425,6 +551,7 @@ public final class MsgViews {
                         android.animation.Keyframe.ofFloat(0f, 1f), android.animation.Keyframe.ofFloat(.25f, 1.05f),
                         android.animation.Keyframe.ofFloat(.5f, 1f), android.animation.Keyframe.ofFloat(.75f, 1.03f), android.animation.Keyframe.ofFloat(1f, 1f)));
         idle.setDuration(2400);
+        fb.setTag(IDLE_KEY, idle);   // تبدأ فقط إن فشل التحميل وظهر الإيموجي الأصلي
         idle.setRepeatCount(android.animation.ValueAnimator.INFINITE);
         fb.post(() -> { fb.setPivotX(fb.getWidth() / 2f); fb.setPivotY(fb.getHeight() * 0.8f); });
         fb.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
@@ -487,6 +614,8 @@ public final class MsgViews {
         box.setOrientation(LinearLayout.VERTICAL);
         box.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
         LinearLayout rowL = null;
+        final java.util.LinkedHashMap<String, java.util.ArrayList<ImageView>> gIv = new java.util.LinkedHashMap<>();
+        final java.util.LinkedHashMap<String, java.util.ArrayList<TextView>> gTv = new java.util.LinkedHashMap<>();
         for (int k = 0; k < n; k++) {
             if (k % perRow == 0) {
                 rowL = new LinearLayout(a);
@@ -509,8 +638,11 @@ public final class MsgViews {
             iv.setVisibility(View.GONE);
             cell.addView(iv, new FrameLayout.LayoutParams(-1, -1));
             rowL.addView(cell, new LinearLayout.LayoutParams(dp(a, sz), dp(a, sz)));
-            if (n <= 60) loadAnimatedEmoji(a, e, iv, tv, (int) (sz * d(a)), false);   // عدة إيموجي: بلا انميشن (فوق 60 تبقى نصاً لتفادي مئات الطلبات)
+            if (!gIv.containsKey(e)) { gIv.put(e, new java.util.ArrayList<ImageView>()); gTv.put(e, new java.util.ArrayList<TextView>()); }
+            gIv.get(e).add(iv); gTv.get(e).add(tv);
         }
+        // الإيموجي المتماثل يُحمَّل مرة واحدة ويظهر كله معاً (فوق 60 تبقى نصاً لتفادي مئات الطلبات)
+        if (n <= 60) for (String e : gIv.keySet()) loadAnimatedEmojiGroup(a, e, gIv.get(e), gTv.get(e), (int) (sz * d(a)), false);
         LinearLayout.LayoutParams boxLp = new LinearLayout.LayoutParams(-2, -2);
         noTouch(box);   // كل الإيموجيات وحدة واحدة: لا يلتقط أي إيموجي النقر لوحده
 
@@ -679,7 +811,16 @@ public final class MsgViews {
         bar.setBackgroundColor(Tk.rqAccent(mine));      // هامش الرد يتبع الثيم (بابل: ذهبي)
         bar.setTag(mine ? "rqbM" : "rqbO");
         box.addView(bar, new LinearLayout.LayoutParams(dp(a, 3), -1));
-        if (qId.length() > 0) {
+        if (qId.startsWith("story:")) {   // اقتباس رد على قصة: النقر يفتح القصة
+            final String sid = qId.substring(6);
+            final boolean byMe = mine;
+            box.setClickable(true);
+            box.setOnClickListener(v -> {
+                View tg = owner != null ? owner : (v.getParent() instanceof View ? (View) v.getParent() : null);
+                if (storyOpen != null) storyOpen.go(tg, sid, byMe);
+            });
+            box.setOnLongClickListener(v -> { View tg = owner != null ? owner : (v.getParent() instanceof View ? (View) v.getParent() : null); return tg != null && tg.performLongClick(); });
+        } else if (qId.length() > 0) {
             final String rid = qId;
             box.setClickable(true);
             box.setOnClickListener(v -> {

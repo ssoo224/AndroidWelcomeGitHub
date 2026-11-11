@@ -247,7 +247,9 @@ public final class StoryViewer {
                 long now = System.currentTimeMillis();
                 for (DocumentSnapshot d : snap.getDocuments()) {
                     Long ex = d.getLong("expiresAt"), cr = d.getLong("createdAt");
-                    boolean keep = ex != null && (playIds != null ? playIds.contains(d.getId()) : ex > now);
+                    Boolean pnK = d.getBoolean("pinned");
+                    // قائمة محددة: قصة الغير لا تُعرض إن انتهت ولم تكن مثبتة (صاحبها وحده يرى أرشيفه)
+                    boolean keep = ex != null && (playIds != null ? (playIds.contains(d.getId()) && (mine || ex > now || (pnK != null && pnK))) : ex > now);
                     if (!keep) continue;
                     Story s = new Story();
                     s.id = d.getId();
@@ -260,7 +262,7 @@ public final class StoryViewer {
                     list.add(s);
                 }
                 if (list.isEmpty()) {
-                    AppToast.show(act, "لا توجد قصص حالياً");
+                    AppToast.show(act, playIds != null && playIds.size() == 1 ? "هذه القصة لم تعد متاحة" : "لا توجد قصص حالياً");
                     if (onFail != null) onFail.run();
                     return;
                 }
@@ -1272,6 +1274,7 @@ public final class StoryViewer {
         chat.put("lastMessage", text);
         chat.put("lastMessageAt", nowMs);
         chat.put("lastSender", me);
+        chat.put("lastStoryReply", true);   // قائمة المحادثات تعرض «رداً على القصة …» بدل النص وحده
         db.collection("chats").document(chatId).set(chat, SetOptions.merge()).addOnSuccessListener(v -> {
             Map<String, Object> m = new HashMap<>();
             m.put("type", "text");
