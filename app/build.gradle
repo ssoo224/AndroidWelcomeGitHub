@@ -11,8 +11,28 @@ android {
         applicationId "com.babylon.chat.iq"
         minSdk 21
         targetSdk 34
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "1.1"
+    }
+
+    signingConfigs {
+        babylon {
+            storeFile file('babylon-release.keystore')
+            storePassword 'kSYJyMZWL8IlXSsaoWRnaBIFLG2clKmz'
+            keyAlias 'babylon_key'
+            keyPassword 'kSYJyMZWL8IlXSsaoWRnaBIFLG2clKmz'
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.babylon
+        }
+        release {
+            signingConfig signingConfigs.babylon
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
     }
 
     buildFeatures {

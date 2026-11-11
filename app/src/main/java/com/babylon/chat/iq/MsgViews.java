@@ -172,7 +172,9 @@ public final class MsgViews {
                 fm.ascent = Math.min(fm.ascent, m.ascent); fm.descent = Math.max(fm.descent, m.descent);
                 fm.top = Math.min(fm.top, m.top);          fm.bottom = Math.max(fm.bottom, m.bottom);
             }
-            return (int) Math.ceil(ep.measureText(text, start, end)) + 1;
+            float w = ep.measureText(text, start, end);
+            if (!(w > 0f)) w = ep.getTextSize() * 1.15f * Math.max(1, Character.codePointCount(text, start, end));   // احتياط: لا يكون العرض صفراً أبداً
+            return (int) Math.ceil(w) + 1;
         }
         @Override public void draw(android.graphics.Canvas c, CharSequence text, int start, int end, float x, int top, int y, int bottom, android.graphics.Paint paint) {
             sync(paint);
@@ -194,6 +196,7 @@ public final class MsgViews {
         int n = cp.length;
         android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder();
         int i = 0;
+        int runStart = -1;   // بداية مجموعة إيموجي متتالية: تُغلَّف كلها بـ EmojiRun واحد (بدل Span لكل إيموجي) لتُقاس وتُرسم معاً بثبات
         while (i < n) {
             int c = cp[i], s = i;
             boolean emoji = false;
@@ -214,9 +217,11 @@ public final class MsgViews {
                 i++;
             }
             int from = sb.length();
+            if (emoji) { if (runStart < 0) runStart = from; }
+            else if (runStart >= 0) { sb.setSpan(new EmojiRun(), runStart, from, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE); runStart = -1; }
             sb.append(new String(cp, s, i - s));
-            if (emoji) sb.setSpan(new EmojiRun(), from, sb.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
+        if (runStart >= 0) sb.setSpan(new EmojiRun(), runStart, sb.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         return sb;
     }
 
