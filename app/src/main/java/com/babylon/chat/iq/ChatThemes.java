@@ -101,7 +101,7 @@ public final class ChatThemes {
     // ---------------------------------------------------------------- THEMES (ترتيب المفاتيح = ترتيب شريط الاختيار)
     public static final Spec[] ALL = {
         new Spec("babylon", "بابل", "gate", new String[]{"gate", "star8", "bull", "tablet", "crescent", "jar"},
-            pal("#0d1626", "linear-gradient(145deg,#e8c85d,#cba843)", "#263345", "#ffffff", "#f3f4f6", "#c29d30", "#ffe08a", "#94a3b8", "rgba(255,255,255,0.06)", "#c29d30", 0.11f),
+            pal("#0d1626", "linear-gradient(145deg,#e8c85d,#cba843)", "#263345", "#ffffff", "#f3f4f6", "#c29d30", "#ffe08a", "#94a3b8", "rgba(255,255,255,0.06)", "#c29d30", 0.16f),
             null,
             null),
         new Spec("ashur", "آشور", "bull", new String[]{"bull", "arch", "sun", "gate", "star8", "tablet"},
@@ -150,9 +150,9 @@ public final class ChatThemes {
     public static Pal babylonPreview(boolean dark) {
         // ليلي: مرسلتي بتدرّج ذهبي كما في المحادثة الفعلية (bubMine) وبطاقة ثيم بابل، لا أزرق
         if (dark) return new Pal(0xFF0D1626, 145f, 0xFFE8C85D, 0xFFCBA843, 0xFF182533, 0xFFFFFFFF, 0xFFF3F4F6,
-                0xFFC29D30, 0xFFFFFFFF, 0xFF94A3B8, 0x0FFFFFFF, 0xFFC29D30, 0.11f);
+                0xFFC29D30, 0xFFFFFFFF, 0xFF94A3B8, 0x0FFFFFFF, 0xFFC29D30, 0.16f);
         return new Pal(0xFFEAF0F5, 145f, 0xFFE8C85D, 0xFFCBA843, 0xFFFFFFFF, 0xFFFFFFFF, 0xFF202A35,
-                0xFF9A6B00, 0xFFFFE08A, 0xFF7C8B9C, 0xFFDCE4EE, 0xFFC29D30, 0.11f);
+                0xFF9A6B00, 0xFFFFE08A, 0xFF7C8B9C, 0xFFDCE4EE, 0xFF9A6B00, 0.15f);
     }
 
     /** لوحة المعاينة الفعلية: بابل لها لوحتها الخاصة، وغيرها themeFor. */

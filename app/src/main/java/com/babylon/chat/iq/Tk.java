@@ -28,6 +28,7 @@ public final class Tk {
     public static void setChatTheme(String id, boolean dark) {
         ChatThemes.Spec sp = ChatThemes.byId(id);
         chatThemeId = sp.id;
+        CoverThemes.dark = dark;
         chatPal = ChatThemes.isBabylon(sp.id) ? null : sp.pal(dark);
     }
     /** لون علامتَي القراءة: ثيم غير بابل → --tick-read للمقروءة وإلا لون نص رسالتي؛ بابل: أبيض كما كان. */

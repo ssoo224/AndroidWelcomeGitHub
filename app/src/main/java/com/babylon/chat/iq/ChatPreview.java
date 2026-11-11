@@ -24,6 +24,7 @@ public final class ChatPreview {
     private final Bub other, mine;
     private final TextView nameTv, otherText, otherTime, mineText, mineTime;
     private final ImageView tick;
+    private final View fadeTop, fadeBottom;
     private final float d;
 
     /** فقاعة بحدّ أقصى 80% من عرض الحاوية (max-width:80%) */
@@ -51,7 +52,7 @@ public final class ChatPreview {
         this.act = a; this.host = host; this.d = a.getResources().getDisplayMetrics().density;
         host.removeAllViews();
         host.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        host.setMinimumHeight(dp(190));
+        host.setMinimumHeight(dp(260));
 
         pattern = new ChatPattern(a).grid(5, 64f, 26f, 30);
         host.addView(pattern, new FrameLayout.LayoutParams(-1, -1));
@@ -59,8 +60,8 @@ public final class ChatPreview {
         LinearLayout col = new LinearLayout(a);
         col.setOrientation(LinearLayout.VERTICAL);
         col.setGravity(Gravity.CENTER_VERTICAL);
-        col.setPadding(dp(14), dp(14), dp(14), dp(14));
-        col.setMinimumHeight(dp(190));
+        col.setPadding(dp(14), dp(46), dp(14), dp(46));   // مسافة للتلاشي أعلى وأسفل
+        col.setMinimumHeight(dp(260));
         host.addView(col, new FrameLayout.LayoutParams(-1, -2));
 
         // ---- فقاعة الآخر
@@ -82,7 +83,7 @@ public final class ChatPreview {
         LinearLayout.LayoutParams nl = new LinearLayout.LayoutParams(-2, -2);
         nl.bottomMargin = dp(2);
         oc.addView(nameRow, nl);
-        otherText = tv("صباح الخير! شلونك اليوم؟", 15, true);
+        otherText = tv("صباح الخير", 15, true);
         otherText.setGravity(Gravity.RIGHT);
         otherText.setLineSpacing(0, 1.1f);
         oc.addView(otherText);
@@ -98,7 +99,7 @@ public final class ChatPreview {
         // ---- فقاعتي
         mine = new Bub(a);
         mine.setPadding(dp(10), dp(6), dp(10), dp(18));
-        mineText = tv("الحمدلله تمام، وانت شلونك ◉", 15, true);
+        mineText = tv("صباح النور حياك الله ◉", 15, true);
         mineText.setGravity(Gravity.RIGHT);
         mineText.setLineSpacing(0, 1.1f);
         mine.addView(mineText, new FrameLayout.LayoutParams(-2, -2));
@@ -123,6 +124,20 @@ public final class ChatPreview {
         other.setClipChildren(false); mine.setClipChildren(false);
         other.setClipToPadding(false); mine.setClipToPadding(false);
         col.setClipToPadding(false);
+
+        // ---- تلاشي أعلى/أسفل المعاينة: المحادثة «تستمر» ثم تذوب في خلفية الصفحة بلا حافة حادّة
+        fadeTop = new View(a);
+        fadeBottom = new View(a);
+        host.addView(fadeTop, new FrameLayout.LayoutParams(-1, dp(56), Gravity.TOP));
+        host.addView(fadeBottom, new FrameLayout.LayoutParams(-1, dp(56), Gravity.BOTTOM));
+        host.setClipChildren(true);
+    }
+
+    private static android.graphics.drawable.GradientDrawable fade(int bg, boolean topDown) {
+        int clear = bg & 0x00FFFFFF;
+        int[] c = topDown ? new int[]{bg, bg, clear} : new int[]{clear, bg, bg};
+        return new android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM, c);
     }
 
     /** يطبّق الثيم/الوضع/الخط/الانحناء على المعاينة (applyPrefs في الـ HTML). */
@@ -131,12 +146,19 @@ public final class ChatPreview {
         ChatThemes.Pal p = ChatThemes.previewPal(sp.id, dark);
         boolean babylon = ChatThemes.isBabylon(sp.id);
         host.setBackgroundColor(p.chatBg);
+        int pageBg = Tk.pageBg(dark);
+        fadeTop.setBackground(fade(pageBg, true));
+        fadeBottom.setBackground(fade(pageBg, false));
         pattern.style(sp.symbols, p.pattern, p.patternOp);
 
         float r = dp(radiusDp), tail = dp(4);
         other.setBackground(ChatThemes.bubble(p, false, new float[]{r, r, r, r, r, r, tail, tail}, d));
         mine.setBackground(ChatThemes.bubble(p, true, new float[]{r, r, tail, tail, r, r, r, r}, 0f));
         // ملاحظة: مصفوفة الزوايا (TL,TR,BR,BL) → مرسلتي: BR=4 ، المستلمة: BL=4
+
+        // نص المعاينة: نهاري صباحي / ليلي مسائي
+        otherText.setText(dark ? "مساء الخير" : "صباح الخير");
+        mineText.setText(dark ? "مساء النور حياك الله ◉" : "صباح النور حياك الله ◉");
 
         nameTv.setTextColor(p.accent);
         otherText.setTextSize(fontSp);

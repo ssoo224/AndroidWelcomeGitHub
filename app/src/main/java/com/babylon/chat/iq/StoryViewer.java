@@ -383,7 +383,7 @@ public final class StoryViewer {
         capTv.setTextDirection(View.TEXT_DIRECTION_RTL);
         capTv.setGravity(Gravity.START);
         capTv.setPadding(dp(11), dp(8), dp(11), dp(8));
-        capTv.setBackground(round(0x6B0F1218, 12, 0x38FFFFFF, 1));
+        capTv.setBackground(round(0x6B0F1218, 12, 0, 0));
         capTv.setVisibility(View.GONE);
         FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM);
         cp.leftMargin = dp(14); cp.rightMargin = dp(14); cp.bottomMargin = dp(72) + sab;
@@ -571,32 +571,91 @@ public final class StoryViewer {
         setStats(0, 0);
     }
 
+    private static final String[] PK_QUICK = {"😂", "❤️", "👍🏻", "😭", "✨"};
+    private static final String[] PK_ALL = {"😂","😭","😉","😌","🫠","😡","🥵","🤢","💩","🤡","😎","🤧","☠️","🌚","🙈","🙉","🙊","✨","⚡","💢","💤","🔥","💯","🎉","💥","❤️","🤍","❤️‍🔥","❤️‍🩹","💔","🫦","👀","🫶🏻","👍🏻","🖕🏻","✍🏻","🙏🏻","💅🏻"};
+    private ScrollView pickerGrid;
+    private ImageView pickerPlus;
+
+    private TextView pickCell(final String e) {
+        TextView t = tv(e, 23f, Color.WHITE, false);
+        t.setGravity(Gravity.CENTER);
+        t.setIncludeFontPadding(false);
+        GradientDrawable pr = new GradientDrawable(); pr.setShape(GradientDrawable.OVAL); pr.setColor(0x33808080);
+        android.graphics.drawable.StateListDrawable sl = new android.graphics.drawable.StateListDrawable();
+        sl.addState(new int[]{android.R.attr.state_pressed}, pr);
+        t.setBackground(sl);
+        t.setOnClickListener(v -> setReaction(react != null && react.equals(e) ? null : e));
+        return t;
+    }
+
+    /** فتح/إغلاق شبكة كل الإيموجي (زر +) كما في قائمة الرسالة. */
+    private void setPickerGrid(boolean open) {
+        if (pickerGrid == null) return;
+        if (pickerPlus != null) pickerPlus.animate().rotation(open ? 45f : 0f).setDuration(280)
+                .setInterpolator(new android.view.animation.OvershootInterpolator(1.2f)).start();
+        if (open) {
+            pickerGrid.setVisibility(View.VISIBLE);
+            pickerGrid.setAlpha(0f); pickerGrid.setTranslationY(-dp(6));
+            pickerGrid.animate().alpha(1f).translationY(0).setDuration(260).start();
+        } else pickerGrid.setVisibility(View.GONE);
+    }
+
     private void buildViewerFoot() {
         foot.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        // منتقي التفاعلات (يظهر بضغطة مطوّلة على القلب)
+        // منتقي التفاعلات (يظهر بضغطة مطوّلة على القلب): مطابق لشريط تفاعلات النقر على الرسالة (MsgMenu)
+        //   صف علوي: [+] و5 إيموجي سريعة، و«+» يفتح شبكة كل الإيموجي (38، 6 في الصف) بنفس الترتيب والعدد.
         pickerBox = new LinearLayout(act);
         pickerBox.setOrientation(LinearLayout.VERTICAL);
-        pickerBox.setGravity(Gravity.CENTER);
-        pickerBox.setPadding(dp(10), dp(7), dp(10), dp(7));
-        pickerBox.setBackground(round(0x6B12161C, 18, 0x2EFFFFFF, 1));
+        pickerBox.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        pickerBox.setPadding(dp(6), dp(4), dp(6), dp(4));
+        pickerBox.setBackground(round(0xF22B3B4F, 14, 0, 0));
         pickerBox.setVisibility(View.GONE);
-        // إيموجيات التفاعل (الضغط المطوّل) مختلفة عن إيموجيات الكتابة السريعة (😂 ❤️ 👍🏻 😭 ✨) كي لا تتكرر
-        final String[] pk = {"😍", "😮", "😢", "🙏", "🔥", "🥰", "👏", "💯", "🤩", "😎"};
-        for (int r = 0; r < 2; r++) {
-            LinearLayout row = new LinearLayout(act);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setGravity(Gravity.CENTER);
-            for (int k = 0; k < 5; k++) {
-                final String e = pk[r * 5 + k];
-                TextView b = tv(e, 24f * S - 2f, Color.WHITE, false);   // أصغر بـ 2
-                b.setGravity(Gravity.CENTER);
-                b.setOnClickListener(v -> setReaction(react != null && react.equals(e) ? null : e));
-                LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(dp(36 * S) - dp(2), dp(36 * S) - dp(2));   // أصغر بـ 2dp
-                bp.setMargins(dp(4), dp(2), dp(4), dp(2));
-                row.addView(b, bp);
-            }
-            pickerBox.addView(row, new LinearLayout.LayoutParams(-2, -2));
+        pickerBox.setClickable(true);
+
+        LinearLayout topRow = new LinearLayout(act);
+        topRow.setOrientation(LinearLayout.HORIZONTAL);
+        topRow.setGravity(Gravity.CENTER_VERTICAL);
+        final ImageView plus = new ImageView(act);
+        plus.setImageResource(R.drawable.ic_mm_plus);
+        plus.setColorFilter(Color.WHITE);
+        plus.setPadding(dp(6.5f), dp(6.5f), dp(6.5f), dp(6.5f));
+        GradientDrawable pbg = new GradientDrawable(); pbg.setShape(GradientDrawable.OVAL); pbg.setColor(0x29808080);
+        plus.setBackground(pbg);
+        topRow.addView(plus, new LinearLayout.LayoutParams(dp(30), dp(30)));
+        LinearLayout quick = new LinearLayout(act);
+        quick.setOrientation(LinearLayout.HORIZONTAL);
+        quick.setGravity(Gravity.CENTER_VERTICAL);
+        for (final String e : PK_QUICK) {
+            TextView t = pickCell(e);
+            quick.addView(t, new LinearLayout.LayoutParams(dp(34), dp(34)));
         }
+        LinearLayout.LayoutParams ql = new LinearLayout.LayoutParams(-2, -2);
+        ql.setMarginStart(dp(4));
+        topRow.addView(quick, ql);
+        pickerBox.addView(topRow, new LinearLayout.LayoutParams(-2, -2));
+
+        final ScrollView gridScroll = new ScrollView(act);
+        gridScroll.setVisibility(View.GONE);
+        gridScroll.setVerticalScrollBarEnabled(false);
+        LinearLayout grid = new LinearLayout(act);
+        grid.setOrientation(LinearLayout.VERTICAL);
+        grid.setPadding(0, dp(6), 0, dp(2));
+        LinearLayout grow = null;
+        for (int i = 0; i < PK_ALL.length; i++) {
+            if (i % 6 == 0) {
+                grow = new LinearLayout(act);
+                grow.setOrientation(LinearLayout.HORIZONTAL);
+                grow.setGravity(Gravity.CENTER_HORIZONTAL);
+                grid.addView(grow, new LinearLayout.LayoutParams(-1, dp(34)));
+            }
+            grow.addView(pickCell(PK_ALL[i]), new LinearLayout.LayoutParams(dp(34), dp(34)));
+        }
+        gridScroll.addView(grid, new FrameLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams gl = new LinearLayout.LayoutParams(-1, dp(170));
+        gl.topMargin = dp(5);
+        pickerBox.addView(gridScroll, gl);
+        pickerGrid = gridScroll; pickerPlus = plus;
+        plus.setOnClickListener(v -> setPickerGrid(gridScroll.getVisibility() != View.VISIBLE));
         // المنتقي في الـ stage (لا داخل التذييل) كي يظهر فوق التعليق/النبذة؛ موضعه يُحسب عند الظهور (showPickerAnimated)
         stage.addView(pickerBox, new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL));
 
@@ -605,7 +664,7 @@ public final class StoryViewer {
         reactsRow.setOrientation(LinearLayout.HORIZONTAL);
         reactsRow.setGravity(Gravity.CENTER);
         reactsRow.setPadding(dp(10), dp(7), dp(10), dp(7));
-        reactsRow.setBackground(round(0x6B12161C, 18, 0x2EFFFFFF, 1));
+        reactsRow.setBackground(round(0x6B12161C, 18, 0, 0));
         reactsRow.setVisibility(View.GONE);
         for (final String e : new String[]{"😂", "❤️", "👍🏻", "😭", "✨"}) {
             TextView b = tv(e, 24f * S, Color.WHITE, false);
@@ -616,14 +675,13 @@ public final class StoryViewer {
             bp.setMargins(dp(4), 0, dp(4), 0);
             reactsRow.addView(b, bp);
         }
-        LinearLayout.LayoutParams rrp = new LinearLayout.LayoutParams(-2, -2);
-        rrp.gravity = Gravity.CENTER_HORIZONTAL; rrp.bottomMargin = dp(10);
-        foot.addView(reactsRow, rrp);
+        // في الـ stage (لا داخل التذييل) كي يقع فوق التعليق/النبذة لا فوقه؛ موضعه يُحسب في placeReacts()
+        stage.addView(reactsRow, new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL));
 
         // صف الرد: [قلب] [حقل] [إرسال]
         replyRow = new LinearLayout(act);
         replyRow.setOrientation(LinearLayout.HORIZONTAL);
-        replyRow.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        replyRow.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);   // ترتيب صريح: [إرسال] [حقل] [قلب] — القلب في أقصى اليمين
         replyRow.setGravity(Gravity.CENTER_VERTICAL);
 
         heartBtn = new FrameLayout(act);
@@ -648,7 +706,6 @@ public final class StoryViewer {
                 default: return true;
             }
         });
-        replyRow.addView(heartBtn, new LinearLayout.LayoutParams(dp(42 * S), dp(42 * S)));
 
         replyIn = new EditText(act);
         replyIn.setHint("رد على القصة...");
@@ -666,7 +723,7 @@ public final class StoryViewer {
         replyIn.setIncludeFontPadding(false);
         replyIn.setOnFocusChangeListener((v, has) -> {
             paused = has;
-            reactsRow.setVisibility(has ? View.VISIBLE : View.GONE);
+            showReacts(has);
             hidePicker();
         });
         replyIn.setOnEditorActionListener((v, a, ev) -> { if (a == EditorInfo.IME_ACTION_SEND) { sendReply(); return true; } return false; });
@@ -676,8 +733,7 @@ public final class StoryViewer {
             @Override public void afterTextChanged(Editable s) { replyChanged(); }
         });
         LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(0, -2, 1f);
-        ip.setMarginStart(dp(8));
-        replyRow.addView(replyIn, ip);
+        ip.setMarginEnd(dp(8));
 
         // زر الإرسال (.sv-pill)
         sendBtn = new LinearLayout(act);
@@ -689,8 +745,11 @@ public final class StoryViewer {
         sendBtn.setVisibility(View.GONE);
         sendBtn.setOnClickListener(v -> sendReply());
         LinearLayout.LayoutParams sbp = new LinearLayout.LayoutParams(dp(46), dp(40));
-        sbp.setMarginStart(dp(8));
+        sbp.setMarginEnd(dp(8));
+        // الترتيب (يسار ← يمين): إرسال، حقل الرد، قلب التفاعل
         replyRow.addView(sendBtn, sbp);
+        replyRow.addView(replyIn, ip);
+        replyRow.addView(heartBtn, new LinearLayout.LayoutParams(dp(42 * S), dp(42 * S)));
 
         foot.addView(replyRow, new LinearLayout.LayoutParams(-1, -2));
     }
@@ -707,6 +766,7 @@ public final class StoryViewer {
         if (pickerBox == null) return;
         if (pickerBox.getVisibility() == View.VISIBLE) { hidePicker(); return; }
         if (reactsRow != null) reactsRow.setVisibility(View.GONE);
+        if (pickerGrid != null) { pickerGrid.setVisibility(View.GONE); if (pickerPlus != null) pickerPlus.setRotation(0f); }
         showPickerAnimated();
     }
 
@@ -763,6 +823,10 @@ public final class StoryViewer {
             kbTarget = ty;
             foot.animate().translationY(ty).setDuration(150).start();
             if (capTv != null) capTv.animate().translationY(ty).setDuration(150).start();
+            if (reactsRow != null) {
+                if (reactsRow.getVisibility() == View.VISIBLE) reactsRow.animate().translationY(ty).setDuration(150).start();
+                else reactsRow.setTranslationY(ty);
+            }
             if (pickerBox != null) {
                 if (pickerBox.getVisibility() == View.VISIBLE) pickerBox.animate().translationY(ty).setDuration(150).start();
                 else pickerBox.setTranslationY(ty);
@@ -770,12 +834,31 @@ public final class StoryViewer {
         }
     }
 
+    /** شريط الإيموجي السريعة: يظهر فوق التعليق (أو فوق صف الرد إن لم يوجد تعليق) ويتبع لوحة المفاتيح. */
+    private void showReacts(boolean on) {
+        if (reactsRow == null) return;
+        if (!on) { reactsRow.setVisibility(View.GONE); return; }
+        placeReacts();
+        reactsRow.setVisibility(View.VISIBLE);
+        reactsRow.post(this::placeReacts);   // إعادة الحساب بعد اكتمال القياس
+    }
+    private void placeReacts() {
+        if (reactsRow == null || stage == null || foot == null) return;
+        int H = stage.getHeight();
+        int ref = foot.getTop() + (replyRow != null ? replyRow.getTop() : dp(30));
+        if (capTv != null && capTv.getVisibility() == View.VISIBLE) ref = Math.min(ref, capTv.getTop());
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) reactsRow.getLayoutParams();
+        int bm = Math.max(dp(8), H - ref + dp(10));
+        if (lp.bottomMargin != bm) { lp.bottomMargin = bm; reactsRow.setLayoutParams(lp); }
+        reactsRow.setTranslationY(kbTarget);
+    }
+
     private boolean pickerOpen() { return pickerBox != null && pickerBox.getVisibility() == View.VISIBLE; }
     private void hidePicker() {
         boolean was = pickerOpen();
         if (pickerBox != null) { pickerBox.animate().cancel(); pickerBox.setVisibility(View.GONE); }
         // أُغلق المنتقي والحقل ما زال مركّزاً: يعود صف الإيموجي السريعة
-        if (was && reactsRow != null && replyIn != null && replyIn.hasFocus()) reactsRow.setVisibility(View.VISIBLE);
+        if (was && reactsRow != null && replyIn != null && replyIn.hasFocus()) showReacts(true);
     }
 
     // ------------------------------------------------------------ عرض قصة (showStory)
@@ -1110,13 +1193,6 @@ public final class StoryViewer {
         } else {
             heartImg.setVisibility(View.GONE); heartTxt.setText(e); heartTxt.setVisibility(View.VISIBLE);
         }
-        if (reactsRow != null) {
-            for (int k = 0; k < reactsRow.getChildCount(); k++) {
-                View c = reactsRow.getChildAt(k);
-                boolean on = e != null && e.equals(c.getTag());
-                c.setBackground(on ? round(0x33FFFFFF, 10, 0x40FFFFFF, 1) : null);
-            }
-        }
     }
 
     private String readCached(String storyId) {
@@ -1131,7 +1207,7 @@ public final class StoryViewer {
         } catch (Throwable ignored) { }
     }
 
-    private void sendEmoji(String e) { sendMessage(e, "تم إرسال الإيموجي ✓", "تعذر إرسال الإيموجي", false); }
+    private void sendEmoji(String e) { sendMessage(e, "تم إرسال الرد ✓", "تعذر إرسال الرد", false); }   // رد على القصة مرفق ببطاقتها، ولا يمسّ تفاعل القلب
 
     private void sendReply() {
         if (replyIn == null) return;
@@ -1152,7 +1228,7 @@ public final class StoryViewer {
             m.put("senderId", me);
             m.put("text", text);
             m.put("storyReply", true);
-            if (clear) {
+            {
                 Map<String, Object> sd = new HashMap<>();
                 sd.put("imageUrl", s.imageUrl); sd.put("videoUrl", s.videoUrl); sd.put("caption", s.caption); sd.put("storyId", s.id);
                 m.put("storyReplyData", sd);

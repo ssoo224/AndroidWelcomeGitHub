@@ -57,6 +57,14 @@ public final class CoverThemes {
 
     private CoverThemes() { }
 
+    /** الطور الحالي (يُحدَّث من Tk.setChatTheme) — الغلاف يأخذ ألوان الثيم المطابق للطور تماماً. */
+    public static volatile boolean dark = false;
+
+    /** لوحة الثيم المطابق للغلاف في الطور الحالي: نفس ألوان بطاقة الثيم في «ثيم وخلفية المحادثة». */
+    static ChatThemes.Pal palFor(Theme t) {
+        return (ChatThemes.isBabylon(t.id) && !dark) ? ChatThemes.babylonPreview(false) : ChatThemes.byId(t.id).pal(dark);
+    }
+
     public static boolean has(String id) {
         if (id == null) return false;
         for (Theme t : ALL) if (t.id.equals(id)) return true;
@@ -78,21 +86,23 @@ public final class CoverThemes {
         private final Theme t;
         private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.DITHER_FLAG);
         private int lw = -1, lh = -1, lx = Integer.MIN_VALUE, ly = Integer.MIN_VALUE;
+        private boolean ld;
 
         CssGradient(Theme t) { this.t = t; }
 
         @Override public void draw(Canvas c) {
             Rect b = getBounds();
             if (b.isEmpty()) return;
-            if (b.width() != lw || b.height() != lh || b.left != lx || b.top != ly) {
-                lw = b.width(); lh = b.height(); lx = b.left; ly = b.top;
+            if (b.width() != lw || b.height() != lh || b.left != lx || b.top != ly || ld != dark) {
+                lw = b.width(); lh = b.height(); lx = b.left; ly = b.top; ld = dark;
+                ChatThemes.Pal pl = palFor(t);
                 // خط التدرّج في CSS: طوله |w·sin a| + |h·cos a| ويمرّ بمركز الصندوق
-                double a = Math.toRadians(t.angle);
+                double a = Math.toRadians(pl.mineAngle);
                 float dx = (float) Math.sin(a), dy = (float) -Math.cos(a);
                 float half = (Math.abs(lw * dx) + Math.abs(lh * dy)) / 2f;
                 float cx = b.exactCenterX(), cy = b.exactCenterY();
                 paint.setShader(new LinearGradient(cx - dx * half, cy - dy * half, cx + dx * half, cy + dy * half,
-                        t.from, t.to, Shader.TileMode.CLAMP));
+                        pl.mineFrom, pl.mineTo, Shader.TileMode.CLAMP));
             }
             c.drawRect(b, paint);
         }

@@ -52,7 +52,7 @@ public final class StoriesController {
     public interface OnItem { void click(Item it); }
 
     // ----- القياسات (px الـ HTML عند --bb-s=1.041 ⇒ dp)
-    static final float AV = 42f, ITEM_W = AV + 10f, SIDE = 14f, GAP_ITEMS = 5f, GAP_TXT = 7f, TXT_H = 15f;
+    static final float AV = 45f, ITEM_W = AV + 10f, SIDE = 14f, GAP_ITEMS = 5f, GAP_TXT = 7f, TXT_H = 15f;
     static final float PT = 12f, PB = 10f;
     /** هامش رسم الحلقة داخل حدود الأفاتار (≥ 5dp سماكة+إزاحة الحلقة) كي لا تُقصّ من أي حاوية. */
     static final float RP = 5.3f;
@@ -198,7 +198,7 @@ public final class StoriesController {
             cell.setLayoutParams(cp);
             StoryAvatarView av = new StoryAvatarView(act);
             av.set(it.letter, it.photo, it.blue).ring(it.ring, it.seen).plus(it.me && !it.ring)
-              .theme(dark, cSurface()).textSp(17f).shadow(true).pad(RP);
+              .theme(dark, cSurface()).textSp(18f).shadow(true).pad(RP);
             it.av = av;
             cell.addView(av, new LinearLayout.LayoutParams(px(AV + 2 * RP), px(AV + 2 * RP)));
             TextView nm = new TextView(act);

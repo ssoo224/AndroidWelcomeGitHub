@@ -547,6 +547,124 @@ public final class MsgMenu {
         cardV.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(200).start();
     }
 
+    // ------------------------------------------------------------------ نافذة حذف الرسالة/الرسائل بألوان ثيم المحادثة
+    /**
+     * عنوان + سؤال + مربع «حذف من عند {الاسم} | {الوقت} أيضًا» (checkLabel == null → لا مربع، حذف لدي فقط)
+     * ثم زرا «حذف» و«إلغاء» بنفس شكل نافذة حذف المحادثة. الألوان من ثيم المحادثة (Tk.chatPal) أو الذهبي لبابل.
+     */
+    public static void showMsgDelete(final Activity act, final boolean dark, String title, String question,
+                                     String checkLabel, final ChatDelCb cb) {
+        final ChatThemes.Pal pal = Tk.chatPal;
+        final int cardC  = pal != null ? (pal.other | 0xFF000000) : (dark ? 0xFF17212B : 0xFFFFFFFF);
+        final int textC  = pal != null ? (pal.textOther | 0xFF000000) : (dark ? 0xFFF1F5F9 : 0xFF16202B);
+        final int subC   = pal != null ? (pal.metaOther | 0xFF000000) : (dark ? 0xFF8798AA : 0xFF6B7A8C);
+        final int chipC  = pal != null ? ((pal.accent & 0x00FFFFFF) | 0x1F000000) : (dark ? 0xFF1D2A38 : 0xFFE8EDF4);
+        final int accC   = pal != null ? (pal.accent | 0xFF000000) : (dark ? 0xFFE4C45B : 0xFFC99A1C);
+        final int sepC   = pal != null ? ((pal.accent & 0x00FFFFFF) | 0x59000000) : (dark ? 0x14FFFFFF : 0x1416202B);
+
+        final FrameLayout root = attach(act, dark);
+        root.setBackgroundColor(0x85080C12);
+        root.setOnClickListener(v -> dismiss());
+
+        final FrameLayout card = new FrameLayout(act);
+        card.setClickable(true);
+        GradientDrawable cbg = new GradientDrawable();
+        cbg.setColor(cardC); cbg.setCornerRadius(dp(act, 22)); cbg.setStroke(dp(act, 1), sepC);
+        card.setBackground(cbg);
+        card.setClipToOutline(true);
+        card.setOutlineProvider(android.view.ViewOutlineProvider.BACKGROUND);
+        card.setElevation(dp(act, 18));
+
+        final LinearLayout col = new LinearLayout(act);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setPadding(dp(act, 22), dp(act, 22), dp(act, 22), dp(act, 18));
+        card.addView(col, new FrameLayout.LayoutParams(-1, -2));
+
+        TextView h = new TextView(act);
+        h.setText(title); h.setTextSize(21); h.setTypeface(null, Typeface.BOLD);
+        h.setTextColor(textC); h.setGravity(Gravity.RIGHT);
+        h.setTextDirection(View.TEXT_DIRECTION_RTL);
+        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(-1, -2);
+        hp.bottomMargin = dp(act, 12);
+        col.addView(h, hp);
+
+        TextView q = new TextView(act);
+        q.setText(question); q.setTextSize(16); q.setTextColor(textC);
+        q.setGravity(Gravity.RIGHT);
+        q.setTextDirection(View.TEXT_DIRECTION_RTL);
+        q.setLineSpacing(0, 1.25f);
+        LinearLayout.LayoutParams qp = new LinearLayout.LayoutParams(-1, -2);
+        qp.bottomMargin = dp(act, 18);
+        col.addView(q, qp);
+
+        final boolean[] both = {false};
+        if (checkLabel != null && checkLabel.length() > 0) {
+            final LinearLayout chk = new LinearLayout(act);
+            chk.setOrientation(LinearLayout.HORIZONTAL);
+            chk.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);          // ترتيب صريح: [النص] [المربع] — المربع في اليمين
+            chk.setGravity(Gravity.CENTER_VERTICAL);
+            chk.setClickable(true);
+            chk.setPadding(0, dp(act, 6), 0, dp(act, 6));
+            TextView cl = new TextView(act);
+            cl.setText(checkLabel); cl.setTextSize(15.5f); cl.setTextColor(textC);
+            cl.setGravity(Gravity.RIGHT);
+            cl.setTextDirection(View.TEXT_DIRECTION_RTL);
+            LinearLayout.LayoutParams cll = new LinearLayout.LayoutParams(0, -2, 1f);
+            cll.setMarginEnd(dp(act, 12));
+            chk.addView(cl, cll);
+            final TextView box = new TextView(act);
+            box.setText("✓"); box.setTextSize(16); box.setTypeface(null, Typeface.BOLD);
+            box.setGravity(Gravity.CENTER); box.setIncludeFontPadding(false);
+            final GradientDrawable boxBg = new GradientDrawable();
+            boxBg.setCornerRadius(dp(act, 7));
+            box.setBackground(boxBg);
+            final Runnable paintBox = () -> {
+                boxBg.setColor(both[0] ? accC : 0);
+                boxBg.setStroke(dp(act, 2), both[0] ? accC : subC);
+                box.setTextColor(both[0] ? 0xFFFFFFFF : 0);
+            };
+            paintBox.run();
+            chk.addView(box, new LinearLayout.LayoutParams(dp(act, 26), dp(act, 26)));
+            chk.setOnClickListener(v -> { both[0] = !both[0]; paintBox.run(); });
+            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2);
+            cp.bottomMargin = dp(act, 18);
+            col.addView(chk, cp);
+        }
+
+        // الأزرار: نفس زرّي نافذة حذف المحادثة تماماً (حذف بتدرّج أحمر | إلغاء)
+        LinearLayout btns = new LinearLayout(act);
+        btns.setOrientation(LinearLayout.HORIZONTAL);
+        btns.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        TextView ok = new TextView(act);
+        ok.setText("حذف"); ok.setTextSize(15.5f); ok.setTypeface(null, Typeface.BOLD);
+        ok.setTextColor(0xFFFFFFFF); ok.setGravity(Gravity.CENTER); ok.setClickable(true);
+        GradientDrawable og = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFF0605D, 0xFFD94545});
+        og.setCornerRadius(dp(act, 16));
+        ok.setBackground(og);
+        ok.setOnClickListener(v -> { final boolean b = both[0]; dismiss(); cb.onDelete(b); });
+        pressScale(ok);
+        TextView no = new TextView(act);
+        no.setText("إلغاء"); no.setTextSize(15.5f); no.setTypeface(null, Typeface.BOLD);
+        no.setTextColor(textC); no.setGravity(Gravity.CENTER); no.setClickable(true);
+        GradientDrawable ng = new GradientDrawable();
+        ng.setColor(chipC); ng.setCornerRadius(dp(act, 16));
+        no.setBackground(ng);
+        no.setOnClickListener(v -> dismiss());
+        pressScale(no);
+        LinearLayout.LayoutParams b1 = new LinearLayout.LayoutParams(0, dp(act, 48), 1f);
+        LinearLayout.LayoutParams b2 = new LinearLayout.LayoutParams(0, dp(act, 48), 1f);
+        b2.setMarginStart(dp(act, 10));
+        btns.addView(ok, b1); btns.addView(no, b2);
+        col.addView(btns, new LinearLayout.LayoutParams(-1, -2));
+
+        int W = ((ViewGroup) root.getParent()).getWidth();
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(Math.min(dp(act, 340), W - dp(act, 44)), -2);
+        lp.gravity = Gravity.CENTER;
+        root.addView(card, lp);
+        card.setAlpha(0f); card.setScaleX(.92f); card.setScaleY(.92f);
+        card.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(160).start();
+    }
+
     // ------------------------------------------------------------------ نافذة حذف المحادثة (openDeleteChatsDialog / .cl-dlg.cl-del في الـ HTML)
     public interface ChatDelCb { void onDelete(boolean both); }
 

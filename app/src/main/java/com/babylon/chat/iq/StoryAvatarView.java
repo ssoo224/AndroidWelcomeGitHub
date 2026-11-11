@@ -212,7 +212,9 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
         float d = Math.min(w, h) - 2f * padPx;
         float R = d / 2f, cx = w / 2f, cy = h / 2f;
         float thumbB = morphK * dp(2);                 // سماكة حدّ المصغّرة بوحدات غير مصغّرة
-        float Rc = R - morph * thumbB;                  // نصف قطر المحتوى (الصورة/الحرف)
+        // قصة مشاهَدة: الحلقة (2dp) تبقى مكانها، والصورة تكبر 1dp فيصبح الفراغ بينهما 2dp بدل 3dp
+        float grow = (ring && seen && !launching && !ringSmall && flySc <= 0f) ? dp(1) * (1f - morph) : 0f;
+        float Rc = R + grow - morph * thumbB;           // نصف قطر المحتوى (الصورة/الحرف)
         int toneShadow = blue ? 0x471F63D8 : 0x47B8861B;   // rgba(.., .28)
 
         // الظل الناعم: 0 3px 10px
@@ -286,13 +288,10 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
                 } else if (seen) {
                     p.setColor(RING_GRAY);
                 } else {
-                    SweepGradient sg = new SweepGradient(cx, cy,
-                            new int[]{0xFF8F6810, 0xFFE8D176, 0xFFB98B20, 0xFFE8D991, 0xFFB8860B, 0xFFE6C45B, 0xFF8F6810},
-                            new float[]{0f, .18f, .34f, .48f, .65f, .82f, 1f});
-                    mx.reset();
-                    mx.setRotate(-90, cx, cy);   // conic-gradient يبدأ من الأعلى
-                    sg.setLocalMatrix(mx);
-                    p.setShader(sg);
+                    // ذهبي بثلاث درجات بتدرّج خطي من الشمال الغربي (أعلى اليسار) إلى الجنوب الشرقي (أسفل اليمين)
+                    LinearGradient lg3 = new LinearGradient(cx - outerR, cy - outerR, cx + outerR, cy + outerR,
+                            new int[]{GOLD_A, 0xFFD9A62B, GOLD_B}, new float[]{0f, .5f, 1f}, Shader.TileMode.CLAMP);
+                    p.setShader(lg3);
                 }
                 if (ring) {
                     if (morph > 0f) p.setAlpha(Math.round(255 * (1f - morph)));

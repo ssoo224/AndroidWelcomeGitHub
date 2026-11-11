@@ -1026,6 +1026,7 @@ public class MassActivity extends Activity {
                     if (chatPreview == null) chatPreview = new ChatPreview(act, (FrameLayout) pvBox);
                     chatPreview.apply(chatTheme, dark, fontSp, radius);
                 }
+                try { applyCover(true, coverId); applyCover(false, otherCoverId); } catch (Throwable ignored) { }   // الغلاف يتبع ألوان الثيم في الطورين
                 tintSeek("fontRange"); tintSeek("radiusRange");
                 TextView themeDesc = tv("themeDescription");
                 if (themeDesc != null) {
@@ -4064,7 +4065,7 @@ public class MassActivity extends Activity {
                     if (!on) { mv.setForeground(null); }
                     else {
                         GradientDrawable g = new GradientDrawable();      // تظليل خفيف داخل الرسالة بلا حدّ
-                        g.setColor(goldA(0x26));
+                        g.setColor(selAccA(0x26));
                         g.setCornerRadii(bubbleRadii(mv, 0));
                         mv.setForeground(g);
                     }
@@ -4077,7 +4078,7 @@ public class MassActivity extends Activity {
                 final android.graphics.Paint pt = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
                 pt.setStyle(android.graphics.Paint.Style.STROKE);
                 pt.setStrokeWidth(stroke);
-                pt.setColor(cGold());
+                pt.setColor(selAcc());
                 final android.graphics.Path path = new android.graphics.Path();
                 Drawable ring = new Drawable() {
                     @Override public void draw(android.graphics.Canvas c) {     // يقرأ مكان الرسالة لحظياً فيتبعها
@@ -4119,11 +4120,11 @@ public class MassActivity extends Activity {
                 if (selBar == null) return;
                 selBar.setVisibility(View.VISIBLE);
                 // حقل الكتابة يبقى ظاهراً أثناء التحديد
-                selCountTv.setText(String.valueOf(selIds.size()));
+                selCountTv.setText(selIds.size() + " من الرسائل"); selCountTv.setTextColor(selAcc());
                 final boolean one = selIds.size() == 1;
                 final String fid = firstSel();
                 selPinBtn.setVisibility(one ? View.VISIBLE : View.GONE);
-                if (one) selPinIv.setImageResource(pinIndexOf(fid) >= 0 ? R.drawable.ic_mm_unpin : R.drawable.ic_mm_pin);
+                if (one) selPinIv.setImageResource(pinIndexOf(fid) >= 0 ? R.drawable.ic_sel_unpin : R.drawable.ic_sel_pin);
                 final View mv = msgViewsById.get(fid);
                 if (one && mv != null) {
                     Object[] m = msgMeta.get(fid);
@@ -4132,7 +4133,7 @@ public class MassActivity extends Activity {
                     final String url = m != null ? (String) m[2] : null;
                     final boolean mine = m != null && Boolean.TRUE.equals(m[4]);
                     final String raw = kind == 0 && m != null && m[1] != null ? bodyOf(String.valueOf(m[1])) : "";
-                    MsgMenu.showPill(act, mv, dark, cGold(), selTopInset(), Math.max(navBottom, padBottom),
+                    MsgMenu.showPill(act, mv, dark, selAcc(), selTopInset(), Math.max(navBottom, padBottom),
                             myReact.get(fid) != null ? myReact.get(fid) : "",
                             () -> { clearSel(); msgMenu(mv, mine, kind, url); },
                             msgCb(mv, mine, kind, url, raw));
@@ -4209,6 +4210,27 @@ public class MassActivity extends Activity {
             /** أيقونة بلا مربّع خلفها (شريط تحديد المحادثات). */
             ImageView noBg(ImageView iv) { iv.setBackground(null); return iv; }
 
+            /** لون ثيم المحادثة الحالي (accent) — بابل يبقى ذهبياً. */
+            int selAcc() { return Tk.chatPal != null ? (Tk.chatPal.accent | 0xFF000000) : cGold(); }
+            int selAccA(int a) { return (selAcc() & 0x00FFFFFF) | (a << 24); }
+
+            /** مربع شفاف بحدّ بلون الثيم (نفس مقاسات goldFrame في شريط تحديد المحادثات). */
+            android.graphics.drawable.Drawable themeFrame() {
+                android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+                g.setColor(0x00000000);
+                g.setCornerRadius(dp(14));
+                g.setStroke(Math.max(1, dp(1.5f)), selAcc());
+                return g;
+            }
+
+            /** أيقونة شريط تحديد الرسائل: مطابقة لأيقونات تحديد المحادثات (40dp، حشوة 10.5، إطار شفاف) بلون الثيم. */
+            ImageView selBarIcon(int iconRes, String desc, Runnable r) {
+                ImageView iv = noBg(selIcon(iconRes, selAcc(), 0, desc, r));
+                iv.setBackground(themeFrame());
+                iv.setPadding(dp(10.5f), dp(10.5f), dp(10.5f), dp(10.5f));
+                return iv;
+            }
+
             /** مربع شفاف بحدّ ذهبي وبنفس انحناء مربع العدسة (14dp). */
             android.graphics.drawable.Drawable goldFrame() {
                 android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
@@ -4251,34 +4273,15 @@ public class MassActivity extends Activity {
                 row.setOrientation(LinearLayout.HORIZONTAL);
                 row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
                 row.setGravity(Gravity.CENTER_VERTICAL);
-                row.setPadding(dp(10), sbTop, dp(10), 0);
+                row.setPadding(dp(12), sbTop, dp(12), 0);
                 wrap.addView(row, new FrameLayout.LayoutParams(-1, -1));
 
-                // ---- البداية: إغلاق + العدد
-                row.addView(selIcon(R.drawable.ic_mm_x, cGold(), goldA(0x1F), "إلغاء التحديد", this::clearSel),
+                // ---- مطابق لشريط تحديد المحادثات: ✕ عند البداية، العدد في منتصف الشريط، وعند النهاية تثبيت | إعادة توجيه | حذف
+                row.addView(selBarIcon(R.drawable.ic_mm_x, "إلغاء التحديد", this::clearSel),
                         new LinearLayout.LayoutParams(dp(40), dp(40)));
+                row.addView(new View(act), new LinearLayout.LayoutParams(0, 1, 1f));   // فاصل يدفع أزرار النهاية
 
-                LinearLayout cnt = new LinearLayout(act);
-                cnt.setOrientation(LinearLayout.HORIZONTAL);
-                cnt.setGravity(Gravity.CENTER_VERTICAL);
-                selCountTv = new TextView(act);
-                selCountTv.setTextSize(18); selCountTv.setTextColor(cGold());
-                selCountTv.setTypeface(null, android.graphics.Typeface.BOLD);
-                selCountTv.setIncludeFontPadding(false);
-                cnt.addView(selCountTv);
-                TextView lb = new TextView(act);
-                lb.setText("محدد"); lb.setTextSize(12); lb.setTextColor(cMuted());
-                lb.setTypeface(null, android.graphics.Typeface.BOLD);
-                lb.setIncludeFontPadding(false);
-                LinearLayout.LayoutParams lbl = new LinearLayout.LayoutParams(-2, -2);
-                lbl.setMarginStart(dp(6));
-                cnt.addView(lb, lbl);
-                LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(0, -2, 1f);
-                cl.setMarginStart(dp(10));
-                row.addView(cnt, cl);
-
-                // ---- النهاية: تثبيت | إعادة توجيه | حذف
-                selPinIv = selIcon(R.drawable.ic_mm_pin, cGold(), goldA(0x1F), "تثبيت الرسالة",
+                selPinIv = selBarIcon(R.drawable.ic_sel_pin, "تثبيت الرسالة",
                         () -> { String id = firstSel(); clearSel(); togglePin(id); });
                 selPinBtn = selPinIv;
                 LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(dp(40), dp(40));
@@ -4287,14 +4290,24 @@ public class MassActivity extends Activity {
 
                 LinearLayout.LayoutParams fl = new LinearLayout.LayoutParams(dp(40), dp(40));
                 fl.setMarginEnd(dp(8));
-                row.addView(selIcon(R.drawable.ic_mm_forward, cGold(), goldA(0x1F), "إعادة توجيه", this::forwardSel), fl);
+                row.addView(selBarIcon(R.drawable.ic_sel_forward, "إعادة توجيه", this::forwardSel), fl);
 
-                row.addView(selIcon(R.drawable.ic_mm_delete, 0xFFF0605D, 0x1FF0605D, "حذف الرسائل المحددة", this::multiDelete),
+                row.addView(selBarIcon(R.drawable.ic_sel_trash, "حذف الرسائل المحددة", this::multiDelete),
                         new LinearLayout.LayoutParams(dp(40), dp(40)));
 
-                // ---- خط ذهبي رفيع أسفل الشريط
+                // العدد «N من الرسائل» في منتصف الشريط تماماً (مثل «N من المحادثات»: حجم 17 عريض)
+                selCountTv = new TextView(act);
+                selCountTv.setTextSize(17); selCountTv.setTextColor(selAcc());
+                selCountTv.setTypeface(null, android.graphics.Typeface.BOLD);
+                selCountTv.setIncludeFontPadding(false);
+                selCountTv.setGravity(Gravity.CENTER);
+                FrameLayout.LayoutParams cntLp = new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER);
+                cntLp.topMargin = sbTop;   // مركز المساحة تحت شريط الحالة كما يحاذي الصف
+                wrap.addView(selCountTv, cntLp);
+
+                // ---- خط رفيع بلون الثيم أسفل الشريط
                 View line = new View(act);
-                line.setBackgroundColor(goldA(0x59));
+                line.setBackgroundColor(selAccA(0x59));
                 wrap.addView(line, new FrameLayout.LayoutParams(-1, Math.max(1, dp(1)), Gravity.BOTTOM));
 
                 ((FrameLayout) host).addView(wrap, new FrameLayout.LayoutParams(-1, h, Gravity.TOP));
@@ -4315,29 +4328,16 @@ public class MassActivity extends Activity {
                 for (String id : ids) { Object[] m = msgMeta.get(id); if (m == null || !Boolean.TRUE.equals(m[4])) allMine = false; }
                 final int n = ids.size();
                 final String cid = currentChatId;
-                MsgMenu.showDelete(act, dark, "حذف " + n + (n == 1 ? " رسالة" : " رسائل"),
-                        allMine ? "اختر أين تريد حذف الرسائل المحددة." : "الحذف لدى الكل متاح فقط لرسائلك.", allMine,
-                        new MsgMenu.DeleteCb() {
-                            @Override public void forMe() {
-                                java.util.Set<String> h = hiddenSet(); h.addAll(ids);
-                                sp.edit().putStringSet("hidden_msgs_" + cid, h).apply();
-                                clearSel();
-                                for (String id : ids) removeMsgView(id, null);
-                            }
-                            @Override public void forAll() {
-                                if (cid.isEmpty()) { toast("تعذر تحديد الرسائل"); return; }
-                                new AlertDialog.Builder(act).setTitle("حذف الرسائل لدى الجميع")
-                                    .setMessage("سيتم حذف " + n + " رسالة لدى الجميع. هل تريد المتابعة؟")
-                                    .setPositiveButton("حذف الرسائل", (d, w) -> {
-                                        com.google.firebase.firestore.WriteBatch wb = db.batch();
-                                        for (String id : ids) wb.delete(db.collection("chats").document(cid).collection("messages").document(id));
-                                        wb.commit().addOnSuccessListener(x -> { clearSel(); for (String id : ids) removeMsgView(id, null); toast("تم حذف الرسائل لدى الجميع"); })
-                                            .addOnFailureListener(e -> toast(e instanceof com.google.firebase.firestore.FirebaseFirestoreException
-                                                && ((com.google.firebase.firestore.FirebaseFirestoreException) e).getCode() == com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED
-                                                ? "تعذر الحذف: قواعد Firestore لا تسمح بذلك" : "تعذر حذف الرسائل؛ تحقق من الاتصال"));
-                                    })
-                                    .setNegativeButton("إلغاء", null).show();
-                            }
+                final String nm = peerName();
+                MsgMenu.showMsgDelete(act, dark, n == 1 ? "حذف الرسالة" : "حذف " + n + " رسائل",
+                        n == 1 ? "هل ترغب حقًا في حذف هذه الرسالة؟" : "هل ترغب حقًا في حذف هذه الرسائل؟",
+                        allMine ? "حذف من عند " + nm + " أيضًا" : null,
+                        both -> {
+                            if (both && !cid.isEmpty()) { clearSel(); deleteMsgsForAll(ids, null); return; }
+                            java.util.Set<String> h = hiddenSet(); h.addAll(ids);
+                            sp.edit().putStringSet("hidden_msgs_" + cid, h).apply();
+                            clearSel();
+                            for (String id : ids) removeMsgView(id, null);
                         });
             }
 
@@ -4579,27 +4579,43 @@ public class MassActivity extends Activity {
                 return new java.util.HashSet<>(sp.getStringSet("hidden_msgs_" + currentChatId, new java.util.HashSet<String>()));
             }
 
+            /** اسم الطرف الآخر في المحادثة المفتوحة (كما في رأس المحادثة). */
+            String peerName() {
+                try { return dispName(otherUid, otherOrigName.isEmpty() ? otherName : otherOrigName); }
+                catch (Throwable t) { return "المستخدم"; }
+            }
+
+            /** يحذف رسائل من Firestore لدى الجميع مباشرة (بلا نافذة تأكيد إضافية) ثم يزيلها من الشاشة. */
+            void deleteMsgsForAll(final java.util.List<String> ids, final View single) {
+                final String cid = currentChatId;
+                if (cid.isEmpty() || ids.isEmpty()) { toast("تعذر تحديد الرسائل"); return; }
+                com.google.firebase.firestore.WriteBatch wb = db.batch();
+                for (String id : ids) wb.delete(db.collection("chats").document(cid).collection("messages").document(id));
+                wb.commit().addOnSuccessListener(x -> {
+                    for (String id : ids) removeMsgView(id, ids.size() == 1 ? single : null);
+                    toast(ids.size() == 1 ? "تم حذف الرسالة لدى الجميع" : "تم حذف الرسائل لدى الجميع");
+                }).addOnFailureListener(e -> toast(e instanceof com.google.firebase.firestore.FirebaseFirestoreException
+                        && ((com.google.firebase.firestore.FirebaseFirestoreException) e).getCode() == com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED
+                        ? "تعذر الحذف: قواعد Firestore لا تسمح بذلك" : "تعذر حذف الرسالة؛ تحقق من الاتصال والصلاحيات"));
+            }
+
             void msgDeleteDialog(final View b) {
                 final String id = idOfView(b);
                 final String cid = currentChatId;
-                MsgMenu.showDelete(act, dark, new MsgMenu.DeleteCb() {
-                    @Override public void forMe() {
-                        if (id != null) { java.util.Set<String> h = hiddenSet(); h.add(id); sp.edit().putStringSet("hidden_msgs_" + cid, h).apply(); }
-                        removeMsgView(id, b);
-                    }
-                    @Override public void forAll() {
-                        if (id == null || cid.isEmpty()) { toast("تعذر تحديد الرسالة"); return; }
-                        new AlertDialog.Builder(act).setTitle("حذف الرسالة لدى الجميع")
-                            .setMessage("سيتم حذف الرسالة لدى الجميع إذا سمحت صلاحيات قاعدة البيانات. هل تريد المتابعة؟")
-                            .setPositiveButton("حذف الرسالة", (d, w) ->
-                                db.collection("chats").document(cid).collection("messages").document(id).delete()
-                                    .addOnSuccessListener(x -> { removeMsgView(id, b); toast("تم حذف الرسالة لدى الجميع"); })
-                                    .addOnFailureListener(e -> toast(e instanceof com.google.firebase.firestore.FirebaseFirestoreException
-                                        && ((com.google.firebase.firestore.FirebaseFirestoreException) e).getCode() == com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED
-                                        ? "تعذر الحذف: قواعد Firestore لا تسمح بذلك" : "تعذر حذف الرسالة؛ تحقق من الاتصال والصلاحيات")))
-                            .setNegativeButton("إلغاء", null).show();
-                    }
-                });
+                Object[] m = id != null ? msgMeta.get(id) : null;
+                final boolean mine = m != null && Boolean.TRUE.equals(m[4]);
+                String time = "";
+                if (m != null && m.length > 5 && m[5] instanceof Number) {
+                    time = new java.text.SimpleDateFormat("h:mm", Locale.US).format(new java.util.Date(((Number) m[5]).longValue()));
+                }
+                final String nm = peerName();
+                MsgMenu.showMsgDelete(act, dark, "حذف الرسالة", "هل ترغب حقًا في حذف هذه الرسالة؟",
+                        mine ? "حذف من عند " + nm + (time.isEmpty() ? "" : " | " + time) + " أيضًا" : null,
+                        both -> {
+                            if (both && id != null && !cid.isEmpty()) { deleteMsgsForAll(java.util.Collections.singletonList(id), b); return; }
+                            if (id != null) { java.util.Set<String> h = hiddenSet(); h.add(id); sp.edit().putStringSet("hidden_msgs_" + cid, h).apply(); }
+                            removeMsgView(id, b);
+                        });
             }
 
             void removeMsgView(String id, View b) {
@@ -5070,8 +5086,8 @@ public class MassActivity extends Activity {
                 boolean pv = recPreview;
                 vis("recPlay", pv); vis("recStop", !pv); vis("recSend", pv);
                 View rcol = v("recPlay") != null ? (View) v("recPlay").getParent() : null;
-                if (rcol != null) {   // الصندوق أطول بـ 2dp مع ثبات زرّي التشغيل وX: المعاينة 5/3 (مثبّت بالأسفل)، التسجيل 4/4 (متمركز)
-                    rcol.setPadding(0, dp(pv ? 5 : 4), 0, dp(pv ? 3 : 4));
+                if (rcol != null) {   // المعاينة 7/5: الصندوق أطول بـ 2dp من الأعلى و2dp من الأسفل، وX أبعد عن نهايته بـ 2dp؛ التسجيل 4/4 (متمركز)
+                    rcol.setPadding(0, dp(pv ? 7 : 4), 0, dp(pv ? 5 : 4));
                 }
                 TextView lb = tv("recLabel");
                 if (lb != null) { lb.setText(pv ? "تم التسجيل" : "جاري التسجيل"); lb.setTextColor(pv ? (Tk.chatPal != null ? Tk.chatPal.accent : (dark ? 0xFFE4C45B : 0xFFB8861B)) : 0xFFF87171); } // «تم التسجيل» ذهبي
@@ -5485,8 +5501,9 @@ public class MassActivity extends Activity {
                 if (s.getParent() instanceof View) ((View) s.getParent()).setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
                 s.removeAllViews();
                 s.setPadding(dp(4), dp(4), dp(4), dp(12));
+                s.setClipChildren(false); s.setClipToPadding(false);
                 for (final ChatThemes.Spec spc : ChatThemes.ALL) {
-                    final ChatThemes.Pal p = spc.pal(dark);
+                    final ChatThemes.Pal p = (ChatThemes.isBabylon(spc.id) && !dark) ? ChatThemes.babylonPreview(false) : spc.pal(dark);   // بابل نهاري: بطاقة فاتحة لا سوداء
                     boolean sel = spc.id.equals(chatTheme);
                     LinearLayout card = new LinearLayout(act);
                     card.setOrientation(LinearLayout.VERTICAL);
@@ -5494,19 +5511,26 @@ public class MassActivity extends Activity {
                     cp.setMarginEnd(dp(10));
                     card.setLayoutParams(cp);
 
+                    // حلقة الاختيار: إطار ذهبي بزوايا ناعمة حول البطاقة مع فاصل 3dp، دون تكبير يقصّ الحواف
+                    FrameLayout ring = new FrameLayout(act);
+                    ring.setPadding(dp(3), dp(3), dp(3), dp(3));
+                    GradientDrawable rb = new GradientDrawable();
+                    rb.setColor(0x00000000);
+                    rb.setCornerRadius(dp(17));
+                    rb.setStroke(dp(2), sel ? cGold() : 0x00000000);
+                    ring.setBackground(rb);
+                    card.addView(ring, new LinearLayout.LayoutParams(-1, dp(138)));
+
                     FrameLayout thumb = new FrameLayout(act);
-                    thumb.setPadding(dp(3), dp(3), dp(3), dp(3));
                     GradientDrawable tb = new GradientDrawable();
                     tb.setColor(p.chatBg);
-                    tb.setCornerRadius(dp(14));
-                    tb.setStroke(dp(3), sel ? cGold() : 0x00000000);
+                    tb.setCornerRadius(dp(13));
                     thumb.setBackground(tb);
                     thumb.setClipToOutline(true);
                     thumb.setOutlineProvider(new android.view.ViewOutlineProvider() {
-                        @Override public void getOutline(View vw, android.graphics.Outline o) { o.setRoundRect(0, 0, vw.getWidth(), vw.getHeight(), dp(14)); }
+                        @Override public void getOutline(View vw, android.graphics.Outline o) { o.setRoundRect(0, 0, vw.getWidth(), vw.getHeight(), dp(13)); }
                     });
-                    card.addView(thumb, new LinearLayout.LayoutParams(-1, dp(132)));
-                    if (sel) { thumb.setScaleX(1.03f); thumb.setScaleY(1.03f); }
+                    ring.addView(thumb, new FrameLayout.LayoutParams(-1, -1));
 
                     ChatPattern pat = new ChatPattern(act).grid(3, 34f, 15f, 24)
                             .style(spc.symbols, p.pattern, Math.min(0.4f, p.patternOp * 2.4f));
