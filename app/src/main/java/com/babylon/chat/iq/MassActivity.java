@@ -5392,6 +5392,7 @@ public class MassActivity extends Activity {
                     ViewGroup.LayoutParams lp = c.getLayoutParams();
                     lp.height = dp(pv ? 23 : 36);
                     c.setLayoutParams(lp);
+                    c.setTranslationY(pv ? -dp(2) : 0f);   // المعاينة: × أبعد 2dp إضافية عن نهاية الحقل باتجاه زر التشغيل (حجم الصندوق ثابت)
                 }
                 TextView p = tv("recPlay");
                 if (p != null) {

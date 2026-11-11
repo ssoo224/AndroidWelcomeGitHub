@@ -86,7 +86,7 @@ public final class ChatPreview {
         otherText = tv("صباح الخير", 15, true);
         otherText.setGravity(Gravity.RIGHT);
         otherText.setLineSpacing(0, 1.1f);
-        oc.addView(otherText);
+        oc.addView(otherText, new LinearLayout.LayoutParams(-2, -2));   // WRAP: عرض MATCH_PARENT يُتجاهل في حساب عرض الأب فيضيق النص ويُقصّ سطره الثاني
         other.addView(oc, new FrameLayout.LayoutParams(-2, -2));
         otherTime = tv("3:46", 10.5f, false);
         FrameLayout.LayoutParams ot = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.LEFT);

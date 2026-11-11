@@ -115,6 +115,23 @@ public final class MsgViews {
                 w = MeasureSpec.makeMeasureSpec(cap, MeasureSpec.AT_MOST);
             }
             super.onMeasure(w, h);
+            if (mode != MeasureSpec.EXACTLY && !(this instanceof VoiceBubble)) {
+                // LinearLayout العمودي يتجاهل عرض الأبناء MATCH_PARENT عند حساب عرضه (يبقى بعرض صف الوقت/الحد الأدنى)،
+                // فيضيق النص وتُقصّ الإيموجي ولا تتمدد الفقاعة. نحسب العرض المطلوب فعلياً ونعيد القياس به.
+                int cap2 = MeasureSpec.getSize(w);
+                int avail = cap2 - getPaddingLeft() - getPaddingRight();
+                int need = 0;
+                for (int k = 0; k < getChildCount(); k++) {
+                    View c = getChildAt(k);
+                    if (c.getVisibility() == View.GONE) continue;
+                    LayoutParams clp = (LayoutParams) c.getLayoutParams();
+                    int m = clp.leftMargin + clp.rightMargin;
+                    c.measure(MeasureSpec.makeMeasureSpec(Math.max(0, avail - m), MeasureSpec.AT_MOST), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+                    need = Math.max(need, c.getMeasuredWidth() + m);
+                }
+                int want = Math.min(cap2, Math.max(getMinimumWidth(), need + getPaddingLeft() + getPaddingRight()));
+                if (want > getMeasuredWidth()) super.onMeasure(MeasureSpec.makeMeasureSpec(want, MeasureSpec.EXACTLY), h);
+            }
         }
     }
 
@@ -150,7 +167,7 @@ public final class MsgViews {
         if (quote != null) b.addView(replyQuote(a, quote, mine, null));
         TextView t = new TextView(a);
         t.setTextSize(fontSp);
-        t.setTypeface(null, android.graphics.Typeface.BOLD);
+        t.setTypeface(null, android.graphics.Typeface.NORMAL);   // العريض عبر StyleSpan للحروف فقط
         t.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG);
         t.setText(richText(body), TextView.BufferType.SPANNABLE);   // نص + إيموجي معاً بلا فقدان
         t.setTag(mine ? "mtM" : "mtO");
@@ -217,11 +234,12 @@ public final class MsgViews {
                 i++;
             }
             int from = sb.length();
-            if (emoji) { if (runStart < 0) runStart = from; }
-            else if (runStart >= 0) { sb.setSpan(new EmojiRun(), runStart, from, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE); runStart = -1; }
             sb.append(new String(cp, s, i - s));
+            // الخط العريض يُطبَّق على الحروف فقط؛ الإيموجي تبقى نصاً عادياً فيرسمها النظام بخطه الملوّن ويلفّها مع السطر طبيعياً (حتى في الرسائل الطويلة)
+            if (!emoji) { if (runStart < 0) runStart = from; }
+            else if (runStart >= 0) { sb.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), runStart, from, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE); runStart = -1; }
         }
-        if (runStart >= 0) sb.setSpan(new EmojiRun(), runStart, sb.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        if (runStart >= 0) sb.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), runStart, sb.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         return sb;
     }
 
@@ -645,7 +663,7 @@ public final class MsgViews {
         q.setSingleLine(true);
         q.setEllipsize(android.text.TextUtils.TruncateAt.END);
         q.setGravity(Gravity.RIGHT);
-        q.setTypeface(null, android.graphics.Typeface.BOLD);
+        q.setTypeface(null, android.graphics.Typeface.NORMAL);
         q.setTag(mine ? "rqtM" : "rqtO");
         int icoRes = ("image".equals(qKind) && "صورة".equals(qText)) ? R.drawable.ic_rq_image
                 : ("audio".equals(qKind) && "بصمة صوتية".equals(qText)) ? R.drawable.ic_rq_mic : 0;
