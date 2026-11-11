@@ -566,7 +566,7 @@ public class MassActivity extends Activity {
                         else if (T != null) {
                             if (k.equals("t")) T.setTextColor((x.getTag() instanceof String && ((String) x.getTag()).contains("rbtn")) || x.getId() == R.id.chatTitle ? Tk.crInk(cText()) : cText());
                             else if (k.equals("m")) T.setTextColor(x.getId() == R.id.chatSub || (Tk.chatPal != null && (x.getId() == R.id.btnMic || x.getId() == R.id.btnAttach)) ? Tk.crMuted(cMuted()) : cMuted());
-                            else if (k.equals("g")) T.setTextColor(cGold());
+                            else if (k.equals("g")) T.setTextColor(x.getId() == R.id.otherBlockBtn ? blockTextColor() : cGold());
                             else if (k.equals("red")) T.setTextColor(cRed());
                             else if (k.equals("green")) T.setTextColor(0xFF4ADE80);
                             else if (k.equals("wh")) T.setTextColor(0xFFFFFFFF);
@@ -975,10 +975,13 @@ public class MassActivity extends Activity {
                 try { centerIconBoxes(act.findViewById(android.R.id.content)); } catch (Throwable ignored) { }
             }
 
+            /** كلمة «حظر» سوداء في النهاري (وبلون النص الفاتح في الليلي كي تبقى مقروءة)؛ الأيقونة تبقى ذهبية. */
+            int blockTextColor() { return dark ? cText() : 0xFF000000; }
+
             void tintIcons(TextView T) {
                 android.graphics.drawable.Drawable[] ds = T.getCompoundDrawablesRelative();
                 for (android.graphics.drawable.Drawable d : ds) {
-                    if (d != null) d.mutate().setColorFilter(T.getCurrentTextColor(), android.graphics.PorterDuff.Mode.SRC_IN);
+                    if (d != null) d.mutate().setColorFilter(T.getId() == R.id.otherBlockBtn ? cGold() : T.getCurrentTextColor(), android.graphics.PorterDuff.Mode.SRC_IN);
                 }
             }
             int icon(String name, int size) { return act.getResources().getIdentifier(name + "_" + size, "drawable", act.getPackageName()); }
@@ -1532,7 +1535,7 @@ public class MassActivity extends Activity {
                 TextView ob = tv("otherBlockBtn");
                 if (ob != null) {
                     ob.setText(blocked ? "إلغاء الحظر" : "حظر");
-                    ob.setTextColor(cGold());
+                    ob.setTextColor(blockTextColor());
                     tintIcons(ob);
                 }
             }
@@ -2631,6 +2634,7 @@ public class MassActivity extends Activity {
                     row.setGravity(Gravity.CENTER_VERTICAL);
                     row.setPadding(dp(12), dp(6.9f), dp(12), dp(6.9f));   // أنحف بـ 5dp (70.8 → 65.8)
                     row.setTag("row");
+                    if (rowPinned) row.setTag(R.id.messageInput, rowUid);   // وسم كل صف مثبّت (لإعادة الترتيب بالسحب)
                     row.setClipChildren(false);
                     row.setMinimumHeight(dp(65.8f));
                     row.setElevation(0f);
@@ -2715,7 +2719,18 @@ public class MassActivity extends Activity {
                         bl.rightMargin = dp(8);
                         r2.addView(b, bl);
                     }
-                    if (rowPinned && !hasUnread) {
+                    if (rowPinned && rowSel) {
+                        // محادثة مثبّتة ومحدَّدة: خطّان أفقيان بدل الدبوس؛ ضغطة مطوّلة 0.45ث عليهما تسمح بإعادة ترتيبها بين المثبّتات فقط
+                        ImageView hd = new ImageView(act);
+                        hd.setImageResource(R.drawable.ic_drag_handle);
+                        hd.setColorFilter(cGold());
+                        hd.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+                        hd.setPadding(dp(2.5f), dp(2.5f), dp(2.5f), dp(2.5f));
+                        LinearLayout.LayoutParams hl = new LinearLayout.LayoutParams(dp(22.9f), dp(22.9f));
+                        hl.setMarginStart(dp(6));
+                        r2.addView(hd, hl);
+                        attachPinDrag(hd, row, chatIdOf(rowUid));
+                    } else if (rowPinned && !hasUnread) {
                         ImageView pi = new ImageView(act);
                         pi.setImageResource(R.drawable.ic_mm_pin);
                         pi.setColorFilter(cGold());
@@ -2898,6 +2913,92 @@ public class MassActivity extends Activity {
             }
 
             /** reorderChatListItems: المثبّتة أولاً بترتيب التثبيت ثم الباقي بترتيب آخر نشاط. */
+            // ---- إعادة ترتيب المحادثات المثبّتة بالسحب (ضغطة مطوّلة 0.45ث على مقبض الخطّين) ----
+            void attachPinDrag(final View handle, final View row, final String chatId) {
+                final android.os.Handler hh = new android.os.Handler(android.os.Looper.getMainLooper());
+                final int slop = android.view.ViewConfiguration.get(act).getScaledTouchSlop();
+                final float[] st = new float[2];            // downRawY, lastTranslationApplied
+                final boolean[] drag = {false};
+                final int[] idx = {0, 0};                  // di (الأصلي), t (الهدف)
+                final java.util.ArrayList<View> pr = new java.util.ArrayList<>();
+                final Runnable start = () -> {
+                    pr.clear();
+                    LinearLayout lst = (LinearLayout) row.getParent();
+                    for (int i = 0; i < lst.getChildCount(); i++) {
+                        View c = lst.getChildAt(i);
+                        if ("row".equals(c.getTag()) && c.getTag(R.id.messageInput) != null) pr.add(c);
+                    }
+                    idx[0] = pr.indexOf(row); idx[1] = idx[0];
+                    if (idx[0] < 0 || pr.size() < 2) return;   // محادثة مثبّتة وحيدة: لا شيء لترتيبه
+                    drag[0] = true;
+                    try { handle.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); } catch (Throwable ignored) { }
+                    for (android.view.ViewParent p = handle.getParent(); p != null; p = p.getParent()) p.requestDisallowInterceptTouchEvent(true);
+                    row.setTranslationZ(dp(8)); row.setScaleX(1.02f); row.setScaleY(1.02f);
+                };
+                handle.setOnTouchListener((vw, e) -> {
+                    switch (e.getActionMasked()) {
+                        case MotionEvent.ACTION_DOWN:
+                            st[0] = e.getRawY(); drag[0] = false;
+                            hh.postDelayed(start, 450);
+                            return true;
+                        case MotionEvent.ACTION_MOVE: {
+                            float dy = e.getRawY() - st[0];
+                            if (!drag[0]) { if (Math.abs(dy) > slop) hh.removeCallbacks(start); return true; }
+                            float minDy = pr.get(0).getTop() - row.getTop();
+                            float maxDy = pr.get(pr.size() - 1).getTop() - row.getTop();
+                            dy = Math.max(minDy, Math.min(maxDy, dy));
+                            row.setTranslationY(dy);
+                            float c = row.getTop() + row.getHeight() / 2f + dy;
+                            int di = idx[0], t = di;
+                            for (int k = 0; k < pr.size(); k++) {
+                                if (k == di) continue;
+                                View o = pr.get(k);
+                                float oc = o.getTop() + o.getHeight() / 2f;
+                                if (k < di && c < oc) t = Math.min(t, k);
+                                if (k > di && c > oc) t = Math.max(t, k);
+                            }
+                            idx[1] = t;
+                            float slot = row.getHeight() + dp(3);
+                            for (int k = 0; k < pr.size(); k++) {
+                                if (k == di) continue;
+                                float ty = (k > di && k <= t) ? -slot : (k < di && k >= t) ? slot : 0f;
+                                pr.get(k).animate().translationY(ty).setDuration(120).start();
+                            }
+                            return true;
+                        }
+                        case MotionEvent.ACTION_UP:
+                        case MotionEvent.ACTION_CANCEL: {
+                            hh.removeCallbacks(start);
+                            if (!drag[0]) return true;
+                            drag[0] = false;
+                            int di = idx[0], t = idx[1];
+                            for (View o : pr) { o.animate().cancel(); o.setTranslationY(0f); }
+                            row.setTranslationZ(0f); row.setScaleX(1f); row.setScaleY(1f);
+                            if (e.getActionMasked() == MotionEvent.ACTION_UP && t != di) {
+                                // ترتيب المثبّتات الظاهرة الجديد، ثم دمجه في قائمة التثبيت الكاملة (الظاهرة فقط تُعاد ترتيبها)
+                                java.util.ArrayList<String> vis = new java.util.ArrayList<>();
+                                for (View o : pr) vis.add(chatIdOfRowUid(o));
+                                String moved = vis.remove(di);
+                                vis.add(t, moved);
+                                java.util.List<String> full = getPins();
+                                java.util.ArrayList<String> np = new java.util.ArrayList<>(full);
+                                int vi = 0;
+                                for (int i = 0; i < np.size(); i++) if (vis.contains(np.get(i)) && vi < vis.size()) np.set(i, vis.get(vi++));
+                                setPins(np);
+                            }
+                            buildChats();
+                            return true;
+                        }
+                    }
+                    return true;
+                });
+            }
+
+            String chatIdOfRowUid(View row) {
+                Object u = row.getTag(R.id.messageInput);
+                return u == null ? "" : chatIdOf(String.valueOf(u));
+            }
+
             java.util.List<String[]> orderedChats() {
                 final java.util.List<String> pins = getPins();
                 java.util.ArrayList<String[]> l = new java.util.ArrayList<>(chatData);
@@ -2996,25 +3097,25 @@ public class MassActivity extends Activity {
                 wrap.setVisibility(View.GONE);
 
                 chatSelXIv = noBg(selIcon(R.drawable.ic_mm_x, cGold(), cSf(), "إلغاء التحديد", () -> exitChatSel(true)));
-                row.addView(chatSelXIv, new LinearLayout.LayoutParams(dp(42), dp(42)));
+                row.addView(chatSelXIv, new LinearLayout.LayoutParams(dp(40), dp(40)));   // مربعات الشريط أصغر بـ 2dp (42 ← 40)
 
                 chatSelCountTv = new TextView(act);
-                chatSelCountTv.setTextSize(19); chatSelCountTv.setTextColor(cGold());
+                chatSelCountTv.setTextSize(17);   // «من المحادثات» أصغر بـ 2 (19 ← 17) chatSelCountTv.setTextColor(cGold());
                 chatSelCountTv.setTypeface(null, android.graphics.Typeface.BOLD);
                 chatSelCountTv.setIncludeFontPadding(false);
                 chatSelCountTv.setGravity(Gravity.CENTER);
                 row.addView(new View(act), new LinearLayout.LayoutParams(0, 1, 1f));   // فاصل يدفع أزرار النهاية
 
                 chatSelPinIv = noBg(selIcon(R.drawable.ic_sel_pin, cGold(), goldA(0x1F), "تثبيت", this::selPinChats));
-                LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(dp(42), dp(42));
+                LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(dp(40), dp(40));
                 pl.setMarginEnd(dp(8));
                 row.addView(chatSelPinIv, pl);
 
                 chatSelDelIv = noBg(selIcon(R.drawable.ic_sel_trash, cGold(), goldA(0x1F), "حذف", this::selDeleteChats));
-                row.addView(chatSelDelIv, new LinearLayout.LayoutParams(dp(42), dp(42)));
+                row.addView(chatSelDelIv, new LinearLayout.LayoutParams(dp(40), dp(40)));
 
                 // أيقونات الشريط (إلغاء/تثبيت/حذف) أصغر بـ 3dp: الرمز 22dp ← 19dp داخل نفس الإطار 42dp
-                for (ImageView si : new ImageView[]{chatSelXIv, chatSelPinIv, chatSelDelIv}) si.setPadding(dp(11.5f), dp(11.5f), dp(11.5f), dp(11.5f));
+                for (ImageView si : new ImageView[]{chatSelXIv, chatSelPinIv, chatSelDelIv}) si.setPadding(dp(10.5f), dp(10.5f), dp(10.5f), dp(10.5f));   // الرمز يبقى 19dp داخل المربع 40dp
                 wrap.addView(row, new FrameLayout.LayoutParams(-1, -1));
                 wrap.addView(chatSelCountTv, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
                 par.addView(wrap, par.indexOfChild(mh), new LinearLayout.LayoutParams(-1, dp(62)));
@@ -3248,10 +3349,15 @@ public class MassActivity extends Activity {
 
                         }
                         saveMsgCache(chatId, snapshots);   // آخر 50 رسالة نصية للمحادثة في الخزن المحلي
-                        if (!liveBatch) revealChatBottom();
+                        if (!liveBatch && !(wasFirst && !rebuilt && cacheShown)) revealChatBottom();   // ظهرت من الخزن: لا إعادة إخفاء/وميض
                     };
                 // لا تُعالَج الرسائل أثناء حركة الدخول (تفادياً للتقطيع والتداخل)؛ تُؤجَّل بالترتيب إلى نهايتها
-                renderCachedMessages(chatId);   // آخر رسائل نصية محفوظة تظهر فوراً قبل وصول السيرفر
+                cacheShown = false;
+                renderCachedMessages(chatId);   // آخر 50 رسالة محفوظة تظهر فوراً قبل وصول السيرفر
+                if (!cacheRenderedIds.isEmpty()) {   // لا ننتظر السيرفر لإظهارها: تظهر بعد انتهاء حركة الدخول مباشرة
+                    cacheShown = true;
+                    uiH.postDelayed(() -> { if (chatId.equals(currentChatId)) revealChatBottom(); }, BabylonFx.chatFoldRemaining());
+                }
                 messagesListener = db.collection("chats").document(chatId).collection("messages")
                     .orderBy("timestamp", Query.Direction.ASCENDING)
                     .addSnapshotListener(com.google.firebase.firestore.MetadataChanges.INCLUDE,
@@ -3261,6 +3367,8 @@ public class MassActivity extends Activity {
             // ================= خزن محلي لرسائل المحادثة (آخر 50 رسالة نصية فقط) =================
             final java.util.HashSet<String> cacheRenderedIds = new java.util.HashSet<>();   // رسائل رُسمت من الخزن وتنتظر تأكيد السيرفر
             long cacheMaxTs = 0L;
+            boolean cacheShown = false;   // أُظهرت رسائل الخزن المحلي فلا تُعاد حركة الكشف عند وصول السيرفر
+            static final int CACHE_MAX_PAYLOAD = 450_000;   // أكبر حجم (محارف) لصورة/صوتية تُحفظ محلياً؛ الأكبر تنتظر السيرفر
 
             String gStr(Map<String, Object> d, String k) { Object o = d == null ? null : d.get(k); return o instanceof String ? (String) o : null; }
             Long gLong(Map<String, Object> d, String k) { Object o = d == null ? null : d.get(k); return o instanceof Number ? Long.valueOf(((Number) o).longValue()) : null; }
@@ -3286,8 +3394,12 @@ public class MassActivity extends Activity {
                         String id = o.optString("id");
                         if (id.isEmpty() || renderedMsgIds.contains(id) || hid.contains(id)) continue;
                         HashMap<String, Object> d = new HashMap<>();
-                        d.put("type", "text");
-                        d.put("text", o.optString("text"));
+                        String cty = o.optString("type", "text");
+                        d.put("type", cty);
+                        if (o.has("text")) d.put("text", o.optString("text"));
+                        if (o.has("data")) d.put("data", o.optString("data"));
+                        if (o.has("url")) d.put("url", o.optString("url"));
+                        if (o.has("duration")) d.put("duration", o.optLong("duration", 0L));
                         d.put("sender", o.optString("sender"));
                         long ts = o.optLong("timestamp", 0L);
                         if (ts > 0) d.put("timestamp", ts);
@@ -3302,21 +3414,35 @@ public class MassActivity extends Activity {
                 } catch (Throwable ignored) { }
             }
 
-            /** يحفظ آخر 50 رسالة نصية من لقطة السيرفر (بدون الصور والفيديوهات والصوتيات والمخفية/المحذوفة). */
+            /** يحفظ آخر 50 رسالة (نص/صورة/صوتية ≤ ~450KB) من لقطة السيرفر، بدون المخفية/المحذوفة. */
             void saveMsgCache(String chatId, com.google.firebase.firestore.QuerySnapshot sn) {
                 try {
                     long clr = chatClearedAt(chatId);
                     java.util.Set<String> hid = hiddenSet();
                     org.json.JSONArray out = new org.json.JSONArray();
-                    for (DocumentSnapshot dd : sn.getDocuments()) {
+                    java.util.List<DocumentSnapshot> docs = sn.getDocuments();
+                    java.util.ArrayList<org.json.JSONObject> rev = new java.util.ArrayList<>();   // من الأحدث للأقدم حتى 50
+                    for (int di = docs.size() - 1; di >= 0 && rev.size() < LocalCache.MAX_MSGS; di--) {
+                        DocumentSnapshot dd = docs.get(di);
                         String ty = dd.getString("type");
-                        if (ty != null && !"text".equals(ty)) continue;
+                        if (ty == null) ty = "text";
                         Map<String, Object> m = dd.getData();
                         String text = gStr(m, "text");
-                        if (text == null || hid.contains(dd.getId()) || msgClearedMap(m, clr)) continue;
+                        String pay = gStr(m, "data"); if (pay == null) pay = gStr(m, "url");
+                        boolean media = ("image".equals(ty) || "audio".equals(ty)) && pay != null;
+                        if (!media && !"text".equals(ty)) continue;
+                        if (!media && text == null) continue;
+                        if (media && pay.length() > CACHE_MAX_PAYLOAD) continue;
+                        if (hid.contains(dd.getId()) || msgClearedMap(m, clr)) continue;
                         org.json.JSONObject o = new org.json.JSONObject();
                         o.put("id", dd.getId());
-                        o.put("text", text);
+                        o.put("type", ty);
+                        if (text != null) o.put("text", text);
+                        if (media) {
+                            o.put("data", pay);
+                            Long du = gLong(m, "duration");
+                            if (du != null) o.put("duration", du.longValue());
+                        }
                         String sender = gStr(m, "sender");
                         o.put("sender", sender == null ? "" : sender);
                         Long ts = gLong(m, "timestamp");
@@ -3329,8 +3455,9 @@ public class MassActivity extends Activity {
                             String v = gStr(m, k);
                             if (v != null) o.put(k, v);
                         }
-                        out.put(o);
+                        rev.add(o);
                     }
+                    for (int ri = rev.size() - 1; ri >= 0; ri--) out.put(rev.get(ri));   // ترتيب تصاعدي
                     LocalCache.putMessages(chatId, out);
                 } catch (Throwable ignored) { }
             }
@@ -4942,6 +5069,10 @@ public class MassActivity extends Activity {
             void setRecUi() {
                 boolean pv = recPreview;
                 vis("recPlay", pv); vis("recStop", !pv); vis("recSend", pv);
+                View rcol = v("recPlay") != null ? (View) v("recPlay").getParent() : null;
+                if (rcol != null) {   // الصندوق أطول بـ 2dp مع ثبات زرّي التشغيل وX: المعاينة 5/3 (مثبّت بالأسفل)، التسجيل 4/4 (متمركز)
+                    rcol.setPadding(0, dp(pv ? 5 : 4), 0, dp(pv ? 3 : 4));
+                }
                 TextView lb = tv("recLabel");
                 if (lb != null) { lb.setText(pv ? "تم التسجيل" : "جاري التسجيل"); lb.setTextColor(pv ? (Tk.chatPal != null ? Tk.chatPal.accent : (dark ? 0xFFE4C45B : 0xFFB8861B)) : 0xFFF87171); } // «تم التسجيل» ذهبي
                 View dot = v("recDot");

@@ -469,6 +469,10 @@ public final class StoryViewer {
                 if (closed) return;
                 android.view.Window w = act.getWindow();
                 w.setStatusBarColor(Color.BLACK); w.setNavigationBarColor(Color.BLACK);
+                if (Build.VERSION.SDK_INT >= 23) {   // رموز إشعارات الهاتف (الساعة/البطارية/الشبكة) بيضاء داخل القصص
+                    sbUiBefore = w.getDecorView().getSystemUiVisibility();
+                    w.getDecorView().setSystemUiVisibility(sbUiBefore & ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+                }
             } catch (Throwable ignored) { }
         });
 
@@ -1544,6 +1548,10 @@ public final class StoryViewer {
         acts.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         TextView cancel = actionBtn("إلغاء", isDark() ? Color.WHITE : Tk.chipFg(false), round(isDark() ? 0x17FFFFFF : Tk.chipBg(false), 12, 0, 0));
         cancel.setOnClickListener(v -> closeModal());
+        // ظلّ خلف زر «إلغاء» ليتميّز عن خلفية البطاقة البيضاء
+        cancel.setElevation(dp(4));
+        acts.setClipChildren(false); acts.setClipToPadding(false);
+        card.setClipChildren(false); card.setClipToPadding(false);
         GradientDrawable red = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFFF6A70, 0xFFC52D3A});
         red.setCornerRadius(dp(12));
         final TextView ok = actionBtn("حذف القصة", Color.WHITE, red);
@@ -1721,6 +1729,8 @@ public final class StoryViewer {
     }
 
     // ------------------------------------------------------------ الإغلاق
+    private int sbUiBefore = -1;
+
     private void close() {
         if (closed) return;
         closed = true;
@@ -1731,6 +1741,14 @@ public final class StoryViewer {
         handler.removeCallbacksAndMessages(null);
         try { vid.stopPlayback(); } catch (Throwable ignored) { }
         try { restoreNav(); } catch (Throwable ignored) { }
+        try {   // إعادة لون رموز شريط الحالة كما كان قبل فتح القصة
+            if (sbUiBefore >= 0 && Build.VERSION.SDK_INT >= 23) {
+                View dv = act.getWindow().getDecorView();
+                int f = dv.getSystemUiVisibility();
+                f = (sbUiBefore & View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR) != 0 ? (f | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR) : (f & ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+                dv.setSystemUiVisibility(f);
+            }
+        } catch (Throwable ignored) { }
         try { act.getWindow().setStatusBarColor(oldSb); act.getWindow().setNavigationBarColor(oldNb); } catch (Throwable ignored) { }
         try {
             if (replyIn != null) {

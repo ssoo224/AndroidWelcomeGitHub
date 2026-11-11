@@ -52,7 +52,7 @@ public final class StoriesController {
     public interface OnItem { void click(Item it); }
 
     // ----- القياسات (px الـ HTML عند --bb-s=1.041 ⇒ dp)
-    static final float AV = 52f, ITEM_W = AV + 10f, SIDE = 14f, GAP_ITEMS = 5f, GAP_TXT = 7f, TXT_H = 15f;
+    static final float AV = 42f, ITEM_W = AV + 10f, SIDE = 14f, GAP_ITEMS = 5f, GAP_TXT = 7f, TXT_H = 15f;
     static final float PT = 12f, PB = 10f;
     /** هامش رسم الحلقة داخل حدود الأفاتار (≥ 5dp سماكة+إزاحة الحلقة) كي لا تُقصّ من أي حاوية. */
     static final float RP = 5.3f;
@@ -60,7 +60,7 @@ public final class StoriesController {
     static final float GAP_STACK = 2f;
     static final float PTP = PT - RP;
     static final float HH = 22.9f, HMT = -6f, HMB = 2f, TOP_PB = 2f;
-    static final float HDR_AV = 32.3f, THUMB = 37.3f, COUNT = 33.8f;   // AV=52 مثل أفاتار المحادثات، HDR_AV=42 مثل زر العدسة
+    static final float HDR_AV = 32.3f, THUMB = 37.3f, COUNT = 33.8f;   // AV=42 مثل صورة أفاتار المحادثات، HDR_AV=42 مثل زر العدسة
 
     private final Activity act;
     private final float dens;
@@ -121,7 +121,7 @@ public final class StoriesController {
         handle.setLayoutParams(hl);
         handle.setClickable(true);
         handle.setOnClickListener(v -> setCollapsed(true));
-        top.addView(handle);
+        // سهم إرجاع/طيّ شريط القصص محذوف: لا يُضاف للتخطيط (الطيّ يبقى بالسحب)، والكائن يبقى فقط كي لا تتعطل بقية المنطق.
 
         line = new View(act);
         line.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, px(1))));
@@ -129,7 +129,7 @@ public final class StoriesController {
         sd.setShaderFactory(new ShapeDrawable.ShaderFactory() {
             @Override public Shader resize(int w, int h) {
                 return new LinearGradient(0, 0, w, 0,
-                        new int[]{0x00000000, 0xA6D4AF37, 0xE6F6DF86, 0xA6D4AF37, 0x00000000},
+                        new int[]{0x00000000, 0xA6CDD3DB, 0xE6DDE2E9, 0xA6CDD3DB, 0x00000000},   // الفاصل: رمادي فاتح بدل الذهبي
                         new float[]{0f, .2f, .5f, .8f, 1f}, Shader.TileMode.CLAMP);
             }
         });
@@ -198,7 +198,7 @@ public final class StoriesController {
             cell.setLayoutParams(cp);
             StoryAvatarView av = new StoryAvatarView(act);
             av.set(it.letter, it.photo, it.blue).ring(it.ring, it.seen).plus(it.me && !it.ring)
-              .theme(dark, cSurface()).textSp(20.8f).shadow(true).pad(RP);
+              .theme(dark, cSurface()).textSp(17f).shadow(true).pad(RP);
             it.av = av;
             cell.addView(av, new LinearLayout.LayoutParams(px(AV + 2 * RP), px(AV + 2 * RP)));
             TextView nm = new TextView(act);
@@ -225,6 +225,16 @@ public final class StoriesController {
         hdrPad = (me != null && me.ring) ? RP : (HDR_AV + 2 * RP - THUMB) / 2f;
         hdrAv.pad(hdrPad);
         hdrAv.plus(false).theme(dark, cSurface());
+        // القصة المجاورة أصغر من قصتي بـ 1dp: القطر الظاهر لقصتي = الحلقة (جسم + سماكتين) أو الجسم نفسه بلا قصة
+        final float myOuter = (me != null && me.ring) ? HDR_AV + 2f * (me.seen ? 2f : 3f) : THUMB;
+        final float thumbDp = myOuter - 1f;
+        try {
+            LinearLayout.LayoutParams slp = (LinearLayout.LayoutParams) hdrStack.getLayoutParams();
+            if (slp != null) {
+                slp.leftMargin = Math.round(-px(RP - 3) - 0.6f * px(thumbDp));
+                hdrStack.setLayoutParams(slp);
+            }
+        } catch (Throwable ignored) { }
         hdrStack.removeAllViews();
         int shown = 0, active = Math.max(0, items.size() - 1);
         hdrAv.halo(0f, 1f);   // الفاصل صار فتحة شفافة 1dp تُقصّ من المصغّرة الخلفية (لا إطار يحيط بقصتي)
@@ -236,7 +246,7 @@ public final class StoriesController {
             tv.cut(shown == 0 ? (View) hdrAv : (View) prevThumb, hdrBtn);   // فاصل 1dp شفاف بينها وبين التي أمامها فقط
             prevThumb = tv;
             tv.setTranslationZ(px(3 - shown));   // الأولى فوق الثانية فوق الثالثة (قصتي فوق الجميع)
-            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(px(THUMB), px(THUMB));
+            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(px(thumbDp), px(thumbDp));
             if (shown > 0) p.leftMargin = px(-8);
             hdrStack.addView(tv, p);
         }
