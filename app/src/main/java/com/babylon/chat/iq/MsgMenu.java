@@ -765,13 +765,13 @@ public final class MsgMenu {
         final TextView box = new TextView(act);
         box.setText("✓"); box.setTextSize(15); box.setTypeface(null, Typeface.BOLD);
         box.setGravity(Gravity.CENTER); box.setIncludeFontPadding(false);
-        final GradientDrawable boxBg = new GradientDrawable();
+        final GradientDrawable boxBg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFF0CB5C, 0xFFB88A1C});
         boxBg.setCornerRadius(dp(act, 8));
         box.setBackground(boxBg);
         final Runnable paintBox = () -> {
-            boxBg.setColor(both[0] ? goldC : 0);
-            boxBg.setStroke(dp(act, 2), both[0] ? goldC : subC);
-            box.setTextColor(both[0] ? 0xFF111111 : 0);
+            if (both[0]) { boxBg.setColors(new int[]{0xFFF0CB5C, 0xFFB88A1C}); boxBg.setStroke(0, 0); }   // ذهبي متدرج
+            else { boxBg.setColor(0); boxBg.setStroke(dp(act, 2), subC); }
+            box.setTextColor(both[0] ? 0xFFFFFFFF : 0);   // ✓ بيضاء
         };
         paintBox.run();
         chk.addView(box, new LinearLayout.LayoutParams(dp(act, 24), dp(act, 24)));

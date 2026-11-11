@@ -289,6 +289,7 @@ public class MassActivity extends Activity {
             List<Map<String, Object>> pins = new ArrayList<>();
             int pinIdx = -1;
             String lastDayKey = "";
+            final java.util.HashMap<View, String> daySeps = new java.util.HashMap<>();   // فواصل الأيام (اليوم/أمس/تاريخ) -> مفتاح اليوم
             final java.util.Map<String, View> msgViewsById = new java.util.HashMap<>();
             MsgViews.Handle playingHandle = null;
             android.os.Handler uiH = new android.os.Handler(android.os.Looper.getMainLooper());
@@ -1038,6 +1039,7 @@ public class MassActivity extends Activity {
                 try { buildStories(); buildChats(); } catch (Throwable ignored) { }
                 polishProfile();
                 try { syncBars(); } catch (Throwable ignored) { }
+                try { renderPinnedBar(); } catch (Throwable ignored) { }   // وعند تبديل نهاري/ليلي
             }
 
             int tabIndex(String p) {
@@ -2580,6 +2582,7 @@ public class MassActivity extends Activity {
                                 try { buildChats(); } catch (Throwable ignored) { }
                                 try { buildStories(); } catch (Throwable ignored) { }
                                 try { applyChatPhoto(); } catch (Throwable ignored) { }
+                                try { refreshAllReactions(); } catch (Throwable ignored) { }
                             };
                             uiH.removeCallbacks(peerPhotoRefresh);
                             uiH.postDelayed(peerPhotoRefresh, 250);
@@ -2959,7 +2962,8 @@ public class MassActivity extends Activity {
                                 if (k > di && c > oc) t = Math.max(t, k);
                             }
                             idx[1] = t;
-                            float slot = row.getHeight() + dp(3);
+                            ViewGroup.LayoutParams rlp0 = row.getLayoutParams();
+                            float slot = row.getHeight() + (rlp0 instanceof ViewGroup.MarginLayoutParams ? ((ViewGroup.MarginLayoutParams) rlp0).bottomMargin : dp(3));   // الفاصل الفعلي بين الصفوف
                             for (int k = 0; k < pr.size(); k++) {
                                 if (k == di) continue;
                                 float ty = (k > di && k <= t) ? -slot : (k < di && k >= t) ? slot : 0f;
@@ -2972,22 +2976,32 @@ public class MassActivity extends Activity {
                             hh.removeCallbacks(start);
                             if (!drag[0]) return true;
                             drag[0] = false;
-                            int di = idx[0], t = idx[1];
-                            for (View o : pr) { o.animate().cancel(); o.setTranslationY(0f); }
-                            row.setTranslationZ(0f); row.setScaleX(1f); row.setScaleY(1f);
-                            if (e.getActionMasked() == MotionEvent.ACTION_UP && t != di) {
-                                // ترتيب المثبّتات الظاهرة الجديد، ثم دمجه في قائمة التثبيت الكاملة (الظاهرة فقط تُعاد ترتيبها)
-                                java.util.ArrayList<String> vis = new java.util.ArrayList<>();
-                                for (View o : pr) vis.add(chatIdOfRowUid(o));
-                                String moved = vis.remove(di);
-                                vis.add(t, moved);
-                                java.util.List<String> full = getPins();
-                                java.util.ArrayList<String> np = new java.util.ArrayList<>(full);
-                                int vi = 0;
-                                for (int i = 0; i < np.size(); i++) if (vis.contains(np.get(i)) && vi < vis.size()) np.set(i, vis.get(vi++));
-                                setPins(np);
-                            }
-                            buildChats();
+                            final int di = idx[0], t = idx[1];
+                            final boolean commit = e.getActionMasked() == MotionEvent.ACTION_UP && t != di;
+                            final Runnable finish = () -> {
+                                for (View o : pr) { o.animate().cancel(); o.setTranslationY(0f); }
+                                row.setTranslationZ(0f); row.setScaleX(1f); row.setScaleY(1f);
+                                if (commit) {
+                                    // ترتيب المثبّتات الظاهرة الجديد، ثم دمجه في قائمة التثبيت الكاملة (الظاهرة فقط تُعاد ترتيبها)
+                                    java.util.ArrayList<String> vis = new java.util.ArrayList<>();
+                                    for (View o : pr) vis.add(chatIdOfRowUid(o));
+                                    String moved = vis.remove(di);
+                                    vis.add(t, moved);
+                                    java.util.List<String> full = getPins();
+                                    java.util.ArrayList<String> np = new java.util.ArrayList<>(full);
+                                    int vi = 0;
+                                    for (int i2 = 0; i2 < np.size(); i2++) if (vis.contains(np.get(i2)) && vi < vis.size()) np.set(i2, vis.get(vi++));
+                                    setPins(np);
+                                }
+                                buildChats();
+                            };
+                            if (commit) {
+                                // المحادثة المسحوبة تستقرّ في مكانها الجديد والأخرى تبقى منزاحة مكانها، ثم يُعاد البناء بلا قفزة
+                                View tv = pr.get(t);
+                                float fy = t < di ? tv.getTop() - row.getTop() : tv.getTop() + tv.getHeight() - row.getTop() - row.getHeight();
+                                row.animate().translationY(fy).scaleX(1f).scaleY(1f).setDuration(150)
+                                        .setInterpolator(new android.view.animation.DecelerateInterpolator()).withEndAction(finish).start();
+                            } else finish.run();
                             return true;
                         }
                     }
@@ -3248,7 +3262,7 @@ public class MassActivity extends Activity {
                 clearSel();
                 LinearLayout msgArea = (LinearLayout) v("messagesArea");
                 if (msgArea != null) msgArea.removeAllViews();
-                renderedMsgIds.clear(); lastDayKey = ""; msgViewsById.clear(); msgMeta.clear();
+                renderedMsgIds.clear(); lastDayKey = ""; daySeps.clear(); msgViewsById.clear(); msgMeta.clear();
                 pins = new ArrayList<>(); pinIdx = -1; renderPinnedBar();
                 cancelReply();
                 vis("chatSearchPanel", false);
@@ -3297,6 +3311,23 @@ public class MassActivity extends Activity {
                 ms.invalidate();
             }
 
+            /** الرسالة التي يقع الارتفاع y ضمن صفّها (مع هوامشها) في messagesArea؛ null إن كان فوق فاصل/ملصق نظام. */
+            View msgAtY(ViewGroup area, float y) {
+                View best = null; float bd = Float.MAX_VALUE;
+                for (int i = 0; i < area.getChildCount(); i++) {
+                    View c = area.getChildAt(i);
+                    if (c.getVisibility() != View.VISIBLE || !msgViewsById.containsValue(c)) continue;
+                    ViewGroup.LayoutParams lp = c.getLayoutParams();
+                    int mt = lp instanceof ViewGroup.MarginLayoutParams ? ((ViewGroup.MarginLayoutParams) lp).topMargin : 0;
+                    int mb = lp instanceof ViewGroup.MarginLayoutParams ? ((ViewGroup.MarginLayoutParams) lp).bottomMargin : 0;
+                    float top = c.getTop() - mt, bot = c.getBottom() + mb;
+                    if (y < top || y > bot) continue;
+                    float d = Math.abs(y - (c.getTop() + c.getBottom()) / 2f);
+                    if (d < bd) { bd = d; best = c; }
+                }
+                return best;
+            }
+
             void loadMessages(String chatId) {
                 final boolean[] firstSnap = {true};
                 {   // أخفِ الرسائل حتى يكتمل التحميل الأول (لا وميض ولا قفزة من أول المحادثة)
@@ -3306,6 +3337,12 @@ public class MassActivity extends Activity {
                         stickInstalled = true;
                         ((ScrollView) ms0).setDescendantFocusability(android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS);   // لا قفز تلقائي إلى رسالة بعينها
                         ms0.setOnTouchListener((vw, ev) -> { if (ev.getActionMasked() == android.view.MotionEvent.ACTION_DOWN) chatUserTouched = true; return false; });
+                        // النقر/الضغط المطوّل على الجهة الفارغة المقابلة للرسالة = النقر/الضغط المطوّل على الرسالة نفسها
+                        final float[] blankY = new float[1];
+                        area0.setOnTouchListener((vw, ev) -> { if (ev.getActionMasked() == android.view.MotionEvent.ACTION_DOWN) blankY[0] = ev.getY(); return false; });
+                        area0.setOnClickListener(x -> { View m = msgAtY((ViewGroup) area0, blankY[0]); if (m != null) m.performClick(); });
+                        area0.setOnLongClickListener(x -> { View m = msgAtY((ViewGroup) area0, blankY[0]); return m != null && m.performLongClick(); });
+                        area0.setHapticFeedbackEnabled(false);
                         area0.addOnLayoutChangeListener((vv, l, t, r, b, ol, ot, orr, ob) -> {
                             if (System.currentTimeMillis() < chatStick && !chatUserTouched) {
                                 View c0 = ((ScrollView) ms0).getChildAt(0);
@@ -3478,7 +3515,7 @@ public class MassActivity extends Activity {
                 if (needRebuild) {
                     LinearLayout ma = (LinearLayout) v("messagesArea");
                     if (ma != null) ma.removeAllViews();
-                    renderedMsgIds.clear(); lastDayKey = ""; msgViewsById.clear(); msgMeta.clear();
+                    renderedMsgIds.clear(); lastDayKey = ""; daySeps.clear(); msgViewsById.clear(); msgMeta.clear();
                     cacheRenderedIds.clear();
                     return true;
                 }
@@ -3567,7 +3604,7 @@ public class MassActivity extends Activity {
                                     scrollDown();
                                     if (liveBatch) {
                                         LinearLayout ma = (LinearLayout) v("messagesArea");
-                                        if (ma != null && ma.getChildCount() > 0) BabylonFx.msgIn(ma.getChildAt(ma.getChildCount() - 1));
+                                        if (ma != null && ma.getChildCount() > 0) { View nv = ma.getChildAt(ma.getChildCount() - 1); BabylonFx.msgIn(nv); MsgViews.popEmoji(nv); }
                                     }
                                 } catch (Throwable ignored) { }
 
@@ -3618,7 +3655,7 @@ public class MassActivity extends Activity {
                 if (pinsListener != null) { pinsListener.remove(); pinsListener = null; }
                 pins = new ArrayList<>(); pinIdx = -1; renderPinnedBar();
                 currentChatId = ""; otherUid = "";
-                renderedMsgIds.clear(); lastDayKey = ""; msgViewsById.clear(); msgMeta.clear();
+                renderedMsgIds.clear(); lastDayKey = ""; daySeps.clear(); msgViewsById.clear(); msgMeta.clear();
                 if (mediaPlayer != null) { try { mediaPlayer.release(); } catch (Exception e) {} mediaPlayer = null; }
                 try { buildChats(); } catch (Throwable ignored) { }
                 try { buildStories(); } catch (Throwable ignored) { }
@@ -3646,6 +3683,7 @@ public class MassActivity extends Activity {
                 LinearLayout msgArea = (LinearLayout) v("messagesArea");
                 if (msgArea == null) return;
                 TextView sp = MsgViews.sysPill(act, dayLabel(ts));
+                daySeps.put(sp, key);
                 msgArea.addView(sp);
                 style(sp);
             }
@@ -4219,7 +4257,7 @@ public class MassActivity extends Activity {
                 android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
                 g.setColor(0x00000000);
                 g.setCornerRadius(dp(14));
-                g.setStroke(Math.max(1, dp(1.5f)), selAcc());
+                g.setStroke(Math.max(1, dp(2.5f)), selAcc());   // الإطار أثخن بـ 1dp (1.5 ← 2.5)
                 return g;
             }
 
@@ -4227,7 +4265,7 @@ public class MassActivity extends Activity {
             ImageView selBarIcon(int iconRes, String desc, Runnable r) {
                 ImageView iv = noBg(selIcon(iconRes, selAcc(), 0, desc, r));
                 iv.setBackground(themeFrame());
-                iv.setPadding(dp(10.5f), dp(10.5f), dp(10.5f), dp(10.5f));
+                iv.setPadding(dp(12f), dp(12f), dp(12f), dp(12f));   // الرمز أصغر بـ 3dp (19 ← 16) داخل المربع 40dp
                 return iv;
             }
 
@@ -4267,7 +4305,17 @@ public class MassActivity extends Activity {
                 selBarH = h;
                 FrameLayout wrap = new FrameLayout(act);
                 wrap.setClickable(true);                       // لا يمرّر اللمس لما خلفه
-                wrap.setBackgroundColor(Tk.chatSurface(dark));
+                // الخلفية: لون صلب ثم تلاشٍ خفيف (10dp) في أسفل الشريط بدل الخط الذهبي، بنفس الارتفاع
+                final int surf = Tk.chatSurface(dark);
+                final int fadeH = Math.min(dp(10), h / 2);
+                View solid = new View(act);
+                solid.setBackgroundColor(surf);
+                wrap.addView(solid, new FrameLayout.LayoutParams(-1, h - fadeH, Gravity.TOP));
+                View fadeV = new View(act);
+                fadeV.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{surf, surf & 0x00FFFFFF}));
+                FrameLayout.LayoutParams fvp = new FrameLayout.LayoutParams(-1, fadeH, Gravity.TOP);
+                fvp.topMargin = h - fadeH;
+                wrap.addView(fadeV, fvp);
 
                 LinearLayout row = new LinearLayout(act);
                 row.setOrientation(LinearLayout.HORIZONTAL);
@@ -4277,8 +4325,8 @@ public class MassActivity extends Activity {
                 wrap.addView(row, new FrameLayout.LayoutParams(-1, -1));
 
                 // ---- مطابق لشريط تحديد المحادثات: ✕ عند البداية، العدد في منتصف الشريط، وعند النهاية تثبيت | إعادة توجيه | حذف
-                row.addView(selBarIcon(R.drawable.ic_mm_x, "إلغاء التحديد", this::clearSel),
-                        new LinearLayout.LayoutParams(dp(40), dp(40)));
+                final ImageView selXIv = selBarIcon(R.drawable.ic_mm_x, "إلغاء التحديد", this::clearSel);
+                row.addView(selXIv, new LinearLayout.LayoutParams(dp(40), dp(40)));
                 row.addView(new View(act), new LinearLayout.LayoutParams(0, 1, 1f));   // فاصل يدفع أزرار النهاية
 
                 selPinIv = selBarIcon(R.drawable.ic_sel_pin, "تثبيت الرسالة",
@@ -4305,10 +4353,26 @@ public class MassActivity extends Activity {
                 cntLp.topMargin = sbTop;   // مركز المساحة تحت شريط الحالة كما يحاذي الصف
                 wrap.addView(selCountTv, cntLp);
 
-                // ---- خط رفيع بلون الثيم أسفل الشريط
-                View line = new View(act);
-                line.setBackgroundColor(selAccA(0x59));
-                wrap.addView(line, new FrameLayout.LayoutParams(-1, Math.max(1, dp(1)), Gravity.BOTTOM));
+                // العدد يتوسّط المساحة الفارغة بين ✕ والأزرار الظاهرة: يزاح عند إخفاء/إظهار التثبيت بانزلاق ناعم
+                final boolean[] placed = {false};
+                row.addOnLayoutChangeListener((vw, l, t, r, b, ol, ot, or2, ob) -> {
+                    int spanL, spanR;
+                    int minL = Integer.MAX_VALUE, maxR = Integer.MIN_VALUE;
+                    for (int i = 0; i < row.getChildCount(); i++) {
+                        View c = row.getChildAt(i);
+                        if (c == selXIv || c.getVisibility() == View.GONE || !(c instanceof ImageView)) continue;
+                        minL = Math.min(minL, c.getLeft()); maxR = Math.max(maxR, c.getRight());
+                    }
+                    if (minL == Integer.MAX_VALUE || selXIv.getWidth() == 0) return;
+                    if (selXIv.getRight() <= minL) { spanL = selXIv.getRight(); spanR = minL; }   // ✕ على اليسار
+                    else { spanL = maxR; spanR = selXIv.getLeft(); }                              // ✕ على اليمين
+                    float target = (spanL + spanR) / 2f - row.getWidth() / 2f;
+                    selCountTv.animate().cancel();
+                    if (!placed[0]) { selCountTv.setTranslationX(target); placed[0] = true; }
+                    else selCountTv.animate().translationX(target).setDuration(180)
+                            .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f)).start();
+                });
+
 
                 ((FrameLayout) host).addView(wrap, new FrameLayout.LayoutParams(-1, h, Gravity.TOP));
                 selBar = wrap;
@@ -4530,6 +4594,7 @@ public class MassActivity extends Activity {
                     View seg = new View(act);
                     GradientDrawable sg = new GradientDrawable();
                     sg.setCornerRadius(dp(14));
+                    sg.setColor(i == idx ? selAcc() : selAccA(0x55));   // مؤشر الرسالة المثبتة بلون الثيم
                     seg.setBackground(sg);
                     LinearLayout.LayoutParams sl = new LinearLayout.LayoutParams(-1, 0, 1f);
                     if (i > 0) sl.topMargin = dp(2);
@@ -4541,7 +4606,7 @@ public class MassActivity extends Activity {
                 col.setOrientation(LinearLayout.VERTICAL);
                 TextView hd = new TextView(act);
                 hd.setText("رسالة مثبتة" + (n > 1 ? " #" + (idx + 1) : ""));
-                hd.setTextSize(13); hd.setTextColor(cGold()); hd.setTypeface(null, android.graphics.Typeface.BOLD);
+                hd.setTextSize(13); hd.setTextColor(selAcc()); hd.setTypeface(null, android.graphics.Typeface.BOLD);
                 col.addView(hd);
                 TextView tx = new TextView(act);
                 tx.setText(String.valueOf(p.get("text") == null ? "" : p.get("text")));
@@ -4559,7 +4624,7 @@ public class MassActivity extends Activity {
                 });
 
                 ImageView xb = new ImageView(act);
-                xb.setImageResource(R.drawable.ic_mm_unpin); xb.setColorFilter(Tk.crMuted(cMuted()));
+                xb.setImageResource(R.drawable.ic_mm_unpin); xb.setColorFilter(selAcc());
                 xb.setPadding(dp(8), dp(8), dp(8), dp(8));
                 xb.setContentDescription("إلغاء التثبيت");
                 xb.setOnClickListener(x -> confirm("إلغاء التثبيت", "هل تريد إلغاء تثبيت هذه الرسالة؟", () -> {
@@ -4623,7 +4688,28 @@ public class MassActivity extends Activity {
                 if (mv == null) mv = b;
                 if (id != null) { myReact.remove(id); selIds.remove(id); msgMeta.remove(id); }
                 if (mv != null && mv.getParent() instanceof ViewGroup) ((ViewGroup) mv.getParent()).removeView(mv);
+                pruneDaySeps();
                 if (selecting) refreshSel();
+            }
+
+            /** يحذف فاصل اليوم (اليوم/أمس/التاريخ) إن لم تبقَ تحته أي رسالة، ويحدّث مفتاح آخر يوم كي يعود الفاصل عند وصول رسالة جديدة. */
+            void pruneDaySeps() {
+                LinearLayout area = (LinearLayout) v("messagesArea");
+                if (area == null) return;
+                for (int i = 0; i < area.getChildCount(); i++) {
+                    View c = area.getChildAt(i);
+                    if (!daySeps.containsKey(c)) continue;
+                    boolean has = false;
+                    for (int j = i + 1; j < area.getChildCount(); j++) {
+                        View n = area.getChildAt(j);
+                        if (daySeps.containsKey(n)) break;
+                        has = true; break;
+                    }
+                    if (!has) { area.removeViewAt(i); daySeps.remove(c); i--; }
+                }
+                String last = "";
+                for (int i = 0; i < area.getChildCount(); i++) { String k = daySeps.get(area.getChildAt(i)); if (k != null) last = k; }
+                lastDayKey = last;
             }
 
             // ---- التفاعلات: reactions.<uid> = إيموجي (نفس صيغة الـ HTML). نفس الإيموجي مرة ثانية يزيل تفاعلك فقط.
@@ -4642,6 +4728,8 @@ public class MassActivity extends Activity {
             void applyReactions(String id, View bubble, Object raw) {
                 if (bubble == null) return;
                 java.util.LinkedHashMap<String, int[]> map = new java.util.LinkedHashMap<>();   // emoji -> {count, mine}
+                final java.util.HashMap<String, java.util.ArrayList<String>> who = new java.util.HashMap<>();   // emoji -> المتفاعلون
+                reactRaw.put(id, raw);
                 String mineE = null;
                 if (raw instanceof java.util.Map) {
                     for (java.util.Map.Entry<String, Object> en : ((java.util.Map<String, Object>) raw).entrySet()) {
@@ -4650,7 +4738,8 @@ public class MassActivity extends Activity {
                         if (e.length() == 0) continue;
                         int[] o = map.get(e); if (o == null) { o = new int[]{0, 0}; map.put(e, o); }
                         o[0]++;
-                        if (en.getKey().equals(myUid)) { o[1] = 1; mineE = e; }
+                        java.util.ArrayList<String> wl = who.get(e); if (wl == null) { wl = new java.util.ArrayList<>(); who.put(e, wl); }
+                        if (en.getKey().equals(myUid)) { o[1] = 1; mineE = e; wl.add(0, en.getKey()); } else wl.add(en.getKey());
                     }
                 }
                 if (mineE != null) myReact.put(id, mineE); else myReact.remove(id);
@@ -4666,10 +4755,16 @@ public class MassActivity extends Activity {
                 int shown = 0;
                 for (java.util.Map.Entry<String, int[]> en : map.entrySet()) {
                     if (shown == 3) break;
-                    rowL.addView(reactChip(en.getKey(), en.getValue()[0], en.getValue()[1] == 1));
+                    final String chipEmoji = en.getKey();
+                    View chip = reactChip(chipEmoji, en.getValue()[0], en.getValue()[1] == 1, who.get(chipEmoji), bubble instanceof FrameLayout);
+                    // النقر على تفاعل موجود = تفاعلك بنفس الإيموجي (تظهر صورتك بجانبه)، وإعادة النقر تزيله
+                    chip.setOnClickListener(x -> { if (selecting) toggleSel(bubble); else reactTo(bubble, chipEmoji); });
+                    chip.setOnLongClickListener(x -> bubble.performLongClick());
+                    BabylonFx.press(chip, 0.94f);
+                    rowL.addView(chip);
                     shown++;
                 }
-                if (map.size() > shown) rowL.addView(reactChip("+" + (map.size() - shown), 1, false));
+                if (map.size() > shown) rowL.addView(reactChip("+" + (map.size() - shown), 1, false, null, bubble instanceof FrameLayout));
 
                 if (bubble instanceof FrameLayout) {            // صورة: شارة داخل الزاوية السفلية
                     FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-2, -2);
@@ -4678,34 +4773,88 @@ public class MassActivity extends Activity {
                     ((FrameLayout) bubble).addView(rowL, lp);
                 } else if (bubble instanceof LinearLayout) {   // نص/صوت: صف أسفل الفقاعة
                     LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
-                    lp.gravity = Gravity.START;
+                    lp.gravity = "bubEmoji".equals(bubble.getTag()) ? Gravity.CENTER_HORIZONTAL : Gravity.START;   // إيموجي منفرد: التفاعل في المنتصف
                     lp.topMargin = dp(4);
                     ((LinearLayout) bubble).addView(rowL, lp);
                 }
             }
 
-            View reactChip(String emoji, int count, boolean mine) {
+            final java.util.HashMap<String, Object> reactRaw = new java.util.HashMap<>();   // msgId -> خريطة التفاعلات الخام (لإعادة الرسم عند وصول الصور)
+
+            /** يعيد رسم شارات كل الرسائل (بعد وصول صور المتفاعلين). */
+            void refreshAllReactions() {
+                for (java.util.Map.Entry<String, View> en : new java.util.ArrayList<>(msgViewsById.entrySet())) {
+                    Object r = reactRaw.get(en.getKey());
+                    if (r != null) { try { applyReactions(en.getKey(), en.getValue(), r); } catch (Throwable ignored) { } }
+                }
+            }
+
+            /** دائرة صورة المتفاعل (أو حرف على ذهبي متدرج إن لم توجد صورة). */
+            class ReactAv extends View {
+                final Bitmap bmp; final String letter;
+                final android.graphics.Paint pt = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+                final android.graphics.Matrix mx = new android.graphics.Matrix();
+                ReactAv(Bitmap b, String l) { super(act); bmp = b; letter = l; }
+                @Override protected void onDraw(android.graphics.Canvas c) {
+                    float w = getWidth(), h = getHeight(), r = Math.min(w, h) / 2f;
+                    pt.reset(); pt.setAntiAlias(true);
+                    if (bmp != null && !bmp.isRecycled()) {
+                        android.graphics.BitmapShader bs = new android.graphics.BitmapShader(bmp, android.graphics.Shader.TileMode.CLAMP, android.graphics.Shader.TileMode.CLAMP);
+                        float sc = Math.max(2f * r / bmp.getWidth(), 2f * r / bmp.getHeight());
+                        mx.reset(); mx.setScale(sc, sc);
+                        mx.postTranslate(w / 2f - bmp.getWidth() * sc / 2f, h / 2f - bmp.getHeight() * sc / 2f);
+                        bs.setLocalMatrix(mx);
+                        pt.setShader(bs);
+                        c.drawCircle(w / 2f, h / 2f, r, pt);
+                    } else {
+                        pt.setShader(new android.graphics.LinearGradient(0, 0, w, h, 0xFFE8C25A, 0xFFB88A1C, android.graphics.Shader.TileMode.CLAMP));
+                        c.drawCircle(w / 2f, h / 2f, r, pt);
+                        pt.setShader(null); pt.setColor(0xFFFFFFFF); pt.setTextAlign(android.graphics.Paint.Align.CENTER);
+                        pt.setTextSize(r * 1.0f); pt.setFakeBoldText(true);
+                        android.graphics.Paint.FontMetrics fm = pt.getFontMetrics();
+                        c.drawText(letter, w / 2f, h / 2f - (fm.ascent + fm.descent) / 2f, pt);
+                    }
+                }
+            }
+
+            /** شارة تفاعل بشكل كبسولة: إيموجي + صور المتفاعلين متداخلة (أو العدد إن زادوا عن 3).
+             *  تفاعلي أنا = كبسولة بلون الثيم الممتلئ، وتفاعل غيري = كبسولة بلون الثيم الخفيف. */
+            View reactChip(String emoji, int count, boolean mine, java.util.List<String> uids, boolean media) {
+                final int acc = selAcc();
                 LinearLayout c = new LinearLayout(act);
                 c.setOrientation(LinearLayout.HORIZONTAL);
+                c.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
                 c.setGravity(Gravity.CENTER_VERTICAL);
-                c.setPadding(dp(8), dp(2), dp(8), dp(2));
+                c.setPadding(dp(7), dp(3), dp(4), dp(3));
                 GradientDrawable g = new GradientDrawable();
-                g.setColor(dark ? 0xFF202D3A : 0xFFFFFFFF);
-                g.setCornerRadius(dp(13));
-                g.setStroke(dp(1), mine ? cGold() : (dark ? 0xFF334155 : 0xFFE1E7EF));
+                g.setCornerRadius(dp(20));
+                g.setColor(mine ? ((acc & 0x00FFFFFF) | 0xB3000000) : (media ? 0x66000000 : ((acc & 0x00FFFFFF) | 0x33000000)));
                 c.setBackground(g);
                 TextView t = new TextView(act);
-                t.setText(emoji); t.setTextSize(emoji.startsWith("+") ? 12 : 16); t.setIncludeFontPadding(false);
-                t.setTextColor(dark ? 0xFFF1F5F9 : 0xFF17212B);
-                c.addView(t);
-                if (count > 1) {
+                t.setText(emoji); t.setTextSize(emoji.startsWith("+") ? 13 : 19); t.setIncludeFontPadding(false);
+                t.setTextColor(mine || media ? 0xFFFFFFFF : acc);
+                LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(-2, -2);
+                tl.setMarginEnd(dp(5)); tl.setMarginStart(dp(2));
+                c.addView(t, tl);
+                if (uids != null && !uids.isEmpty() && uids.size() <= 3) {
+                    for (int i = 0; i < uids.size(); i++) {
+                        String u = uids.get(i);
+                        Bitmap bm = u.equals(myUid) ? photoBmp : (u.equals(otherUid) && otherPhotoBmp != null ? otherPhotoBmp : peerPhotos.get(u));
+                        if (bm == null && !u.equals(myUid)) ensurePeerPhoto(u);
+                        String nm = u.equals(myUid) ? userName : (u.equals(otherUid) ? otherName : "");
+                        String lt = nm != null && nm.length() > 0 ? nm.substring(0, 1).toUpperCase() : "?";
+                        LinearLayout.LayoutParams al = new LinearLayout.LayoutParams(dp(24), dp(24));
+                        if (i > 0) al.setMarginStart(dp(-5));
+                        c.addView(new ReactAv(bm, lt), al);
+                    }
+                } else if (count > 1) {
                     TextView n = new TextView(act);
-                    n.setText(String.valueOf(count)); n.setTextSize(11); n.setTypeface(null, android.graphics.Typeface.BOLD);
-                    n.setTextColor(dark ? 0xFFF1F5F9 : 0xFF17212B); n.setIncludeFontPadding(false);
+                    n.setText(String.valueOf(count)); n.setTextSize(13); n.setTypeface(null, android.graphics.Typeface.BOLD);
+                    n.setTextColor(mine || media ? 0xFFFFFFFF : acc); n.setIncludeFontPadding(false);
                     LinearLayout.LayoutParams nl = new LinearLayout.LayoutParams(-2, -2);
-                    nl.setMarginStart(dp(3));
+                    nl.setMarginEnd(dp(4));
                     c.addView(n, nl);
-                }
+                } else c.setPadding(dp(8), dp(3), dp(8), dp(3));
                 LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(-2, -2);
                 cl.setMarginEnd(dp(4));
                 c.setLayoutParams(cl);
@@ -5578,6 +5727,7 @@ public class MassActivity extends Activity {
                 try { buildThemeStrip(); } catch (Throwable ignored) { }
                 style(v("chatView"));
                 try { syncBars(); } catch (Throwable ignored) { }
+                try { renderPinnedBar(); } catch (Throwable ignored) { }   // شريط التثبيت يتبع الثيم فوراً
             }
 
             void saveChatPrefs() {

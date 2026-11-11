@@ -28,7 +28,7 @@ import android.view.animation.LinearInterpolator;
  */
 public class StoryAvatarView extends View implements StoryViewer.Spin {
 
-    public static final int GOLD_A = 0xFFF2D268, GOLD_B = 0xFFB8861B;
+    public static final int GOLD_A = 0xFFF6DC84, GOLD_B = 0xFFD0A23A;   // تدرّج حلقة القصة أفتح قليلاً (كان F2D268 → B8861B)
     public static final int BLUE_A = 0xFF59CDF8, BLUE_B = 0xFF1F63D8;
 
     private String letter = "?";
@@ -213,7 +213,14 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
         float R = d / 2f, cx = w / 2f, cy = h / 2f;
         float thumbB = morphK * dp(2);                 // سماكة حدّ المصغّرة بوحدات غير مصغّرة
         // قصة مشاهَدة: الحلقة (2dp) تبقى مكانها، والصورة تكبر 1dp فيصبح الفراغ بينهما 2dp بدل 3dp
-        float grow = (ring && seen && !launching && !ringSmall && flySc <= 0f) ? dp(1) * (1f - morph) : 0f;
+        // الفراغ بين الحلقة والصورة: 1dp للقصة غير المشاهَدة فقط؛ الحلقة المصغّرة ملاصقة كما هي
+        float grow = 0f;
+        if (ring && !seen && (!ringSmall || flySc > 0f)) {          // غير المشاهَدة فقط: فراغ 1dp
+            float gap = flySc > 0f ? dp(1) / flySc : dp(1);
+            grow = Math.max(0f, ringOffPx() - ringThickPx() - gap) * (1f - morph);
+        } else if (ring && seen && !ringSmall) {                      // المشاهَدة: الصورة +1dp (الفراغ 2dp) كما كان، حتى أثناء الفتح
+            grow = (flySc > 0f ? dp(1) / flySc : dp(1)) * (1f - morph);
+        }
         float Rc = R + grow - morph * thumbB;           // نصف قطر المحتوى (الصورة/الحرف)
         int toneShadow = blue ? 0x471F63D8 : 0x47B8861B;   // rgba(.., .28)
 
@@ -290,7 +297,7 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
                 } else {
                     // ذهبي بثلاث درجات بتدرّج خطي من الشمال الغربي (أعلى اليسار) إلى الجنوب الشرقي (أسفل اليمين)
                     LinearGradient lg3 = new LinearGradient(cx - outerR, cy - outerR, cx + outerR, cy + outerR,
-                            new int[]{GOLD_A, 0xFFD9A62B, GOLD_B}, new float[]{0f, .5f, 1f}, Shader.TileMode.CLAMP);
+                            new int[]{GOLD_A, 0xFFE6BC4C, GOLD_B}, new float[]{0f, .5f, 1f}, Shader.TileMode.CLAMP);
                     p.setShader(lg3);
                 }
                 if (ring) {

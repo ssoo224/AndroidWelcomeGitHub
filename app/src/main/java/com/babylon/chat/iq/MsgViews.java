@@ -137,7 +137,13 @@ public final class MsgViews {
             int nl = raw.indexOf('\n');
             if (nl > 0) { quote = raw.substring(2, nl); body = raw.substring(nl + 1); }
         }
-        if (quote != null) b.addView(replyQuote(a, quote, mine));
+        if (isSingleEmoji(body)) { bindEmoji(a, b, body.trim(), quote, mine, time, state); return; }
+        // رسالة عادية: يُستعاد شكل الفقاعة (قد تكون كانت إيموجي قبل التعديل)
+        b.setTag(mine ? "bubMine" : "bubOther");
+        b.setPadding(dp(a, 10), dp(a, 6), dp(a, 10), dp(a, 5));
+        b.setMinimumWidth(dp(a, 64));
+        b.setGravity(Gravity.START | Gravity.TOP);
+        if (quote != null) b.addView(replyQuote(a, quote, mine, null));
         TextView t = new TextView(a);
         t.setText(body);
         t.setTextSize(fontSp);
@@ -147,6 +153,225 @@ public final class MsgViews {
         t.setLineSpacing(0, 1.12f);
         b.addView(t);
         b.addView(metaRow(a, mine, time, state));
+    }
+
+
+    // ------------------------------------------------------------------ رسالة إيموجي واحد (babylonSingleEmoji / babylonApplyBigEmoji في الـ HTML)
+    private static boolean isPict(int c) {
+        return c == 0xA9 || c == 0xAE || c == 0x203C || c == 0x2049 || c == 0x2122 || c == 0x2139
+                || (c >= 0x2194 && c <= 0x21AA) || (c >= 0x231A && c <= 0x23FF) || c == 0x24C2
+                || (c >= 0x25AA && c <= 0x25FE) || (c >= 0x2600 && c <= 0x27BF) || c == 0x2934 || c == 0x2935
+                || (c >= 0x2B05 && c <= 0x2B55) || c == 0x3030 || c == 0x303D || c == 0x3297 || c == 0x3299
+                || (c >= 0x1F000 && c <= 0x1FAFF && !(c >= 0x1F3FB && c <= 0x1F3FF) && !(c >= 0x1F1E6 && c <= 0x1F1FF));
+    }
+    private static boolean isMod(int c) { return c == 0xFE0F || (c >= 0x1F3FB && c <= 0x1F3FF) || (c >= 0xE0020 && c <= 0xE007F); }
+
+    /** هل النص إيموجي واحد فقط (علم، keycap، أو رمز مصوَّر مع معدِّلات/ZWJ)؟ */
+    public static boolean isSingleEmoji(String raw) {
+        if (raw == null) return false;
+        String t = raw.trim();
+        if (t.isEmpty() || t.length() > 40) return false;
+        int[] cp = cps(t);
+        int n = cp.length;
+        if (n == 2 && cp[0] >= 0x1F1E6 && cp[0] <= 0x1F1FF && cp[1] >= 0x1F1E6 && cp[1] <= 0x1F1FF) return true;   // علم
+        if ((cp[0] == '#' || cp[0] == '*' || (cp[0] >= '0' && cp[0] <= '9'))) {                                      // keycap
+            return (n == 2 && cp[1] == 0x20E3) || (n == 3 && cp[1] == 0xFE0F && cp[2] == 0x20E3);
+        }
+        if (!isPict(cp[0])) return false;
+        if (cp[0] < 0x231A && t.indexOf('️') < 0) return false;   // © ® ™ بدون FE0F ليست إيموجي
+        int i = 1;
+        while (true) {
+            while (i < n && isMod(cp[i])) i++;
+            if (i == n) return true;
+            if (cp[i] == 0x200D && i + 1 < n && isPict(cp[i + 1])) { i += 2; continue; }
+            return false;
+        }
+    }
+
+    private static int[] cps(String t) {   // بدون String.codePoints() (API 24+)
+        int[] out = new int[t.codePointCount(0, t.length())];
+        for (int i = 0, k = 0; i < t.length(); k++) { int c = t.codePointAt(i); out[k] = c; i += Character.charCount(c); }
+        return out;
+    }
+
+    private static int clampDp(float v, float lo, float hi) { return (int) Math.max(lo, Math.min(hi, v)); }
+
+    private static final java.util.HashMap<String, byte[]> EMOJI_BYTES = new java.util.HashMap<>();
+    private static final java.util.HashSet<String> EMOJI_FAILED = new java.util.HashSet<>();
+
+    /** الإيموجي المتحرك (Noto) من gstatic كما في الـ HTML؛ إن لم يوجد يبقى الإيموجي الأصلي بحركة خفيفة. */
+    private static void loadAnimatedEmoji(final Activity a, final String emoji, final ImageView iv, final TextView fb, final int sizePx) {
+        if (android.os.Build.VERSION.SDK_INT < 28) return;
+        final StringBuilder sb = new StringBuilder();
+        final java.util.ArrayList<String> tries = new java.util.ArrayList<>();
+        StringBuilder noVs = new StringBuilder();
+        for (int c : cps(emoji)) {
+            if (sb.length() > 0) sb.append('_');
+            sb.append(Integer.toHexString(c));
+            if (c != 0xFE0F) { if (noVs.length() > 0) noVs.append('_'); noVs.append(Integer.toHexString(c)); }
+        }
+        tries.add(sb.toString());
+        if (noVs.length() > 0 && !noVs.toString().equals(sb.toString())) tries.add(noVs.toString());
+        final String key = tries.get(0);
+        new Thread(() -> {
+            byte[] data;
+            synchronized (EMOJI_BYTES) { data = EMOJI_BYTES.get(key); if (data == null && EMOJI_FAILED.contains(key)) return; }
+            if (data == null) {
+                for (String code : tries) {
+                    try {
+                        java.net.HttpURLConnection cn = (java.net.HttpURLConnection) new java.net.URL("https://fonts.gstatic.com/s/e/notoemoji/latest/" + code + "/512.webp").openConnection();
+                        cn.setConnectTimeout(6000); cn.setReadTimeout(8000);
+                        if (cn.getResponseCode() != 200) continue;
+                        java.io.InputStream is = cn.getInputStream();
+                        java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+                        byte[] buf = new byte[8192]; int r;
+                        while ((r = is.read(buf)) > 0) bo.write(buf, 0, r);
+                        is.close();
+                        data = bo.toByteArray();
+                        break;
+                    } catch (Throwable ignored) { }
+                }
+                synchronized (EMOJI_BYTES) {
+                    if (data == null) { EMOJI_FAILED.add(key); return; }
+                    if (EMOJI_BYTES.size() > 60) EMOJI_BYTES.clear();
+                    EMOJI_BYTES.put(key, data);
+                }
+            }
+            try {
+                final Drawable d = android.graphics.ImageDecoder.decodeDrawable(
+                        android.graphics.ImageDecoder.createSource(java.nio.ByteBuffer.wrap(data)),
+                        (dec, info, src) -> dec.setTargetSize(sizePx, sizePx));
+                a.runOnUiThread(() -> {
+                    iv.setImageDrawable(d);
+                    iv.setVisibility(View.VISIBLE);
+                    fb.setVisibility(View.GONE);
+                    if (d instanceof android.graphics.drawable.AnimatedImageDrawable) {
+                        android.graphics.drawable.AnimatedImageDrawable ad = (android.graphics.drawable.AnimatedImageDrawable) d;
+                        ad.setRepeatCount(android.graphics.drawable.AnimatedImageDrawable.REPEAT_INFINITE);
+                        ad.start();
+                    }
+                });
+            } catch (Throwable ignored) { }
+        }).start();
+    }
+
+    /** يبني فقاعة إيموجي: بلا خلفية، إيموجي كبير (96–150dp)، كبسولة الوقت تحته، والرد بجانبه في الجهة المقابلة. */
+    private static void bindEmoji(Activity a, LinearLayout b, String emoji, String quote, boolean mine, String time, int state) {
+        b.setTag("bubEmoji");
+        b.setBackground(null);
+        b.setPadding(dp(a, 4), dp(a, 2), dp(a, 4), dp(a, 2));
+        b.setMinimumWidth(0);
+        b.setGravity(Gravity.CENTER_HORIZONTAL);
+        float wdp = a.getResources().getDisplayMetrics().widthPixels / d(a);
+        final int S = clampDp(wdp * 0.34f, 96, 150);
+        final int natDp = clampDp(wdp * 0.26f, 72, 112);
+
+        FrameLayout box = new FrameLayout(a);
+        box.setTag("emojiBox");
+        final TextView fb = new TextView(a);
+        fb.setText(emoji);
+        fb.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, natDp);
+        fb.setIncludeFontPadding(false);
+        fb.setGravity(Gravity.CENTER);
+        box.addView(fb, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
+        final ImageView iv = new ImageView(a);
+        iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        iv.setVisibility(View.GONE);
+        box.addView(iv, new FrameLayout.LayoutParams(-1, -1));
+        // حركة خفيفة للإيموجي الأصلي (babylonEmojiIdle): تطفو للأعلى قليلاً وتميل
+        final float up = d(a) * 6f;
+        final android.animation.ObjectAnimator idle = android.animation.ObjectAnimator.ofPropertyValuesHolder(fb,
+                android.animation.PropertyValuesHolder.ofKeyframe(View.TRANSLATION_Y,
+                        android.animation.Keyframe.ofFloat(0f, 0f), android.animation.Keyframe.ofFloat(.25f, -up),
+                        android.animation.Keyframe.ofFloat(.5f, 0f), android.animation.Keyframe.ofFloat(.75f, -up / 2f), android.animation.Keyframe.ofFloat(1f, 0f)),
+                android.animation.PropertyValuesHolder.ofKeyframe(View.ROTATION,
+                        android.animation.Keyframe.ofFloat(0f, 0f), android.animation.Keyframe.ofFloat(.25f, -4f),
+                        android.animation.Keyframe.ofFloat(.5f, 0f), android.animation.Keyframe.ofFloat(.75f, 4f), android.animation.Keyframe.ofFloat(1f, 0f)),
+                android.animation.PropertyValuesHolder.ofKeyframe(View.SCALE_X,
+                        android.animation.Keyframe.ofFloat(0f, 1f), android.animation.Keyframe.ofFloat(.25f, 1.05f),
+                        android.animation.Keyframe.ofFloat(.5f, 1f), android.animation.Keyframe.ofFloat(.75f, 1.03f), android.animation.Keyframe.ofFloat(1f, 1f)),
+                android.animation.PropertyValuesHolder.ofKeyframe(View.SCALE_Y,
+                        android.animation.Keyframe.ofFloat(0f, 1f), android.animation.Keyframe.ofFloat(.25f, 1.05f),
+                        android.animation.Keyframe.ofFloat(.5f, 1f), android.animation.Keyframe.ofFloat(.75f, 1.03f), android.animation.Keyframe.ofFloat(1f, 1f)));
+        idle.setDuration(2400);
+        idle.setRepeatCount(android.animation.ValueAnimator.INFINITE);
+        fb.post(() -> { fb.setPivotX(fb.getWidth() / 2f); fb.setPivotY(fb.getHeight() * 0.8f); });
+        fb.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+            @Override public void onViewAttachedToWindow(View v) { if (fb.getVisibility() == View.VISIBLE && !idle.isStarted()) idle.start(); }
+            @Override public void onViewDetachedFromWindow(View v) { idle.cancel(); }
+        });
+        loadAnimatedEmoji(a, emoji, iv, fb, (int) (S * d(a)));
+        iv.addOnLayoutChangeListener((v, l, t, r, bt, ol, ot, orr, ob) -> { if (iv.getVisibility() == View.VISIBLE) idle.cancel(); });
+
+        View content = box;
+        LinearLayout.LayoutParams boxLp = new LinearLayout.LayoutParams(dp(a, S), dp(a, S));
+        if (quote != null) {
+            LinearLayout row = new LinearLayout(a);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            View q = replyQuote(a, quote, mine, b);
+            q.setTag(null);
+            q.setBackground(rounded(0x598794A8, dp(a, 14)));
+            q.setAlpha(0.8f);
+            recolorQuote(q);
+            LinearLayout.LayoutParams ql = new LinearLayout.LayoutParams(dp(a, 140), -2);
+            ql.setMargins(dp(a, 8), 0, dp(a, 8), 0);
+            if (mine) { row.addView(q, ql); row.addView(box, boxLp); }   // رسائلي: الإيموجي نحو الخارج (يمين) والاقتباس للداخل
+            else { row.addView(box, boxLp); row.addView(q, ql); }
+            content = row;
+            b.addView(content, new LinearLayout.LayoutParams(-2, -2));
+        } else b.addView(content, boxLp);
+
+        LinearLayout meta = metaRow(a, mine, time, state);
+        meta.setBackground(rounded(0x52000000, dp(a, 10)));
+        meta.setPadding(dp(a, 8), dp(a, 1), dp(a, 8), dp(a, 1));
+        for (int i = 0; i < meta.getChildCount(); i++) {
+            View c = meta.getChildAt(i);
+            if (c instanceof TextView) { c.setTag("mmEmoji"); ((TextView) c).setTextColor(0xFFFFFFFF); ((TextView) c).setTextSize(10.5f); }
+        }
+        LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(-2, -2);
+        ml.gravity = Gravity.CENTER_HORIZONTAL; ml.topMargin = -dp(a, 2);
+        meta.setLayoutParams(ml);
+        b.addView(meta);
+    }
+
+    private static android.graphics.drawable.GradientDrawable rounded(int color, int r) {
+        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+        g.setColor(color); g.setCornerRadius(r);
+        return g;
+    }
+
+    /** ألوان اقتباس الرد فوق خلفية الشات: نص أبيض بظل، اسم/خط ذهبي (لا يتبع وسوم الفقاعة). */
+    private static void recolorQuote(View q) {
+        if (q instanceof TextView) {
+            TextView t = (TextView) q;
+            t.setTag(null); t.setTextColor(0xFFFFFFFF); t.setShadowLayer(3f, 0f, 1f, 0x8C000000);
+        } else if (q instanceof android.view.ViewGroup) {
+            android.view.ViewGroup g = (android.view.ViewGroup) q;
+            for (int i = 0; i < g.getChildCount(); i++) {
+                View c = g.getChildAt(i);
+                Object tg = c.getTag();
+                if (tg != null && String.valueOf(tg).startsWith("rqn") && c instanceof TextView) { c.setTag(null); ((TextView) c).setTextColor(0xFFF0D37A); ((TextView) c).setShadowLayer(3f, 0f, 1f, 0x8C000000); }
+                else if (tg != null && String.valueOf(tg).startsWith("rqb")) { c.setTag(null); c.setBackgroundColor(0xFFF0D37A); }
+                else recolorQuote(c);
+            }
+        }
+    }
+
+    /** ظهور رسالة إيموجي جديدة: تكبر مع دوران وارتداد (babylonEmojiPop). */
+    public static void popEmoji(View bubble) {
+        if (bubble == null) return;
+        View box = bubble.findViewWithTag("emojiBox");
+        if (box == null) return;
+        box.setPivotX(box.getWidth() / 2f); box.setPivotY(box.getHeight() / 2f);
+        android.animation.ObjectAnimator an = android.animation.ObjectAnimator.ofPropertyValuesHolder(box,
+                android.animation.PropertyValuesHolder.ofKeyframe(View.SCALE_X, android.animation.Keyframe.ofFloat(0f, .15f), android.animation.Keyframe.ofFloat(.6f, 1.18f), android.animation.Keyframe.ofFloat(1f, 1f)),
+                android.animation.PropertyValuesHolder.ofKeyframe(View.SCALE_Y, android.animation.Keyframe.ofFloat(0f, .15f), android.animation.Keyframe.ofFloat(.6f, 1.18f), android.animation.Keyframe.ofFloat(1f, 1f)),
+                android.animation.PropertyValuesHolder.ofKeyframe(View.ROTATION, android.animation.Keyframe.ofFloat(0f, -18f), android.animation.Keyframe.ofFloat(.6f, 6f), android.animation.Keyframe.ofFloat(1f, 0f)),
+                android.animation.PropertyValuesHolder.ofKeyframe(View.ALPHA, android.animation.Keyframe.ofFloat(0f, 0f), android.animation.Keyframe.ofFloat(.6f, 1f), android.animation.Keyframe.ofFloat(1f, 1f)));
+        an.setDuration(600);
+        an.start();
     }
 
     public static LinearLayout metaRow(Activity a, boolean mine, String time, int state) {
@@ -180,7 +405,7 @@ public final class MsgViews {
     }
 
     /** اقتباس الرد داخل الرسالة مطابق لـ .reply-quote: خلفية خفيفة، حواف 10، حشوة 5×9، خط ذهبي 3dp على اليمين، سطر واحد، محاذاة يمين. */
-    private static View replyQuote(Activity a, String quote, boolean mine) {
+    private static View replyQuote(Activity a, String quote, boolean mine, final View owner) {
         LinearLayout box = new LinearLayout(a);
         box.setOrientation(LinearLayout.HORIZONTAL);
         box.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
@@ -241,16 +466,17 @@ public final class MsgViews {
             final String rid = qId;
             box.setClickable(true);
             box.setOnClickListener(v -> {
-                if (replyJump != null && v.getParent() instanceof View) replyJump.go((View) v.getParent(), rid);
+                View tg = owner != null ? owner : (v.getParent() instanceof View ? (View) v.getParent() : null);
+                if (replyJump != null && tg != null) replyJump.go(tg, rid);
             });
-            box.setOnLongClickListener(v -> v.getParent() instanceof View && ((View) v.getParent()).performLongClick());
+            box.setOnLongClickListener(v -> { View tg = owner != null ? owner : (v.getParent() instanceof View ? (View) v.getParent() : null); return tg != null && tg.performLongClick(); });
         }
         return box;
     }
 
     /** اقتباس الرد كعنصر مستقل (للصور) / يُضاف أعلى فقاعة (للصوتيات): الاسم + النص + خط ذهبي، والنقر للانتقال للرسالة الأصلية. */
-    public static View quoteView(Activity a, String quote, boolean mine) { return replyQuote(a, quote, mine); }
-    public static void addQuote(Activity a, LinearLayout bubble, String quote, boolean mine) { bubble.addView(replyQuote(a, quote, mine), 0); }
+    public static View quoteView(Activity a, String quote, boolean mine) { return replyQuote(a, quote, mine, null); }
+    public static void addQuote(Activity a, LinearLayout bubble, String quote, boolean mine) { bubble.addView(replyQuote(a, quote, mine, null), 0); }
 
     // ------------------------------------------------------------------ فاصل اليوم
     public static TextView sysPill(Activity a, String label) {
