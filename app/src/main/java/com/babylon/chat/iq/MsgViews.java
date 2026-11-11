@@ -149,18 +149,10 @@ public final class MsgViews {
         b.setGravity(Gravity.START | Gravity.TOP);
         if (quote != null) b.addView(replyQuote(a, quote, mine, null));
         TextView t = new TextView(a);
-        // Keep mixed text + emoji in one native TextView. Android's font fallback
-        // renders emoji clusters inline; do not split the message into separate
-        // emoji/image views, because that can lose ordering and bidi information.
-        t.setText(body, TextView.BufferType.SPANNABLE);
         t.setTextSize(fontSp);
-        t.setTypeface(android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD));
-        // Arabic/English text with emoji at either edge must use first-strong
-        // direction so punctuation and emoji remain in their original positions.
+        t.setTypeface(null, android.graphics.Typeface.BOLD);
         t.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG);
-        t.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
-        t.setIncludeFontPadding(true);
-        if (android.os.Build.VERSION.SDK_INT >= 28) t.setFallbackLineSpacing(true);
+        t.setText(richText(body), TextView.BufferType.SPANNABLE);   // نص + إيموجي معاً بلا فقدان
         t.setTag(mine ? "mtM" : "mtO");
         t.setPadding(dp(a, 2), 0, dp(a, 2), dp(a, 4));
         t.setLineSpacing(0, 1.12f);
@@ -168,6 +160,67 @@ public final class MsgViews {
         b.addView(metaRow(a, mine, time, state));
     }
 
+
+    // ------------------------------------------------------------------ نص مختلط (حروف + إيموجي)
+    /** يرسم الإيموجي بقياس صريح: لا يتأثر بالخط العريض/الظل/اتجاه النص، ويضمن حجز عرضه داخل الفقاعة. */
+    private static final class EmojiRun extends android.text.style.ReplacementSpan {
+        private final android.graphics.Paint ep = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        @Override public int getSize(android.graphics.Paint paint, CharSequence text, int start, int end, android.graphics.Paint.FontMetricsInt fm) {
+            sync(paint);
+            if (fm != null) {
+                android.graphics.Paint.FontMetricsInt m = ep.getFontMetricsInt();
+                fm.ascent = Math.min(fm.ascent, m.ascent); fm.descent = Math.max(fm.descent, m.descent);
+                fm.top = Math.min(fm.top, m.top);          fm.bottom = Math.max(fm.bottom, m.bottom);
+            }
+            return (int) Math.ceil(ep.measureText(text, start, end)) + 1;
+        }
+        @Override public void draw(android.graphics.Canvas c, CharSequence text, int start, int end, float x, int top, int y, int bottom, android.graphics.Paint paint) {
+            sync(paint);
+            c.drawText(text, start, end, x, y, ep);
+        }
+        private void sync(android.graphics.Paint src) {
+            ep.set(src);
+            ep.setTypeface(android.graphics.Typeface.DEFAULT);   // بلا BOLD: خط الإيموجي الملوّن الاحتياطي يعمل دائماً
+            ep.setFakeBoldText(false);
+            ep.clearShadowLayer();
+            ep.setTextSkewX(0f);
+        }
+    }
+
+    /** يحوّل النص إلى Spannable تُغلَّف فيه كل مجموعة إيموجي (علم/keycap/ZWJ/لون بشرة) بـ EmojiRun، وبقية الحروف كما هي. */
+    public static CharSequence richText(String raw) {
+        if (raw == null || raw.isEmpty()) return "";
+        int[] cp = cps(raw);
+        int n = cp.length;
+        android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder();
+        int i = 0;
+        while (i < n) {
+            int c = cp[i], s = i;
+            boolean emoji = false;
+            if (c >= 0x1F1E6 && c <= 0x1F1FF && i + 1 < n && cp[i + 1] >= 0x1F1E6 && cp[i + 1] <= 0x1F1FF) {
+                i += 2; emoji = true;
+            } else if ((c == '#' || c == '*' || (c >= '0' && c <= '9'))
+                    && ((i + 1 < n && cp[i + 1] == 0x20E3) || (i + 2 < n && cp[i + 1] == 0xFE0F && cp[i + 2] == 0x20E3))) {
+                i += (cp[i + 1] == 0x20E3) ? 2 : 3; emoji = true;
+            } else if (isPict(c)) {
+                i++;
+                while (true) {
+                    while (i < n && isMod(cp[i])) i++;
+                    if (i + 1 < n && cp[i] == 0x200D && isPict(cp[i + 1])) { i += 2; continue; }
+                    break;
+                }
+                emoji = !(c < 0x231A && !hasVs(cp, s, i));   // © ® ™ بلا FE0F تبقى نصاً
+            } else {
+                i++;
+            }
+            int from = sb.length();
+            sb.append(new String(cp, s, i - s));
+            if (emoji) sb.setSpan(new EmojiRun(), from, sb.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        return sb;
+    }
+
+    private static boolean hasVs(int[] cp, int s, int e) { for (int k = s; k < e; k++) if (cp[k] == 0xFE0F) return true; return false; }
 
     // ------------------------------------------------------------------ رسالة إيموجي واحد (babylonSingleEmoji / babylonApplyBigEmoji في الـ HTML)
     private static boolean isPict(int c) {
@@ -230,6 +283,9 @@ public final class MsgViews {
 
     private static int clampDp(float v, float lo, float hi) { return (int) Math.max(lo, Math.min(hi, v)); }
 
+    /** مفتاح وسم ImageView: الإطار الثابت للإيموجي المتحرك (يستعمله MsgMenu عند اللقطة). */
+    public static final int STILL_KEY = 0x7F0B1E70;
+
     private static final java.util.HashMap<String, byte[]> EMOJI_BYTES = new java.util.HashMap<>();
     private static final java.util.HashSet<String> EMOJI_FAILED = new java.util.HashSet<>();
 
@@ -281,9 +337,20 @@ public final class MsgViews {
                 final Drawable d = animate
                         ? android.graphics.ImageDecoder.decodeDrawable(src0, (dec, info, src) -> dec.setTargetSize(sizePx, sizePx))
                         : new android.graphics.drawable.BitmapDrawable(a.getResources(),
-                                android.graphics.ImageDecoder.decodeBitmap(src0, (dec, info, src) -> dec.setTargetSize(sizePx, sizePx)));
+                                android.graphics.ImageDecoder.decodeBitmap(src0, (dec, info, src) -> { dec.setTargetSize(sizePx, sizePx); dec.setAllocator(android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE); }));   // برمجي: حتى تُرسم في لقطة القائمة
+                // إطار ثابت يُستعمل عند التقاط لقطة الرسالة (AnimatedImageDrawable لا يُرسم على Canvas برمجي فتظهر فارغة)
+                Drawable still0 = null;
+                if (animate) {
+                    try {
+                        still0 = new android.graphics.drawable.BitmapDrawable(a.getResources(),
+                                android.graphics.ImageDecoder.decodeBitmap(android.graphics.ImageDecoder.createSource(java.nio.ByteBuffer.wrap(data)),
+                                        (dec, info, src) -> { dec.setTargetSize(sizePx, sizePx); dec.setAllocator(android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE); }));
+                    } catch (Throwable ignored) { }
+                }
+                final Drawable still = still0;
                 a.runOnUiThread(() -> {
                     iv.setImageDrawable(d);
+                    iv.setTag(STILL_KEY, still);
                     iv.setVisibility(View.VISIBLE);
                     fb.setVisibility(View.GONE);
                     if (d instanceof android.graphics.drawable.AnimatedImageDrawable) {
@@ -567,7 +634,7 @@ public final class MsgViews {
             col.addView(qn, nl);
         }
         TextView q = new TextView(a);
-        q.setText(qText);
+        q.setText(richText(qText), TextView.BufferType.SPANNABLE);
         q.setTextSize(12f);
         q.setMaxLines(1);
         q.setSingleLine(true);

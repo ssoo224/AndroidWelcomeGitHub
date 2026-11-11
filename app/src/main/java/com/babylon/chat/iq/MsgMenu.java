@@ -192,6 +192,33 @@ public final class MsgMenu {
 
     private static int idx(int line, int i, int w, boolean horiz) { return horiz ? line * w + i : i * w + line; }
 
+    /** لقطة الرسالة. الإيموجي المتحرك (AnimatedImageDrawable) لا يُرسم على Canvas برمجي، فيُستبدل مؤقتاً بإطاره الثابت أثناء الرسم. */
+    private static Bitmap snapshotAnchor(View anchor) {
+        Bitmap ab = Bitmap.createBitmap(Math.max(1, anchor.getWidth()), Math.max(1, anchor.getHeight()), Bitmap.Config.ARGB_8888);
+        java.util.ArrayList<ImageView> swapped = new java.util.ArrayList<>();
+        java.util.ArrayList<android.graphics.drawable.Drawable> orig = new java.util.ArrayList<>();
+        swapAnimated(anchor, swapped, orig);
+        try { anchor.draw(new Canvas(ab)); }
+        finally { for (int i = 0; i < swapped.size(); i++) swapped.get(i).setImageDrawable(orig.get(i)); }
+        return ab;
+    }
+
+    private static void swapAnimated(View v, java.util.ArrayList<ImageView> sw, java.util.ArrayList<android.graphics.drawable.Drawable> orig) {
+        if (v instanceof ImageView) {
+            ImageView iv = (ImageView) v;
+            Object st = iv.getTag(MsgViews.STILL_KEY);
+            android.graphics.drawable.Drawable cur = iv.getDrawable();
+            if (st instanceof android.graphics.drawable.Drawable && cur != null && cur != st
+                    && !(cur instanceof android.graphics.drawable.BitmapDrawable)) {
+                sw.add(iv); orig.add(cur);
+                iv.setImageDrawable((android.graphics.drawable.Drawable) st);
+            }
+        } else if (v instanceof ViewGroup) {
+            ViewGroup g = (ViewGroup) v;
+            for (int i = 0; i < g.getChildCount(); i++) swapAnimated(g.getChildAt(i), sw, orig);
+        }
+    }
+
     private static RectF anchorRect(View anchor, View content) {
         int[] a = new int[2], c = new int[2];
         anchor.getLocationInWindow(a);
@@ -213,8 +240,7 @@ public final class MsgMenu {
         final Backdrop bd = new Backdrop(act, snap, dark ? 0x59050C16 : 0x331E293B, null, 0f);
         root.addView(bd, new FrameLayout.LayoutParams(-1, -1));
         try {
-            Bitmap ab = Bitmap.createBitmap(Math.max(1, anchor.getWidth()), Math.max(1, anchor.getHeight()), Bitmap.Config.ARGB_8888);
-            anchor.draw(new Canvas(ab));
+            Bitmap ab = snapshotAnchor(anchor);
             ImageView copy = new ImageView(act);
             copy.setImageBitmap(ab);
             FrameLayout.LayoutParams clp = new FrameLayout.LayoutParams(anchor.getWidth(), anchor.getHeight());
