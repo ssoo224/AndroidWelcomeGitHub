@@ -6283,6 +6283,14 @@ public class MassActivity extends Activity {
 
         UI ui = new UI();
         ui.init();
+        final UI uiRef = ui;
+        // مزامنة «القصص التي شوهدت» من السحابة (تبقى بعد تسجيل الخروج وإعادة التثبيت)
+        try {
+            StoryViewer.syncSeen(this, db, myUid, () -> runOnUiThread(() -> {
+                try { uiRef.buildStories(); } catch (Throwable ignored) { }
+                try { uiRef.refreshProfileRings(); } catch (Throwable ignored) { }
+            }));
+        } catch (Throwable ignored) { }
         backHook = ui::onBack;
 
         ui.bars.setup();

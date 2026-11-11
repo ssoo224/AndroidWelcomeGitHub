@@ -48,9 +48,75 @@ public class Main2Activity extends Activity {
         setupTitleShine();
         setupPressAnim();
 
+        setupEnterAnimation();
+
         binding.btnLogin.setOnClickListener(v -> doLogin());
         binding.btnRegister.setOnClickListener(v -> doRegister());
         binding.btnForgot.setOnClickListener(v -> doForgot());
+    }
+
+    // ======================= حركة الدخول من السبلاش =======================
+
+    /**
+     * يبدأ اللوكو والعنوان من موضع وحجم السبلاش، ثم يرتفعان/يصغران إلى مكانهما في شاشة الدخول،
+     * وبعدها تظهر باقي العناصر (الوصف، التبويبات، الحقول والأزرار) تدريجياً.
+     */
+    private void setupEnterAnimation() {
+        final Intent in = getIntent();
+        if (in == null || !in.hasExtra("logo_cx")) return;   // فتح عادي (مثلاً بعد تسجيل الخروج): بلا حركة
+
+        final float d = getResources().getDisplayMetrics().density;
+        final View[] rest = {binding.subtitle, binding.tabs, binding.loginForm};
+        for (View v : rest) {
+            v.setAlpha(0f);
+            v.setTranslationY(28 * d);
+        }
+        binding.btnLogin.setEnabled(false);
+
+        final View logo = binding.logoCircle;
+        final View title = binding.title;
+        logo.getViewTreeObserver().addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
+            @Override
+            public boolean onPreDraw() {
+                logo.getViewTreeObserver().removeOnPreDrawListener(this);
+                if (logo.getWidth() == 0) return true;
+
+                // نقطة البداية (السبلاش) بالنسبة للمكان النهائي
+                startFrom(logo, in.getFloatExtra("logo_cx", 0), in.getFloatExtra("logo_cy", 0), in.getFloatExtra("logo_w", logo.getWidth()));
+                startFrom(title, in.getFloatExtra("title_cx", 0), in.getFloatExtra("title_cy", 0), in.getFloatExtra("title_w", title.getWidth()));
+
+                final long dur = 700;
+                android.view.animation.Interpolator ease = new android.view.animation.PathInterpolator(0.22f, 0.9f, 0.25f, 1f);
+                for (View v : new View[]{logo, title}) {
+                    v.animate().translationX(0f).translationY(0f).scaleX(1f).scaleY(1f)
+                            .setStartDelay(60).setDuration(dur).setInterpolator(ease).start();
+                }
+
+                // بعد انتهاء الارتفاع/التصغير: ظهور الوصف ثم التبويبات ثم الحقول والأزرار
+                binding.root.postDelayed(() -> {
+                    long delay = 0;
+                    for (View v : rest) {
+                        v.animate().alpha(1f).translationY(0f).setStartDelay(delay).setDuration(420)
+                                .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f)).start();
+                        delay += 110;
+                    }
+                    binding.btnLogin.setEnabled(true);
+                }, 60 + dur - 120);
+                return true;
+            }
+        });
+    }
+
+    /** يضع الـView بصرياً في مركز/عرض معيّن على الشاشة (ثم نحرّكه إلى وضعه الطبيعي). */
+    private void startFrom(View v, float cx, float cy, float width) {
+        int[] loc = new int[2];
+        v.getLocationOnScreen(loc);
+        float myCx = loc[0] + v.getWidth() / 2f, myCy = loc[1] + v.getHeight() / 2f;
+        float s = v.getWidth() > 0 ? width / v.getWidth() : 1f;
+        v.setTranslationX(cx - myCx);
+        v.setTranslationY(cy - myCy);
+        v.setScaleX(s);
+        v.setScaleY(s);
     }
 
     // ======================= تسجيل الدخول =======================

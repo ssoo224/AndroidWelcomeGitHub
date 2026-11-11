@@ -50,6 +50,7 @@ import android.widget.VideoView;
 
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;
+import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.SetOptions;
 
@@ -974,8 +975,52 @@ public final class StoryViewer {
     private void markSeen(Story s) {
         try {
             SharedPreferences p = act.getSharedPreferences("story_seen_" + me, Context.MODE_PRIVATE);
-            if (p.getLong(uid, 0L) < s.expiresAt) p.edit().putLong(uid, s.expiresAt).apply();
+            if (p.getLong(uid, 0L) < s.expiresAt) {
+                p.edit().putLong(uid, s.expiresAt).apply();
+                saveSeenToCloud(db, me, uid, s.expiresAt);   // نسخة سحابية لتبقى بعد تسجيل الخروج/إعادة التثبيت
+            }
         } catch (Throwable ignored) { }
+    }
+
+    /** حالة المشاهدة في السحابة: users/{me}/private/storySeen  {<uid صاحب القصة>: آخر expiresAt شوهد}. */
+    private static void saveSeenToCloud(FirebaseFirestore db, String me, String uid, long until) {
+        if (db == null || me == null || me.isEmpty() || uid == null || uid.isEmpty()) return;
+        try {
+            java.util.Map<String, Object> m = new java.util.HashMap<>();
+            m.put(uid, until);
+            db.collection("users").document(me).collection("private").document("storySeen")
+                    .set(m, SetOptions.merge());
+        } catch (Throwable ignored) { }
+    }
+
+    /** يجلب حالة المشاهدة من السحابة ويدمجها مع المحلية (الأكبر يفوز)، وما هو محلي فقط يُرفع للسحابة. */
+    public static void syncSeen(final Context c, final FirebaseFirestore db, final String me, final Runnable onChanged) {
+        if (c == null || db == null || me == null || me.isEmpty()) return;
+        final DocumentReference ref = db.collection("users").document(me).collection("private").document("storySeen");
+        ref.get().addOnSuccessListener(d -> {
+            try {
+                SharedPreferences p = c.getSharedPreferences("story_seen_" + me, Context.MODE_PRIVATE);
+                SharedPreferences.Editor ed = p.edit();
+                boolean changed = false;
+                java.util.Map<String, Object> cloud = d != null && d.exists() ? d.getData() : null;
+                if (cloud != null) for (java.util.Map.Entry<String, Object> e : cloud.entrySet()) {
+                    if (!(e.getValue() instanceof Number)) continue;
+                    long v = ((Number) e.getValue()).longValue();
+                    if (v > p.getLong(e.getKey(), 0L)) { ed.putLong(e.getKey(), v); changed = true; }
+                }
+                ed.apply();
+                // محلي أحدث من السحابة (أو السحابة فارغة): ارفعه
+                java.util.Map<String, Object> up = new java.util.HashMap<>();
+                for (java.util.Map.Entry<String, ?> e : p.getAll().entrySet()) {
+                    if (!(e.getValue() instanceof Long)) continue;
+                    Object cv = cloud == null ? null : cloud.get(e.getKey());
+                    long cl = cv instanceof Number ? ((Number) cv).longValue() : 0L;
+                    if ((Long) e.getValue() > cl) up.put(e.getKey(), e.getValue());
+                }
+                if (!up.isEmpty()) ref.set(up, SetOptions.merge());
+                if (changed && onChanged != null) onChanged.run();
+            } catch (Throwable ignored) { }
+        });
     }
 
     private void updateBars() {

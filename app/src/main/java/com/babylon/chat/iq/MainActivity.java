@@ -90,8 +90,37 @@ public class MainActivity extends Activity {
         if (navigated || isFinishing()) return;
         navigated = true;
         boolean loggedIn = FirebaseAuth.getInstance().getCurrentUser() != null;
-        startActivity(new Intent(this, loggedIn ? MassActivity.class : Main2Activity.class));
-        finish();
+        if (loggedIn) {
+            startActivity(new Intent(this, MassActivity.class));
+            finish();
+            return;
+        }
+        // غير مسجّل: نمرّر موضع/حجم اللوكو والعنوان لشاشة الدخول لتكمل الحركة من نفس المكان
+        final Intent i = new Intent(this, Main2Activity.class);
+        putViewInfo(i, binding.logoCircle, "logo");
+        putViewInfo(i, binding.title, "title");
+        // نخفي التوهج والنقاط بسرعة ثم ننتقل (لا وجود لهما في شاشة الدخول)
+        binding.logoGlow.animate().alpha(0f).setDuration(160).start();
+        binding.linear22.animate().alpha(0f).setDuration(160).start();
+        handler.postDelayed(() -> {
+            startActivity(i);
+            overridePendingTransition(0, 0);   // بلا انتقال افتراضي ليبدو اللوكو ثابتاً
+            finish();
+        }, 170);
+    }
+
+    /** يحفظ مركز الـView على الشاشة (بالبكسل) وعرضه الظاهر الحالي مع احتساب نبض الـscale. */
+    private void putViewInfo(Intent i, View v, String key) {
+        float s = v.getScaleX();
+        v.setScaleX(1f);
+        v.setScaleY(1f);
+        int[] loc = new int[2];
+        v.getLocationOnScreen(loc);
+        v.setScaleX(s);
+        v.setScaleY(s);
+        i.putExtra(key + "_cx", loc[0] + v.getWidth() / 2f);
+        i.putExtra(key + "_cy", loc[1] + v.getHeight() / 2f);
+        i.putExtra(key + "_w", v.getWidth() * s);
     }
 
     private void setupSystemBars() {
