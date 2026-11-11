@@ -149,9 +149,18 @@ public final class MsgViews {
         b.setGravity(Gravity.START | Gravity.TOP);
         if (quote != null) b.addView(replyQuote(a, quote, mine, null));
         TextView t = new TextView(a);
-        t.setText(body);
+        // Keep mixed text + emoji in one native TextView. Android's font fallback
+        // renders emoji clusters inline; do not split the message into separate
+        // emoji/image views, because that can lose ordering and bidi information.
+        t.setText(body, TextView.BufferType.SPANNABLE);
         t.setTextSize(fontSp);
-        t.setTypeface(null, android.graphics.Typeface.BOLD);
+        t.setTypeface(android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD));
+        // Arabic/English text with emoji at either edge must use first-strong
+        // direction so punctuation and emoji remain in their original positions.
+        t.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG);
+        t.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
+        t.setIncludeFontPadding(true);
+        if (android.os.Build.VERSION.SDK_INT >= 28) t.setFallbackLineSpacing(true);
         t.setTag(mine ? "mtM" : "mtO");
         t.setPadding(dp(a, 2), 0, dp(a, 2), dp(a, 4));
         t.setLineSpacing(0, 1.12f);
