@@ -137,7 +137,9 @@ public final class MsgViews {
             int nl = raw.indexOf('\n');
             if (nl > 0) { quote = raw.substring(2, nl); body = raw.substring(nl + 1); }
         }
-        if (isSingleEmoji(body)) { bindEmoji(a, b, body.trim(), quote, mine, time, state); return; }
+        java.util.ArrayList<String> ems = emojiClusters(body);
+        if (ems != null && ems.size() == 1) { bindEmoji(a, b, body.trim(), quote, mine, time, state); return; }
+        if (ems != null) { bindEmojiRow(a, b, ems, quote, mine, time, state); return; }   // عدة إيموجي: بلا فقاعة
         // رسالة عادية: يُستعاد شكل الفقاعة (قد تكون كانت إيموجي قبل التعديل)
         b.setTag(mine ? "bubMine" : "bubOther");
         b.setPadding(dp(a, 10), dp(a, 6), dp(a, 10), dp(a, 5));
@@ -166,27 +168,49 @@ public final class MsgViews {
     }
     private static boolean isMod(int c) { return c == 0xFE0F || (c >= 0x1F3FB && c <= 0x1F3FF) || (c >= 0xE0020 && c <= 0xE007F); }
 
-    /** هل النص إيموجي واحد فقط (علم، keycap، أو رمز مصوَّر مع معدِّلات/ZWJ)؟ */
-    public static boolean isSingleEmoji(String raw) {
-        if (raw == null) return false;
+    /** يقسّم النص إلى إيموجيات (علم، keycap، رمز مع معدِّلات/ZWJ). يعيد null إن احتوى على أي شيء غير إيموجي (المسافات مسموحة) أو زاد عن 10. */
+    public static java.util.ArrayList<String> emojiClusters(String raw) {
+        if (raw == null) return null;
         String t = raw.trim();
-        if (t.isEmpty() || t.length() > 40) return false;
+        if (t.isEmpty() || t.length() > 100) return null;
         int[] cp = cps(t);
-        int n = cp.length;
-        if (n == 2 && cp[0] >= 0x1F1E6 && cp[0] <= 0x1F1FF && cp[1] >= 0x1F1E6 && cp[1] <= 0x1F1FF) return true;   // علم
-        if ((cp[0] == '#' || cp[0] == '*' || (cp[0] >= '0' && cp[0] <= '9'))) {                                      // keycap
-            return (n == 2 && cp[1] == 0x20E3) || (n == 3 && cp[1] == 0xFE0F && cp[2] == 0x20E3);
+        int n = cp.length, i = 0;
+        java.util.ArrayList<String> out = new java.util.ArrayList<>();
+        while (i < n) {
+            int c = cp[i];
+            if (c == ' ' || c == 0xA0) { i++; continue; }
+            int s = i;
+            if (c >= 0x1F1E6 && c <= 0x1F1FF) {                                   // علم
+                if (i + 1 < n && cp[i + 1] >= 0x1F1E6 && cp[i + 1] <= 0x1F1FF) i += 2; else return null;
+            } else if (c == '#' || c == '*' || (c >= '0' && c <= '9')) {          // keycap
+                if (i + 1 < n && cp[i + 1] == 0x20E3) i += 2;
+                else if (i + 2 < n && cp[i + 1] == 0xFE0F && cp[i + 2] == 0x20E3) i += 3;
+                else return null;
+            } else {
+                if (!isPict(c)) return null;
+                boolean vs = false;
+                i++;
+                while (true) {
+                    while (i < n && isMod(cp[i])) { if (cp[i] == 0xFE0F) vs = true; i++; }
+                    if (i + 1 < n && cp[i] == 0x200D && isPict(cp[i + 1])) { i += 2; continue; }
+                    break;
+                }
+                if (c < 0x231A && !vs) return null;                               // © ® ™ بدون FE0F ليست إيموجي
+            }
+            out.add(new String(cp, s, i - s));
+            if (out.size() > 10) return null;
         }
-        if (!isPict(cp[0])) return false;
-        if (cp[0] < 0x231A && t.indexOf('️') < 0) return false;   // © ® ™ بدون FE0F ليست إيموجي
-        int i = 1;
-        while (true) {
-            while (i < n && isMod(cp[i])) i++;
-            if (i == n) return true;
-            if (cp[i] == 0x200D && i + 1 < n && isPict(cp[i + 1])) { i += 2; continue; }
-            return false;
-        }
+        return out.isEmpty() ? null : out;
     }
+
+    /** هل النص إيموجي واحد فقط؟ */
+    public static boolean isSingleEmoji(String raw) {
+        java.util.ArrayList<String> l = emojiClusters(raw);
+        return l != null && l.size() == 1;
+    }
+
+    /** هل النص كله إيموجيات فقط (واحد أو أكثر، حتى 10)؟ */
+    public static boolean isEmojiOnly(String raw) { return emojiClusters(raw) != null; }
 
     private static int[] cps(String t) {   // بدون String.codePoints() (API 24+)
         int[] out = new int[t.codePointCount(0, t.length())];
@@ -322,6 +346,60 @@ public final class MsgViews {
             content = row;
             b.addView(content, new LinearLayout.LayoutParams(-2, -2));
         } else b.addView(content, boxLp);
+
+        LinearLayout meta = metaRow(a, mine, time, state);
+        meta.setBackground(rounded(0x52000000, dp(a, 10)));
+        meta.setPadding(dp(a, 8), dp(a, 1), dp(a, 8), dp(a, 1));
+        for (int i = 0; i < meta.getChildCount(); i++) {
+            View c = meta.getChildAt(i);
+            if (c instanceof TextView) { c.setTag("mmEmoji"); ((TextView) c).setTextColor(0xFFFFFFFF); ((TextView) c).setTextSize(10.5f); }
+        }
+        LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(-2, -2);
+        ml.gravity = Gravity.CENTER_HORIZONTAL; ml.topMargin = -dp(a, 2);
+        meta.setLayoutParams(ml);
+        b.addView(meta);
+    }
+
+    /** إيموجيات متعددة (مثل 😂😂🤣): بلا فقاعة ولا خلفية؛ الحجم يصغر مع زيادة العدد، وكبسولة الوقت تحتها. */
+    private static void bindEmojiRow(Activity a, LinearLayout b, java.util.ArrayList<String> ems, String quote, boolean mine, String time, int state) {
+        b.setTag("bubEmoji");
+        b.setBackground(null);
+        b.setPadding(dp(a, 4), dp(a, 2), dp(a, 4), dp(a, 2));
+        b.setMinimumWidth(0);
+        b.setGravity(Gravity.CENTER_HORIZONTAL);
+        int n = ems.size();
+        float wdp = a.getResources().getDisplayMetrics().widthPixels / d(a);
+        int sz = n == 2 ? 62 : n == 3 ? 52 : n <= 5 ? 42 : 34;
+        sz = clampDp(Math.min(sz, (wdp * 0.8f - 16f) / n * 0.95f), 24, sz);
+        StringBuilder sb = new StringBuilder();
+        for (String e : ems) sb.append(e);
+
+        FrameLayout box = new FrameLayout(a);
+        box.setTag("emojiBox");
+        TextView tv = new TextView(a);
+        tv.setText(sb.toString());
+        tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, sz);
+        tv.setIncludeFontPadding(false);
+        tv.setGravity(Gravity.CENTER);
+        box.addView(tv, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
+        LinearLayout.LayoutParams boxLp = new LinearLayout.LayoutParams(-2, -2);
+
+        if (quote != null) {
+            LinearLayout row = new LinearLayout(a);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            View q = replyQuote(a, quote, mine, b);
+            q.setTag(null);
+            q.setBackground(rounded(0x598794A8, dp(a, 14)));
+            q.setAlpha(0.8f);
+            recolorQuote(q);
+            LinearLayout.LayoutParams ql = new LinearLayout.LayoutParams(dp(a, 140), -2);
+            ql.setMargins(dp(a, 8), 0, dp(a, 8), 0);
+            if (mine) { row.addView(q, ql); row.addView(box, boxLp); }
+            else { row.addView(box, boxLp); row.addView(q, ql); }
+            b.addView(row, new LinearLayout.LayoutParams(-2, -2));
+        } else b.addView(box, boxLp);
 
         LinearLayout meta = metaRow(a, mine, time, state);
         meta.setBackground(rounded(0x52000000, dp(a, 10)));

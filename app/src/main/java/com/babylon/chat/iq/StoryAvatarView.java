@@ -116,7 +116,10 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
     }
 
     /** سماكة الحلقة (dp): 3 غير مشاهَدة وعند الدوران، 2 بعد المشاهدة. */
-    private float ringThickDp() { return launching || !seen ? 3f : 2f; }
+    private float ringThickDp() {
+        if (ringSmall && !launching && !seen && flySc <= 0f) return 2f;   // الشريط المصغّر: الذهبي أنحف بـ 1dp (3 ← 2)
+        return launching || !seen ? 3f : 2f;
+    }
     /** أثناء طيران «قصتي» بين الهيدر والشريط: مقياس الطيران الحالي (0 = لا طيران) ونسبة التقدّم. */
     private float flySc = 0f, flyP = 0f;
     public void setFlyRing(float sc, float p) { if (sc != flySc || p != flyP) { flySc = sc; flyP = p; invalidate(); } }
@@ -125,7 +128,8 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
     private float ringOffPx() {
         float t = ringThickDp();
         if (flySc > 0f) return dp(t + (5f - t) * flyP) / flySc;
-        return dp(ringSmall ? t : 5f);
+        if (ringSmall && seen && !launching) return dp(t);   // المصغّر: الرمادية ملاصقة للصورة بلا فراغ
+        return dp(ringSmall ? t + 1f : 5f);                  // المصغّر: فراغ 1dp بين الحلقة الذهبية والصورة
     }
     private float ringThickPx() { return flySc > 0f ? dp(ringThickDp()) / flySc : dp(ringThickDp()); }
     public void setMorph(float m, float k) { if (m != morph || k != morphK) { morph = m; morphK = k; invalidate(); } }
