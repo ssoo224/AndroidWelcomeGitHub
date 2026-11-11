@@ -172,7 +172,7 @@ public final class MsgViews {
     public static java.util.ArrayList<String> emojiClusters(String raw) {
         if (raw == null) return null;
         String t = raw.trim();
-        if (t.isEmpty() || t.length() > 100) return null;
+        if (t.isEmpty() || t.length() > 300) return null;
         int[] cp = cps(t);
         int n = cp.length, i = 0;
         java.util.ArrayList<String> out = new java.util.ArrayList<>();
@@ -198,7 +198,7 @@ public final class MsgViews {
                 if (c < 0x231A && !vs) return null;                               // © ® ™ بدون FE0F ليست إيموجي
             }
             out.add(new String(cp, s, i - s));
-            if (out.size() > 10) return null;
+            if (out.size() > 40) return null;
         }
         return out.isEmpty() ? null : out;
     }
@@ -348,14 +348,14 @@ public final class MsgViews {
         } else b.addView(content, boxLp);
 
         LinearLayout meta = metaRow(a, mine, time, state);
-        meta.setBackground(rounded(0x52000000, dp(a, 10)));
+        meta.setBackground(rounded(0x33000000, dp(a, 10)));
         meta.setPadding(dp(a, 8), dp(a, 1), dp(a, 8), dp(a, 1));
         for (int i = 0; i < meta.getChildCount(); i++) {
             View c = meta.getChildAt(i);
             if (c instanceof TextView) { c.setTag("mmEmoji"); ((TextView) c).setTextColor(0xFFFFFFFF); ((TextView) c).setTextSize(10.5f); }
         }
         LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(-2, -2);
-        ml.gravity = Gravity.CENTER_HORIZONTAL; ml.topMargin = -dp(a, 2);
+        ml.gravity = Gravity.LEFT; ml.topMargin = -dp(a, 2);   // الوقت والعلامة يسار الإيموجي
         meta.setLayoutParams(ml);
         b.addView(meta);
     }
@@ -370,18 +370,40 @@ public final class MsgViews {
         int n = ems.size();
         float wdp = a.getResources().getDisplayMetrics().widthPixels / d(a);
         int sz = n == 2 ? 62 : n == 3 ? 52 : n <= 5 ? 42 : 34;
-        sz = clampDp(Math.min(sz, (wdp * 0.8f - 16f) / n * 0.95f), 24, sz);
-        StringBuilder sb = new StringBuilder();
-        for (String e : ems) sb.append(e);
-
-        FrameLayout box = new FrameLayout(a);
+        final int perRowMax = 10;                                      // حتى 10 في السطر الواحد (يصغر ليتسع)، وما زاد ينزل لسطر جديد
+        int perRow = Math.min(n, perRowMax);
+        sz = clampDp(Math.min(sz, (wdp * 0.8f - 16f) / perRow * 0.95f), 24, sz);
+        sz = Math.max(16, sz - 8);   // أصغر بـ 8 من الحجم السابق
+        // كل إيموجي صورة مستقلة بدقة 512 (حادة) بدل نص يُكبَّر من خط نقطي؛ والنص الأصلي احتياط حتى تُحمَّل الصورة
+        LinearLayout box = new LinearLayout(a);
         box.setTag("emojiBox");
-        TextView tv = new TextView(a);
-        tv.setText(sb.toString());
-        tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, sz);
-        tv.setIncludeFontPadding(false);
-        tv.setGravity(Gravity.CENTER);
-        box.addView(tv, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        LinearLayout rowL = null;
+        for (int k = 0; k < n; k++) {
+            if (k % perRow == 0) {
+                rowL = new LinearLayout(a);
+                rowL.setOrientation(LinearLayout.HORIZONTAL);
+                rowL.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+                LinearLayout.LayoutParams rl = new LinearLayout.LayoutParams(-2, -2);
+                rl.gravity = Gravity.LEFT;                              // السطر الجديد يبدأ من اليسار
+                box.addView(rowL, rl);
+            }
+            String e = ems.get(k);
+            FrameLayout cell = new FrameLayout(a);
+            TextView tv = new TextView(a);
+            tv.setText(e);
+            tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, sz * 0.75f);
+            tv.setIncludeFontPadding(false);
+            tv.setGravity(Gravity.CENTER);
+            cell.addView(tv, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
+            ImageView iv = new ImageView(a);
+            iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            iv.setVisibility(View.GONE);
+            cell.addView(iv, new FrameLayout.LayoutParams(-1, -1));
+            rowL.addView(cell, new LinearLayout.LayoutParams(dp(a, sz), dp(a, sz)));
+            loadAnimatedEmoji(a, e, iv, tv, (int) (sz * d(a)));
+        }
         LinearLayout.LayoutParams boxLp = new LinearLayout.LayoutParams(-2, -2);
 
         if (quote != null) {
@@ -402,14 +424,14 @@ public final class MsgViews {
         } else b.addView(box, boxLp);
 
         LinearLayout meta = metaRow(a, mine, time, state);
-        meta.setBackground(rounded(0x52000000, dp(a, 10)));
+        meta.setBackground(rounded(0x33000000, dp(a, 10)));
         meta.setPadding(dp(a, 8), dp(a, 1), dp(a, 8), dp(a, 1));
         for (int i = 0; i < meta.getChildCount(); i++) {
             View c = meta.getChildAt(i);
             if (c instanceof TextView) { c.setTag("mmEmoji"); ((TextView) c).setTextColor(0xFFFFFFFF); ((TextView) c).setTextSize(10.5f); }
         }
         LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(-2, -2);
-        ml.gravity = Gravity.CENTER_HORIZONTAL; ml.topMargin = -dp(a, 2);
+        ml.gravity = Gravity.LEFT; ml.topMargin = -dp(a, 2);   // الوقت والعلامة يسار الإيموجي
         meta.setLayoutParams(ml);
         b.addView(meta);
     }

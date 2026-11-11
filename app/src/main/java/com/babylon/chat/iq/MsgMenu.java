@@ -554,7 +554,19 @@ public final class MsgMenu {
      */
     public static void showMsgDelete(final Activity act, final boolean dark, String title, String question,
                                      String checkLabel, final ChatDelCb cb) {
-        final ChatThemes.Pal pal = Tk.chatPal;
+        buildDelete(act, dark, true, title, question, checkLabel, cb);
+    }
+
+    private static int blend(int c, int to, float f) {
+        int r = (int) (((c >> 16) & 255) * (1 - f) + ((to >> 16) & 255) * f);
+        int g = (int) (((c >> 8) & 255) * (1 - f) + ((to >> 8) & 255) * f);
+        int b = (int) ((c & 255) * (1 - f) + (to & 255) * f);
+        return 0xFF000000 | (r << 16) | (g << 8) | b;
+    }
+
+    private static void buildDelete(final Activity act, final boolean dark, boolean usePal, String title, CharSequence question,
+                                    String checkLabel, final ChatDelCb cb) {
+        final ChatThemes.Pal pal = usePal ? Tk.chatPal : null;
         final int cardC  = pal != null ? (pal.other | 0xFF000000) : (dark ? 0xFF17212B : 0xFFFFFFFF);
         final int textC  = pal != null ? (pal.textOther | 0xFF000000) : (dark ? 0xFFF1F5F9 : 0xFF16202B);
         final int subC   = pal != null ? (pal.metaOther | 0xFF000000) : (dark ? 0xFF8798AA : 0xFF6B7A8C);
@@ -612,16 +624,19 @@ public final class MsgMenu {
             LinearLayout.LayoutParams cll = new LinearLayout.LayoutParams(0, -2, 1f);
             cll.setMarginEnd(dp(act, 12));
             chk.addView(cl, cll);
-            final TextView box = new TextView(act);
-            box.setText("✓"); box.setTextSize(16); box.setTypeface(null, Typeface.BOLD);
-            box.setGravity(Gravity.CENTER); box.setIncludeFontPadding(false);
-            final GradientDrawable boxBg = new GradientDrawable();
+            final FrameLayout box = new FrameLayout(act);
+            final ImageView tick = new ImageView(act);
+            tick.setImageResource(R.drawable.ic_check_svg);          // علامة ✓ بصيغة SVG (vector)
+            tick.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            box.addView(tick, new FrameLayout.LayoutParams(dp(act, 18), dp(act, 18), Gravity.CENTER));
+            final GradientDrawable boxBg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                    new int[]{blend(accC, 0xFFFFFFFF, .28f), blend(accC, 0xFF000000, .22f)});   // ذهبي متدرج
             boxBg.setCornerRadius(dp(act, 7));
             box.setBackground(boxBg);
             final Runnable paintBox = () -> {
-                boxBg.setColor(both[0] ? accC : 0);
-                boxBg.setStroke(dp(act, 2), both[0] ? accC : subC);
-                box.setTextColor(both[0] ? 0xFFFFFFFF : 0);
+                if (both[0]) { boxBg.setColors(new int[]{blend(accC, 0xFFFFFFFF, .28f), blend(accC, 0xFF000000, .22f)}); boxBg.setStroke(0, 0); }
+                else { boxBg.setColor(0); boxBg.setStroke(dp(act, 2), subC); }
+                tick.setVisibility(both[0] ? View.VISIBLE : View.INVISIBLE);
             };
             paintBox.run();
             chk.addView(box, new LinearLayout.LayoutParams(dp(act, 26), dp(act, 26)));
@@ -674,67 +689,8 @@ public final class MsgMenu {
      */
     public static void showChatDelete(final Activity act, final boolean dark, String title, String pre, String name,
                                       String post, String checkLabel, final ChatDelCb cb) {
-        final int cardC = dark ? 0xFF17212B : 0xFFFFFFFF;
-        final int textC = dark ? 0xFFF1F5F9 : 0xFF16202B;
-        final int subC = dark ? 0xFF8798AA : 0xFF6B7A8C;
-        final int chipC = dark ? 0xFF1D2A38 : 0xFFE8EDF4;
+        // نفس نافذة حذف الرسالة بالضبط (قالب واحد)؛ الاسم بالذهبي، وألوان عامة لا ألوان ثيم المحادثة
         final int goldC = dark ? 0xFFE4C45B : 0xFFC99A1C;
-        final int redC = dark ? 0xFFF0605D : 0xFFE5484D;
-        final int sepC = dark ? 0x14FFFFFF : 0x1416202B;
-
-        final FrameLayout root = attach(act, dark);
-        root.setBackgroundColor(0x85080C12);
-        root.setOnClickListener(v -> dismiss());
-
-        final FrameLayout card = new FrameLayout(act);
-        card.setClickable(true);
-        GradientDrawable cbg = new GradientDrawable();
-        cbg.setColor(cardC); cbg.setCornerRadius(dp(act, 26)); cbg.setStroke(dp(act, 1), sepC);
-        card.setBackground(cbg);
-        card.setClipToOutline(true);
-        card.setOutlineProvider(android.view.ViewOutlineProvider.BACKGROUND);
-        card.setElevation(dp(act, 18));
-
-        final LinearLayout col = new LinearLayout(act);
-        col.setOrientation(LinearLayout.VERTICAL);
-        col.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        col.setPadding(dp(act, 20), dp(act, 26), dp(act, 20), dp(act, 18));
-        card.addView(col, new FrameLayout.LayoutParams(-1, -2));
-
-        // خط ذهبي علوي متلاشٍ على الأطراف (.cl-dlg::before)
-        View topLine = new View(act);
-        GradientDrawable tl = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-                new int[]{goldC & 0x00FFFFFF, goldC, goldC, goldC & 0x00FFFFFF});
-        topLine.setBackground(tl);
-        topLine.setAlpha(.85f);
-        card.addView(topLine, new FrameLayout.LayoutParams(-1, dp(act, 3), Gravity.TOP));
-
-        // أيقونة السلة داخل دائرة حمراء شفافة مع هالة خارجية
-        FrameLayout halo = new FrameLayout(act);
-        GradientDrawable hg = new GradientDrawable();
-        hg.setShape(GradientDrawable.OVAL); hg.setColor((redC & 0x00FFFFFF) | (0x0D << 24));
-        halo.setBackground(hg);
-        FrameLayout disc = new FrameLayout(act);
-        GradientDrawable dg = new GradientDrawable();
-        dg.setShape(GradientDrawable.OVAL); dg.setColor((redC & 0x00FFFFFF) | ((dark ? 0x24 : 0x1C) << 24));
-        disc.setBackground(dg);
-        ImageView ic = new ImageView(act);
-        ic.setImageResource(R.drawable.ic_trash_20);
-        ic.setColorFilter(redC);
-        ic.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        disc.addView(ic, new FrameLayout.LayoutParams(dp(act, 28), dp(act, 28), Gravity.CENTER));
-        halo.addView(disc, new FrameLayout.LayoutParams(dp(act, 62), dp(act, 62), Gravity.CENTER));
-        LinearLayout.LayoutParams hl = new LinearLayout.LayoutParams(dp(act, 78), dp(act, 78));
-        hl.gravity = Gravity.CENTER_HORIZONTAL; hl.bottomMargin = dp(act, 6);
-        col.addView(halo, hl);
-
-        TextView h = new TextView(act);
-        h.setText(title); h.setTextSize(19); h.setTypeface(null, Typeface.BOLD);
-        h.setTextColor(textC); h.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(-1, -2);
-        hp.bottomMargin = dp(act, 8);
-        col.addView(h, hp);
-
         android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder();
         sb.append(pre == null ? "" : pre);
         if (name != null && name.length() > 0) {
@@ -744,81 +700,7 @@ public final class MsgMenu {
             sb.setSpan(new android.text.style.StyleSpan(Typeface.BOLD), a, sb.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
         sb.append(post == null ? "" : post);
-        TextView p = new TextView(act);
-        p.setText(sb); p.setTextSize(14.5f); p.setTextColor(subC); p.setGravity(Gravity.CENTER);
-        p.setLineSpacing(0, 1.4f);
-        LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(-1, -2);
-        pp.bottomMargin = dp(act, 16);
-        col.addView(p, pp);
-
-        // مربع «حذف أيضاً عند الطرف الآخر»
-        final boolean[] both = {false};
-        final LinearLayout chk = new LinearLayout(act);
-        chk.setOrientation(LinearLayout.HORIZONTAL);
-        chk.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        chk.setGravity(Gravity.CENTER_VERTICAL);
-        chk.setClickable(true);
-        chk.setPadding(dp(act, 14), dp(act, 12), dp(act, 14), dp(act, 12));
-        GradientDrawable chg = new GradientDrawable();
-        chg.setColor(chipC); chg.setCornerRadius(dp(act, 16));
-        chk.setBackground(chg);
-        final TextView box = new TextView(act);
-        box.setText("✓"); box.setTextSize(15); box.setTypeface(null, Typeface.BOLD);
-        box.setGravity(Gravity.CENTER); box.setIncludeFontPadding(false);
-        final GradientDrawable boxBg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFF0CB5C, 0xFFB88A1C});
-        boxBg.setCornerRadius(dp(act, 8));
-        box.setBackground(boxBg);
-        final Runnable paintBox = () -> {
-            if (both[0]) { boxBg.setColors(new int[]{0xFFF0CB5C, 0xFFB88A1C}); boxBg.setStroke(0, 0); }   // ذهبي متدرج
-            else { boxBg.setColor(0); boxBg.setStroke(dp(act, 2), subC); }
-            box.setTextColor(both[0] ? 0xFFFFFFFF : 0);   // ✓ بيضاء
-        };
-        paintBox.run();
-        chk.addView(box, new LinearLayout.LayoutParams(dp(act, 24), dp(act, 24)));
-        TextView cl = new TextView(act);
-        cl.setText(checkLabel); cl.setTextSize(14.5f); cl.setTypeface(null, Typeface.BOLD);
-        cl.setTextColor(textC);
-        cl.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
-        LinearLayout.LayoutParams cll = new LinearLayout.LayoutParams(0, -2, 1f);
-        cll.setMarginStart(dp(act, 12));
-        chk.addView(cl, cll);
-        chk.setOnClickListener(v -> { both[0] = !both[0]; paintBox.run(); });
-        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2);
-        cp.bottomMargin = dp(act, 18);
-        col.addView(chk, cp);
-
-        // الأزرار: حذف (تدرّج أحمر) | إلغاء
-        LinearLayout btns = new LinearLayout(act);
-        btns.setOrientation(LinearLayout.HORIZONTAL);
-        btns.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        TextView ok = new TextView(act);
-        ok.setText("حذف"); ok.setTextSize(15.5f); ok.setTypeface(null, Typeface.BOLD);
-        ok.setTextColor(0xFFFFFFFF); ok.setGravity(Gravity.CENTER); ok.setClickable(true);
-        GradientDrawable og = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFF0605D, 0xFFD94545});
-        og.setCornerRadius(dp(act, 16));
-        ok.setBackground(og);
-        ok.setOnClickListener(v -> { final boolean b = both[0]; dismiss(); cb.onDelete(b); });
-        pressScale(ok);
-        TextView no = new TextView(act);
-        no.setText("إلغاء"); no.setTextSize(15.5f); no.setTypeface(null, Typeface.BOLD);
-        no.setTextColor(textC); no.setGravity(Gravity.CENTER); no.setClickable(true);
-        GradientDrawable ng = new GradientDrawable();
-        ng.setColor(chipC); ng.setCornerRadius(dp(act, 16));
-        no.setBackground(ng);
-        no.setOnClickListener(v -> dismiss());
-        pressScale(no);
-        LinearLayout.LayoutParams b1 = new LinearLayout.LayoutParams(0, dp(act, 48), 1f);
-        LinearLayout.LayoutParams b2 = new LinearLayout.LayoutParams(0, dp(act, 48), 1f);
-        b2.setMarginStart(dp(act, 10));
-        btns.addView(ok, b1); btns.addView(no, b2);
-        col.addView(btns, new LinearLayout.LayoutParams(-1, -2));
-
-        int W = ((ViewGroup) root.getParent()).getWidth();
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(Math.min(dp(act, 340), W - dp(act, 44)), -2);
-        lp.gravity = Gravity.CENTER;
-        root.addView(card, lp);
-        card.setAlpha(0f); card.setScaleX(.92f); card.setScaleY(.92f);
-        card.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(160).start();
+        buildDelete(act, dark, false, title, sb, checkLabel, cb);
     }
 
     private static View dialogBtn(Context c, String label, int fill, int fg, int stroke, final Runnable r) {

@@ -608,7 +608,7 @@ public final class StoryViewer {
         pickerBox.setOrientation(LinearLayout.VERTICAL);
         pickerBox.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
         pickerBox.setPadding(dp(6), dp(4), dp(6), dp(4));
-        pickerBox.setBackground(round(0xF22B3B4F, 14, 0, 0));
+        pickerBox.setBackground(round(0x00000000, 14, 0, 0));   // قائمة الإيموجي شفافة بالكامل (بلا خلفية)
         pickerBox.setVisibility(View.GONE);
         pickerBox.setClickable(true);
 
@@ -740,8 +740,8 @@ public final class StoryViewer {
         sendBtn.setGravity(Gravity.CENTER);
         sendBtn.setBackground(round(0x33FFFFFF, 20, 0, 0));
         ImageView si = new ImageView(act);
-        si.setImageResource(R.drawable.ic_sv_send);
-        sendBtn.addView(si, new LinearLayout.LayoutParams(dp(20), dp(20)));
+        si.setImageResource(R.drawable.ic_send_up_21);   // نفس رمز زر الإرسال داخل المحادثة (SVG)
+        sendBtn.addView(si, new LinearLayout.LayoutParams(dp(21), dp(21)));
         sendBtn.setVisibility(View.GONE);
         sendBtn.setOnClickListener(v -> sendReply());
         LinearLayout.LayoutParams sbp = new LinearLayout.LayoutParams(dp(46), dp(40));
@@ -1219,14 +1219,20 @@ public final class StoryViewer {
     private void sendMessage(final String text, final String okMsg, final String errMsg, final boolean clear) {
         if (mine || idx >= list.size()) return;
         final Story s = list.get(idx);
-        final String chatId = me.compareTo(uid) < 0 ? me + "__" + uid : uid + "__" + me;
+        // نفس معرّف المحادثة ونفس حقول الرسالة المستخدمة داخل المحادثة (getChatId / send في MassActivity) حتى تظهر الرسالة في محادثة الشخص
+        final String chatId = me.compareTo(uid) < 0 ? me + "_" + uid : uid + "_" + me;
+        final long nowMs = System.currentTimeMillis();
         Map<String, Object> chat = new HashMap<>();
         chat.put("participants", Arrays.asList(me, uid));
-        chat.put("updatedAt", System.currentTimeMillis());
+        chat.put("lastMessage", text);
+        chat.put("lastMessageAt", nowMs);
+        chat.put("lastSender", me);
         db.collection("chats").document(chatId).set(chat, SetOptions.merge()).addOnSuccessListener(v -> {
             Map<String, Object> m = new HashMap<>();
-            m.put("senderId", me);
+            m.put("type", "text");
             m.put("text", text);
+            m.put("sender", me);
+            m.put("timestamp", nowMs);
             m.put("storyReply", true);
             {
                 Map<String, Object> sd = new HashMap<>();
@@ -1234,7 +1240,6 @@ public final class StoryViewer {
                 m.put("storyReplyData", sd);
             }
             m.put("read", false);
-            m.put("createdAt", System.currentTimeMillis());
             db.collection("chats").document(chatId).collection("messages").add(m)
                 .addOnSuccessListener(r -> {
                     notifyPeer(chatId, text);
