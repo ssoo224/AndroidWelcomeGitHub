@@ -134,7 +134,7 @@ public class Main2Activity extends Activity {
             return;
         }
         setBusy(binding.btnLogin, true);
-        toast("جاري تسجيل الدخول...");
+        toast("جارٍ تسجيل الدخول");
 
         if (input.indexOf('@') > 0) {
             signIn(input, pass); // بريد إلكتروني
@@ -203,7 +203,7 @@ public class Main2Activity extends Activity {
         }
 
         setBusy(binding.btnRegister, true);
-        toast("جاري إنشاء الحساب...");
+        toast("جارٍ إنشاء الحساب");
 
         // 1) إنشاء حساب المصادقة
         auth.createUserWithEmailAndPassword(email, pass)
@@ -354,12 +354,16 @@ public class Main2Activity extends Activity {
     private void setupPressAnim() {
         View.OnTouchListener pressAnim = (v, e) -> {
             switch (e.getAction()) {
-                case MotionEvent.ACTION_DOWN:
-                    v.animate().scaleX(0.94f).scaleY(0.94f).alpha(0.85f).setDuration(100).start();
+                case MotionEvent.ACTION_DOWN:   // ضغط واضح: انكماش سريع + خفوت
+                    v.animate().cancel();
+                    v.animate().scaleX(0.88f).scaleY(0.88f).alpha(0.75f).setDuration(90)
+                            .setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
                     break;
                 case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_CANCEL:
-                    v.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(150).start();
+                case MotionEvent.ACTION_CANCEL:   // الرجوع بارتداد (نبضة) ليُحسّ النقر
+                    v.animate().cancel();
+                    v.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(320)
+                            .setInterpolator(new android.view.animation.OvershootInterpolator(3.2f)).start();
                     break;
             }
             return false;

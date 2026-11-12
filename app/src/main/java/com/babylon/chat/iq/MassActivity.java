@@ -215,6 +215,7 @@ public class MassActivity extends Activity {
         super.onDestroy();
         if (messagesListener != null) messagesListener.remove();
         if (pinsListener != null) pinsListener.remove();
+        try { if (ui != null) ui.vpStop(); } catch (Throwable ignored) { }   // لا مشغّل يبقى بعد إغلاق التطبيق
     }
 
     @Override
@@ -279,6 +280,7 @@ public class MassActivity extends Activity {
             // --- الحظر وجهات الدردشة (مطابق للـ HTML) ---
             java.util.HashSet<String> myBlocks = new java.util.HashSet<>();
             boolean blockedByThem = false, profileFromChat = false, otherVerified = false;
+            final java.util.HashMap<String, Boolean> blockedMeCache = new java.util.HashMap<>();   // uid → هل حظرني (للنقطة الخضراء في القائمة والملف)
             com.google.firebase.firestore.ListenerRegistration blocksReg, contactsReg;
             java.util.HashMap<String, String> contacts = new java.util.HashMap<>();
             String otherOrigName = "", dlgValue = "";
@@ -1299,6 +1301,7 @@ public class MassActivity extends Activity {
                 }
                 if (home && !hdrWas) BabylonFx.barDown(v("mainHeader"), 0);
                 syncBars();
+                vpPlace();   // الشريط العائم يتبع الصفحة (أسفل فوق أزرار التنقل، أو أعلى الصفحة حيث لا أزرار)
             }
 
             void setNav(String p) {
@@ -1581,6 +1584,7 @@ public class MassActivity extends Activity {
                     .addOnSuccessListener(d -> {
                         if (!uid.equals(otherUid)) return;
                         blockedByThem = d != null && d.exists();
+                        blockedMeCache.put(uid, blockedByThem);
                         applyChatBlockUi();
                     });
             }
@@ -1659,7 +1663,7 @@ public class MassActivity extends Activity {
                     }
                     applyChatInsets();
                     TextView cs = tv("chatSub");
-                    if (cs != null && blockedByThem && !on) { cs.setText("آخر ظهور كان منذ زمن طويل"); cs.setTextColor(Tk.crMuted(cMuted())); }
+                    if (cs != null && blockedByThem && !on) { cs.setText("لم يتم تحديد آخر ظهور"); cs.setTextColor(Tk.crMuted(cMuted())); }
                     syncBars();
                 } catch (Throwable ignored) { }
             }
@@ -2148,9 +2152,10 @@ public class MassActivity extends Activity {
                 boolean hideSeen = Boolean.TRUE.equals(d.getBoolean("hideLastSeen"));
                 Long ls = d.getLong("lastSeen");
                 long lastSeen = ls != null ? ls : 0;
-                boolean live = !hideSeen && Boolean.TRUE.equals(d.getBoolean("online")) && (System.currentTimeMillis() - lastSeen < 45000);
+                boolean bm = otherUid != null && (Boolean.TRUE.equals(blockedMeCache.get(otherUid)) || blockedByThem) && !myBlocks.contains(otherUid);   // حظرني: لا متصل ولا آخر ظهور
+                boolean live = !bm && !hideSeen && Boolean.TRUE.equals(d.getBoolean("online")) && (System.currentTimeMillis() - lastSeen < 45000);
                 TextView oSt = tv("otherHeaderStatus");
-                if (oSt != null) setPfStatus(oSt, live, hideSeen ? "آخر ظهور منذ فترة" : (live ? "متصل الآن" : formatLastSeen(lastSeen)));
+                if (oSt != null) setPfStatus(oSt, live, bm ? "لم يتم تحديد آخر ظهور" : hideSeen ? "آخر ظهور منذ فترة" : (live ? "متصل الآن" : formatLastSeen(lastSeen)));
 
                 // الصورة (تُخفى إذا أخفاها صاحبها)
                 if (!Boolean.TRUE.equals(d.getBoolean("hideAvatar"))) {
@@ -2331,10 +2336,15 @@ public class MassActivity extends Activity {
                             String lastMsg0 = m.get("lastMessage") != null ? m.get("lastMessage").toString() : "";
                             if (Boolean.TRUE.equals(m.get("lastStoryReply")) && !lastMsg0.trim().isEmpty()) {   // آخر نشاط رد على قصة (نص أو إيموجي)
                                 boolean byMe = myUid.equals(String.valueOf(m.get("lastSender")));
-                                lastMsg0 = "\u200F\"" + lastMsg0.trim().replace('\n', ' ') + "\" " + (byMe ? "رداً على القصة" : "رداً على قصتك");   // العبارة في اليسار والنص المقتبس في اليمين
+                                lastMsg0 = (byMe ? "رداً على القصة" : "رداً على قصتك") + " \u200F\"" + lastMsg0.trim().replace('\n', ' ') + "\"\u200F";   // الجملة كلها تبدأ من نفس جهة باقي الرسائل تحت الاسم: العبارة أولاً ثم النص المقتبس بعدها (علامتا التنصيص حول النص)
                             }
+                            long lastAt0 = chatTs(m);
+                            try {   // رسائل وهمية (حظرني): تظهر عندي كآخر رسالة إن كانت أحدث
+                                String[] gl = GhostStore.last(act, String.valueOf(m.get("__id")));
+                                if (gl != null && Long.parseLong(gl[1]) > lastAt0 && !gl[0].isEmpty()) { lastMsg0 = gl[0].replace('\n', ' '); lastAt0 = Long.parseLong(gl[1]); }
+                            } catch (Throwable ignored) { }
+                            final long lastAt = lastAt0;
                             final String lastMsg = lastMsg0;
-                            final long lastAt = chatTs(m);
                             final String lastTime = lastAt > 0 ? listTime(lastAt) : "";
                             final String fChatId = String.valueOf(m.get("__id"));
                             chatTsMap.put(fOtherId, lastAt);
@@ -2355,7 +2365,13 @@ public class MassActivity extends Activity {
                                         Long lsn = udoc.getLong("lastSeen");
                                         boolean liveNow = !Boolean.TRUE.equals(udoc.getBoolean("hideLastSeen")) && Boolean.TRUE.equals(udoc.getBoolean("online"))
                                                 && lsn != null && System.currentTimeMillis() - lsn < 45000;
-                                        onlineMap.put(fOtherId, liveNow);
+                                        onlineMap.put(fOtherId, liveNow && !Boolean.TRUE.equals(blockedMeCache.get(fOtherId)));
+                                        if (!blockedMeCache.containsKey(fOtherId)) {   // أول مرة: نتحقق هل حظرني (يُخفي النقطة الخضراء)
+                                            blockedMeCache.put(fOtherId, false);
+                                            db.collection("users").document(fOtherId).collection("blocks").document(myUid).get().addOnSuccessListener(bd -> {
+                                                if (bd != null && bd.exists()) { blockedMeCache.put(fOtherId, true); onlineMap.put(fOtherId, false); try { buildChats(); } catch (Throwable ignored) { } }
+                                            });
+                                        }
                                     } catch (Throwable ignored) { }
                                     boolean found = false;
                                     for (int i = 0; i < chatData.size(); i++) {
@@ -3445,6 +3461,7 @@ public class MassActivity extends Activity {
                 LinearLayout msgArea = (LinearLayout) v("messagesArea");
                 if (msgArea != null) msgArea.removeAllViews();
                 renderedMsgIds.clear(); lastDayKey = ""; daySeps.clear(); msgViewsById.clear(); msgMeta.clear();
+                playingHandle = null;   // فقاعاتها القديمة أُزيلت؛ التشغيل يستمر ويُعاد ربطه عند رسم رسالتها
                 pins = new ArrayList<>(); pinIdx = -1; renderPinnedBar();
                 cancelReply();
                 closeChatSearch();
@@ -3461,6 +3478,7 @@ public class MassActivity extends Activity {
                 applyChatPhoto();
                 final View cv = v("chatView");
                 syncBars();
+                vpPlace();   // الشريط العائم ينتقل إلى رأس المحادثة
                 if (cv != null) BabylonFx.chatGrowNow(cv, v("chatTopBar"), v("chatBottomBar"));
                 applyChatBlockUi();
                 checkBlockedByThem(uid);
@@ -3582,6 +3600,7 @@ public class MassActivity extends Activity {
                             }
 
                         }
+                        if (wasFirst && chatId.equals(currentChatId)) renderGhosts(chatId, snapshots);
                         saveMsgCache(chatId, snapshots);   // آخر 50 رسالة نصية للمحادثة في الخزن المحلي
                         if (!liveBatch && !(wasFirst && !rebuilt && cacheShown)) revealChatBottom();   // ظهرت من الخزن: لا إعادة إخفاء/وميض
                     };
@@ -3821,6 +3840,7 @@ public class MassActivity extends Activity {
                                     if (ma0 != null && ma0.getChildCount() > 0) {
                                         View last = ma0.getChildAt(ma0.getChildCount() - 1);
                                         msgViewsById.put(id, last);
+                                        vpRebind(id, last);
                                         msgMeta.put(id, new Object[]{type, text, url, dur != null ? dur : 0L, mine, ts});
                                         if (Boolean.TRUE.equals(gBool(d, "forwarded")) && last instanceof LinearLayout && !(last instanceof MsgViews.VoiceBubble)) {
                                             TextView fl = new TextView(act);
@@ -3867,7 +3887,7 @@ public class MassActivity extends Activity {
                     boolean live = !hid && Boolean.TRUE.equals(d.getBoolean("online"))
                             && ls != null && System.currentTimeMillis() - ls < 45000;
                     String txt; int col = Tk.crMuted(cMuted());
-                    if (blockedByThem && !myBlocks.contains(uid)) txt = "آخر ظهور كان منذ زمن طويل";
+                    if (blockedByThem && !myBlocks.contains(uid)) { txt = "لم يتم تحديد آخر ظهور"; }   // من حظرني: لا «متصل» ولا آخر ظهور
                     else if (hid) txt = "آخر ظهور منذ فترة";
                     else if (live) { txt = "متصل الآن"; col = 0xFF4ADE80; }
                     else txt = "آخر ظهور كان قريباً";
@@ -3881,13 +3901,13 @@ public class MassActivity extends Activity {
                 if (chatPresenceReg != null) { chatPresenceReg.remove(); chatPresenceReg = null; }
                 hideKb();
                 clearSel();
-                BabylonFx.chatLeave(v("chatView"), () -> { vis("chatView", false); syncBars(); });   // حركة خروج ثم إخفاء الصفحة
+                BabylonFx.chatLeave(v("chatView"), () -> { vis("chatView", false); syncBars(); vpPlace(); });   // حركة خروج ثم إخفاء الصفحة (والشريط العائم ينتقل لأسفل الصفحة)
                 if (messagesListener != null) { messagesListener.remove(); messagesListener = null; }
                 if (pinsListener != null) { pinsListener.remove(); pinsListener = null; }
                 pins = new ArrayList<>(); pinIdx = -1; renderPinnedBar();
                 currentChatId = ""; otherUid = "";
                 renderedMsgIds.clear(); lastDayKey = ""; daySeps.clear(); msgViewsById.clear(); msgMeta.clear();
-                if (mediaPlayer != null) { try { mediaPlayer.release(); } catch (Exception e) {} mediaPlayer = null; }
+                playingHandle = null;   // الصوتية الجارية تستمر خارج المحادثة (الفقاعة تُرسم من جديد عند العودة) ويظهر شريطها العائم
                 try { buildChats(); } catch (Throwable ignored) { }
                 try { buildStories(); } catch (Throwable ignored) { }
             }
@@ -4044,11 +4064,16 @@ public class MassActivity extends Activity {
                     if (playingHandle == h && mediaPlayer != null) {
                         if (mediaPlayer.isPlaying()) { mediaPlayer.pause(); h.setPlaying(false); }
                         else { mediaPlayer.start(); h.setPlaying(true); tickVoice(h, fallbackMs); }
+                        vpPlace();   // الشريط يظهر أثناء التشغيل فقط (كما في الـ HTML)
                         return;
                     }
                     if (mediaPlayer != null) { mediaPlayer.release(); mediaPlayer = null; }
                     if (playingHandle != null) { playingHandle.setPlaying(false); playingHandle.setProgress(0f, null); }
                     playingHandle = h;
+                    // الصوتية الجارية تُعرَّف عالمياً (معرّف الرسالة والمحادثة) لتستمر خارج المحادثة ويقود الشريط العائم إليها
+                    String nid = (h instanceof View) ? idOfView((View) h) : null;
+                    vpId = nid != null ? nid : "u" + url.hashCode();
+                    vpChatId = currentChatId; vpOther = otherUid; vpName = otherName == null ? "" : otherName; vpDur = fallbackMs;
                     mediaPlayer = new MediaPlayer();
                     mediaPlayer.setAudioStreamType(android.media.AudioManager.STREAM_MUSIC);
                     if (url.startsWith("http")) {
@@ -4063,22 +4088,267 @@ public class MassActivity extends Activity {
                         }
                         mediaPlayer.setDataSource(pf.getAbsolutePath());
                     }
-                    mediaPlayer.prepareAsync();
-                    mediaPlayer.setOnPreparedListener(mp -> { mp.start(); h.setPlaying(true); tickVoice(h, fallbackMs); });
-                    mediaPlayer.setOnCompletionListener(mp -> { h.setPlaying(false); h.setProgress(0f, formatDuration(fallbackMs)); playingHandle = null; });
-                } catch (Exception e) { toast("فشل تشغيل الصوت"); }
+                    final MediaPlayer mpNew = mediaPlayer;
+                    mpNew.setOnPreparedListener(mp -> {
+                        if (mp != mediaPlayer) return;
+                        mp.start();
+                        if (playingHandle != null) playingHandle.setPlaying(true);
+                        tickVoice(h, fallbackMs);
+                        vpPlace();
+                    });
+                    mpNew.setOnCompletionListener(mp -> { if (mp == mediaPlayer) vpComplete(); });
+                    mpNew.setOnErrorListener((mp, w, e) -> { if (mp == mediaPlayer) vpStop(); return true; });
+                    mpNew.prepareAsync();
+                    vpPlace();   // يخفي الشريط القديم حتى يبدأ التشغيل الجديد
+                } catch (Exception e) { vpId = null; toast("فشل تشغيل الصوت"); }
             }
 
-            void tickVoice(final MsgViews.Handle h, final long fallbackMs) {
-                uiH.postDelayed(() -> {
-                    try {
-                        if (mediaPlayer == null || playingHandle != h || !mediaPlayer.isPlaying()) return;
-                        int dur = Math.max(1, mediaPlayer.getDuration());
-                        int pos = mediaPlayer.getCurrentPosition();
-                        h.setProgress(pos / (float) dur, formatDuration(pos));
-                        tickVoice(h, fallbackMs);
-                    } catch (Throwable ignored) { }
-                }, 80);
+            /** حلقة تحديث واحدة (80ms): تقدّم فقاعة الصوتية إن كانت ظاهرة + وقت الشريط العائم؛ تستمر خارج المحادثة. */
+            void tickVoice(final MsgViews.Handle h, final long fallbackMs) { vpTick(); }
+
+            // ================= شريط الصوتية العائم (#vpBar في الـ HTML بالضبط) =================
+            // يظهر أثناء تشغيل الصوتية في كل مكان: داخل المحادثة تحت الرأس (وتحت الرسالة المثبتة)، وخارجها فوق أزرار التنقل
+            // (أو أعلى الصفحة حيث لا أزرار تنقل)؛ النقر عليه يفتح المحادثة ويقفز للرسالة، وزر ■ يوقف التشغيل.
+            String vpId = null, vpChatId = "", vpOther = "", vpName = "", vpMode = "";
+            long vpDur = 0;
+            FrameLayout vpBar; TextView vpTxt, vpTime; View vpProg, vpStopDot, vpStopBg;
+            final View[] vpEq = new View[3];
+            final android.animation.ObjectAnimator[] vpEqA = new android.animation.ObjectAnimator[3];
+            boolean vpTicking = false, vpShown = false;
+
+            boolean vpPlaying() {
+                try { return mediaPlayer != null && vpId != null && mediaPlayer.isPlaying(); } catch (Throwable t) { return false; }
+            }
+
+            void vpTick() {
+                if (vpTicking) return;
+                vpTicking = true;
+                uiH.post(new Runnable() {
+                    @Override public void run() {
+                        try {
+                            if (!vpPlaying()) { vpTicking = false; return; }
+                            int dur = Math.max(1, mediaPlayer.getDuration()), pos = mediaPlayer.getCurrentPosition();
+                            if (playingHandle != null) playingHandle.setProgress(pos / (float) dur, formatDuration(pos));
+                            vpUpdate();
+                            uiH.postDelayed(this, 80);
+                        } catch (Throwable t) { vpTicking = false; }
+                    }
+                });
+            }
+
+            void buildVp() {
+                if (vpBar != null) return;
+                vpBar = new FrameLayout(act);
+                vpBar.setClickable(true);
+                vpBar.setContentDescription("الانتقال إلى الرسالة الصوتية");
+                vpBar.setClipToOutline(true);
+                LinearLayout row = new LinearLayout(act);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setGravity(Gravity.CENTER_VERTICAL);
+                row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);   // المعادل (eq) يميناً ثم النص ثم الوقت ثم زر الإيقاف يساراً
+                row.setPadding(dp(12), 0, dp(12), 0);
+                LinearLayout eq = new LinearLayout(act);
+                eq.setOrientation(LinearLayout.HORIZONTAL);
+                eq.setGravity(Gravity.BOTTOM);
+                for (int i = 0; i < 3; i++) {
+                    View b = new View(act);
+                    GradientDrawable g = new GradientDrawable(); g.setColor(0xFFE4C45B); g.setCornerRadius(dp(2));
+                    b.setBackground(g);
+                    b.setPivotY(dp(13));
+                    LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(dp(3), dp(13));
+                    if (i > 0) bl.setMarginStart(dp(2));
+                    eq.addView(b, bl);
+                    vpEq[i] = b;
+                }
+                row.addView(eq, new LinearLayout.LayoutParams(-2, dp(13)));
+                vpTxt = new TextView(act);
+                vpTxt.setText("رسالة صوتية"); vpTxt.setTextSize(12.5f); vpTxt.setTypeface(null, android.graphics.Typeface.BOLD);
+                vpTxt.setSingleLine(true); vpTxt.setEllipsize(TextUtils.TruncateAt.END); vpTxt.setIncludeFontPadding(false);
+                LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(0, -2, 1f);
+                tl.setMarginStart(dp(10));
+                row.addView(vpTxt, tl);
+                vpTime = new TextView(act);
+                vpTime.setText("0:00"); vpTime.setTextSize(11.5f); vpTime.setAlpha(0.75f); vpTime.setIncludeFontPadding(false);
+                vpTime.setTextDirection(View.TEXT_DIRECTION_LTR);
+                LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(-2, -2);
+                ml.setMarginStart(dp(10));
+                row.addView(vpTime, ml);
+                FrameLayout stop = new FrameLayout(act);
+                stop.setContentDescription("إيقاف الصوتية");
+                vpStopBg = stop;
+                vpStopDot = new View(act);
+                stop.addView(vpStopDot, new FrameLayout.LayoutParams(dp(10), dp(10), Gravity.CENTER));
+                stop.setOnClickListener(x -> vpStop());
+                BabylonFx.press(stop, 0.9f);
+                LinearLayout.LayoutParams sl = new LinearLayout.LayoutParams(dp(24), dp(24));
+                sl.setMarginStart(dp(10));
+                row.addView(stop, sl);
+                vpBar.addView(row, new FrameLayout.LayoutParams(-1, -1));
+                vpProg = new View(act);
+                vpProg.setBackgroundColor(0xFFE4C45B);
+                vpProg.setScaleX(0f);
+                vpProg.addOnLayoutChangeListener((vw, l, t, r, b, ol, ot, or, ob) -> vw.setPivotX(r - l));   // يتقدّم من اليمين مثل right:0
+                vpBar.addView(vpProg, new FrameLayout.LayoutParams(-1, dp(2), Gravity.BOTTOM));
+                vpBar.setOnClickListener(x -> vpGo());
+            }
+
+            void vpStyle(String mode) {
+                int bg = dark ? 0xFF1B2636 : 0xFFFFFFFF, fg = dark ? 0xFFF1F5F9 : 0xFF17212B;
+                int bd = "chat".equals(mode) ? (dark ? 0x66CBD5E1 : 0xFFD9DEE5) : (dark ? 0x4DE4C45B : 0x66C29D30);
+                float r14 = dp(14), r16 = dp(16);
+                float[] rad = "chat".equals(mode) ? new float[]{r16, r16, r16, r16, r16, r16, r16, r16}
+                        : "bottom".equals(mode) ? new float[]{r14, r14, r14, r14, 0, 0, 0, 0} : new float[]{0, 0, 0, 0, r14, r14, r14, r14};
+                GradientDrawable g = new GradientDrawable();
+                g.setColor(bg); g.setCornerRadii(rad); g.setStroke(Math.max(1, dp(1)), bd);
+                vpBar.setBackground(g);
+                vpTxt.setTextColor(fg); vpTime.setTextColor(fg);
+                int gold = dark ? 0xFFE4C45B : 0xFFB98710;
+                GradientDrawable sg = new GradientDrawable(); sg.setShape(GradientDrawable.OVAL); sg.setColor(0x2EE4C45B);
+                vpStopBg.setBackground(sg);
+                GradientDrawable dot = new GradientDrawable(); dot.setColor(gold); dot.setCornerRadius(dp(2.5f));
+                vpStopDot.setBackground(dot);
+                if (Build.VERSION.SDK_INT >= 21) vpBar.setElevation("chat".equals(mode) ? dp(4) : 0);
+            }
+
+            void vpEqStart() {
+                for (int i = 0; i < 3; i++) {
+                    if (vpEqA[i] != null && vpEqA[i].isRunning()) continue;
+                    android.animation.ObjectAnimator a = android.animation.ObjectAnimator.ofFloat(vpEq[i], View.SCALE_Y, 0.25f, 1f);   // vpEq: 3px ↔ 13px
+                    a.setDuration(700); a.setRepeatCount(android.animation.ValueAnimator.INFINITE); a.setRepeatMode(android.animation.ValueAnimator.REVERSE);
+                    a.setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator());
+                    a.start();
+                    a.setCurrentPlayTime(i * 250L);
+                    vpEqA[i] = a;
+                }
+            }
+
+            void vpEqStop() {
+                for (int i = 0; i < 3; i++) if (vpEqA[i] != null) { vpEqA[i].cancel(); vpEqA[i] = null; }
+            }
+
+            void vpUpdate() {
+                if (vpBar == null || vpTime == null) return;
+                try {
+                    int pos = mediaPlayer.getCurrentPosition(), dur = mediaPlayer.getDuration();
+                    if (dur <= 0) dur = (int) vpDur;
+                    vpTime.setText(formatDuration(pos) + (dur > 0 ? " / " + formatDuration(dur) : ""));
+                    vpProg.setScaleX(dur > 0 ? Math.min(1f, pos / (float) dur) : 0f);
+                } catch (Throwable ignored) { }
+            }
+
+            void vpHide() {
+                vpEqStop();
+                if (vpBar != null && vpBar.getParent() instanceof ViewGroup) ((ViewGroup) vpBar.getParent()).removeView(vpBar);
+                vpMode = ""; vpShown = false;
+            }
+
+            /** يضع الشريط في مكانه حسب الشاشة الحالية (place() في الـ HTML) أو يخفيه إن لم يكن هناك تشغيل. */
+            void vpPlace() {
+                try {
+                    if (!vpPlaying()) { vpHide(); return; }
+                    buildVp();
+                    boolean chat = chatOpen();
+                    ViewGroup target; String mode; View nav = null;
+                    if (chat) {
+                        View tb = v("chatTopBar");
+                        if (!(tb instanceof LinearLayout)) return;
+                        target = (ViewGroup) tb; mode = "chat";
+                    } else {
+                        View mp = v("mainPage");
+                        if (!(mp instanceof LinearLayout)) return;
+                        target = (ViewGroup) mp; nav = v("bottomNav");
+                        mode = (nav != null && nav.getVisibility() == View.VISIBLE && target.indexOfChild(nav) >= 0) ? "bottom" : "top";
+                    }
+                    boolean inPlace = vpBar.getParent() == target && mode.equals(vpMode)
+                            && (chat ? target.getChildAt(target.getChildCount() - 1) == vpBar
+                                : "bottom".equals(mode) ? target.indexOfChild(vpBar) == target.indexOfChild(nav) - 1 : target.indexOfChild(vpBar) == 0);
+                    boolean first = !vpShown;
+                    vpStyle(mode);
+                    if (!inPlace) {
+                        if (vpBar.getParent() instanceof ViewGroup) ((ViewGroup) vpBar.getParent()).removeView(vpBar);
+                        LinearLayout.LayoutParams lp;
+                        if (chat) { lp = new LinearLayout.LayoutParams(-1, dp(34)); lp.setMargins(dp(10), dp(2), dp(10), dp(6)); }   // تحت الاسم/الصورة وتحت المثبتة: left/right 10، ارتفاع 34
+                        else if ("bottom".equals(mode)) { lp = new LinearLayout.LayoutParams(-1, dp(30)); lp.setMargins(dp(12), 0, dp(12), 0); }   // فوق أزرار التنقل: margin 0 12 وارتفاع 30
+                        else { lp = new LinearLayout.LayoutParams(-1, dp(32)); lp.topMargin = isProfilePage(curPage) ? sbTop : 0; }   // أعلى الصفحة حيث لا أزرار تنقل
+                        int idx = chat ? -1 : "bottom".equals(mode) ? target.indexOfChild(nav) : 0;
+                        target.addView(vpBar, idx, lp);
+                        vpMode = mode;
+                    }
+                    vpBar.setVisibility(View.VISIBLE);
+                    if (first) {   // vpIn / vpInUp / vpInChat
+                        vpShown = true;
+                        final boolean fChat = chat, fBottom = "bottom".equals(mode);
+                        vpBar.setAlpha(fChat || fBottom ? 0f : 1f);
+                        vpBar.setTranslationY(fChat ? -dp(6) : fBottom ? dp(30) : -dp(32));
+                        vpBar.animate().alpha(1f).translationY(0f).setDuration(220).setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
+                    }
+                    vpEqStart();
+                    vpUpdate();
+                } catch (Throwable ignored) { }
+            }
+
+            /** إيقاف تام (زر ■ في الشريط، أو خطأ، أو تسجيل خروج). */
+            void vpStop() {
+                try { if (mediaPlayer != null) { mediaPlayer.release(); } } catch (Throwable ignored) { }
+                mediaPlayer = null;
+                if (playingHandle != null) { try { playingHandle.setPlaying(false); playingHandle.setProgress(0f, formatDuration(vpDur)); } catch (Throwable ignored) { } playingHandle = null; }
+                vpId = null;
+                vpPlace();
+            }
+
+            /** انتهت الصوتية: تصفير الفقاعة وإخفاء الشريط، ثم تشغيل الصوتية التالية في المحادثة المفتوحة (كحدث ended في الـ HTML). */
+            void vpComplete() {
+                final String doneId = vpId; final String doneChat = vpChatId;
+                if (playingHandle != null) { try { playingHandle.setPlaying(false); playingHandle.setProgress(0f, formatDuration(vpDur)); } catch (Throwable ignored) { } }
+                playingHandle = null;
+                try { if (mediaPlayer != null) mediaPlayer.release(); } catch (Throwable ignored) { }
+                mediaPlayer = null; vpId = null;
+                vpPlace();
+                try {
+                    View curV = doneId == null ? null : msgViewsById.get(doneId);
+                    View area = v("messagesArea");
+                    if (curV != null && area instanceof LinearLayout && chatOpen() && doneChat.equals(currentChatId)) {
+                        LinearLayout ma = (LinearLayout) area;
+                        int i0 = ma.indexOfChild(curV);
+                        for (int j = i0 + 1; i0 >= 0 && j < ma.getChildCount(); j++) {
+                            final View c = ma.getChildAt(j);
+                            if (c instanceof MsgViews.VoiceBubble) {
+                                final MsgViews.VoiceBubble nb = (MsgViews.VoiceBubble) c;
+                                uiH.postDelayed(() -> { if (nb.isAttachedToWindow() && mediaPlayer == null) nb.playBtn.performClick(); }, 150);
+                                break;
+                            }
+                        }
+                    }
+                } catch (Throwable ignored) { }
+            }
+
+            /** النقر على الشريط: يفتح المحادثة صاحبة الصوتية (إن لم تكن مفتوحة) ثم يقفز للرسالة ويميّزها (goTo في الـ HTML). */
+            void vpGo() {
+                final String id = vpId, cid = vpChatId, other = vpOther, name = vpName;
+                if (id == null) return;
+                if (!(chatOpen() && cid.equals(currentChatId))) { try { openChat(name, other); } catch (Throwable ignored) { } }
+                final int[] tries = {0};
+                uiH.postDelayed(new Runnable() {
+                    @Override public void run() {
+                        if (!cid.equals(currentChatId)) return;
+                        if (msgViewsById.get(id) != null) { jumpToMsg(id); return; }
+                        if (++tries[0] > 40) { toast("تعذر العثور على الرسالة الصوتية"); return; }
+                        uiH.postDelayed(this, 150);
+                    }
+                }, 150);
+            }
+
+            /** عند رسم رسالة من المحادثة بعد العودة إليها: إن كانت هي الصوتية الجارية تُربط بها الفقاعة الجديدة فتظهر قيد التشغيل. */
+            void vpRebind(String id, View bubble) {
+                try {
+                    if (vpId == null || mediaPlayer == null || !vpId.equals(id) || !currentChatId.equals(vpChatId) || !(bubble instanceof MsgViews.Handle)) return;
+                    playingHandle = (MsgViews.Handle) bubble;
+                    boolean pl = vpPlaying();
+                    playingHandle.setPlaying(pl);
+                    int pos = mediaPlayer.getCurrentPosition(), dur = Math.max(1, mediaPlayer.getDuration());
+                    playingHandle.setProgress(pos / (float) dur, formatDuration(pos));
+                    if (pl) vpTick();
+                } catch (Throwable ignored) { }
             }
 
             void loadImageAsync(final ImageView img, final String url) {
@@ -4330,23 +4600,41 @@ public class MassActivity extends Activity {
 
             /** شريط ظل خفيف بعرض الصف كاملاً (حتى الجهة المقابلة للرسالة)، يتبع الرسالة لحظياً ويلتحم مع الصفوف المحددة المتجاورة. */
             Drawable makeBand(final View mv, final int alpha) {
-                final android.graphics.Paint pt = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+                final android.graphics.Paint pt = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);   // الجزء الممتلئ
                 pt.setStyle(android.graphics.Paint.Style.FILL);
                 pt.setColor(bandBase());
                 pt.setAlpha(alpha);
+                final android.graphics.Paint pf = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);   // أطراف متلاشية (أعلى/أسفل)
+                pf.setStyle(android.graphics.Paint.Style.FILL);
+                pf.setAlpha(alpha);
+                final float fade = dp(14);
                 return new Drawable() {
+                    /** تدرّج ناعم من الشفاف إلى لون الشريط (يتحكم alpha الفرشاة بالشدة النهائية). */
+                    void fadeRect(android.graphics.Canvas c, float x0, float y0, float x1, float y1, boolean toTop) {
+                        int base = bandBase() & 0x00FFFFFF;
+                        int[] cols = {base, base | 0x66000000, base | 0xFF000000};
+                        float[] pos = {0f, 0.55f, 1f};
+                        float a = toTop ? y0 : y1, b = toTop ? y1 : y0;   // أول لون عند الحافة الخارجية (شفاف)
+                        pf.setShader(new android.graphics.LinearGradient(0, a, 0, b, cols, pos, android.graphics.Shader.TileMode.CLAMP));
+                        c.drawRect(x0, y0, x1, y1, pf);
+                    }
                     @Override public void draw(android.graphics.Canvas c) {
                         ViewGroup pr = (ViewGroup) mv.getParent();
                         if (pr == null) return;
-                        float up = dp(6), down = dp(6);
                         int i = pr.indexOfChild(mv);
-                        if (i > 0) up = Math.min(up, Math.max(0, mv.getTop() - pr.getChildAt(i - 1).getBottom()) / 2f);
-                        if (i >= 0 && i < pr.getChildCount() - 1) down = Math.min(down, Math.max(0, pr.getChildAt(i + 1).getTop() - mv.getBottom()) / 2f);
+                        View prev = i > 0 ? pr.getChildAt(i - 1) : null, next = (i >= 0 && i < pr.getChildCount() - 1) ? pr.getChildAt(i + 1) : null;
+                        boolean joinUp = prev != null && selRings.containsKey(prev), joinDown = next != null && selRings.containsKey(next);
                         float ty = mv.getTranslationY();
-                        c.drawRect(0, mv.getTop() + ty - up, pr.getWidth(), mv.getBottom() + ty + down, pt);
+                        float top = mv.getTop() + ty, bottom = mv.getBottom() + ty, w = pr.getWidth();
+                        // مجاورة محددة: الشريط يمتد نصف الفراغ ليلتحم بها بلا خط فاصل؛ وإلا يبدأ بهامش 6dp ثم يتلاشى للخارج
+                        float up = joinUp ? Math.max(0, mv.getTop() - prev.getBottom()) / 2f : dp(6);
+                        float down = joinDown ? Math.max(0, next.getTop() - mv.getBottom()) / 2f : dp(6);
+                        c.drawRect(0, top - up, w, bottom + down, pt);
+                        if (!joinUp) fadeRect(c, 0, top - up - fade, w, top - up, true);
+                        if (!joinDown) fadeRect(c, 0, bottom + down, w, bottom + down + fade, false);
                     }
-                    @Override public void setAlpha(int a) { pt.setAlpha(a); invalidateSelf(); }
-                    @Override public void setColorFilter(android.graphics.ColorFilter cf) { pt.setColorFilter(cf); }
+                    @Override public void setAlpha(int a) { pt.setAlpha(a); pf.setAlpha(a); invalidateSelf(); }
+                    @Override public void setColorFilter(android.graphics.ColorFilter cf) { pt.setColorFilter(cf); pf.setColorFilter(cf); }
                     @Override public int getOpacity() { return android.graphics.PixelFormat.TRANSLUCENT; }
                 };
             }
@@ -4356,7 +4644,7 @@ public class MassActivity extends Activity {
                 if (mv == null || !(mv.getParent() instanceof ViewGroup)) return null;
                 ViewGroup par = (ViewGroup) mv.getParent();
                 Drawable d = makeBand(mv, alpha);
-                d.setBounds(0, -dp(8), Math.max(par.getWidth(), 1), Math.max(par.getHeight(), mv.getBottom()) + dp(8));
+                d.setBounds(0, -dp(24), Math.max(par.getWidth(), 1), Math.max(par.getHeight(), mv.getBottom()) + dp(24));
                 par.getOverlay().add(d);
                 par.invalidate();
                 return new Object[]{par, d};
@@ -4856,6 +5144,7 @@ public class MassActivity extends Activity {
                 BabylonFx.press(xb, 0.9f);
                 bar.addView(xb, new LinearLayout.LayoutParams(dp(36), dp(36)));
                 top.addView(bar);
+                vpPlace();   // شريط الصوتية يبقى تحت الرسالة المثبتة
             }
 
             // ---- حذف: لدي فقط / لدى الكل (messageDeleteModal)
@@ -5219,7 +5508,6 @@ public class MassActivity extends Activity {
                 String t = txt("messageInput");
                 if (t.length() == 0) return;
                 if (blocked) { toast("هذا المستخدم محظور"); return; }
-                if (blockedByThem) return;   // حظرك الطرف الآخر: لا تُرسل
                 if (currentChatId.isEmpty() || otherUid.isEmpty()) return;
 
                 String fullText = t;   // نص الرسالة بلا بادئة؛ الرد في حقول replyTo* مثل الـ HTML
@@ -5243,6 +5531,13 @@ public class MassActivity extends Activity {
                     msg.put("replyToSenderId", replyMine ? myUid : otherUid);
                     msg.put("replyToType", replyKind);
                 }
+                if (blockedByThem) {   // حظرني الطرف الآخر: تظهر عندي فقط ولا تصله أبداً
+                    sendGhost(msg);
+                    EditText mg = et("messageInput");
+                    if (mg != null) mg.setText("");
+                    cancelReply();
+                    return;
+                }
                 db.collection("chats").document(currentChatId).collection("messages")
                     .add(msg);
 
@@ -5250,6 +5545,33 @@ public class MassActivity extends Activity {
                 EditText mi = et("messageInput");
                 if (mi != null) mi.setText("");
                 cancelReply();
+            }
+
+            /** رسالة وهمية: تُرسم وتُحفظ محلياً فقط (لا Firestore ولا ميتا للمحادثة). */
+            void sendGhost(Map<String, Object> msg) {
+                String id = "ghost_" + System.currentTimeMillis() + "_" + (int) (Math.random() * 10000);
+                msg.put("read", false);
+                try { renderMsgData(currentChatId, id, msg, false, true, null); } catch (Throwable ignored) { }
+                GhostStore.add(act, currentChatId, id, msg);
+            }
+
+            /** عند فتح المحادثة: يعيد رسم الرسائل الوهمية المحفوظة (الأحدث من آخر رسالة حقيقية فقط كي يبقى الترتيب سليماً). */
+            void renderGhosts(String chatId, com.google.firebase.firestore.QuerySnapshot snapshots) {
+                try {
+                    org.json.JSONArray arr = GhostStore.list(act, chatId);
+                    if (arr.length() == 0) return;
+                    long maxReal = 0L;
+                    for (DocumentSnapshot ds : snapshots.getDocuments()) { Long t = ds.getLong("timestamp"); if (t != null && t > maxReal) maxReal = t; }
+                    for (int i = 0; i < arr.length(); i++) {
+                        org.json.JSONObject o = arr.getJSONObject(i);
+                        String id = o.optString("id");
+                        if (id.isEmpty() || renderedMsgIds.contains(id) || o.optLong("timestamp", 0L) < maxReal) continue;
+                        HashMap<String, Object> d = new HashMap<>();
+                        java.util.Iterator<String> it = o.keys();
+                        while (it.hasNext()) { String k = it.next(); if (!"id".equals(k)) d.put(k, o.get(k)); }
+                        renderMsgData(chatId, id, d, false, false, null);
+                    }
+                } catch (Throwable ignored) { }
             }
 
             void updateChatMeta(String preview) {
@@ -5266,7 +5588,7 @@ public class MassActivity extends Activity {
 
             /** ملصق/GIF/صورة قادمة من لوحة المفاتيح: GIF وPNG وWebP الصغيرة تُرسل كما هي (تحافظ على الحركة والشفافية). */
             void sendKeyboardContent(final Uri uri, final String mime, final Runnable release) {
-                if (currentChatId.isEmpty() || otherUid.isEmpty() || blocked || blockedByThem) { if (release != null) release.run(); return; }
+                if (currentChatId.isEmpty() || otherUid.isEmpty() || blocked) { if (release != null) release.run(); return; }
                 new Thread(() -> {
                     try {
                         boolean keep = "image/gif".equals(mime) || "image/png".equals(mime) || "image/webp".equals(mime);
@@ -5303,7 +5625,7 @@ public class MassActivity extends Activity {
             }
 
             void sendMedia(String type, String base64Data, long duration, String mime) {
-                if (currentChatId.isEmpty() || otherUid.isEmpty() || blocked || blockedByThem) return;
+                if (currentChatId.isEmpty() || otherUid.isEmpty() || blocked) return;
                 Map<String, Object> msg = new HashMap<>();
                 msg.put("type", type);
                 msg.put("data", base64Data);
@@ -5317,6 +5639,7 @@ public class MassActivity extends Activity {
                     msg.put("replyToSenderId", replyMine ? myUid : otherUid);
                     msg.put("replyToType", replyKind);
                 }
+                if (blockedByThem) { sendGhost(msg); cancelReply(); return; }   // حظرني: وهمية عندي فقط
                 db.collection("chats").document(currentChatId).collection("messages")
                     .add(msg);
                 cancelReply();
@@ -5327,7 +5650,7 @@ public class MassActivity extends Activity {
             }
 
             void pickImage() {
-                if (blocked || blockedByThem) return;
+                if (blocked) return;
                 pendingImageCallback = uri -> uploadImage(uri);
                 Intent i = new Intent(Intent.ACTION_GET_CONTENT);
                 i.setType("image/*");
@@ -5449,7 +5772,7 @@ public class MassActivity extends Activity {
             }
 
             void toggleRecording() {
-                if (blocked || blockedByThem) return;
+                if (blocked) return;
                 if (!isRecording && !recPreview) startRecord();
             }
 
@@ -6529,6 +6852,7 @@ public class MassActivity extends Activity {
                 toast("جاري تسجيل الخروج...");
                 avatarsClear();
                 try { LocalCache.clearAll(); } catch (Throwable ignored) { }
+                vpStop();   // تسجيل الخروج يوقف الصوتية (if(cur&&!currentUser) stop() في الـ HTML)
                 mAuth.signOut();
                 sp.edit().putBoolean("logged", false).apply();
                 Intent out = new Intent(act, Main2Activity.class);

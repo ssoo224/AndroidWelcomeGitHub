@@ -20,8 +20,57 @@ import java.util.WeakHashMap;
 public final class FontManager {
     private FontManager() { }
 
-    public static final String[] IDS    = {"normal", "bold", "serif", "condensed", "mono"};
-    public static final String[] LABELS = {"عادي", "عريض", "نسخ", "مضغوط", "آلة كاتبة"};
+    private static final String[] BASE_IDS    = {"normal", "bold", "serif", "condensed", "mono"};
+    private static final String[] BASE_LABELS = {"عادي", "عريض", "نسخ", "مضغوط", "آلة كاتبة"};
+    /** القائمتان تتوسّعان تلقائياً بكل خط عربي موجود في assets/fonts باسم ar_xxx.ttf (انظر init). */
+    public static String[] IDS    = BASE_IDS;
+    public static String[] LABELS = BASE_LABELS;
+    private static final HashMap<String, Typeface> assetFonts = new HashMap<>();
+    private static boolean scanned = false;
+
+    private static String arLabel(String key) {
+        switch (key) {
+            case "cairo":   return "القاهرة";
+            case "tajawal": return "تجوّل";
+            case "amiri":   return "أميري";
+            case "kufi":    return "كوفي";
+            case "naskh":   return "نسخ عربي";
+            case "almarai": return "المراعي";
+            default:        return key;
+        }
+    }
+
+    /** يفحص assets/fonts عن ملفات ar_*.ttf/otf (والعريض اختياري: ar_xxx_bold.ttf) ويضيفها لخيارات الخط. */
+    public static synchronized void init(Context c) {
+        if (scanned) return;
+        scanned = true;
+        try {
+            String[] files = c.getApplicationContext().getAssets().list("fonts");
+            java.util.ArrayList<String> ids = new java.util.ArrayList<>(java.util.Arrays.asList(BASE_IDS));
+            java.util.ArrayList<String> labs = new java.util.ArrayList<>(java.util.Arrays.asList(BASE_LABELS));
+            if (files != null) {
+                java.util.Arrays.sort(files);
+                for (String f : files) {
+                    String low = f.toLowerCase();
+                    if (!low.startsWith("ar_") || !(low.endsWith(".ttf") || low.endsWith(".otf"))) continue;
+                    String key = low.substring(3, low.length() - 4);
+                    if (key.endsWith("_bold")) continue;   // يُحمَّل مع الخط العادي
+                    try {
+                        Typeface reg = Typeface.createFromAsset(c.getApplicationContext().getAssets(), "fonts/" + f);
+                        assetFonts.put("ar_" + key + "0", reg);
+                        try {
+                            String ext = low.substring(low.length() - 4);
+                            assetFonts.put("ar_" + key + "1", Typeface.createFromAsset(c.getApplicationContext().getAssets(), "fonts/ar_" + key + "_bold" + ext));
+                        } catch (Throwable noBold) { }
+                        ids.add("ar_" + key);
+                        labs.add(arLabel(key));
+                    } catch (Throwable ignored) { }
+                }
+            }
+            IDS = ids.toArray(new String[0]);
+            LABELS = labs.toArray(new String[0]);
+        } catch (Throwable ignored) { }
+    }
 
     private static final String PREF = "babylon_ui", KEY = "appFont";
     private static String mode = null;
@@ -32,6 +81,7 @@ public final class FontManager {
     private static final WeakHashMap<View, Boolean> installed = new WeakHashMap<>();
 
     public static String current(Context c) {
+        init(c);
         if (mode == null) {
             try { mode = c.getApplicationContext().getSharedPreferences(PREF, Context.MODE_PRIVATE).getString(KEY, "normal"); }
             catch (Throwable t) { mode = "normal"; }
@@ -88,6 +138,14 @@ public final class FontManager {
         String key = id + style;
         Typeface t = cache.get(key);
         if (t != null) return t;
+        if (id.startsWith("ar_")) {   // خط عربي مرفق: العريض من ملفه إن وُجد، وإلا عادي بلا تثخين مزيّف
+            boolean wantBold = (style & Typeface.BOLD) != 0;
+            Typeface b = wantBold ? assetFonts.get(id + "1") : null;
+            Typeface reg = assetFonts.get(id + "0");
+            t = b != null ? b : (reg != null ? reg : Typeface.DEFAULT);
+            cache.put(key, t);
+            return t;
+        }
         switch (id) {
             case "serif":     t = Typeface.create("serif", style); break;
             case "condensed": t = Typeface.create("sans-serif-condensed", style); break;
@@ -107,6 +165,24 @@ public final class FontManager {
         }
     }
 
+    /** عنوان التطبيق الوحيد الذي يبقى عريضاً في الخط «عادي». */
+    private static boolean isBrandTitle(TextView tv) {
+        CharSequence t = tv.getText();
+        return t != null && "babylon chat".equalsIgnoreCase(t.toString().trim());
+    }
+
+    /** الأنماط عادي/نسخ/مضغوط/آلة كاتبة: يزيل التعريض من كل نص في التطبيق (عربي وإنجليزي) ما عدا عنوان Babylon Chat. */
+    private static Typeface plain(TextView tv, Typeface orig) {
+        if (orig == null || isBrandTitle(tv)) return orig;
+        boolean bold = (orig.getStyle() & Typeface.BOLD) != 0;
+        boolean italic = (orig.getStyle() & Typeface.ITALIC) != 0;
+        if (android.os.Build.VERSION.SDK_INT >= 28 && orig.getWeight() >= 600) {
+            return Typeface.create(orig, 400, italic);
+        }
+        if (bold) return Typeface.create(orig, italic ? Typeface.ITALIC : Typeface.NORMAL);
+        return orig;
+    }
+
     private static void fix(TextView tv) {
         Typeface cur = tv.getTypeface();
         Object[] st = state.get(tv);
@@ -115,7 +191,8 @@ public final class FontManager {
         if (st == null || cur != st[1]) {        // خط جديد وضعه التطبيق: نحفظه كأصل
             orig = cur;
         } else orig = (Typeface) st[0];           // تغيّر الاختيار فقط: نبني من الأصل
-        Typeface target = "normal".equals(mode) ? orig : make(mode, orig == null ? Typeface.NORMAL : orig.getStyle());
+        Typeface base = "bold".equals(mode) ? orig : plain(tv, orig);   // كل الأنماط ما عدا «عريض» بلا تعريض (عدا عنوان Babylon Chat)
+        Typeface target = "normal".equals(mode) ? base : make(mode, base == null ? Typeface.NORMAL : base.getStyle());
         if (target != cur) tv.setTypeface(target);
         state.put(tv, new Object[]{orig, tv.getTypeface(), version});
     }
