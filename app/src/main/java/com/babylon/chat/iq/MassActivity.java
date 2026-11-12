@@ -459,7 +459,7 @@ public class MassActivity extends Activity {
                         TextView T = (x instanceof TextView) ? (TextView) x : null;
                         if (Tk.handle(k, x, T, dark)) continue;
                         if (k.equals("bg")) x.setBackgroundColor(cBg());
-                        else if (k.equals("storybg")) x.setBackgroundColor(dark ? cSf() : cBg());   // شريط القصص: ليلي بلون الكروت/الأسطح #17212B، نهاري كما كان
+                        else if (k.equals("storybg")) x.setBackgroundColor(cBg());   // شريط القصص: بلون خلفية الصفحة في الطورين
                         else if (k.equals("sf")) x.setBackgroundColor(cSf());
                         else if (k.equals("line")) x.setBackgroundColor(cBorder());
                         else if (k.equals("chatbg")) x.setBackgroundColor(cChatBg());
@@ -2827,7 +2827,7 @@ public class MassActivity extends Activity {
                     LinearLayout row = new LinearLayout(act);
                     row.setOrientation(LinearLayout.HORIZONTAL);
                     row.setGravity(Gravity.CENTER_VERTICAL);
-                    row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);   // الصورة أول عنصر = يمين، والمحتوى بجانبها
+                    row.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);   // الترتيب مضبوط يدوياً: المحتوى يساراً والصورة في أقصى اليمين
                     row.setPadding(dp(12), dp(6.9f), dp(12), dp(6.9f));   // أنحف بـ 5dp (70.8 → 65.8)
                     row.setTag("row");
                     if (rowPinned) row.setTag(R.id.messageInput, rowUid);   // وسم كل صف مثبّت (لإعادة الترتيب بالسحب)
@@ -2859,7 +2859,7 @@ public class MassActivity extends Activity {
                     mid.setOrientation(LinearLayout.VERTICAL);
                     mid.setClipChildren(false);
                     LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(0, -2, 1f);
-                    mp.setMarginStart(dp(12));   // بين الصورة (يمين) والمحتوى
+                    mp.setMarginEnd(dp(12));   // بين المحتوى والصورة (يمين)
                     mid.setLayoutParams(mp);
                     // صف الاسم + الوقت
                     LinearLayout r1 = new LinearLayout(act);
@@ -2871,10 +2871,12 @@ public class MassActivity extends Activity {
                     nm.setIncludeFontPadding(false); nm.setMinHeight(dp(20));
                     nm.setTextAlignment(View.TEXT_ALIGNMENT_GRAVITY); nm.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);   // الاسم (عربي/إنكليزي) بجانب الصورة من اليمين
                     TextView tm = new TextView(act);
-                    tm.setText(c[2]); tm.setTextSize(12.5f); tm.setTypeface(null, android.graphics.Typeface.BOLD);
-                    tm.setTextColor(cText()); tm.setIncludeFontPadding(false);
+                    tm.setText(c[2]); tm.setTextSize(12.5f);
+                    // كما في الـ HTML: غير المقروءة ← الوقت ذهبي وسميك، والمقروءة ← رمادي بوزن عادي
+                    tm.setTypeface(null, hasUnread ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
+                    tm.setTextColor(hasUnread ? cGold() : (dark ? 0xFF8798AA : 0xFF6B7A8C)); tm.setIncludeFontPadding(false);
+                    r1.addView(tm, new LinearLayout.LayoutParams(-2, -2));   // الوقت في أقصى اليسار
                     r1.addView(nm, new LinearLayout.LayoutParams(0, -2, 1f));
-                    r1.addView(tm, new LinearLayout.LayoutParams(-2, -2));
                     // صف آخر رسالة + شارة غير المقروء
                     LinearLayout r2 = new LinearLayout(act);
                     r2.setOrientation(LinearLayout.HORIZONTAL);
@@ -2885,7 +2887,10 @@ public class MassActivity extends Activity {
                     TextView ls = new TextView(act);
                     final int mediaKind = MsgViews.mediaKindOf(c[1]);
                     ls.setText(mediaKind > 0 ? MsgViews.mediaLabelOf(mediaKind) : c[1]); ls.setTextSize(14.05f);
-                    ls.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
+                    // كما في الـ HTML: غير المقروءة ← نص داكن بوزن 600، والمقروءة ← رمادي بوزن عادي
+                    ls.setTypeface(!hasUnread ? android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
+                            : Build.VERSION.SDK_INT >= 28 ? android.graphics.Typeface.create(android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL), 600, false)
+                            : android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.BOLD));
                     ls.setSingleLine(true); ls.setEllipsize(TextUtils.TruncateAt.END); ls.setIncludeFontPadding(false);
                     ls.setTextAlignment(View.TEXT_ALIGNMENT_GRAVITY); ls.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);   // آخر رسالة (ومنها «رداً على القصة») من اليمين بجانب الصورة
                     ls.setTextColor(hasUnread ? cText() : (dark ? 0xFF8798AA : 0xFF6B7A8C));
@@ -2894,14 +2899,15 @@ public class MassActivity extends Activity {
                         LinearLayout mw = new LinearLayout(act);
                         mw.setOrientation(LinearLayout.HORIZONTAL);
                         mw.setGravity(Gravity.CENTER_VERTICAL);
-                        mw.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);   // النص أولاً من اليمين بجانب الصورة ثم الأيقونة على يساره
-                        mw.addView(ls, new LinearLayout.LayoutParams(-2, -2));
+                        mw.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);   // الأيقونة يساراً ثم النص بجانب الصورة (يمين)
+                        mw.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
                         ImageView mi = new ImageView(act);
                         mi.setImageResource(MsgViews.mediaIconOf(mediaKind));
                         mi.setColorFilter(hasUnread ? cText() : (dark ? 0xFF8798AA : 0xFF6B7A8C));
                         LinearLayout.LayoutParams mil = new LinearLayout.LayoutParams(dp(16), dp(16));
-                        mil.setMarginStart(dp(5));
+                        mil.setMarginEnd(dp(5));
                         mw.addView(mi, mil);
+                        mw.addView(ls, new LinearLayout.LayoutParams(-2, -2));
                         r2.addView(mw, new LinearLayout.LayoutParams(0, -2, 1f));
                     } else r2.addView(ls, new LinearLayout.LayoutParams(0, -2, 1f));
                     if (hasUnread) {
@@ -2925,7 +2931,7 @@ public class MassActivity extends Activity {
                         hd.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
                         hd.setPadding(dp(2.5f), dp(2.5f), dp(2.5f), dp(2.5f));
                         LinearLayout.LayoutParams hl = new LinearLayout.LayoutParams(dp(22.9f), dp(22.9f));
-                        hl.setMarginStart(dp(6));
+                        hl.setMarginEnd(dp(6));
                         r2.addView(hd, hl);
                         attachPinDrag(hd, row, chatIdOf(rowUid));
                         attachPinDrag(row, row, chatIdOf(rowUid), 300, true);   // معاودة الضغط المطوّل (0.3ث) على المحادثة المثبّتة المحدّدة = الضغط على الخطّين: تبدأ إعادة الترتيب
@@ -2935,12 +2941,13 @@ public class MassActivity extends Activity {
                         pi.setColorFilter(cGold());
                         pi.setAlpha(.95f);
                         LinearLayout.LayoutParams pil = new LinearLayout.LayoutParams(dp(17), dp(17));
-                        pil.setMarginStart(dp(6));
+                        pil.setMarginEnd(dp(6));
                         r2.addView(pi, pil);
                     }
+                    if (r2.getChildCount() > 1) { View lsw = r2.getChildAt(0); r2.removeViewAt(0); r2.addView(lsw); }   // الدبوس/الشارة يساراً، وآخر رسالة يميناً
                     mid.addView(r1);
                     mid.addView(r2, r2p);
-                    // RTL: الأفاتار أول عنصر (يمين)
+                    // الأفاتار آخر عنصر (أقصى اليمين)
                     if (false) {
                         FrameLayout avf = new FrameLayout(act);
                         avf.setClipChildren(false);
@@ -2956,8 +2963,9 @@ public class MassActivity extends Activity {
                         ckp.rightMargin = dp(2.3f); ckp.bottomMargin = dp(2.3f);
                         avf.addView(chk, ckp);
                         row.addView(avf, ap);
-                    } else row.addView(av, ap);
+                    } else { }
                     row.addView(mid);
+                    row.addView(av, ap);
                     final String fName = c[0], fUid = c[4];
                     row.setOnClickListener(x -> { if (chatSelMode) toggleChatSel(fUid); else openChat(fName, fUid); });
                     row.setOnLongClickListener(x -> {
@@ -4239,7 +4247,7 @@ public class MassActivity extends Activity {
             }
 
             void vpStyle(String mode) {
-                int bg = dark ? 0xFF1B2636 : 0xFFFFFFFF, fg = dark ? 0xFFF1F5F9 : 0xFF17212B;
+                int bg = dark ? Tk.chatSurface(true) : 0xFFFFFFFF, fg = dark ? 0xFFF1F5F9 : 0xFF17212B;
                 int bd = "chat".equals(mode) ? (dark ? 0x66CBD5E1 : 0xFFD9DEE5) : (dark ? 0x4DE4C45B : 0x66C29D30);
                 float r14 = dp(14), r16 = dp(16);
                 float[] rad = "chat".equals(mode) ? new float[]{r16, r16, r16, r16, r16, r16, r16, r16}
@@ -4679,11 +4687,9 @@ public class MassActivity extends Activity {
                         float ty = mv.getTranslationY();
                         float top = mv.getTop() + ty, bottom = mv.getBottom() + ty, w = pr.getWidth();
                         // مجاورة محددة: الشريط يمتد نصف الفراغ ليلتحم بها بلا خط فاصل؛ وإلا يبدأ بهامش 6dp ثم يتلاشى للخارج
-                        float up = joinUp ? Math.max(0, mv.getTop() - prev.getBottom()) / 2f : dp(6);
-                        float down = joinDown ? Math.max(0, next.getTop() - mv.getBottom()) / 2f : dp(6);
-                        c.drawRect(0, top - up, w, bottom + down, pt);
-                        if (!joinUp) fadeRect(c, 0, top - up - fade, w, top - up, true);
-                        if (!joinDown) fadeRect(c, 0, bottom + down, w, bottom + down + fade, false);
+                        float up = joinUp ? Math.max(0, mv.getTop() - prev.getBottom()) / 2f : 0f;
+                        float down = joinDown ? Math.max(0, next.getTop() - mv.getBottom()) / 2f : 0f;
+                        c.drawRect(0, top - up, w, bottom + down, pt);   // الشريط بارتفاع الرسالة فقط، بلا هامش ولا تلاشٍ خارجها
                     }
                     @Override public void setAlpha(int a) { pt.setAlpha(a); pf.setAlpha(a); invalidateSelf(); }
                     @Override public void setColorFilter(android.graphics.ColorFilter cf) { pt.setColorFilter(cf); pf.setColorFilter(cf); }
@@ -6901,7 +6907,6 @@ public class MassActivity extends Activity {
                     .setNegativeButton("إلغاء", null).show();
             }
             void logout() {
-                toast("جاري تسجيل الخروج...");
                 avatarsClear();
                 try { LocalCache.clearAll(); } catch (Throwable ignored) { }
                 vpStop();   // تسجيل الخروج يوقف الصوتية (if(cur&&!currentUser) stop() في الـ HTML)
