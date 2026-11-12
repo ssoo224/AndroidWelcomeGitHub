@@ -83,6 +83,7 @@ public class MassActivity extends Activity {
     private String otherUid = "";
     private final java.util.Set<String> renderedMsgIds = new java.util.HashSet<>();
     private ListenerRegistration pinsListener;                       // الرسائل المثبتة: chats/{id}.pins
+    private Runnable vpStopHook;                                      // يوقف مشغّل الصوت عند الإغلاق (UI صنف محلي)
     private java.util.function.BooleanSupplier backHook;             // زر الرجوع يلغي تحديد الرسائل أولاً
 
     private StoryComposer storyComposer;                              // نشر قصة (StoryComposer.java)
@@ -215,7 +216,7 @@ public class MassActivity extends Activity {
         super.onDestroy();
         if (messagesListener != null) messagesListener.remove();
         if (pinsListener != null) pinsListener.remove();
-        try { if (ui != null) ui.vpStop(); } catch (Throwable ignored) { }   // لا مشغّل يبقى بعد إغلاق التطبيق
+        try { if (vpStopHook != null) vpStopHook.run(); } catch (Throwable ignored) { }   // لا مشغّل يبقى بعد إغلاق التطبيق
     }
 
     @Override
@@ -7200,6 +7201,7 @@ public class MassActivity extends Activity {
             }));
         } catch (Throwable ignored) { }
         backHook = ui::onBack;
+        vpStopHook = ui::vpStop;
 
         ui.bars.setup();
         ui.syncBars();
