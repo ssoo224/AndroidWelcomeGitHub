@@ -191,7 +191,8 @@ public final class FontManager {
         if (st == null || cur != st[1]) {        // خط جديد وضعه التطبيق: نحفظه كأصل
             orig = cur;
         } else orig = (Typeface) st[0];           // تغيّر الاختيار فقط: نبني من الأصل
-        Typeface base = "bold".equals(mode) ? orig : plain(tv, orig);   // كل الأنماط ما عدا «عريض» بلا تعريض (عدا عنوان Babylon Chat)
+        boolean keepBold = "keepbold".equals(tv.getTag());   // نصوص المحادثات غير المقروءة تحتفظ بثقلها
+        Typeface base = ("bold".equals(mode) || keepBold) ? orig : plain(tv, orig);   // كل الأنماط ما عدا «عريض» بلا تعريض (عدا عنوان Babylon Chat)
         Typeface target = "normal".equals(mode) ? base : make(mode, base == null ? Typeface.NORMAL : base.getStyle());
         if (target != cur) tv.setTypeface(target);
         state.put(tv, new Object[]{orig, tv.getTypeface(), version});

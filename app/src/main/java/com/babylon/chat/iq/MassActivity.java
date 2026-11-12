@@ -43,6 +43,7 @@ import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.PopupMenu;
+import android.widget.PopupWindow;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
 import android.widget.Spinner;
@@ -1120,6 +1121,12 @@ public class MassActivity extends Activity {
 
             boolean isProfilePage(String p) {
                 return "profileView".equals(p) || "otherUserProfileView".equals(p);
+            }
+
+            /** صفحات لا يظهر فيها شريط الصوتية العائم: أقسام الإعدادات الداخلية وتعديل المعلومات الشخصية (صفحة الإعدادات الرئيسية تعرضه؛ التشغيل يستمر في الخلفية). */
+            boolean vpHiddenPage(String p) {
+                return "privacySettingsView".equals(p) || "notificationSettingsView".equals(p)
+                        || "chatSettingsView".equals(p) || "editProfileView".equals(p);
             }
 
             boolean chatOpen() {
@@ -2339,6 +2346,35 @@ public class MassActivity extends Activity {
                 });
             }
 
+            /** مراقبة لحظية للرسائل غير المقروءة في محادثة واحدة (تُنشأ مرة واحدة لكل محادثة). */
+            final java.util.HashMap<String, ListenerRegistration> unreadRegs = new java.util.HashMap<>();
+            void watchUnread(final String chatId, final String otherId) {
+                if (chatId == null || chatId.isEmpty() || unreadRegs.containsKey(chatId)) return;
+                try {
+                    ListenerRegistration reg = db.collection("chats").document(chatId).collection("messages")
+                        .whereEqualTo("read", false)
+                        .addSnapshotListener((qs, err) -> {
+                            if (err != null || qs == null) return;
+                            int cnt = 0;
+                            final long clrU = chatClearedAt(chatId);
+                            for (DocumentSnapshot md : qs.getDocuments())
+                                if (!myUid.equals(md.getString("sender")) && !myUid.equals(md.getString("senderId")) && !msgCleared(md, clrU)) cnt++;
+                            final String nv = String.valueOf(cnt);
+                            unreadByUid.put(otherId, nv);
+                            boolean changed = false;
+                            for (int i = 0; i < chatData.size(); i++) {
+                                String[] row = chatData.get(i);
+                                if (row.length > 4 && row[4].equals(otherId)) {
+                                    if (!row[3].equals(nv)) { row[3] = nv; changed = true; }
+                                    break;
+                                }
+                            }
+                            if (changed) { try { buildChats(); } catch (Throwable ignored) { } }
+                        });
+                    unreadRegs.put(chatId, reg);
+                } catch (Throwable ignored) { }
+            }
+
             void loadChats() {
                 db.collection("chats")
                     .whereArrayContains("participants", myUid)
@@ -2420,27 +2456,8 @@ public class MassActivity extends Activity {
                                     sortChats();
                                     try { buildChats(); } catch (Throwable ignored) { }
                                     try { buildStories(); } catch (Throwable ignored) { }
-                                    // عدد الرسائل غير المقروءة (من الطرف الآخر) لهذه المحادثة
-                                    db.collection("chats").document(fChatId).collection("messages")
-                                        .whereEqualTo("read", false).get()
-                                        .addOnSuccessListener(qs -> {
-                                            int cnt = 0;
-                                            final long clrU = chatClearedAt(fChatId);
-                                            for (DocumentSnapshot md : qs.getDocuments())
-                                                if (!myUid.equals(md.getString("sender")) && !myUid.equals(md.getString("senderId")) && !msgCleared(md, clrU)) cnt++;
-                                            for (int i = 0; i < chatData.size(); i++) {
-                                                if (chatData.get(i)[4].equals(fOtherId)) {
-                                                    String[] row = chatData.get(i);
-                                                    String nv = String.valueOf(cnt);
-                                                    unreadByUid.put(fOtherId, nv);
-                                                    if (!row[3].equals(nv)) {
-                                                        row[3] = nv;
-                                                        try { buildChats(); } catch (Throwable ignored) { }
-                                                    }
-                                                    break;
-                                                }
-                                            }
-                                        });
+                                    // عدد الرسائل غير المقروءة (من الطرف الآخر): مراقبة لحظية فتظهر أزرار (الكل/غير المقروءة) فور وصول رسالة وتختفي عند قراءتها
+                                    watchUnread(fChatId, fOtherId);
                                 }));
                         }
                         chatData.clear();
@@ -2508,12 +2525,33 @@ public class MassActivity extends Activity {
                         if (!mine && !pinned) continue;
                         long exv = ex == null ? 0L : ex;
                         String vu = d.getString("videoUrl");
+                        Double du = d.getDouble("duration");
                         items.add(new Object[]{d.getId(), d.getString("imageUrl") == null ? "" : d.getString("imageUrl"),
-                                vu != null && !vu.isEmpty(), pinned, cr == null ? 0L : cr, exv > now, exv});
+                                vu != null && !vu.isEmpty(), pinned, cr == null ? 0L : cr, exv > now, exv, du == null ? 0d : du.doubleValue()});
                     }
                     java.util.Collections.sort(items, (a, b) -> Long.compare((Long) b[4], (Long) a[4]));   // الأحدث أولاً
                     renderStoryGrid(mine, uid, items);
                 });
+            }
+
+            /** شارة صغيرة على المربّع: أيقونة ثم نص (ارتفاع 15dp، خلفية سوداء شفافة، نص 12sp أبيض). */
+            LinearLayout tileBadge(int iconRes, int iw, int ih, String text) {
+                LinearLayout b = new LinearLayout(act);
+                b.setOrientation(LinearLayout.HORIZONTAL);
+                b.setGravity(Gravity.CENTER_VERTICAL);
+                b.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+                b.setBackground(shape(0x73000000, 4, 0));
+                b.setPadding(dp(4), 0, dp(5), 0);
+                ImageView ic = new ImageView(act);
+                ic.setImageResource(iconRes);
+                LinearLayout.LayoutParams il = new LinearLayout.LayoutParams(iw, ih);
+                il.setMarginEnd(dp(3));
+                b.addView(ic, il);
+                TextView t = new TextView(act);
+                t.setText(text); t.setTextSize(12); t.setTextColor(0xFFFFFFFF); t.setIncludeFontPadding(false);
+                t.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
+                b.addView(t);
+                return b;
             }
 
             /** مطابق لـ renderTiles: شبكة 3 أعمدة، مربعات، فجوة 2، شارة الوقت/الأرشيف يسار، دبوس يمين أعلى، شارة فيديو يمين أسفل. */
@@ -2528,16 +2566,17 @@ public class MassActivity extends Activity {
                 for (Object[] it : items) ids.add((String) it[0]);
                 final int cols = 3, gap = dp(2);
                 int cw = (act.getResources().getDisplayMetrics().widthPixels - dp(4) - gap * (cols - 1)) / cols;   // 2dp حشوة على الجانبين
+                final int ch = Math.round(cw * 1.25f);   // المربع الطولي 4:5 (≈118×148dp على شاشة 360dp)
                 final long now = System.currentTimeMillis();
                 for (int i = 0; i < items.size(); i += cols) {
                     LinearLayout row = new LinearLayout(act);
                     row.setOrientation(LinearLayout.HORIZONTAL);
                     row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);   // نفس ترتيب شبكة الـ HTML في صفحة RTL
-                    LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(-1, cw);
+                    LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(-1, ch);
                     if (i > 0) rlp.topMargin = gap;
                     grid.addView(row, rlp);
                     for (int c = 0; c < cols; c++) {
-                        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(0, cw, 1f);
+                        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(0, ch, 1f);
                         if (c > 0) clp.setMarginStart(gap);
                         if (i + c >= items.size()) { row.addView(new View(act), clp); continue; }
                         final Object[] it = items.get(i + c);
@@ -2545,6 +2584,11 @@ public class MassActivity extends Activity {
                         final long expires = (Long) it[6];
                         FrameLayout card = new FrameLayout(act);
                         card.setBackgroundColor(0xFF17212B);
+                        final float cardR = dp(3);   // حواف منحنية 3dp (تقصّ الصورة والشارات معاً)
+                        card.setOutlineProvider(new android.view.ViewOutlineProvider() {
+                            @Override public void getOutline(View vw0, android.graphics.Outline o) { o.setRoundRect(0, 0, vw0.getWidth(), vw0.getHeight(), cardR); }
+                        });
+                        card.setClipToOutline(true);
                         final ImageView iv = new ImageView(act);
                         iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
                         if (!active && !pinned) iv.setAlpha(0.5f);   // .st-old img{opacity:.5}
@@ -2557,54 +2601,36 @@ public class MassActivity extends Activity {
                                 if (b != null) act.runOnUiThread(() -> iv.setImageBitmap(b));
                             }).start();
                         }
-                        final int badgeFg = 0xFFFFFFFF;
-                        if (pinned) {   // .story-pin-mark : top:6 right:6، دائرة 22 بخلفية rgba(0,0,0,.62) ودبوس ذهبي (أبيض في النهاري)
-                            FrameLayout pm = new FrameLayout(act);
-                            GradientDrawable pg = new GradientDrawable();
-                            pg.setShape(GradientDrawable.OVAL); pg.setColor(0x9E000000);
-                            pm.setBackground(pg);
+                        final String tileSid = (String) it[0];
+                        if (pinned) {   // دبوس أبيض مائل 45° أعلى اليمين بلا دائرة (ظل خفيف)
                             ImageView pi = new ImageView(act);
-                            pi.setImageResource(R.drawable.ic_sv_pin);
-                            pi.setColorFilter(dark ? 0xFFF5C542 : badgeFg, android.graphics.PorterDuff.Mode.SRC_IN);
-                            pm.addView(pi, new FrameLayout.LayoutParams(dp(13), dp(13), Gravity.CENTER));
-                            FrameLayout.LayoutParams plp = new FrameLayout.LayoutParams(dp(22), dp(22), Gravity.TOP | Gravity.RIGHT);
+                            pi.setImageResource(R.drawable.ic_tile_pin);
+                            pi.setRotation(45f);
+                            FrameLayout.LayoutParams plp = new FrameLayout.LayoutParams(dp(15), dp(15), Gravity.TOP | Gravity.RIGHT);
                             plp.setMargins(0, dp(6), dp(6), 0);
-                            card.addView(pm, plp);
+                            card.addView(pi, plp);
                         }
-                        if (video) {   // .vid-badge : bottom:4 right:4
-                            FrameLayout vb = new FrameLayout(act);
-                            vb.setBackground(shape(0xA6000000, 10, 0));
-                            ImageView vi = new ImageView(act);
-                            vi.setImageResource(R.drawable.ic_voice_play);
-                            vi.setColorFilter(badgeFg, android.graphics.PorterDuff.Mode.SRC_IN);
-                            vb.addView(vi, new FrameLayout.LayoutParams(dp(15), dp(15), Gravity.CENTER));
-                            FrameLayout.LayoutParams vlp = new FrameLayout.LayoutParams(dp(27), dp(19), Gravity.BOTTOM | Gravity.RIGHT);
-                            vlp.setMargins(0, 0, dp(4), dp(4));
-                            card.addView(vb, vlp);
+                        final double durSec = it.length > 7 ? (Double) it[7] : 0d;
+                        if (video && durSec > 0) {   // شارة المدة أسفل اليسار: ▶ 0:39
+                            long ds = Math.round(durSec);
+                            LinearLayout db0 = tileBadge(R.drawable.ic_tile_play, dp(7), dp(9), java.lang.String.format(java.util.Locale.US, "%d:%02d", ds / 60, ds % 60));
+                            FrameLayout.LayoutParams dlp = new FrameLayout.LayoutParams(-2, dp(15), Gravity.BOTTOM | Gravity.LEFT);
+                            dlp.setMargins(dp(5), 0, 0, dp(4));
+                            card.addView(db0, dlp);
                         }
-                        if (mine && !pinned) {   // .st-badge : top:4 left:4 — ساعة + المتبقي، أو «أرشيف»
-                            LinearLayout sb = new LinearLayout(act);
-                            sb.setOrientation(LinearLayout.HORIZONTAL);
-                            sb.setGravity(Gravity.CENTER_VERTICAL);
-                            sb.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-                            sb.setBackground(shape(0xA6000000, 10, 0));
-                            sb.setPadding(dp(7), dp(2), dp(7), dp(2));
-                            if (active) {
-                                ImageView ci = new ImageView(act);
-                                ci.setImageResource(R.drawable.ic_sp_clock);
-                                ci.setColorFilter(badgeFg, android.graphics.PorterDuff.Mode.SRC_IN);
-                                LinearLayout.LayoutParams cil = new LinearLayout.LayoutParams(dp(15), dp(15));
-                                cil.setMarginStart(dp(4));
-                                sb.addView(ci, cil);
-                            }
-                            TextView st = new TextView(act);
-                            long m = Math.max(1, (expires - now) / 60000);
-                            st.setText(active ? (m < 60 ? m + " د" : (m / 60) + " س") : "أرشيف");
-                            st.setTextSize(11); st.setTextColor(badgeFg); st.setIncludeFontPadding(false);
-                            sb.addView(st);
-                            FrameLayout.LayoutParams slp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.LEFT);
-                            slp.setMargins(dp(4), dp(4), 0, 0);
-                            card.addView(sb, slp);
+                        {   // شارة المشاهدات أسفل اليمين: 👁 59 (تظهر بعد جلب العدد)
+                            final LinearLayout eb = tileBadge(R.drawable.ic_tile_eye, dp(12), dp(9), "0");
+                            eb.setVisibility(View.GONE);
+                            FrameLayout.LayoutParams elp = new FrameLayout.LayoutParams(-2, dp(15), Gravity.BOTTOM | Gravity.RIGHT);
+                            elp.setMargins(0, 0, dp(5), dp(4));
+                            card.addView(eb, elp);
+                            final TextView et = (TextView) eb.getChildAt(1);
+                            final com.google.firebase.firestore.CollectionReference vr = db.collection("stories").document(tileSid).collection("views");
+                            vr.count().get(com.google.firebase.firestore.AggregateSource.SERVER).addOnSuccessListener(r -> {
+                                et.setText(String.valueOf(r.getCount())); eb.setVisibility(View.VISIBLE);
+                            }).addOnFailureListener(er -> vr.get().addOnSuccessListener(q -> {
+                                et.setText(String.valueOf(q.size())); eb.setVisibility(View.VISIBLE);
+                            }));
                         }
                         final String sid = (String) it[0];
                         card.setOnClickListener(vw -> {   // startViewer(uid, list.reverse(), index): يشغّل من الأقدم للأحدث ويبدأ من المضغوطة
@@ -2890,6 +2916,12 @@ public class MassActivity extends Activity {
                     nm.setText(dn); nm.setTextSize(16.66f); nm.setTypeface(null, android.graphics.Typeface.BOLD);
                     nm.setSingleLine(true); nm.setEllipsize(TextUtils.TruncateAt.END); nm.setTextColor(cText());
                     nm.setIncludeFontPadding(false); nm.setMinHeight(dp(20));
+                    if (hasUnread) {   // محادثة فيها رسائل غير مقروءة: الاسم بخط أسود ثقيل (يبقى ثقيلاً حتى مع نمط الخط «عادي»)
+                        nm.setTag("keepbold");
+                        nm.setTypeface(Build.VERSION.SDK_INT >= 28 ? android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, 900, false)
+                                : android.graphics.Typeface.create("sans-serif-black", android.graphics.Typeface.BOLD));
+                        nm.setTextColor(dark ? cText() : 0xFF000000);
+                    }
                     nm.setTextAlignment(View.TEXT_ALIGNMENT_GRAVITY); nm.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);   // الاسم (عربي/إنكليزي) بجانب الصورة من اليمين
                     TextView tm = new TextView(act);
                     tm.setText(c[2]); tm.setTextSize(12.5f);
@@ -2914,7 +2946,12 @@ public class MassActivity extends Activity {
                             : android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.BOLD));
                     ls.setSingleLine(true); ls.setEllipsize(TextUtils.TruncateAt.END); ls.setIncludeFontPadding(false);
                     ls.setTextAlignment(View.TEXT_ALIGNMENT_GRAVITY); ls.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);   // آخر رسالة (ومنها «رداً على القصة») من اليمين بجانب الصورة
-                    ls.setTextColor(hasUnread ? cText() : (dark ? 0xFF8798AA : 0xFF6B7A8C));
+                    ls.setTextColor(hasUnread ? (dark ? cText() : 0xFF000000) : (dark ? 0xFF8798AA : 0xFF6B7A8C));
+                    if (hasUnread) {   // آخر رسالة غير مقروءة بخط أسود ثقيل
+                        ls.setTag("keepbold");
+                        ls.setTypeface(Build.VERSION.SDK_INT >= 28 ? android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, 900, false)
+                                : android.graphics.Typeface.create("sans-serif-black", android.graphics.Typeface.BOLD));
+                    }
                     if (mediaKind > 0) {
                         // وسائط (صوتية/صورة/مقطع): النص ثم أيقونة SVG على يساره
                         LinearLayout mw = new LinearLayout(act);
@@ -2933,7 +2970,8 @@ public class MassActivity extends Activity {
                     } else r2.addView(ls, new LinearLayout.LayoutParams(0, -2, 1f));
                     if (hasUnread) {
                         TextView b = new TextView(act);
-                        b.setText(c[3]); b.setTextSize(12.5f); b.setTypeface(null, android.graphics.Typeface.BOLD);
+                        int unreadN = 0; try { unreadN = Integer.parseInt(c[3].trim()); } catch (Throwable ignored) { }
+                        b.setText(unreadN > 99 ? "99+" : String.valueOf(unreadN)); b.setTextSize(12.5f); b.setTypeface(null, android.graphics.Typeface.BOLD);
                         b.setGravity(Gravity.CENTER); b.setTextColor(0xFFFFFFFF); b.setIncludeFontPadding(false);
                         b.setMinWidth(dp(22.9f)); b.setMinHeight(dp(22.9f));
                         b.setPadding(dp(7), 0, dp(7), 0);
@@ -4348,6 +4386,7 @@ public class MassActivity extends Activity {
                         return;
                     }
                     uiH.removeCallbacks(vpHideRun);
+                    if (!chatOpen() && vpHiddenPage(curPage)) { vpHide(); return; }   // لا شريط صوتية في أقسام الإعدادات الداخلية وتعديل المعلومات الشخصية
                     buildVp();
                     boolean chat = chatOpen();
                     ViewGroup target; String mode; View nav = null;
@@ -7015,6 +7054,7 @@ public class MassActivity extends Activity {
                 avatarsClear();
                 try { LocalCache.clearAll(); } catch (Throwable ignored) { }
                 vpStop();   // تسجيل الخروج يوقف الصوتية (if(cur&&!currentUser) stop() في الـ HTML)
+                try { for (ListenerRegistration ur : unreadRegs.values()) ur.remove(); unreadRegs.clear(); unreadByUid.clear(); } catch (Throwable ignored) { }
                 mAuth.signOut();
                 sp.edit().putBoolean("logged", false).apply();
                 Intent out = new Intent(act, Main2Activity.class);
@@ -7035,6 +7075,72 @@ public class MassActivity extends Activity {
                                 .addOnFailureListener(er -> toast("فشل: " + er.getMessage()));
                         }
                     }).setNegativeButton("إلغاء", null).show();
+            }
+
+            /** القائمة الصغيرة فوق زر الوسائط (#bbMediaMenu في الـ HTML): شريط أفقي بزرّين (المعرض، الملفات) 46×39، حشوة 4، انحناء 16، يظهر بحركة نمو من أسفله. */
+            void showMediaMenu(final View anchor) {
+                if (anchor == null) return;
+                final boolean th = Tk.chatPal != null;
+                final int baseC = th ? Tk.chatPal.other : (dark ? 0xFF1C2836 : 0xFFFFFFFF);          // خلفية شريط الكتابة (أقرب خلفية معتمة للحقل)
+                final int inpC = th ? Tk.chatPal.chatBg : (dark ? 0x1A7F8CA0 : 0xFFF1F5FA);          // لون حقل الكتابة فوقها
+                final int ink = th ? Tk.crMuted(cMuted()) : cMuted();                                 // لون أيقونة زر الوسائط
+                final int pad = dp(14);                                                                // هامش النافذة لظهور الظل
+                final int barW = dp(106), barH = dp(49);
+
+                final FrameLayout rootF = new FrameLayout(act);
+                rootF.setClipChildren(false); rootF.setClipToPadding(false);
+                rootF.setPadding(pad, pad, pad, pad);
+                final LinearLayout bar = new LinearLayout(act);
+                bar.setOrientation(LinearLayout.HORIZONTAL);
+                bar.setGravity(Gravity.CENTER_VERTICAL);
+                bar.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);   // المعرض أولاً من اليمين ثم الملفات (كصفحة RTL)
+                bar.setPadding(dp(5), dp(5), dp(5), dp(5));
+                GradientDrawable g1 = new GradientDrawable(); g1.setColor(baseC); g1.setCornerRadius(dp(16));
+                GradientDrawable g2 = new GradientDrawable(); g2.setColor(inpC); g2.setCornerRadius(dp(16));
+                bar.setBackground(new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[]{g1, g2}));
+                bar.setElevation(dp(10));
+                rootF.addView(bar, new FrameLayout.LayoutParams(barW, barH));
+
+                final PopupWindow pw = new PopupWindow(rootF, barW + pad * 2, barH + pad * 2, true);
+                pw.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0));
+                pw.setOutsideTouchable(true);
+                pw.setAnimationStyle(0);
+
+                final Runnable[] acts = new Runnable[2];
+                acts[0] = () -> pickImage();
+                acts[1] = () -> toast("الملفات قريباً");
+                int[] icons = {R.drawable.ic_attach_gallery, R.drawable.ic_attach_folder};
+                String[] labels = {"المعرض", "الملفات"};
+                for (int i = 0; i < 2; i++) {
+                    final int k = i;
+                    ImageView b = new ImageView(act);
+                    b.setImageResource(icons[i]);
+                    b.setColorFilter(ink, android.graphics.PorterDuff.Mode.SRC_IN);
+                    b.setScaleType(ImageView.ScaleType.CENTER);
+                    b.setContentDescription(labels[i]);
+                    LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(dp(46), dp(39));
+                    if (i == 1) bl.setMarginEnd(0);
+                    if (i == 0) bl.setMarginEnd(dp(4));
+                    bar.addView(b, bl);
+                    BabylonFx.press(b, 0.92f);
+                    b.setOnClickListener(vv -> {
+                        bar.animate().alpha(0f).setDuration(150).withEndAction(() -> { try { pw.dismiss(); } catch (Throwable ignored) { } acts[k].run(); }).start();
+                    });
+                }
+
+                int[] loc = new int[2];
+                anchor.getLocationOnScreen(loc);
+                int screenW = act.getResources().getDisplayMetrics().widthPixels;
+                int left = loc[0] + anchor.getWidth() / 2 - dp(53);
+                left = Math.max(dp(8), Math.min(screenW - dp(114), left));
+                int top = loc[1] - dp(8) - barH;   // 8dp فوق زر الوسائط
+                try { pw.showAtLocation(anchor, Gravity.NO_GRAVITY, left - pad, top - pad); } catch (Throwable t) { return; }
+
+                // حركة الظهور: من أسفل الوسط، scale(.4,.6) + إزاحة 10 ← 1 (.22ث) والشفافية .15ث
+                bar.setPivotX(barW / 2f); bar.setPivotY(barH);
+                bar.setAlpha(0f); bar.setScaleX(0.4f); bar.setScaleY(0.6f); bar.setTranslationY(dp(10));
+                bar.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f).setDuration(220)
+                    .setInterpolator(new android.view.animation.PathInterpolator(0.2f, 0.9f, 0.3f, 1.15f)).start();
             }
 
             void click(String id) {
@@ -7155,13 +7261,7 @@ public class MassActivity extends Activity {
                 else if (id.equals("recStop")) stopRecordPreview();
                 else if (id.equals("recPlay")) toggleRecPlay();
                 else if (id.equals("recCancel")) cancelRecord();
-                else if (id.equals("btnAttach")) {
-                    new AlertDialog.Builder(act).setTitle("إرفاق")
-                        .setItems(new String[]{"صورة من المعرض", "ملف"}, (d, w) -> {
-                            if (w == 0) pickImage();
-                            else toast("الملفات قريباً");
-                        }).show();
-                }
+                else if (id.equals("btnAttach")) showMediaMenu(v("btnAttach"));
             }
 
             void init() {

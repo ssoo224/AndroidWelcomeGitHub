@@ -115,6 +115,8 @@
 						<LinearLayout
 							android:id="@+id/chatFilters"
 							android:layout_width="match_parent"
+							android:layoutDirection="rtl"
+							android:gravity="start"
 							android:visibility="gone"
 							android:layout_height="wrap_content"
 							android:paddingTop="12dp"
@@ -138,6 +140,7 @@
 								android:layout_width="wrap_content"
 								android:layout_height="35dp"
 								android:layout_marginStart="8dp"
+								android:layoutDirection="ltr"
 								android:clipChildren="false">
 								<TextView
 									android:id="@+id/fltUnread"
