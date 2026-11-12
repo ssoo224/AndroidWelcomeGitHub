@@ -1220,6 +1220,11 @@ public class MassActivity extends Activity {
                 boolean near = nearBottom(sv);
                 int dTop = top - ms.getPaddingTop(), dBot = bot - ms.getPaddingBottom();
                 ms.setPadding(0, top, 0, bot);
+                if (dTop != 0 && ms.getWidth() > 0 && ms.getHeight() > 0) {   // حدّث مدى التمرير فوراً كي لا يُقصّ التعويض فيقفز المحتوى
+                    ms.measure(View.MeasureSpec.makeMeasureSpec(ms.getWidth(), View.MeasureSpec.EXACTLY),
+                            View.MeasureSpec.makeMeasureSpec(ms.getHeight(), View.MeasureSpec.EXACTLY));
+                    ms.layout(ms.getLeft(), ms.getTop(), ms.getRight(), ms.getBottom());
+                }
                 // تغيّر ارتفاع الرأس (ظهور/اختفاء شريط الصوتية): ثبّت الرسائل في مكانها بتعويض التمرير فوراً بلا قفزة
                 if (dTop != 0) sv.scrollBy(0, dTop);
                 if (near && dBot != 0) scrollDown();
@@ -2351,7 +2356,10 @@ public class MassActivity extends Activity {
                         Collections.sort(temp, (a, b) -> {
                             return Long.compare(chatTs(b), chatTs(a));
                         });
-                        chatData.clear();
+                        // تبنى القائمة الجديدة كاملةً ثم تُستبدل مرة واحدة: لا تفريغ للقائمة ولا إعادة رسم جزئية (كانت تُخفي محادثات ثم تُظهرها)
+                        if (snapshots.getMetadata().isFromCache() && snapshots.isEmpty() && !chatData.isEmpty()) return;   // نتيجة محلية فارغة مؤقتة لا تمسح القائمة
+                        final List<String[]> fresh = new ArrayList<>();
+                        final List<Runnable> fetches = new ArrayList<>();
                         for (Map<String, Object> m : temp) {
                             Object po = m.get("participants");
                             if (!(po instanceof List)) continue;
@@ -2380,9 +2388,9 @@ public class MassActivity extends Activity {
                             if (chatIsCleared(fChatId, lastAt)) continue;   // محذوفة عندي ولم يصلها جديد بعد الحذف
                             // يظهر الصف فوراً (حتى قبل جلب بيانات الطرف الآخر أو إن فشل الجلب) ثم يُحدَّث الاسم
                             boolean exists = false;
-                            for (String[] r0 : chatData) if (r0[4].equals(fOtherId)) { exists = true; break; }
-                            if (!exists) { String cn = nameCache.get(fOtherId); String cu = unreadByUid.get(fOtherId); chatData.add(new String[]{cn != null ? cn : "?", lastMsg, lastTime, cu != null ? cu : "0", fOtherId}); sortChats(); try { buildChats(); } catch (Throwable ignored) { } }
-                            fetchUserDoc(fOtherId, udoc -> {
+                            for (String[] r0 : fresh) if (r0[4].equals(fOtherId)) { exists = true; break; }
+                            if (!exists) { String cn = nameCache.get(fOtherId); String cu = unreadByUid.get(fOtherId); fresh.add(new String[]{cn != null ? cn : "?", lastMsg, lastTime, cu != null ? cu : "0", fOtherId}); }
+                            fetches.add(() -> fetchUserDoc(fOtherId, udoc -> {
                                     if (chatIsCleared(fChatId, lastAt)) return;
                                     String oName = udoc.exists() && udoc.getString("name") != null ? udoc.getString("name") : (nameCache.get(fOtherId) != null ? nameCache.get(fOtherId) : "?");
                                     if (!"?".equals(oName)) nameCache.put(fOtherId, oName);
@@ -2433,8 +2441,13 @@ public class MassActivity extends Activity {
                                                 }
                                             }
                                         });
-                                });
+                                }));
                         }
+                        chatData.clear();
+                        chatData.addAll(fresh);
+                        sortChats();
+                        try { buildChats(); } catch (Throwable ignored) { }
+                        for (Runnable fr : fetches) fr.run();
                     });
             }
 
@@ -3578,8 +3591,8 @@ public class MassActivity extends Activity {
                         // النقر/الضغط المطوّل على الجهة الفارغة المقابلة للرسالة = النقر/الضغط المطوّل على الرسالة نفسها
                         final float[] blankY = new float[1];
                         area0.setOnTouchListener((vw, ev) -> { if (ev.getActionMasked() == android.view.MotionEvent.ACTION_DOWN) blankY[0] = ev.getY(); return false; });
-                        area0.setOnClickListener(x -> { View m = msgAtY((ViewGroup) area0, blankY[0]); if (m != null) m.performClick(); else if (selecting) clearSel(); });   // أثناء التحديد: النقر على مكان فارغ يُنهي التحديد
-                        ms0.setOnClickListener(x -> { if (selecting) clearSel(); });   // الفراغ خارج منطقة الرسائل (أسفلها/حولها)
+                        area0.setOnClickListener(x -> { View m = msgAtY((ViewGroup) area0, blankY[0]); if (m != null) m.performClick(); });   // أثناء التحديد: النقر على مكان فارغ لا يُلغي التحديد
+                        ms0.setOnClickListener(x -> { /* التحديد يبقى عند النقر في مكان فارغ */ });   // الفراغ خارج منطقة الرسائل (أسفلها/حولها)
                         area0.setOnLongClickListener(x -> { View m = msgAtY((ViewGroup) area0, blankY[0]); return m != null && m.performLongClick(); });
                         area0.setHapticFeedbackEnabled(false);
                         area0.addOnLayoutChangeListener((vv, l, t, r, b, ol, ot, orr, ob) -> {
@@ -4255,8 +4268,13 @@ public class MassActivity extends Activity {
             }
 
             void vpStyle(String mode) {
-                int bg = dark ? Tk.chatSurface(true) : 0xFFFFFFFF, fg = dark ? 0xFFF1F5F9 : 0xFF17212B;
-                int bd = "chat".equals(mode) ? (dark ? 0x66CBD5E1 : 0xFFD9DEE5) : (dark ? 0x4DE4C45B : 0x66C29D30);
+                final boolean inChat = "chat".equals(mode);
+                // داخل المحادثة: ألوان الثيم (مثل شريط الرسالة المثبتة)؛ خارجها: لون ثابت لا يتأثر بالثيمات
+                int bg = inChat ? Tk.crCard(cSf()) : (dark ? Tk.chatSurface(true) : 0xFFFFFFFF);
+                int fg = inChat ? Tk.crInk(cText()) : (dark ? 0xFFF1F5F9 : 0xFF17212B);
+                int bd = inChat ? Tk.crLine(cBorder()) : (dark ? 0x4DE4C45B : 0x66C29D30);
+                final int accent = inChat ? selAcc() : (dark ? 0xFFE4C45B : 0xFFB98710);
+                final int accentSoft = inChat ? selAccA(0x2E) : 0x2EE4C45B;
                 float r14 = dp(14), r16 = dp(16);
                 float[] rad = "chat".equals(mode) ? new float[]{r16, r16, r16, r16, r16, r16, r16, r16}
                         : "bottom".equals(mode) ? new float[]{r14, r14, r14, r14, 0, 0, 0, 0} : new float[]{0, 0, 0, 0, r14, r14, r14, r14};
@@ -4265,12 +4283,16 @@ public class MassActivity extends Activity {
                 if ("chat".equals(mode)) g.setStroke(Math.max(1, dp(1)), bd);   // الإطار الذهبي محذوف (خارج المحادثة)؛ يبقى الحدّ الرمادي داخل المحادثة
                 vpBar.setBackground(g);
                 vpTxt.setTextColor(fg); vpTime.setTextColor(fg);
-                int gold = dark ? 0xFFE4C45B : 0xFFB98710;
-                GradientDrawable sg = new GradientDrawable(); sg.setShape(GradientDrawable.OVAL); sg.setColor(0x2EE4C45B);
+                int gold = accent;
+                GradientDrawable sg = new GradientDrawable(); sg.setShape(GradientDrawable.OVAL); sg.setColor(accentSoft);
                 vpStopBg.setBackground(sg);
-                if (vpPauseIc != null) { vpPauseIc.setColorFilter(gold); GradientDrawable pg = new GradientDrawable(); pg.setShape(GradientDrawable.OVAL); pg.setColor(0x2EE4C45B); vpPauseBtn.setBackground(pg); }
+                if (vpPauseIc != null) { vpPauseIc.setColorFilter(gold); GradientDrawable pg = new GradientDrawable(); pg.setShape(GradientDrawable.OVAL); pg.setColor(accentSoft); vpPauseBtn.setBackground(pg); }
                 GradientDrawable dot = new GradientDrawable(); dot.setColor(gold); dot.setCornerRadius(dp(2.5f));
                 vpStopDot.setBackground(dot);
+                try {   // أعمدة الموجة وشريط التقدم يتبعان نفس لون التمييز
+                    for (int i = 0; i < 3; i++) if (vpEq[i] != null) { GradientDrawable eg = new GradientDrawable(); eg.setColor(accent); eg.setCornerRadius(dp(2)); vpEq[i].setBackground(eg); }
+                    if (vpProg != null) vpProg.setBackgroundColor(inChat ? accent : 0xFFE4C45B);
+                } catch (Throwable ignored) { }
                 if (Build.VERSION.SDK_INT >= 21) vpBar.setElevation("chat".equals(mode) ? dp(4) : 0);
             }
 
@@ -4300,16 +4322,32 @@ public class MassActivity extends Activity {
                 } catch (Throwable ignored) { }
             }
 
+            final Runnable vpHideRun = () -> { if (!vpActive()) vpHide(); };
+
             void vpHide() {
+                uiH.removeCallbacks(vpHideRun);
                 vpEqStop();
                 if (vpBar != null && vpBar.getParent() instanceof ViewGroup) ((ViewGroup) vpBar.getParent()).removeView(vpBar);
                 vpMode = ""; vpShown = false;
             }
 
             /** يضع الشريط في مكانه حسب الشاشة الحالية (place() في الـ HTML) أو يخفيه إن لم يكن هناك تشغيل. */
+            /** هامش الشريط الصوتي العلوي في المحادثة: 3dp تحت شريط التثبيت، أو 3dp تحت الهيدر (له 6dp أصلاً) إن لم يوجد تثبيت. */
+            int vpChatTop(ViewGroup target) {
+                return target.findViewWithTag("pinnedBar") != null ? dp(3) : -dp(3);
+            }
+
             void vpPlace() {
                 try {
-                    if (!vpActive()) { vpHide(); return; }
+                    if (!vpActive()) {
+                        // لا تُزل الشريط فوراً: الانتقال بين صوتيتين يمرّ بلحظة «غير جاهز»، والإزالة ثم الإضافة تغيّر ارتفاع الرأس فتهتز المحادثة
+                        if (vpBar != null && vpBar.getParent() != null) {
+                            uiH.removeCallbacks(vpHideRun);
+                            uiH.postDelayed(vpHideRun, 900);
+                        } else vpHide();
+                        return;
+                    }
+                    uiH.removeCallbacks(vpHideRun);
                     buildVp();
                     boolean chat = chatOpen();
                     ViewGroup target; String mode; View nav = null;
@@ -4328,10 +4366,15 @@ public class MassActivity extends Activity {
                                 : "bottom".equals(mode) ? target.indexOfChild(vpBar) == target.indexOfChild(nav) - 1 : target.indexOfChild(vpBar) == 0);
                     boolean first = !vpShown;
                     vpStyle(mode);
+                    if (inPlace && chat && vpBar.getLayoutParams() instanceof LinearLayout.LayoutParams) {
+                        LinearLayout.LayoutParams cur = (LinearLayout.LayoutParams) vpBar.getLayoutParams();
+                        int want = vpChatTop(target);
+                        if (cur.topMargin != want) { cur.topMargin = want; vpBar.setLayoutParams(cur); }
+                    }
                     if (!inPlace) {
                         if (vpBar.getParent() instanceof ViewGroup) ((ViewGroup) vpBar.getParent()).removeView(vpBar);
                         LinearLayout.LayoutParams lp;
-                        if (chat) { lp = new LinearLayout.LayoutParams(-1, dp(34)); lp.setMargins(dp(10), dp(2), dp(10), dp(6)); }   // تحت الاسم/الصورة وتحت المثبتة: left/right 10، ارتفاع 34
+                        if (chat) { lp = new LinearLayout.LayoutParams(-1, dp(34)); lp.setMargins(dp(10), vpChatTop(target), dp(10), dp(6)); }   // تحت الاسم/الصورة وتحت المثبتة: left/right 10، ارتفاع 34
                         else if ("bottom".equals(mode)) { lp = new LinearLayout.LayoutParams(-1, dp(30)); lp.setMargins(dp(12), 0, dp(12), 0); }   // فوق أزرار التنقل: margin 0 12 وارتفاع 30
                         else { lp = new LinearLayout.LayoutParams(-1, dp(32)); lp.topMargin = isProfilePage(curPage) ? sbTop : 0; }   // أعلى الصفحة حيث لا أزرار تنقل
                         int idx = chat ? -1 : "bottom".equals(mode) ? target.indexOfChild(nav) : 0;
@@ -4362,6 +4405,7 @@ public class MassActivity extends Activity {
                 if (playingHandle != null) { try { playingHandle.setPlaying(false); playingHandle.setProgress(0f, formatDuration(vpDur)); } catch (Throwable ignored) { } playingHandle = null; }
                 vpId = null;
                 vpPlace();
+                vpHide();   // إيقاف يدوي: إخفاء فوري
             }
 
             /** انتهت الصوتية: تصفير الفقاعة وإخفاء الشريط، ثم تشغيل الصوتية التالية في المحادثة المفتوحة (كحدث ended في الـ HTML). */
@@ -4813,8 +4857,7 @@ public class MassActivity extends Activity {
                         boolean ok = tapOk; tapOk = false;
                         if (!ok || !selecting) return;
                         if (ev.getEventTime() - tapT > android.view.ViewConfiguration.getLongPressTimeout()) return;   // ضغط مطوّل لا نقرة
-                        if (tapProtected(ev.getRawX(), ev.getRawY())) return;
-                        clearSel();
+                        // النقر في مكان عشوائي لم يعد يُلغي التحديد (الإلغاء عبر ✕ أو زر الرجوع)
                         break;
                     default: break;
                 }
@@ -5197,7 +5240,7 @@ public class MassActivity extends Activity {
                 LinearLayout top = (LinearLayout) tb;
                 View old = top.findViewWithTag("pinnedBar");
                 if (old != null) top.removeView(old);
-                if (pins.isEmpty()) { pinIdx = -1; return; }
+                if (pins.isEmpty()) { pinIdx = -1; vpPlace(); return; }
                 if (pinIdx < 0 || pinIdx >= pins.size()) pinIdx = pins.size() - 1;
                 final int idx = pinIdx;
                 final Map<String, Object> p = pins.get(idx);
@@ -5211,7 +5254,7 @@ public class MassActivity extends Activity {
                 bar.setPadding(dp(10), dp(6), dp(6), dp(6));
                 bar.setBackground(shape(Tk.crCard(cSf()), 18, Tk.crLine(cBorder())));   // .pinned-bar{background:var(--cr-card);border:1px solid var(--cr-line)}
                 LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(-1, -2);
-                blp.setMargins(dp(10), dp(2), dp(10), dp(6));
+                blp.setMargins(dp(10), -dp(3), dp(10), 0);   // الهيدر paddingBottom=6dp ← الفاصل الفعلي 3dp
                 bar.setLayoutParams(blp);
 
                 LinearLayout line = new LinearLayout(act);
@@ -6886,6 +6929,7 @@ public class MassActivity extends Activity {
                 style(v("chatView"));
                 try { syncBars(); } catch (Throwable ignored) { }
                 try { renderPinnedBar(); } catch (Throwable ignored) { }   // شريط التثبيت يتبع الثيم فوراً
+                try { if (vpBar != null && vpShown && vpMode.length() > 0) vpStyle(vpMode); } catch (Throwable ignored) { }   // الشريط الصوتي داخل المحادثة يتبع ثيم المحادثة فوراً
             }
 
             void saveChatPrefs() {
