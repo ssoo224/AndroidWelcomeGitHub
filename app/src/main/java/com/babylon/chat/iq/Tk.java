@@ -265,9 +265,9 @@ public final class Tk {
             return true;
         }
         if (tag.equals("vtTM")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.textMine : GOLD_INK); return true; }   // عنوان "رسالة صوتية" في المرسَلة: أبيض
-        if (tag.equals("vtTO")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.textOther : (dark ? 0xFFFFFFFF : 0xFFB8861B)); return true; }   // في المستلمة: ذهبي في النهاري فقط، أبيض في الليلي
+        if (tag.equals("vtTO")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.metaOther : muted(dark)); return true; }   // عنوان \"رسالة صوتية\" في المستلمة: رمادي مسوَّد مثل باقي خطوط التطبيق (كان ذهبي)
         if (tag.equals("vtM")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.textMine : 0xFFFFFFFF); return true; }
-        if (tag.equals("vtO")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.metaOther : text(dark)); return true; }
+        if (tag.equals("vtO")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.metaOther : muted(dark)); return true; }   // مدة الصوتية في المستلمة: نفس الرمادي
         if (tag.equals("vkM") || tag.equals("vkO")) { if (x instanceof MsgViews.TrackView) { ((MsgViews.TrackView) x).setDark(dark); ((MsgViews.TrackView) x).setAccent(0); ((MsgViews.TrackView) x).setThumbAccent(chatPal != null ? chatPal.accent : 0); } return true; }   // شريط التقدم لا يتبع الثيم: يبقى كما في الـ HTML (أبيض في رسائلي)
         if (tag.equals("wvM") || tag.equals("wvO")) {
             if (x instanceof MsgViews.WaveView) {   // الأعمدة الساكنة تتبع نص الفقاعة؛ لون التشغيل أصلي (لا يتبع الثيم)

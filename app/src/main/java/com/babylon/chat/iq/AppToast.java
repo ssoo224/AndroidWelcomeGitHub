@@ -38,7 +38,7 @@ public final class AppToast {
     private static Runnable hideRun;
 
     private static final Pattern P_DANGER = Pattern.compile("حظرك");
-    private static final Pattern P_LOADING = Pattern.compile("جاري|جارٍ|\\.\\.\\.|\u2026");
+    private static final Pattern P_LOADING = Pattern.compile("(^|\\s)جار[يٍ]?(\\s|$)|\\.\\.\\.|\u2026");   // «جارٍ تسجيل الدخول»: kindOf يحذف التشكيل فيصير «جار» (كان يُصنَّف info أزرق)
     private static final Pattern P_ERROR = Pattern.compile("تعذر|فشل|خطأ|غير صح|لا يمكن|حدث خطأ|الرجاء|يجب|مرفوض|ممنوع");
     private static final Pattern P_OK = Pattern.compile("تم|نجاح|\u2727|\u2713|\u2714");
 

@@ -459,6 +459,7 @@ public class MassActivity extends Activity {
                         TextView T = (x instanceof TextView) ? (TextView) x : null;
                         if (Tk.handle(k, x, T, dark)) continue;
                         if (k.equals("bg")) x.setBackgroundColor(cBg());
+                        else if (k.equals("storybg")) x.setBackgroundColor(dark ? cSf() : cBg());   // شريط القصص: ليلي بلون الكروت/الأسطح #17212B، نهاري كما كان
                         else if (k.equals("sf")) x.setBackgroundColor(cSf());
                         else if (k.equals("line")) x.setBackgroundColor(cBorder());
                         else if (k.equals("chatbg")) x.setBackgroundColor(cChatBg());
@@ -1102,6 +1103,7 @@ public class MassActivity extends Activity {
                 polishProfile();
                 try { syncBars(); } catch (Throwable ignored) { }
                 try { renderPinnedBar(); } catch (Throwable ignored) { }   // وعند تبديل نهاري/ليلي
+                try { if (vpBar != null && vpShown && vpMode.length() > 0) vpStyle(vpMode); } catch (Throwable ignored) { }   // شريط الصوتية الجاري يتبع الثيم فوراً
             }
 
             int tabIndex(String p) {
@@ -1206,14 +1208,30 @@ public class MassActivity extends Activity {
                 int top = Math.max(0, tb.getHeight() - dp(2));
                 int bot = Math.max(0, bb.getHeight());
                 if (ms.getPaddingTop() == top && ms.getPaddingBottom() == bot) return;
-                boolean near = nearBottom((ScrollView) ms);
+                ScrollView sv = (ScrollView) ms;
+                boolean near = nearBottom(sv);
+                int dTop = top - ms.getPaddingTop(), dBot = bot - ms.getPaddingBottom();
                 ms.setPadding(0, top, 0, bot);
-                if (near) scrollDown();
+                // تغيّر ارتفاع الرأس (ظهور/اختفاء شريط الصوتية): ثبّت الرسائل في مكانها بتعويض التمرير فوراً بلا قفزة
+                if (dTop != 0) sv.scrollBy(0, dTop);
+                if (near && dBot != 0) scrollDown();
             }
 
             void setupChatGlass() {
                 View.OnLayoutChangeListener l = (vw, a, b, c, d, oa, ob, oc, od) -> {
-                    if ((d - b) != (od - ob)) vw.post(() -> syncChatPadding());
+                    if ((d - b) != (od - ob)) {
+                        // قبل الرسم مباشرة (في نفس الإطار) بدل post: لا يظهر إطار وسيط تهتز فيه الرسائل
+                        final android.view.ViewTreeObserver vto = vw.getViewTreeObserver();
+                        if (!vto.isAlive()) { vw.post(() -> syncChatPadding()); return; }
+                        vto.addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
+                            @Override public boolean onPreDraw() {
+                                android.view.ViewTreeObserver o = vw.getViewTreeObserver();
+                                if (o.isAlive()) o.removeOnPreDrawListener(this);
+                                syncChatPadding();
+                                return true;
+                            }
+                        });
+                    }
                 };
                 View tb = v("chatTopBar"), bb = v("chatBottomBar");
                 if (tb != null) tb.addOnLayoutChangeListener(l);
@@ -2809,6 +2827,7 @@ public class MassActivity extends Activity {
                     LinearLayout row = new LinearLayout(act);
                     row.setOrientation(LinearLayout.HORIZONTAL);
                     row.setGravity(Gravity.CENTER_VERTICAL);
+                    row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);   // الصورة أول عنصر = يمين، والمحتوى بجانبها
                     row.setPadding(dp(12), dp(6.9f), dp(12), dp(6.9f));   // أنحف بـ 5dp (70.8 → 65.8)
                     row.setTag("row");
                     if (rowPinned) row.setTag(R.id.messageInput, rowUid);   // وسم كل صف مثبّت (لإعادة الترتيب بالسحب)
@@ -2840,7 +2859,7 @@ public class MassActivity extends Activity {
                     mid.setOrientation(LinearLayout.VERTICAL);
                     mid.setClipChildren(false);
                     LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(0, -2, 1f);
-                    mp.setMargins(dp(12), 0, 0, 0);
+                    mp.setMarginStart(dp(12));   // بين الصورة (يمين) والمحتوى
                     mid.setLayoutParams(mp);
                     // صف الاسم + الوقت
                     LinearLayout r1 = new LinearLayout(act);
@@ -2849,7 +2868,8 @@ public class MassActivity extends Activity {
                     TextView nm = new TextView(act);
                     nm.setText(dn); nm.setTextSize(16.66f); nm.setTypeface(null, android.graphics.Typeface.BOLD);
                     nm.setSingleLine(true); nm.setEllipsize(TextUtils.TruncateAt.END); nm.setTextColor(cText());
-                    nm.setIncludeFontPadding(false); nm.setMinHeight(dp(20)); nm.setGravity(Gravity.CENTER_VERTICAL);
+                    nm.setIncludeFontPadding(false); nm.setMinHeight(dp(20));
+                    nm.setTextAlignment(View.TEXT_ALIGNMENT_GRAVITY); nm.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);   // الاسم (عربي/إنكليزي) بجانب الصورة من اليمين
                     TextView tm = new TextView(act);
                     tm.setText(c[2]); tm.setTextSize(12.5f); tm.setTypeface(null, android.graphics.Typeface.BOLD);
                     tm.setTextColor(cText()); tm.setIncludeFontPadding(false);
@@ -2867,13 +2887,14 @@ public class MassActivity extends Activity {
                     ls.setText(mediaKind > 0 ? MsgViews.mediaLabelOf(mediaKind) : c[1]); ls.setTextSize(14.05f);
                     ls.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
                     ls.setSingleLine(true); ls.setEllipsize(TextUtils.TruncateAt.END); ls.setIncludeFontPadding(false);
+                    ls.setTextAlignment(View.TEXT_ALIGNMENT_GRAVITY); ls.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);   // آخر رسالة (ومنها «رداً على القصة») من اليمين بجانب الصورة
                     ls.setTextColor(hasUnread ? cText() : (dark ? 0xFF8798AA : 0xFF6B7A8C));
                     if (mediaKind > 0) {
                         // وسائط (صوتية/صورة/مقطع): النص ثم أيقونة SVG على يساره
                         LinearLayout mw = new LinearLayout(act);
                         mw.setOrientation(LinearLayout.HORIZONTAL);
                         mw.setGravity(Gravity.CENTER_VERTICAL);
-                        mw.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);   // أول عنصر (النص) يمين، والأيقونة بعده أي يساره
+                        mw.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);   // النص أولاً من اليمين بجانب الصورة ثم الأيقونة على يساره
                         mw.addView(ls, new LinearLayout.LayoutParams(-2, -2));
                         ImageView mi = new ImageView(act);
                         mi.setImageResource(MsgViews.mediaIconOf(mediaKind));
@@ -4076,6 +4097,7 @@ public class MassActivity extends Activity {
                     vpId = nid != null ? nid : "u" + url.hashCode();
                     vpChatId = currentChatId; vpOther = otherUid; vpName = otherName == null ? "" : otherName; vpDur = fallbackMs;
                     mediaPlayer = new MediaPlayer();
+                    vpReady = false;
                     mediaPlayer.setAudioStreamType(android.media.AudioManager.STREAM_MUSIC);
                     if (url.startsWith("http")) {
                         mediaPlayer.setDataSource(url);
@@ -4092,6 +4114,7 @@ public class MassActivity extends Activity {
                     final MediaPlayer mpNew = mediaPlayer;
                     mpNew.setOnPreparedListener(mp -> {
                         if (mp != mediaPlayer) return;
+                        vpReady = true;
                         mp.start();
                         if (playingHandle != null) playingHandle.setPlaying(true);
                         tickVoice(h, fallbackMs);
@@ -4113,6 +4136,18 @@ public class MassActivity extends Activity {
             String vpId = null, vpChatId = "", vpOther = "", vpName = "", vpMode = "";
             long vpDur = 0;
             FrameLayout vpBar; TextView vpTxt, vpTime; View vpProg, vpStopDot, vpStopBg;
+            FrameLayout vpPauseBtn; ImageView vpPauseIc;
+            boolean vpReady = false;   // الصوتية جاهزة (بعد onPrepared): الشريط يبقى ظاهراً أثناء الإيقاف المؤقت
+            boolean vpActive() { return mediaPlayer != null && vpId != null && vpReady; }
+            /** زر الشريط: إيقاف مؤقت / متابعة (الشريط يبقى ظاهراً بخلاف زر ■ الذي ينهي الصوتية). */
+            void vpTogglePause() {
+                try {
+                    if (!vpActive()) return;
+                    if (mediaPlayer.isPlaying()) { mediaPlayer.pause(); if (playingHandle != null) playingHandle.setPlaying(false); }
+                    else { mediaPlayer.start(); if (playingHandle != null) playingHandle.setPlaying(true); vpTick(); }
+                    vpPlace();
+                } catch (Throwable ignored) { }
+            }
             final View[] vpEq = new View[3];
             final android.animation.ObjectAnimator[] vpEqA = new android.animation.ObjectAnimator[3];
             boolean vpTicking = false, vpShown = false;
@@ -4174,6 +4209,16 @@ public class MassActivity extends Activity {
                 LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(-2, -2);
                 ml.setMarginStart(dp(10));
                 row.addView(vpTime, ml);
+                vpPauseBtn = new FrameLayout(act);
+                vpPauseBtn.setContentDescription("إيقاف مؤقت");
+                vpPauseIc = new ImageView(act);
+                vpPauseIc.setImageResource(R.drawable.ic_voice_pause);
+                vpPauseBtn.addView(vpPauseIc, new FrameLayout.LayoutParams(dp(20), dp(20), Gravity.CENTER));
+                vpPauseBtn.setOnClickListener(x -> vpTogglePause());
+                BabylonFx.press(vpPauseBtn, 0.9f);
+                LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(dp(24), dp(24));
+                pl.setMarginStart(dp(8));
+                row.addView(vpPauseBtn, pl);
                 FrameLayout stop = new FrameLayout(act);
                 stop.setContentDescription("إيقاف الصوتية");
                 vpStopBg = stop;
@@ -4200,12 +4245,14 @@ public class MassActivity extends Activity {
                 float[] rad = "chat".equals(mode) ? new float[]{r16, r16, r16, r16, r16, r16, r16, r16}
                         : "bottom".equals(mode) ? new float[]{r14, r14, r14, r14, 0, 0, 0, 0} : new float[]{0, 0, 0, 0, r14, r14, r14, r14};
                 GradientDrawable g = new GradientDrawable();
-                g.setColor(bg); g.setCornerRadii(rad); g.setStroke(Math.max(1, dp(1)), bd);
+                g.setColor(bg); g.setCornerRadii(rad);
+                if ("chat".equals(mode)) g.setStroke(Math.max(1, dp(1)), bd);   // الإطار الذهبي محذوف (خارج المحادثة)؛ يبقى الحدّ الرمادي داخل المحادثة
                 vpBar.setBackground(g);
                 vpTxt.setTextColor(fg); vpTime.setTextColor(fg);
                 int gold = dark ? 0xFFE4C45B : 0xFFB98710;
                 GradientDrawable sg = new GradientDrawable(); sg.setShape(GradientDrawable.OVAL); sg.setColor(0x2EE4C45B);
                 vpStopBg.setBackground(sg);
+                if (vpPauseIc != null) { vpPauseIc.setColorFilter(gold); GradientDrawable pg = new GradientDrawable(); pg.setShape(GradientDrawable.OVAL); pg.setColor(0x2EE4C45B); vpPauseBtn.setBackground(pg); }
                 GradientDrawable dot = new GradientDrawable(); dot.setColor(gold); dot.setCornerRadius(dp(2.5f));
                 vpStopDot.setBackground(dot);
                 if (Build.VERSION.SDK_INT >= 21) vpBar.setElevation("chat".equals(mode) ? dp(4) : 0);
@@ -4246,7 +4293,7 @@ public class MassActivity extends Activity {
             /** يضع الشريط في مكانه حسب الشاشة الحالية (place() في الـ HTML) أو يخفيه إن لم يكن هناك تشغيل. */
             void vpPlace() {
                 try {
-                    if (!vpPlaying()) { vpHide(); return; }
+                    if (!vpActive()) { vpHide(); return; }
                     buildVp();
                     boolean chat = chatOpen();
                     ViewGroup target; String mode; View nav = null;
@@ -4283,7 +4330,11 @@ public class MassActivity extends Activity {
                         vpBar.setTranslationY(fChat ? -dp(6) : fBottom ? dp(30) : -dp(32));
                         vpBar.animate().alpha(1f).translationY(0f).setDuration(220).setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
                     }
-                    vpEqStart();
+                    if (vpPlaying()) vpEqStart(); else vpEqStop();
+                    if (vpPauseIc != null) {
+                        vpPauseIc.setImageResource(vpPlaying() ? R.drawable.ic_voice_pause : R.drawable.ic_voice_play);
+                        vpPauseBtn.setContentDescription(vpPlaying() ? "إيقاف مؤقت" : "متابعة التشغيل");
+                    }
                     vpUpdate();
                 } catch (Throwable ignored) { }
             }
@@ -4608,7 +4659,7 @@ public class MassActivity extends Activity {
                 final android.graphics.Paint pf = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);   // أطراف متلاشية (أعلى/أسفل)
                 pf.setStyle(android.graphics.Paint.Style.FILL);
                 pf.setAlpha(alpha);
-                final float fade = dp(14);
+                final float fade = dp(7);   // ارتفاع التلاشي على حدّي الشريط (كان 14dp ← أقل بـ 50%)
                 return new Drawable() {
                     /** تدرّج ناعم من الشفاف إلى لون الشريط (يتحكم alpha الفرشاة بالشدة النهائية). */
                     void fadeRect(android.graphics.Canvas c, float x0, float y0, float x1, float y1, boolean toTop) {
@@ -6857,7 +6908,6 @@ public class MassActivity extends Activity {
                 mAuth.signOut();
                 sp.edit().putBoolean("logged", false).apply();
                 Intent out = new Intent(act, Main2Activity.class);
-                out.putExtra("bb_toast", "تم تسجيل الخروج");   // يُعرض في شاشة الدخول
                 startActivity(out);
                 act.finish();
             }
