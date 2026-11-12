@@ -256,7 +256,7 @@ public final class Tk {
         if (tag.equals("rpMsg")) { if (t != null) t.setTextColor(dark ? 0xFFF1F5F9 : 0xFF17212B); return true; }
         if (tag.equals("rpCancel")) {
             int c = dark ? 0xFFA5B2C2 : 0xFF64748B;
-            x.setBackground(shape(0x00000000, dp(x, 15), dark ? 0x14FFFFFF : 0xFFDBE2EA, dp(x, 1)));
+            x.setBackground(null);   // بلا دائرة حول X
             if (t != null) {
                 t.setTextColor(c);
                 for (android.graphics.drawable.Drawable d : t.getCompoundDrawablesRelative())

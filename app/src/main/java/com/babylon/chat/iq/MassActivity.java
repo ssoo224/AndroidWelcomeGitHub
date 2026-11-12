@@ -1122,7 +1122,9 @@ public class MassActivity extends Activity {
             /** حواف المحادثة: الرأس ينزل بقدر شريط الإشعارات (+4dp) ، والمدخل يترك مسافة سفلية كما في .chat-input-container. */
             void applyChatInsets() {
                 View tb = v("chatTopBar"), bb = v("chatBottomBar");
-                if (tb != null) tb.setPadding(0, sbTop + dp(4), 0, 0);
+                View csPanel = v("chatSearchPanel");
+                boolean csOpen = csPanel != null && csPanel.getVisibility() == View.VISIBLE;   // أثناء البحث: لا فراغ بين شريط الإشعارات واللوحة
+                if (tb != null) tb.setPadding(0, sbTop + (csOpen ? 0 : dp(4)), 0, 0);
                 if (bb != null) {
                     // HTML: padding-bottom = max(6px, مساحة الإيماءات) ، و4px أثناء ظهور لوحة المفاتيح.
                     // مساحة الإيماءات هنا مأخوذة أصلاً من padding الجذر، فنكمّل الفرق فقط.
@@ -2841,6 +2843,7 @@ public class MassActivity extends Activity {
                         hl.setMarginStart(dp(6));
                         r2.addView(hd, hl);
                         attachPinDrag(hd, row, chatIdOf(rowUid));
+                        attachPinDrag(row, row, chatIdOf(rowUid), 300, true);   // معاودة الضغط المطوّل (0.3ث) على المحادثة المثبّتة المحدّدة = الضغط على الخطّين: تبدأ إعادة الترتيب
                     } else if (rowPinned && !hasUnread) {
                         ImageView pi = new ImageView(act);
                         pi.setImageResource(R.drawable.ic_mm_pin);
@@ -3025,7 +3028,10 @@ public class MassActivity extends Activity {
 
             /** reorderChatListItems: المثبّتة أولاً بترتيب التثبيت ثم الباقي بترتيب آخر نشاط. */
             // ---- إعادة ترتيب المحادثات المثبّتة بالسحب (ضغطة مطوّلة 0.45ث على مقبض الخطّين) ----
-            void attachPinDrag(final View handle, final View row, final String chatId) {
+            void attachPinDrag(final View handle, final View row, final String chatId) { attachPinDrag(handle, row, chatId, 450, false); }
+
+            /** pass=true (الضغط على الصف نفسه): اللمس يمرّ للصف (نقر/تمرير) إلى أن تبدأ حركة السحب بعد delayMs. */
+            void attachPinDrag(final View handle, final View row, final String chatId, final int delayMs, final boolean pass) {
                 final android.os.Handler hh = new android.os.Handler(android.os.Looper.getMainLooper());
                 final int slop = android.view.ViewConfiguration.get(act).getScaledTouchSlop();
                 final float[] st = new float[2];            // downRawY, lastTranslationApplied
@@ -3042,6 +3048,7 @@ public class MassActivity extends Activity {
                     idx[0] = pr.indexOf(row); idx[1] = idx[0];
                     if (idx[0] < 0 || pr.size() < 2) return;   // محادثة مثبّتة وحيدة: لا شيء لترتيبه
                     drag[0] = true;
+                    if (pass) { row.cancelLongPress(); row.setPressed(false); }   // لا يُحسب الضغط المطوّل تحديداً/إلغاء تحديد بعد بدء السحب
                     try { handle.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); } catch (Throwable ignored) { }
                     for (android.view.ViewParent p = handle.getParent(); p != null; p = p.getParent()) p.requestDisallowInterceptTouchEvent(true);
                     row.setTranslationZ(dp(8)); row.setScaleX(1.02f); row.setScaleY(1.02f);
@@ -3050,11 +3057,11 @@ public class MassActivity extends Activity {
                     switch (e.getActionMasked()) {
                         case MotionEvent.ACTION_DOWN:
                             st[0] = e.getRawY(); drag[0] = false;
-                            hh.postDelayed(start, 450);
-                            return true;
+                            hh.postDelayed(start, delayMs);
+                            return !pass;
                         case MotionEvent.ACTION_MOVE: {
                             float dy = e.getRawY() - st[0];
-                            if (!drag[0]) { if (Math.abs(dy) > slop) hh.removeCallbacks(start); return true; }
+                            if (!drag[0]) { if (Math.abs(dy) > slop) hh.removeCallbacks(start); return !pass; }
                             float minDy = pr.get(0).getTop() - row.getTop();
                             float maxDy = pr.get(pr.size() - 1).getTop() - row.getTop();
                             dy = Math.max(minDy, Math.min(maxDy, dy));
@@ -3083,7 +3090,7 @@ public class MassActivity extends Activity {
                         case MotionEvent.ACTION_UP:
                         case MotionEvent.ACTION_CANCEL: {
                             hh.removeCallbacks(start);
-                            if (!drag[0]) return true;
+                            if (!drag[0]) return !pass;
                             drag[0] = false;
                             final int di = idx[0], t = idx[1];
                             final boolean commit = e.getActionMasked() == MotionEvent.ACTION_UP && t != di;
@@ -3114,7 +3121,7 @@ public class MassActivity extends Activity {
                             return true;
                         }
                     }
-                    return true;
+                    return !pass;
                 });
             }
 
@@ -3826,8 +3833,7 @@ public class MassActivity extends Activity {
                 if (chatPresenceReg != null) { chatPresenceReg.remove(); chatPresenceReg = null; }
                 hideKb();
                 clearSel();
-                vis("chatView", false);
-                syncBars();
+                BabylonFx.chatLeave(v("chatView"), () -> { vis("chatView", false); syncBars(); });   // حركة خروج ثم إخفاء الصفحة
                 if (messagesListener != null) { messagesListener.remove(); messagesListener = null; }
                 if (pinsListener != null) { pinsListener.remove(); pinsListener = null; }
                 pins = new ArrayList<>(); pinIdx = -1; renderPinnedBar();
@@ -6058,6 +6064,7 @@ public class MassActivity extends Activity {
                 View pb = v("chatTopBar") instanceof ViewGroup ? ((ViewGroup) v("chatTopBar")).findViewWithTag("pinnedBar") : null;
                 if (pb != null) pb.setVisibility(View.GONE);
                 p.setVisibility(View.VISIBLE);
+                applyChatInsets();
                 syncBars();
                 csSilent = true; in.setText(""); csSilent = false;
                 vis("csClear", false); vis("csNav", false); vis("chatMessageSearchResults", false);
@@ -6078,7 +6085,7 @@ public class MassActivity extends Activity {
                 if (in != null) { csSilent = true; in.setText(""); csSilent = false; }
                 if (p != null) p.setVisibility(View.GONE);
                 vis("linear607", true);
-                if (wasOpen) syncBars();
+                if (wasOpen) { applyChatInsets(); syncBars(); }
                 if (wasOpen) { try { renderPinnedBar(); } catch (Throwable ignored) { } hideKb(); }
             }
 
@@ -6196,28 +6203,12 @@ public class MassActivity extends Activity {
                     list.addView(e, new LinearLayout.LayoutParams(-1, -2));
                     return;
                 }
-                TextView sum = new TextView(act);
-                sum.setText(csN(csHits.size()) + " نتيجة"); sum.setTextSize(12.5f); sum.setTypeface(null, android.graphics.Typeface.BOLD); sum.setTextColor(muted);
-                sum.setPadding(dp(12), dp(2), dp(12), dp(6));
-                list.addView(sum);
                 int cap = Math.min(csHits.size(), 80);
-                String lastDay = "";
                 boolean prevItem = false;
                 for (int i = 0; i < cap; i++) {
                     Object[] x = csHits.get(i);
                     boolean mine = Boolean.TRUE.equals(x[3]);
                     long ts = (Long) x[4];
-                    if (ts > 0) {
-                        String dl = dayLabel(ts);
-                        if (!dl.equals(lastDay)) {
-                            lastDay = dl;
-                            TextView dh = new TextView(act);
-                            dh.setText(dl); dh.setTextSize(12f); dh.setTypeface(null, android.graphics.Typeface.BOLD); dh.setTextColor(muted);
-                            dh.setPadding(dp(12), dp(7), dp(12), dp(5));
-                            list.addView(dh);
-                            prevItem = false;
-                        }
-                    }
                     String who = mine ? "أنت" : (otherName == null || otherName.isEmpty() ? "" : otherName);
                     String ini = mine ? (userName != null && !userName.trim().isEmpty() ? userName.trim() : "\u0623") : (who.isEmpty() ? "\u061F" : who);
                     ini = new String(Character.toChars(ini.codePointAt(0)));

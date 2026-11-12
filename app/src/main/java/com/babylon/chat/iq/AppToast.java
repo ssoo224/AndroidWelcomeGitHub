@@ -97,7 +97,7 @@ public final class AppToast {
 
         final FrameLayout card = new FrameLayout(act);
         card.setTag(kind);
-        card.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        card.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);   // ترتيب ثابت يدوياً: النص يساراً والأيقونة أقصى اليمين (لا يعتمد على دعم RTL في التطبيق)
         GradientDrawable cb = new GradientDrawable();
         cb.setColor(bg); cb.setCornerRadius(dp(act, 18)); cb.setStroke(Math.max(1, dp(act, 1)), bd);
         card.setBackground(cb);
@@ -125,9 +125,8 @@ public final class AppToast {
         }
         ib.setShape(GradientDrawable.OVAL);
         ic.setBackground(ib);
-        LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(dp(act, 30), dp(act, 30));
-        ilp.setMarginEnd(dp(act, 11));
-        row.addView(ic, ilp);
+        final LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(dp(act, 30), dp(act, 30));
+        ilp.leftMargin = dp(act, 11);
         if (kind.equals("loading")) {
             RotateAnimation ra = new RotateAnimation(0, 360, RotateAnimation.RELATIVE_TO_SELF, 0.5f, RotateAnimation.RELATIVE_TO_SELF, 0.5f);
             ra.setDuration(800); ra.setRepeatCount(-1); ra.setInterpolator(new LinearInterpolator());
@@ -143,9 +142,10 @@ public final class AppToast {
         android.graphics.Paint.FontMetrics fm = tv.getPaint().getFontMetrics();
         float natural = fm.descent - fm.ascent + fm.leading;
         tv.setLineSpacing(Math.max(0f, dp(act, 14f * 1.45f) - natural), 1f);
-        tv.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        tv.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         tv.setTextDirection(View.TEXT_DIRECTION_ANY_RTL);
         row.addView(tv, new LinearLayout.LayoutParams(-2, -2));   // عرض النص بقدره (بلا weight) فيتقلّص الإشعار حسب الكلام والأيقونة
+        row.addView(ic, ilp);                                      // الأيقونة (✓) في أقصى اليمين بعد النص
 
         final View bar = new View(act);
         bar.setBackgroundColor(acc);
@@ -154,8 +154,12 @@ public final class AppToast {
 
         DisplayMetrics dm = act.getResources().getDisplayMetrics();
         int maxW = Math.min(dp(act, 420), dm.widthPixels - dp(act, 28));
-        card.setMinimumWidth(Math.min(dp(act, 120), maxW));
-        tv.setMaxWidth(maxW - dp(act, 16 + 15 + 30 + 11));
+        final int fixedW = dp(act, 16 + 15 + 30 + 11);
+        // العرض يُحسب صراحةً من قياس أطول سطر في النص (بلا اعتماد على قياس LinearLayout) فيطابق الكلام تماماً
+        float tw = 0f;
+        for (String ln : text.split("\n")) tw = Math.max(tw, tv.getPaint().measureText(ln));
+        final int cardW = Math.max(Math.min(dp(act, 120), maxW), Math.min(maxW, fixedW + (int) Math.ceil(tw) + dp(act, 4)));
+        tv.setMaxWidth(cardW - fixedW);
 
         ViewGroup decor = (ViewGroup) act.getWindow().getDecorView();
         // الموضع من أسفل المساحة المرئية فعلاً: بدون كيبورد 96dp فوق الحافة، ومع الكيبورد 14dp فقط فوقه (لا يرتفع للمنتصف)
@@ -169,7 +173,7 @@ public final class AppToast {
             boolean kb = dm.heightPixels - vis.bottom > dp(act, 160);
             bottomMargin = Math.max(0, decorBottom - vis.bottom) + dp(act, kb ? 14 : 96);
         } catch (Throwable t) { bottomMargin = dp(act, 96); }
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(cardW, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
         lp.bottomMargin = bottomMargin;
         card.setAlpha(0f);
         card.setTranslationY(dp(act, 26));

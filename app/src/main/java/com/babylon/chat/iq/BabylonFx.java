@@ -185,6 +185,16 @@ public final class BabylonFx {
                 .withEndAction(() -> reset(chat)).start();
     }
 
+    /** الخروج من غرفة المحادثة بحركة معاكسة للدخول (تلاشٍ + نزول خفيف + تصغير بسيط)، ثم يُستدعى end (إخفاء الصفحة). */
+    public static void chatLeave(final View chat, final Runnable end) {
+        if (chat == null) { if (end != null) end.run(); return; }
+        if (chat.getVisibility() != View.VISIBLE || chat.getWidth() <= 0 || chat.getHeight() <= 0) { if (end != null) end.run(); return; }
+        reset(chat);
+        chat.animate().alpha(0f).translationY(dp(chat, 10)).scaleX(0.985f).scaleY(0.985f)
+                .setDuration(FOLD_MS).setInterpolator(new PathInterpolator(0.4f, 0f, 1f, 1f))
+                .withEndAction(() -> { reset(chat); if (end != null) end.run(); }).start();   // لا يُنفَّذ إن أُلغيت الحركة (دخول محادثة جديدة)
+    }
+
     /**
      * نفس chatGrow لكن داخل OnPreDraw: بعد القياس وقبل رسم أول إطار.
      * (استعمال post كان يرسم المحادثة كاملة إطاراً واحداً ثم يخفيها ويبدأ الحركة: وميض عند الدخول.)

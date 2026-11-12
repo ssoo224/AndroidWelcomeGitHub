@@ -692,7 +692,7 @@
 					android:layout_height="30dp"
 					android:gravity="center_horizontal|center_vertical"
 					android:text=""
-					android:drawableStart="@drawable/ic_close_16"
+					android:drawableStart="@drawable/ic_close_18"
 					android:textSize="16sp"
 					android:layout_marginEnd="10dp"
 					android:tag="rpCancel" />
