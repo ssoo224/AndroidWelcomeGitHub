@@ -25,7 +25,7 @@ import java.util.regex.Pattern;
 
 /**
  * إشعارات التطبيق — نسخة طبق الأصل من showToast / #toast في الـ HTML (babylon-toast-v3):
- * بطاقة عائمة أسفل الشاشة (138dp فوق الحافة)، أيقونة دائرية بلون النوع، النص، وشريط تقدّم سفلي يتقلّص.
+ * بطاقة عائمة أسفل الشاشة (96dp فوق الحافة، و14dp فوق الكيبورد عند فتحه)، أيقونة دائرية بلون النوع، النص، وشريط تقدّم سفلي يتقلّص.
  * الأنواع: success / error / loading / info / danger (تُستنتج من النص كما في toastKind).
  * الظهور: شفافية + صعود 26dp + تكبير من .96 (380ms)، والمدة 3000ms (4200 للخطأ، 6000 للتحميل).
  */
@@ -88,11 +88,11 @@ public final class AppToast {
             default: acc = 0xFF3B82F6; icRes = R.drawable.ic_toast_info; break;
         }
         if (kind.equals("danger")) {
-            bg = dark ? 0xF2451C1C : 0xFFFFF1F1; fg = dark ? 0xFFFECACA : 0xFFB91C1C; bd = dark ? 0x80F87171 : 0x73DC2626;
+            bg = dark ? 0xFF451C1C : 0xFFFFF1F1; fg = dark ? 0xFFFECACA : 0xFFB91C1C; bd = dark ? 0x80F87171 : 0x73DC2626;
         } else if (dark) {
-            bg = 0xE618202E; fg = 0xFFF1F5F9; bd = 0x17FFFFFF;
+            bg = 0xFF18202E; fg = 0xFFF1F5F9; bd = 0x17FFFFFF;
         } else {
-            bg = 0xEBFFFFFF; fg = 0xFF17212B; bd = 0x140F172A;
+            bg = 0xFFFFFFFF; fg = 0xFF17212B; bd = 0x140F172A;
         }
 
         final FrameLayout card = new FrameLayout(act);
@@ -145,7 +145,7 @@ public final class AppToast {
         tv.setLineSpacing(Math.max(0f, dp(act, 14f * 1.45f) - natural), 1f);
         tv.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         tv.setTextDirection(View.TEXT_DIRECTION_ANY_RTL);
-        row.addView(tv, new LinearLayout.LayoutParams(0, -2, 1f));
+        row.addView(tv, new LinearLayout.LayoutParams(-2, -2));   // عرض النص بقدره (بلا weight) فيتقلّص الإشعار حسب الكلام والأيقونة
 
         final View bar = new View(act);
         bar.setBackgroundColor(acc);
@@ -154,16 +154,23 @@ public final class AppToast {
 
         DisplayMetrics dm = act.getResources().getDisplayMetrics();
         int maxW = Math.min(dp(act, 420), dm.widthPixels - dp(act, 28));
-        card.setMinimumWidth(Math.min(dp(act, 200), maxW));
+        card.setMinimumWidth(Math.min(dp(act, 120), maxW));
         tv.setMaxWidth(maxW - dp(act, 16 + 15 + 30 + 11));
 
         ViewGroup decor = (ViewGroup) act.getWindow().getDecorView();
-        int inset = 0;
+        // الموضع من أسفل المساحة المرئية فعلاً: بدون كيبورد 96dp فوق الحافة، ومع الكيبورد 14dp فقط فوقه (لا يرتفع للمنتصف)
+        int bottomMargin;
         try {
-            if (Build.VERSION.SDK_INT >= 23 && decor.getRootWindowInsets() != null) inset = decor.getRootWindowInsets().getSystemWindowInsetBottom();
-        } catch (Throwable ignored) { }
+            android.graphics.Rect vis = new android.graphics.Rect();
+            decor.getWindowVisibleDisplayFrame(vis);
+            int[] loc = new int[2];
+            decor.getLocationOnScreen(loc);
+            int decorBottom = loc[1] + decor.getHeight();
+            boolean kb = dm.heightPixels - vis.bottom > dp(act, 160);
+            bottomMargin = Math.max(0, decorBottom - vis.bottom) + dp(act, kb ? 14 : 96);
+        } catch (Throwable t) { bottomMargin = dp(act, 96); }
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
-        lp.bottomMargin = dp(act, 138) + inset;
+        lp.bottomMargin = bottomMargin;
         card.setAlpha(0f);
         card.setTranslationY(dp(act, 26));
         card.setScaleX(0.96f); card.setScaleY(0.96f);

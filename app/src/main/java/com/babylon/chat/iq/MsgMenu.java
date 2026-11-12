@@ -150,12 +150,12 @@ public final class MsgMenu {
 
     private static Bitmap blurSnap(ViewGroup content) {
         try {
-            float s = 1f / 4f;
+            float s = 1f / 2.5f;   // دقة أعلى + ضبابية أخف: تبقى الإيموجيات الكبيرة خلف القائمة مميّزة الشكل
             Bitmap b = Bitmap.createBitmap(Math.max(1, (int) (content.getWidth() * s)), Math.max(1, (int) (content.getHeight() * s)), Bitmap.Config.ARGB_8888);
             Canvas c = new Canvas(b);
             c.scale(s, s);
             content.draw(c);
-            for (int i = 0; i < 3; i++) boxBlur(b, 5);
+            for (int i = 0; i < 2; i++) boxBlur(b, 2);
             return b;
         } catch (Throwable t) { return null; }
     }
@@ -409,6 +409,7 @@ public final class MsgMenu {
         TextView t = new TextView(c);
         t.setText(e);
         t.setTextSize(sp);
+        t.setTextColor(0xFF17212B);   // لون معتم: لون الثيم الافتراضي شبه شفاف (87%) فيُبهت الإيموجي الملوّن ويبدو عليه غشاوة
         t.setGravity(Gravity.CENTER);
         t.setIncludeFontPadding(false);
         GradientDrawable pr = new GradientDrawable(); pr.setShape(GradientDrawable.OVAL); pr.setColor(0x33808080);

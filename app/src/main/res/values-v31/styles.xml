@@ -1,0 +1,25 @@
+<resources>
+	<!-- أندرويد 12+: نخفي شاشة بداية النظام (الأيقونة الذهبية الباهتة) ونترك شاشة التطبيق وحدها -->
+	<style name="NoActionBar" parent="@android:style/Theme.Material.Light.NoActionBar">
+		<item name="android:colorPrimary">@color/colorPrimary</item>
+		<item name="android:colorPrimaryDark">@color/colorPrimaryDark</item>
+		<item name="android:colorAccent">@color/colorAccent</item>
+		<item name="android:colorControlHighlight">@color/colorControlHighlight</item>
+		<item name="android:colorControlNormal">@color/colorControlNormal</item>
+		<item name="android:buttonStyle">@style/FlatButton</item>
+		<item name="android:windowSplashScreenBackground">#FFFFFF</item>
+		<item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_empty</item>
+		<item name="android:windowSplashScreenAnimationDuration">0</item>
+	</style>
+	<style name="AppTheme" parent="@android:style/Theme.Material.Light.DarkActionBar">
+		<item name="android:colorPrimary">@color/colorPrimary</item>
+		<item name="android:colorPrimaryDark">@color/colorPrimaryDark</item>
+		<item name="android:colorAccent">@color/colorAccent</item>
+		<item name="android:colorControlHighlight">@color/colorControlHighlight</item>
+		<item name="android:colorControlNormal">@color/colorControlNormal</item>
+		<item name="android:buttonStyle">@style/FlatButton</item>
+		<item name="android:windowSplashScreenBackground">#FFFFFF</item>
+		<item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_empty</item>
+		<item name="android:windowSplashScreenAnimationDuration">0</item>
+	</style>
+</resources>

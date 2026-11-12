@@ -561,20 +561,15 @@
 					android:layout_width="match_parent"
 					android:layout_height="wrap_content"
 					android:gravity="center_vertical"
+					android:layoutDirection="ltr"
 					android:orientation="horizontal">
-					<ImageView
-						android:id="@+id/csX"
-						android:layout_width="42dp"
-						android:layout_height="42dp"
-						android:scaleType="center"
-						android:contentDescription="إغلاق البحث"
-						android:src="@drawable/ic_cs_back" />
 					<LinearLayout
 						android:id="@+id/csField"
 						android:layout_width="0dp"
 						android:layout_height="42dp"
 						android:layout_weight="1"
-						android:layout_marginStart="8dp"
+						android:layout_marginEnd="8dp"
+						android:layoutDirection="rtl"
 						android:gravity="center_vertical"
 						android:orientation="horizontal">
 						<ImageView
@@ -606,6 +601,13 @@
 							android:src="@drawable/ic_close_16"
 							android:visibility="gone" />
 					</LinearLayout>
+					<ImageView
+						android:id="@+id/csX"
+						android:layout_width="42dp"
+						android:layout_height="42dp"
+						android:scaleType="center"
+						android:contentDescription="إغلاق البحث"
+						android:src="@drawable/ic_cs_back" />
 				</LinearLayout>
 				<LinearLayout
 					android:id="@+id/csNav"
@@ -618,11 +620,16 @@
 					android:paddingTop="9dp"
 					android:paddingBottom="2dp"
 					android:visibility="gone">
+					<View
+						android:layout_width="84dp"
+						android:layout_height="1dp" />
 					<TextView
 						android:id="@+id/csCount"
 						android:layout_width="0dp"
 						android:layout_height="wrap_content"
 						android:layout_weight="1"
+						android:gravity="center"
+						android:textAlignment="center"
 						android:textSize="13sp"
 						android:textStyle="bold" />
 					<ImageView

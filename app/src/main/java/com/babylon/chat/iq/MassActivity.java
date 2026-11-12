@@ -1033,6 +1033,7 @@ public class MassActivity extends Activity {
                 syncChatTheme();
                 style(v("root"));
                 if (searchPage != null) searchPage.applyTheme();
+                try { csTheme(); } catch (Throwable ignored) { }   // لوحة البحث داخل المحادثة تتبع الثيم
                 View pvBox = v("pvBox");
                 if (pvBox instanceof FrameLayout) {
                     if (chatPreview == null) chatPreview = new ChatPreview(act, (FrameLayout) pvBox);
@@ -1185,7 +1186,11 @@ public class MassActivity extends Activity {
                     boolean inChat = chatOpen();
                     applyInsets();
                     int top, bottom;
-                    if (inChat) { bars.syncChat(blkBanner != null ? cSf() : Tk.chatSurface(dark)); return; }   // HTML: شريط الحالة شفاف (الزجاج خلفه) + شريط الإيماءات بلون خلفية المحادثة الصلب
+                    if (inChat) {
+                        View csp = v("chatSearchPanel");
+                        if (csp != null && csp.getVisibility() == View.VISIBLE) { bars.syncChatSearch(csPanelBg()); return; }   // شريط الإشعارات يمتد بلون شريط البحث
+                        bars.syncChat(blkBanner != null ? cSf() : Tk.chatSurface(dark)); return;
+                    }   // HTML: شريط الحالة شفاف (الزجاج خلفه) + شريط الإيماءات بلون خلفية المحادثة الصلب
                     else {
                         top = cBg();
                         boolean nav = v("bottomNav") != null && v("bottomNav").getVisibility() == View.VISIBLE;
@@ -5987,30 +5992,44 @@ public class MassActivity extends Activity {
             }
 
             GradientDrawable csGoldBg(float rDp, boolean oval) {
-                GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE0BD4A, 0xFFB8891A});
+                GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, Tk.accentPair(0xFFE0BD4A, 0xFFB8891A));
                 if (oval) g.setShape(GradientDrawable.OVAL); else g.setCornerRadius(dp(rDp));
                 return g;
             }
 
-            /** ألوان اللوحة: بطاقة بيضاء/#17212B، حقل بلون chip، أزرار الأسهم ذهبية. */
+            /** لون لوحة البحث (وشريط الإشعارات خلفها): --cr-card للثيم، وإلا بطاقة بيضاء/#17212B. معتم دائماً. */
+            int csPanelBg() {
+                int c = Tk.crCard(cSf());
+                int a = (c >>> 24) & 0xFF;
+                if (a < 255 && Tk.chatPal != null) return androidx_blend(Tk.chatPal.chatBg | 0xFF000000, c, a / 255f);
+                return c | 0xFF000000;
+            }
+
+            /** ألوان اللوحة كلها تتبع ثيم المحادثة: الخلفية والحقل والنصوص وأزرار الأسهم وعدّاد النتائج. */
             void csTheme() {
                 View p = v("chatSearchPanel");
                 if (p == null) return;
-                int chip = dark ? 0xFF2A3A4D : 0xFFE3E9F1;
                 float r = dp(csCompact ? 20 : 24);
                 GradientDrawable pg = new GradientDrawable();
-                pg.setColor(dark ? 0xFF17212B : 0xFFFFFFFF);
+                pg.setColor(csPanelBg());
                 pg.setCornerRadii(new float[]{0, 0, 0, 0, r, r, r, r});
+                if (Tk.chatPal != null) pg.setStroke(dp(1), Tk.crLine(cBorder()));
                 p.setBackground(pg);
                 if (Build.VERSION.SDK_INT >= 21) p.setElevation(dp(6));
+                // نفس لون وشكل حقل كتابة الرسالة (msginp): الخلفية + النص + التلميح، وزر الرجوع بنفس اللون
+                boolean th = Tk.chatPal != null;
+                int inkC = th ? Tk.crInk(cText()) : cText(), mutedC = th ? Tk.crMuted(cMuted()) : cMuted();
                 View back = v("csX");
-                if (back instanceof ImageView) { back.setBackground(shape(chip, 14, 0)); ((ImageView) back).setColorFilter(cText()); }
-                View fld = v("csField");
-                if (fld != null) fld.setBackground(shape(chip, 15, 0));
+                if (back instanceof ImageView) { back.setBackground(msgInpBg(false)); ((ImageView) back).setColorFilter(inkC); }
+                final View fld = v("csField");
+                if (fld != null) fld.setBackground(msgInpBg(false));
                 View ic = v("csIc");
-                if (ic instanceof ImageView) ((ImageView) ic).setColorFilter(cMuted());
+                if (ic instanceof ImageView) ((ImageView) ic).setColorFilter(mutedC);
                 EditText in = et("chatMessageSearchInput");
-                if (in != null) { in.setTextColor(cText()); in.setHintTextColor(cMuted()); }
+                if (in != null) {
+                    in.setTextColor(inkC); in.setHintTextColor(mutedC);
+                    in.setOnFocusChangeListener((vv, has) -> { if (fld != null) fld.setBackground(msgInpBg(has)); });
+                }
                 View cl = v("csClear");
                 if (cl instanceof ImageView) {
                     GradientDrawable cg = new GradientDrawable();
@@ -6019,11 +6038,13 @@ public class MassActivity extends Activity {
                     ((ImageView) cl).setColorFilter(cMuted());
                 }
                 TextView cc = tv("csCount");
-                if (cc != null) cc.setTextColor(cMuted());
+                if (cc != null) cc.setTextColor(th ? mutedC : cMuted());
                 for (String id : new String[]{"csUp", "csDown"}) {
                     View b = v(id);
-                    if (b instanceof ImageView) { b.setBackground(csGoldBg(12, false)); ((ImageView) b).setColorFilter(0xFFFFFFFF); }
+                    if (b instanceof ImageView) { b.setBackground(csGoldBg(12, false)); ((ImageView) b).setColorFilter(th ? Tk.chatPal.textMine : 0xFFFFFFFF); }
                 }
+                View clr = v("csClear");
+                if (clr instanceof ImageView) ((ImageView) clr).setColorFilter(mutedC);
             }
 
             void openChatSearch() {
@@ -6037,6 +6058,7 @@ public class MassActivity extends Activity {
                 View pb = v("chatTopBar") instanceof ViewGroup ? ((ViewGroup) v("chatTopBar")).findViewWithTag("pinnedBar") : null;
                 if (pb != null) pb.setVisibility(View.GONE);
                 p.setVisibility(View.VISIBLE);
+                syncBars();
                 csSilent = true; in.setText(""); csSilent = false;
                 vis("csClear", false); vis("csNav", false); vis("chatMessageSearchResults", false);
                 LinearLayout list = (LinearLayout) v("csList");
@@ -6056,6 +6078,7 @@ public class MassActivity extends Activity {
                 if (in != null) { csSilent = true; in.setText(""); csSilent = false; }
                 if (p != null) p.setVisibility(View.GONE);
                 vis("linear607", true);
+                if (wasOpen) syncBars();
                 if (wasOpen) { try { renderPinnedBar(); } catch (Throwable ignored) { } hideKb(); }
             }
 
@@ -6075,7 +6098,7 @@ public class MassActivity extends Activity {
                 if (Build.VERSION.SDK_INT >= 23) {
                     GradientDrawable g = new GradientDrawable();
                     g.setColor(0x00000000);
-                    g.setStroke(dp(2), cGold());
+                    g.setStroke(dp(2), selAcc());
                     g.setCornerRadii(bubbleRadii(mv, 0));
                     mv.setForeground(g);
                 }
@@ -6106,9 +6129,10 @@ public class MassActivity extends Activity {
             }
 
             void csStyleRow(View row, boolean active) {
-                row.setBackground(active ? shape(0x21C99A1C, 14, 0) : null);
+                int acc = selAcc();
+                row.setBackground(active ? shape((acc & 0x00FFFFFF) | 0x21000000, 14, 0) : null);
                 if (row instanceof ViewGroup && ((ViewGroup) row).getChildCount() > 0)
-                    ((ViewGroup) row).getChildAt(0).setBackgroundColor(active ? cGold() : 0x00000000);
+                    ((ViewGroup) row).getChildAt(0).setBackgroundColor(active ? acc : 0x00000000);
             }
 
             void csMarkActive() {
@@ -6152,7 +6176,8 @@ public class MassActivity extends Activity {
                 LinearLayout list = (LinearLayout) v("csList");
                 if (list == null) return;
                 list.removeAllViews();
-                int muted = cMuted(), text = cText(), gold = cGold();
+                boolean thm = Tk.chatPal != null;
+                int muted = thm ? Tk.crMuted(cMuted()) : cMuted(), text = thm ? Tk.crInk(cText()) : cText(), gold = selAcc();
                 if (csHits.isEmpty()) {
                     LinearLayout e = new LinearLayout(act);
                     e.setOrientation(LinearLayout.VERTICAL); e.setGravity(Gravity.CENTER_HORIZONTAL);

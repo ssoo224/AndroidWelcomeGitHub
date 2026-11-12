@@ -92,6 +92,7 @@ public class MainActivity extends Activity {
         boolean loggedIn = FirebaseAuth.getInstance().getCurrentUser() != null;
         if (loggedIn) {
             startActivity(new Intent(this, MassActivity.class));
+            overridePendingTransition(R.anim.chat_fade_in, R.anim.splash_hold);   // تتلاشى للمحادثة والسبلاش يواصل حركته
             finish();
             return;
         }

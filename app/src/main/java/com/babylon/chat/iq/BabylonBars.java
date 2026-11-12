@@ -169,6 +169,26 @@ public final class BabylonBars {
         first = false;
     }
 
+    /** داخل المحادثة أثناء البحث عن رسالة: شريط الحالة يمتد بنفس لون شريط البحث (وأيقوناته حسب سطوعه). */
+    public void syncChatSearch(int color) {
+        color |= 0xFF000000;
+        Window w = act.getWindow();
+        int flags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
+        if (Build.VERSION.SDK_INT >= 23 && lum(color) > 0.55f) flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+        if (Build.VERSION.SDK_INT >= 26 && lum(curBottom | 0xFF000000) > 0.55f) flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+        w.getDecorView().setSystemUiVisibility(flags);
+        if (topAnim != null) topAnim.cancel();
+        if (!hold) w.setStatusBarColor(color);
+        transparentTop = true;   // عند الخروج يُعاد اللون الشفاف فوراً بلا حركة
+        curTop = 0;
+        if (botAnim != null) botAnim.cancel();
+        if (!hold) w.setNavigationBarColor(Color.TRANSPARENT);
+        transparentBottom = true;
+        first = false;
+    }
+
     private void syncBottom(Window w, int bottom) {
         if (transparentBottom && !hold) {   // الخروج من المحادثة: نعيد اللون الصلب فوراً بلا حركة
             if (botAnim != null) botAnim.cancel();

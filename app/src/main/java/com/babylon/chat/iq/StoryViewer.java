@@ -519,6 +519,9 @@ public final class StoryViewer {
         info.addView(col, cp);
         top.addView(info, new LinearLayout.LayoutParams(0, -2, 1f));
 
+        // إن لم يصل اسم/صورة صاحب القصة من المستدعي (مثلاً الفتح من رد على قصة أو من ملف قبل تحميل بياناته) نجلبهما من وثيقته
+        if (!mine && (name.isEmpty() || photo == null)) loadOwnerInfo();
+
         // أزرار صاحب القصة: تعديل / تثبيت / حذف (.sv-action)
         if (mine) {
             ImageView edit = action(R.drawable.ic_sv_edit, 0x59FFFFFF, 0x1FFFFFFF);
@@ -1823,6 +1826,32 @@ public final class StoryViewer {
                 });
             }
         });
+    }
+
+    /** يجلب اسم وصورة صاحب القصة من users/{uid} ويحدّث الرأس (بدل «مستخدم» و«?»). */
+    private void loadOwnerInfo() {
+        try {
+            db.collection("users").document(uid).get().addOnSuccessListener(u -> {
+                if (u == null || !u.exists()) return;
+                String n = u.getString("displayName");
+                if (n == null || n.isEmpty()) n = u.getString("name");
+                if (n == null || n.isEmpty()) n = u.getString("username");
+                final String nn = n;
+                final String lt = (nn == null || nn.isEmpty()) ? letter : nn.substring(0, 1).toUpperCase();
+                if (nn != null && !nn.isEmpty() && name.isEmpty()) nameTv.setText(nn);
+                if (photo == null) avatar.set(lt, null, blue);
+                if (photo != null) return;
+                String ph = u.getString("photo");
+                if (ph == null || ph.isEmpty()) ph = u.getString("avatarUrl");
+                if (ph == null || ph.isEmpty()) ph = u.getString("photoURL");
+                if (ph == null || ph.isEmpty()) return;
+                final String fph = ph;
+                IO.execute(() -> {
+                    final Bitmap b = decodeSrc(fph);
+                    if (b != null) handler.post(() -> avatar.set(lt, b, blue));
+                });
+            });
+        } catch (Throwable ignored) { }
     }
 
     private static Bitmap decodeSrc(String src) {

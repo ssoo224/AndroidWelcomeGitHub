@@ -230,7 +230,7 @@ public final class Tk {
             return true;
         }
         if (tag.equals("rqbM") || tag.equals("rqbO")) { x.setBackgroundColor(rqAccent(tag.equals("rqbM"))); return true; }   // الخط الجانبي لاقتباس الرد
-        if (tag.equals("rqnM") || tag.equals("rqnO")) { if (t != null) t.setTextColor(0xFFFFFFFF); return true; }   // اسم المستخدم في اقتباس الرد: أبيض في النهاري والليلي
+        if (tag.equals("rqnM") || tag.equals("rqnO")) { if (t != null) t.setTextColor(chatPal != null ? rqAccent(tag.equals("rqnM")) : 0xFFFFFFFF); return true; }   // اسم/عنوان اقتباس الرد («رد على القصة»): بابل أبيض، وبقية الثيمات تتبع لون الثيم
         if (tag.equals("rqtM")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.textMine : GOLD_INK); return true; }
         if (tag.equals("rqtO")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.accent : 0xFFC29D30); return true; }   // HTML: لون .reply-quote في رسائل الطرف الآخر = ذهبي accent-chat
         // ---- شريط الرد أعلى حقل الكتابة (.reply-preview-bar في الـ HTML)
