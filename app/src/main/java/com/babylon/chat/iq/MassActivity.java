@@ -85,6 +85,7 @@ public class MassActivity extends Activity {
     private ListenerRegistration pinsListener;                       // الرسائل المثبتة: chats/{id}.pins
     private Runnable vpStopHook;                                      // يوقف مشغّل الصوت عند الإغلاق (UI صنف محلي)
     private java.util.function.BooleanSupplier backHook;             // زر الرجوع يلغي تحديد الرسائل أولاً
+    private java.util.function.Consumer<android.view.MotionEvent> touchHook;   // نقرة واحدة في أي مكان تُلغي تحديد الرسائل
 
     private StoryComposer storyComposer;                              // نشر قصة (StoryComposer.java)
     private java.util.function.Consumer<Uri> pendingImageCallback = null;
@@ -217,6 +218,13 @@ public class MassActivity extends Activity {
         if (messagesListener != null) messagesListener.remove();
         if (pinsListener != null) pinsListener.remove();
         try { if (vpStopHook != null) vpStopHook.run(); } catch (Throwable ignored) { }   // لا مشغّل يبقى بعد إغلاق التطبيق
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(android.view.MotionEvent ev) {
+        boolean r = super.dispatchTouchEvent(ev);
+        try { if (touchHook != null) touchHook.accept(ev); } catch (Throwable ignored) { }
+        return r;
     }
 
     @Override
@@ -459,7 +467,7 @@ public class MassActivity extends Activity {
                         TextView T = (x instanceof TextView) ? (TextView) x : null;
                         if (Tk.handle(k, x, T, dark)) continue;
                         if (k.equals("bg")) x.setBackgroundColor(cBg());
-                        else if (k.equals("storybg")) x.setBackgroundColor(0);   // شريط القصص: شفاف ليظهر نقش/لون خلفية الصفحة نفسه (homepat) في الطورين فلا يختلف لونه
+                        else if (k.equals("storybg")) x.setBackgroundColor(cBg());   // شريط القصص: نفس لون الهيدر (pageBg الصريح) وليس نقش/خلفية المحادثة
                         else if (k.equals("sf")) x.setBackgroundColor(cSf());
                         else if (k.equals("line")) x.setBackgroundColor(cBorder());
                         else if (k.equals("chatbg")) x.setBackgroundColor(cChatBg());
@@ -4685,10 +4693,11 @@ public class MassActivity extends Activity {
                         View prev = i > 0 ? pr.getChildAt(i - 1) : null, next = (i >= 0 && i < pr.getChildCount() - 1) ? pr.getChildAt(i + 1) : null;
                         boolean joinUp = prev != null && selRings.containsKey(prev), joinDown = next != null && selRings.containsKey(next);
                         float ty = mv.getTranslationY();
-                        float top = mv.getTop() + ty, bottom = mv.getBottom() + ty, w = pr.getWidth();
+                        final float ext = dp(3);   // تمديد الشريط 3dp للأعلى و3dp للأسفل
+                        float top = mv.getTop() + ty - ext, bottom = mv.getBottom() + ty + ext, w = pr.getWidth();
                         // مجاورة محددة: الشريط يمتد نصف الفراغ ليلتحم بها بلا خط فاصل؛ وإلا يبدأ بهامش 6dp ثم يتلاشى للخارج
-                        float up = joinUp ? Math.max(0, mv.getTop() - prev.getBottom()) / 2f : 0f;
-                        float down = joinDown ? Math.max(0, next.getTop() - mv.getBottom()) / 2f : 0f;
+                        float up = joinUp ? Math.max(0, mv.getTop() - prev.getBottom() - 2 * ext) / 2f : 0f;
+                        float down = joinDown ? Math.max(0, next.getTop() - mv.getBottom() - 2 * ext) / 2f : 0f;
                         // الحافتان العلوية/السفلية تتلاشيان بلطف جداً «داخل» حدود الرسالة فقط (لا يتعدى التلاشي إلى الفراغ بين الرسالتين)؛
                         // وجهة الالتحام بمجاورة محددة تبقى ممتلئة بلا تلاشٍ كي لا يظهر خط فاصل
                         float f = Math.min(dp(5), (bottom - top) / 3f);
@@ -4762,6 +4771,52 @@ public class MassActivity extends Activity {
                         if (selecting && selIds.size() == 1) MsgMenu.placePill(msgViewsById.get(firstSel()), selTopInset(), Math.max(navBottom, padBottom));
                     };
                     ms.getViewTreeObserver().addOnScrollChangedListener(selScrollL);
+                }
+            }
+
+            // ---- نقرة واحدة في أي مكان (غير الرسائل وشريط التحديد والحبة) تُلغي التحديد
+            float tapX, tapY; long tapT; boolean tapOk;
+
+            boolean rawIn(View vw, float x, float y) {
+                if (vw == null || !vw.isShown()) return false;
+                int[] l = new int[2]; vw.getLocationOnScreen(l);
+                return x >= l[0] && x <= l[0] + vw.getWidth() && y >= l[1] && y <= l[1] + vw.getHeight();
+            }
+
+            boolean tapProtected(float x, float y) {
+                if (rawIn(selBar, x, y)) return true;                 // أزرار شريط التحديد (✕ / تثبيت / حذف)
+                if (MsgMenu.hitPill(x, y)) return true;               // حبة التفاعلات العائمة
+                View ms = v("messagesScroll"), area = v("messagesArea");
+                if (ms != null && area instanceof ViewGroup && rawIn(ms, x, y)) {   // صف رسالة: النقر عليه يبدّل تحديده
+                    int[] l = new int[2]; area.getLocationOnScreen(l);
+                    if (msgAtY((ViewGroup) area, y - l[1]) != null) return true;
+                }
+                return false;
+            }
+
+            void globalTap(android.view.MotionEvent ev) {
+                switch (ev.getActionMasked()) {
+                    case android.view.MotionEvent.ACTION_DOWN:
+                        tapOk = selecting; tapX = ev.getRawX(); tapY = ev.getRawY(); tapT = ev.getEventTime();
+                        break;
+                    case android.view.MotionEvent.ACTION_POINTER_DOWN:
+                    case android.view.MotionEvent.ACTION_CANCEL:
+                        tapOk = false;
+                        break;
+                    case android.view.MotionEvent.ACTION_MOVE:
+                        if (tapOk) {
+                            float slop = android.view.ViewConfiguration.get(act).getScaledTouchSlop();
+                            if (Math.abs(ev.getRawX() - tapX) > slop || Math.abs(ev.getRawY() - tapY) > slop) tapOk = false;
+                        }
+                        break;
+                    case android.view.MotionEvent.ACTION_UP:
+                        boolean ok = tapOk; tapOk = false;
+                        if (!ok || !selecting) return;
+                        if (ev.getEventTime() - tapT > android.view.ViewConfiguration.getLongPressTimeout()) return;   // ضغط مطوّل لا نقرة
+                        if (tapProtected(ev.getRawX(), ev.getRawY())) return;
+                        clearSel();
+                        break;
+                    default: break;
                 }
             }
 
@@ -7262,6 +7317,7 @@ public class MassActivity extends Activity {
             }));
         } catch (Throwable ignored) { }
         backHook = ui::onBack;
+        touchHook = ui::globalTap;
         vpStopHook = ui::vpStop;
 
         ui.bars.setup();

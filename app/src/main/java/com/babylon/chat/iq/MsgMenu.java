@@ -351,41 +351,50 @@ public final class MsgMenu {
         actions.addView(line, ll);
         actions.addView(actionRow(act, dark, R.drawable.ic_mm_delete, "حذف الرسالة", true, () -> { dismiss(); cb.delete(); }));
 
+        final Runnable[] keepInView = new Runnable[1];
+        keepInView[0] = () -> shell.post(() -> {      // keepShellInView
+            int[] loc = new int[2]; shell.getLocationInWindow(loc);
+            int[] cl = new int[2]; content.getLocationInWindow(cl);
+            float bottom = loc[1] - cl[1] + shell.getHeight();
+            float over = bottom - (H - dp(act, 8) - insetBottom);
+            if (over > 0) shell.animate().translationYBy(-over).setDuration(180).start();
+        });
+
         final Runnable toggle = () -> {
             open[0] = !open[0];
             plus.animate().rotation(open[0] ? 180f : 0f).setDuration(280).setInterpolator(new OvershootInterpolator(1.2f)).start();
             actions.animate().cancel();
             if (open[0]) {
-                actions.animate().alpha(0f).translationY(dp(act, 6)).setStartDelay(0).setDuration(140)
-                        .withEndAction(() -> { if (open[0]) actions.setVisibility(View.GONE); }).start();
-                gridScroll.setVisibility(View.VISIBLE);
-                gridScroll.setAlpha(0f); gridScroll.setTranslationY(-dp(act, 6));
-                gridScroll.animate().alpha(1f).translationY(0).setDuration(260).start();
-                for (int i = 0; i < cells.size(); i++) {
-                    View c = cells.get(i);
-                    c.setAlpha(0f); c.setScaleX(.4f); c.setScaleY(.4f); c.setTranslationY(dp(act, 8));
-                    c.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0).setStartDelay(60 + i * 16L).setDuration(340)
-                            .setInterpolator(new OvershootInterpolator(1.35f)).start();
-                }
+                // حقل الأزرار يختفي أولاً (80ms) وبالكامل، وبعدها فقط يظهر حقل الإيموجيات — فلا يتراكبان أبداً
+                actions.animate().alpha(0f).translationY(dp(act, 4)).setStartDelay(0).setDuration(80)
+                        .setInterpolator(new android.view.animation.AccelerateInterpolator())
+                        .withEndAction(() -> {
+                            if (!open[0]) return;
+                            actions.setVisibility(View.GONE);
+                            gridScroll.setVisibility(View.VISIBLE);
+                            gridScroll.setAlpha(0f); gridScroll.setTranslationY(-dp(act, 6));
+                            gridScroll.animate().alpha(1f).translationY(0).setDuration(260).start();
+                            for (int i = 0; i < cells.size(); i++) {
+                                View c = cells.get(i);
+                                c.setAlpha(0f); c.setScaleX(.4f); c.setScaleY(.4f); c.setTranslationY(dp(act, 8));
+                                c.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0).setStartDelay(60 + i * 16L).setDuration(340)
+                                        .setInterpolator(new OvershootInterpolator(1.35f)).start();
+                            }
+                            keepInView[0].run();
+                        }).start();
             } else {
                 gridScroll.setVisibility(View.GONE);
                 actions.setVisibility(View.VISIBLE);
                 actions.setAlpha(0f); actions.setTranslationY(dp(act, 6));
                 actions.animate().alpha(1f).translationY(0).setStartDelay(0).setDuration(200).start();
             }
-            shell.post(() -> {      // keepShellInView
-                int[] loc = new int[2]; shell.getLocationInWindow(loc);
-                int[] cl = new int[2]; content.getLocationInWindow(cl);
-                float bottom = loc[1] - cl[1] + shell.getHeight();
-                float over = bottom - (H - dp(act, 8) - insetBottom);
-                if (over > 0) shell.animate().translationYBy(-over).setDuration(180).start();
-            });
+            if (!open[0]) keepInView[0].run();
         };
         plus.setOnClickListener(v -> toggle.run());
         rootTap[0] = () -> { if (open[0]) toggle.run(); else dismiss(); };
 
         shell.addView(bar, new LinearLayout.LayoutParams(-1, -2));
-        LinearLayout.LayoutParams al = new LinearLayout.LayoutParams(shellW - dp(act, 20), -2);   // حقل الأزرار أضيق بـ 20dp (حقل التفاعلات بعرضه)
+        LinearLayout.LayoutParams al = new LinearLayout.LayoutParams(shellW - dp(act, 25), -2);   // حقل الأزرار أضيق بـ 25dp (حقل التفاعلات بعرضه)
         al.topMargin = dp(act, 6);
         shell.addView(actions, al);
 
@@ -508,6 +517,14 @@ public final class MsgMenu {
         placePill(anchor, insetTop, insetBottom);
         pill.setAlpha(0f); pill.setTranslationY(dp(act, 6)); pill.setScaleX(.92f); pill.setScaleY(.92f);
         pill.animate().alpha(1f).translationY(0).scaleX(1f).scaleY(1f).setDuration(160).start();
+    }
+
+    /** هل نقطة الشاشة (raw) داخل الحبة العائمة؟ */
+    public static boolean hitPill(float rawX, float rawY) {
+        final View p = pillView;
+        if (p == null || !p.isShown()) return false;
+        int[] l = new int[2]; p.getLocationOnScreen(l);
+        return rawX >= l[0] && rawX <= l[0] + p.getWidth() && rawY >= l[1] && rawY <= l[1] + p.getHeight();
     }
 
     /** يعيد وضع الحبة فوق الرسالة (عند التمرير) ويخفيها إن خرجت الرسالة من الشاشة — مثل positionSelEmojiBar في الـ HTML. */
