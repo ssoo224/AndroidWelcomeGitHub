@@ -1517,6 +1517,53 @@
 							android:tag="g" />
 					</LinearLayout>
 				</LinearLayout>
+				<!-- نوع الخط (يُطبَّق على التطبيق بالكامل) -->
+				<LinearLayout
+					android:id="@+id/fontCard"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:layout_marginTop="12dp"
+					android:paddingStart="16dp"
+					android:paddingEnd="16dp"
+					android:paddingTop="10dp"
+					android:paddingBottom="12dp"
+					android:orientation="vertical"
+					android:tag="card"
+					android:elevation="0dp"
+					android:layout_marginStart="12dp"
+					android:layout_marginEnd="12dp">
+					<TextView
+						android:id="@+id/fontCardTitle"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:text="نوع الخط"
+						android:textSize="14sp"
+						android:textStyle="bold"
+						android:gravity="start"
+						android:tag="sct" />
+					<TextView
+						android:id="@+id/fontCardHint"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:layout_marginTop="2dp"
+						android:text="يُطبَّق على التطبيق بالكامل"
+						android:textSize="11.5sp"
+						android:gravity="start"
+						android:tag="m" />
+					<HorizontalScrollView
+						android:id="@+id/fontScroll"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:layout_marginTop="10dp"
+						android:layoutDirection="rtl"
+						android:scrollbars="none">
+						<LinearLayout
+							android:id="@+id/fontStrip"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:orientation="horizontal" />
+					</HorizontalScrollView>
+				</LinearLayout>
 			</LinearLayout>
 		</ScrollView>
 	</LinearLayout>

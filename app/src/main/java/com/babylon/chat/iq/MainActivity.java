@@ -43,8 +43,36 @@ public class MainActivity extends Activity {
         if (AuthTheme.isDark(this)) binding.getRoot().setBackground(AuthTheme.screenBg(true));   // الطور الليلي
         setupSystemBars();
         startAnimations();
+        warmUp();   // تجهيز الشاشة التالية في الخلفية أثناء عرض السبلاش
 
         handler.postDelayed(this::goNext, SPLASH_MS);
+    }
+
+    /**
+     * سبب «التوقف» قبل الدخول: بناء MassActivity (تضخيم تخطيطات ضخمة + تحميل عشرات الكلاسات + تهيئة Firebase)
+     * يتم كله على الخيط الرئيسي فتتجمّد حركة السبلاش لأجزاء من الثانية.
+     * هنا نُسخّن هذه الأشياء في خيط خلفي أثناء السبلاش (يُهمَل ناتجها) فيصبح بناء الشاشة الفعلي أسرع بكثير.
+     */
+    private void warmUp() {
+        final android.content.Context app = getApplicationContext();
+        final boolean loggedIn = FirebaseAuth.getInstance().getCurrentUser() != null;
+        android.os.HandlerThread ht = new android.os.HandlerThread("bb-warm");   // له Looper لأن بعض الـViews تنشئ Handler
+        ht.start();
+        new Handler(ht.getLooper()).post(() -> {
+            try { com.google.firebase.firestore.FirebaseFirestore.getInstance(); } catch (Throwable ignored) { }
+            String[] cls = {"MassActivity", "Main2Activity", "MsgViews", "MsgMenu", "ChatThemes", "ChatPreview", "ChatPattern",
+                    "Tk", "EmojiFx", "BabylonFx", "BabylonBars", "StoriesController", "StoryViewer", "StoryComposer",
+                    "StoryAvatarView", "ProfileRing", "ProfileHero", "SearchPage", "LocalCache", "FontManager", "CoverThemes", "Glass"};
+            for (String c : cls) {
+                try { Class.forName("com.babylon.chat.iq." + c, true, getClassLoader()); } catch (Throwable ignored) { }
+            }
+            try {   // تضخيم تجريبي يُرمى: يسخّن تحليل الـXML وكاش الموارد وتحميل كلاسات الـViews
+                android.view.LayoutInflater inf = android.view.LayoutInflater.from(new android.view.ContextThemeWrapper(app, R.style.NoActionBar));
+                if (loggedIn) com.babylon.chat.iq.databinding.MassBinding.inflate(inf);
+                else com.babylon.chat.iq.databinding.Main2Binding.inflate(inf);
+            } catch (Throwable ignored) { }
+            ht.quitSafely();
+        });
     }
 
     @Override

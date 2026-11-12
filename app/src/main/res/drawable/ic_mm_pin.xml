@@ -2,7 +2,12 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp" android:height="24dp"
     android:viewportWidth="24" android:viewportHeight="24">
-    <path android:pathData="M12 17v5M8 3h8l-1 6 3 3.5V14H6v-1.5L9 9z"
-        android:strokeColor="#FF000000" android:strokeWidth="1.9"
+    <group android:rotation="45" android:pivotX="12" android:pivotY="12">
+    <path android:pathData="M9 3.2h6l-.8 5.3 2.8 3.4v1.6H7v-1.6l2.8-3.4z"
+        android:strokeColor="#FF000000" android:strokeWidth="1.8"
         android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path android:pathData="M12 13.5V21"
+        android:strokeColor="#FF000000" android:strokeWidth="1.8"
+        android:strokeLineCap="round" android:strokeLineJoin="round" />
+    </group>
 </vector>

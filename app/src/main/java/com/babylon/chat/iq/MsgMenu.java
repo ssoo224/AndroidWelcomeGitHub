@@ -81,8 +81,7 @@ public final class MsgMenu {
         GradientDrawable g = new GradientDrawable();
         g.setColor(cardBg(d));
         g.setCornerRadius(dp(c, radiusDp));
-        g.setStroke(dp(c, 1), cardBorder(d));
-        return g;
+        return g;   // بلا إطار
     }
 
     private static void pressScale(final View v) {
@@ -249,7 +248,8 @@ public final class MsgMenu {
         } catch (Throwable ignored) { }
         bd.setAlpha(0f);
         bd.animate().alpha(1f).setDuration(200).start();
-        root.setOnClickListener(v -> dismiss());
+        final Runnable[] rootTap = {null};   // عند فتح الإيموجيات: النقر في أي مكان يغلقها ويُرجع الأزرار
+        root.setOnClickListener(v -> { if (rootTap[0] != null) rootTap[0].run(); else dismiss(); });
 
         final int W = content.getWidth(), H = content.getHeight();
         final int shellW = Math.min(dp(act, 236), W - dp(act, 24));
@@ -265,23 +265,22 @@ public final class MsgMenu {
         final LinearLayout bar = new LinearLayout(act);
         bar.setOrientation(LinearLayout.VERTICAL);
         GradientDrawable barBg = new GradientDrawable();
-        barBg.setColor(dark ? 0xFF2B3B4F : 0xFFFFFFFF);
+        barBg.setColor(cardBg(dark));                 // نفس لون وحدّ حقل الأزرار أسفله
         barBg.setCornerRadius(dp(act, 14));
-        barBg.setStroke(dp(act, 1.5f), dark ? 0x80FFFFFF : 0xFFB9C6D6);
         bar.setBackground(barBg);
         bar.setPadding(dp(act, 6), dp(act, 4), dp(act, 6), dp(act, 4));
 
         LinearLayout top = new LinearLayout(act);
         top.setOrientation(LinearLayout.HORIZONTAL);
         top.setGravity(Gravity.CENTER_VERTICAL);
+        top.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
 
-        final ImageView plus = new ImageView(act);
-        plus.setImageResource(R.drawable.ic_mm_plus);
+        final ImageView plus = new ImageView(act);   // سهم التوسعة (بدل +) في أقصى اليمين
+        plus.setImageResource(R.drawable.ic_chevron_down_16);
         plus.setColorFilter(textMain(dark));
-        plus.setPadding(dp(act, 6.5f), dp(act, 6.5f), dp(act, 6.5f), dp(act, 6.5f));
+        plus.setPadding(dp(act, 7), dp(act, 7), dp(act, 7), dp(act, 7));
         GradientDrawable pbg = new GradientDrawable(); pbg.setShape(GradientDrawable.OVAL); pbg.setColor(0x29808080);
         plus.setBackground(pbg);
-        top.addView(plus, new LinearLayout.LayoutParams(dp(act, 30), dp(act, 30)));
 
         LinearLayout quick = new LinearLayout(act);
         quick.setOrientation(LinearLayout.HORIZONTAL);
@@ -294,8 +293,9 @@ public final class MsgMenu {
             quick.addView(t, lp);
         }
         LinearLayout.LayoutParams ql = new LinearLayout.LayoutParams(0, -2, 1f);
-        ql.setMarginStart(dp(act, 4));
+        ql.setMarginEnd(dp(act, 4));
         top.addView(quick, ql);
+        top.addView(plus, new LinearLayout.LayoutParams(dp(act, 30), dp(act, 30)));
         bar.addView(top, new LinearLayout.LayoutParams(-1, -2));
 
         // ---- شبكة كل الإيموجي (مخفية حتى الضغط على +)
@@ -331,28 +331,6 @@ public final class MsgMenu {
         sep.setVisibility(View.GONE);
 
         final boolean[] open = {false};
-        plus.setOnClickListener(v -> {
-            open[0] = !open[0];
-            plus.animate().rotation(open[0] ? 45f : 0f).setDuration(280).setInterpolator(new OvershootInterpolator(1.2f)).start();
-            if (open[0]) {
-                gridScroll.setVisibility(View.VISIBLE);
-                gridScroll.setAlpha(0f); gridScroll.setTranslationY(-dp(act, 6));
-                gridScroll.animate().alpha(1f).translationY(0).setDuration(260).start();
-                for (int i = 0; i < cells.size(); i++) {
-                    View c = cells.get(i);
-                    c.setAlpha(0f); c.setScaleX(.4f); c.setScaleY(.4f); c.setTranslationY(dp(act, 8));
-                    c.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0).setStartDelay(60 + i * 16L).setDuration(340)
-                            .setInterpolator(new OvershootInterpolator(1.35f)).start();
-                }
-            } else gridScroll.setVisibility(View.GONE);
-            shell.post(() -> {      // keepShellInView
-                int[] loc = new int[2]; shell.getLocationInWindow(loc);
-                int[] cl = new int[2]; content.getLocationInWindow(cl);
-                float bottom = loc[1] - cl[1] + shell.getHeight();
-                float over = bottom - (H - dp(act, 8) - insetBottom);
-                if (over > 0) shell.animate().translationYBy(-over).setDuration(180).start();
-            });
-        });
 
         // ---- بطاقة الأزرار
         final LinearLayout actions = new LinearLayout(act);
@@ -373,8 +351,41 @@ public final class MsgMenu {
         actions.addView(line, ll);
         actions.addView(actionRow(act, dark, R.drawable.ic_mm_delete, "حذف الرسالة", true, () -> { dismiss(); cb.delete(); }));
 
+        final Runnable toggle = () -> {
+            open[0] = !open[0];
+            plus.animate().rotation(open[0] ? 180f : 0f).setDuration(280).setInterpolator(new OvershootInterpolator(1.2f)).start();
+            actions.animate().cancel();
+            if (open[0]) {
+                actions.animate().alpha(0f).translationY(dp(act, 6)).setStartDelay(0).setDuration(140)
+                        .withEndAction(() -> { if (open[0]) actions.setVisibility(View.GONE); }).start();
+                gridScroll.setVisibility(View.VISIBLE);
+                gridScroll.setAlpha(0f); gridScroll.setTranslationY(-dp(act, 6));
+                gridScroll.animate().alpha(1f).translationY(0).setDuration(260).start();
+                for (int i = 0; i < cells.size(); i++) {
+                    View c = cells.get(i);
+                    c.setAlpha(0f); c.setScaleX(.4f); c.setScaleY(.4f); c.setTranslationY(dp(act, 8));
+                    c.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0).setStartDelay(60 + i * 16L).setDuration(340)
+                            .setInterpolator(new OvershootInterpolator(1.35f)).start();
+                }
+            } else {
+                gridScroll.setVisibility(View.GONE);
+                actions.setVisibility(View.VISIBLE);
+                actions.setAlpha(0f); actions.setTranslationY(dp(act, 6));
+                actions.animate().alpha(1f).translationY(0).setStartDelay(0).setDuration(200).start();
+            }
+            shell.post(() -> {      // keepShellInView
+                int[] loc = new int[2]; shell.getLocationInWindow(loc);
+                int[] cl = new int[2]; content.getLocationInWindow(cl);
+                float bottom = loc[1] - cl[1] + shell.getHeight();
+                float over = bottom - (H - dp(act, 8) - insetBottom);
+                if (over > 0) shell.animate().translationYBy(-over).setDuration(180).start();
+            });
+        };
+        plus.setOnClickListener(v -> toggle.run());
+        rootTap[0] = () -> { if (open[0]) toggle.run(); else dismiss(); };
+
         shell.addView(bar, new LinearLayout.LayoutParams(-1, -2));
-        LinearLayout.LayoutParams al = new LinearLayout.LayoutParams(-1, -2);
+        LinearLayout.LayoutParams al = new LinearLayout.LayoutParams(shellW - dp(act, 20), -2);   // حقل الأزرار أضيق بـ 20dp (حقل التفاعلات بعرضه)
         al.topMargin = dp(act, 6);
         shell.addView(actions, al);
 
@@ -425,6 +436,7 @@ public final class MsgMenu {
         int col = isDanger ? danger(dark) : textMain(dark);
         LinearLayout row = new LinearLayout(c);
         row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);   // الرمز في أقصى اليمين والنص بجانبه (مثل تيليجرام)
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setMinimumHeight(dp(c, 38));
         row.setPadding(dp(c, 10), dp(c, 7), dp(c, 10), dp(c, 7));
@@ -437,8 +449,7 @@ public final class MsgMenu {
         ImageView ic = new ImageView(c);
         ic.setImageResource(iconRes);
         ic.setColorFilter(col);
-        ic.setAlpha(0.92f);
-        row.addView(ic, new LinearLayout.LayoutParams(dp(c, 17), dp(c, 17)));
+        row.addView(ic, new LinearLayout.LayoutParams(dp(c, 20), dp(c, 20)));
         TextView t = new TextView(c);
         t.setText(label);
         t.setTextSize(13);
@@ -465,9 +476,8 @@ public final class MsgMenu {
         pill.setClickable(true);
         pill.setPadding(dp(act, 6), dp(act, 4), dp(act, 6), dp(act, 4));
         GradientDrawable bg = new GradientDrawable();
-        bg.setColor(dark ? 0xFF2B3B4F : 0xFFFFFFFF);          // خلفية أوضح عن خلفية المحادثة
+        bg.setColor(cardBg(dark));                    // نفس لون وحدّ حقل الأزرار
         bg.setCornerRadius(dp(act, 24));
-        bg.setStroke(dp(act, 1.5f), dark ? 0x80FFFFFF : 0xFFB9C6D6);   // حدّ واضح بدل الخافت
         pill.setBackground(bg);
         pill.setElevation(0f);                        // ظل يفصلها عن الرسائل خلفها
         for (final String e : QUICK) {
@@ -480,7 +490,7 @@ public final class MsgMenu {
             pill.addView(t, new LinearLayout.LayoutParams(dp(act, 34), dp(act, 34)));
         }
         ImageView plus = new ImageView(act);
-        plus.setImageResource(R.drawable.ic_mm_plus);
+        plus.setImageResource(R.drawable.ic_chevron_down_16);
         plus.setColorFilter(dark ? 0xFFFFFFFF : 0xFF17212B);
         plus.setPadding(dp(act, 7), dp(act, 7), dp(act, 7), dp(act, 7));
         GradientDrawable pb = new GradientDrawable(); pb.setShape(GradientDrawable.OVAL); pb.setColor(dark ? 0x66A5B4C8 : 0x4D7F8CA0);

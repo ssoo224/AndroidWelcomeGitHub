@@ -1,26 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- نقطة التحميل: مثل HTML splashDot (دورة 1.1 ثانية، alpha .3→1، scale .8→1.15) -->
+<!-- نقطة التحميل رقم 3: تنبض وحدها في ثلث الدورة (1 ثم 2 ثم 3) بدل أن تنبض الثلاث معاً -->
 <objectAnimator xmlns:android="http://schemas.android.com/apk/res/android"
-    android:duration="1100"
-    android:startDelay="360"
+    android:duration="1200"
+    android:startDelay="0"
     android:repeatCount="-1"
     android:repeatMode="restart">
     <propertyValuesHolder android:propertyName="alpha" android:valueType="floatType">
         <keyframe android:fraction="0" android:value="0.3" />
-        <keyframe android:fraction="0.4" android:value="1" android:interpolator="@android:interpolator/accelerate_decelerate" />
-        <keyframe android:fraction="0.8" android:value="0.3" android:interpolator="@android:interpolator/accelerate_decelerate" />
-        <keyframe android:fraction="1" android:value="0.3" />
+        <keyframe android:fraction="0.667" android:value="0.3" />
+        <keyframe android:fraction="0.834" android:value="1" android:interpolator="@android:interpolator/accelerate_decelerate" />
+        <keyframe android:fraction="1.0" android:value="0.3" android:interpolator="@android:interpolator/accelerate_decelerate" />
     </propertyValuesHolder>
     <propertyValuesHolder android:propertyName="scaleX" android:valueType="floatType">
         <keyframe android:fraction="0" android:value="0.8" />
-        <keyframe android:fraction="0.4" android:value="1.15" android:interpolator="@android:interpolator/accelerate_decelerate" />
-        <keyframe android:fraction="0.8" android:value="0.8" android:interpolator="@android:interpolator/accelerate_decelerate" />
-        <keyframe android:fraction="1" android:value="0.8" />
+        <keyframe android:fraction="0.667" android:value="0.8" />
+        <keyframe android:fraction="0.834" android:value="1.15" android:interpolator="@android:interpolator/accelerate_decelerate" />
+        <keyframe android:fraction="1.0" android:value="0.8" android:interpolator="@android:interpolator/accelerate_decelerate" />
     </propertyValuesHolder>
     <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
         <keyframe android:fraction="0" android:value="0.8" />
-        <keyframe android:fraction="0.4" android:value="1.15" android:interpolator="@android:interpolator/accelerate_decelerate" />
-        <keyframe android:fraction="0.8" android:value="0.8" android:interpolator="@android:interpolator/accelerate_decelerate" />
-        <keyframe android:fraction="1" android:value="0.8" />
+        <keyframe android:fraction="0.667" android:value="0.8" />
+        <keyframe android:fraction="0.834" android:value="1.15" android:interpolator="@android:interpolator/accelerate_decelerate" />
+        <keyframe android:fraction="1.0" android:value="0.8" android:interpolator="@android:interpolator/accelerate_decelerate" />
     </propertyValuesHolder>
 </objectAnimator>

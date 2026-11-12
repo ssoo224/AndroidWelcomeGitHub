@@ -1029,6 +1029,52 @@ public class MassActivity extends Activity {
                 }
             }
 
+            /** بطاقة «نوع الخط» أسفل المظهر والمحادثات: عادي / عريض / نسخ / مضغوط / آلة كاتبة؛ الاختيار يغيّر خط التطبيق كله. */
+            void buildFontStrip() {
+                View sv = v("fontStrip");
+                if (!(sv instanceof LinearLayout)) return;
+                LinearLayout s = (LinearLayout) sv;
+                s.removeAllViews();
+                String cur = FontManager.current(act);
+                for (int i = 0; i < FontManager.IDS.length; i++) {
+                    final String id = FontManager.IDS[i];
+                    boolean on = id.equals(cur);
+                    LinearLayout chip = new LinearLayout(act);
+                    chip.setTag("keepfont");
+                    chip.setOrientation(LinearLayout.VERTICAL);
+                    chip.setGravity(Gravity.CENTER);
+                    chip.setPadding(dp(6), dp(10), dp(6), dp(10));
+                    int base = cSf() | 0xFF000000;
+                    chip.setBackground(shape(on ? androidx_blend(base, cGold(), 0.15f) : base, 14, on ? cGold() : cBorder()));
+                    chip.setClickable(true);
+                    chip.setOnClickListener(x -> {
+                        FontManager.set(act, id);
+                        buildFontStrip();
+                    });
+                    TextView sample = new TextView(act);
+                    sample.setText("أبجد Aa");
+                    sample.setTextSize(17);
+                    sample.setTypeface(FontManager.preview(id));
+                    sample.setTextColor(on ? cGold() : cText());
+                    sample.setGravity(Gravity.CENTER);
+                    sample.setIncludeFontPadding(false);
+                    chip.addView(sample, new LinearLayout.LayoutParams(-2, -2));
+                    TextView lab = new TextView(act);
+                    lab.setText(FontManager.LABELS[i]);
+                    lab.setTextSize(11.5f);
+                    lab.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+                    lab.setTextColor(on ? cGold() : cMuted());
+                    lab.setGravity(Gravity.CENTER);
+                    LinearLayout.LayoutParams ll = new LinearLayout.LayoutParams(-2, -2);
+                    ll.topMargin = dp(6);
+                    chip.addView(lab, ll);
+                    LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(dp(88), -2);
+                    cl.setMarginEnd(dp(8));
+                    s.addView(chip, cl);
+                }
+                FontManager.applyNow(act);
+            }
+
             void applyTheme() {
                 syncChatTheme();
                 style(v("root"));
@@ -1047,6 +1093,7 @@ public class MassActivity extends Activity {
                 }
                 setLabel("settingsThemeToggle", dark ? "نهاري" : "ليلي", icon(dark ? "ic_sun" : "ic_moon", 16));
                 try { buildThemeStrip(); } catch (Throwable ignored) { }
+                try { buildFontStrip(); } catch (Throwable ignored) { }
                 try { setNav(curPage); } catch (Throwable ignored) { }
                 try { buildStories(); buildChats(); } catch (Throwable ignored) { }
                 polishProfile();
@@ -2284,7 +2331,7 @@ public class MassActivity extends Activity {
                             String lastMsg0 = m.get("lastMessage") != null ? m.get("lastMessage").toString() : "";
                             if (Boolean.TRUE.equals(m.get("lastStoryReply")) && !lastMsg0.trim().isEmpty()) {   // آخر نشاط رد على قصة (نص أو إيموجي)
                                 boolean byMe = myUid.equals(String.valueOf(m.get("lastSender")));
-                                lastMsg0 = (byMe ? "رداً على القصة" : "رداً على قصتك") + " \"" + lastMsg0.trim().replace('\n', ' ') + "\"";
+                                lastMsg0 = "\u200F\"" + lastMsg0.trim().replace('\n', ' ') + "\" " + (byMe ? "رداً على القصة" : "رداً على قصتك");   // العبارة في اليسار والنص المقتبس في اليمين
                             }
                             final String lastMsg = lastMsg0;
                             final long lastAt = chatTs(m);
@@ -3116,8 +3163,8 @@ public class MassActivity extends Activity {
                                 View tv = pr.get(t);
                                 float fy = t < di ? tv.getTop() - row.getTop() : tv.getTop() + tv.getHeight() - row.getTop() - row.getHeight();
                                 row.animate().translationY(fy).scaleX(1f).scaleY(1f).setDuration(150)
-                                        .setInterpolator(new android.view.animation.DecelerateInterpolator()).withEndAction(finish).start();
-                            } else finish.run();
+                                        .setInterpolator(new android.view.animation.DecelerateInterpolator()).withEndAction(() -> hh.post(finish)).start();
+                            } else hh.post(finish);   // إعادة بناء القائمة خارج معالجة اللمس نفسها (حذف الصف وهو يستقبل اللمس يفسد قائمة الأبناء)
                             return true;
                         }
                     }
@@ -3475,7 +3522,8 @@ public class MassActivity extends Activity {
                         // النقر/الضغط المطوّل على الجهة الفارغة المقابلة للرسالة = النقر/الضغط المطوّل على الرسالة نفسها
                         final float[] blankY = new float[1];
                         area0.setOnTouchListener((vw, ev) -> { if (ev.getActionMasked() == android.view.MotionEvent.ACTION_DOWN) blankY[0] = ev.getY(); return false; });
-                        area0.setOnClickListener(x -> { View m = msgAtY((ViewGroup) area0, blankY[0]); if (m != null) m.performClick(); });
+                        area0.setOnClickListener(x -> { View m = msgAtY((ViewGroup) area0, blankY[0]); if (m != null) m.performClick(); else if (selecting) clearSel(); });   // أثناء التحديد: النقر على مكان فارغ يُنهي التحديد
+                        ms0.setOnClickListener(x -> { if (selecting) clearSel(); });   // الفراغ خارج منطقة الرسائل (أسفلها/حولها)
                         area0.setOnLongClickListener(x -> { View m = msgAtY((ViewGroup) area0, blankY[0]); return m != null && m.performLongClick(); });
                         area0.setHapticFeedbackEnabled(false);
                         area0.addOnLayoutChangeListener((vv, l, t, r, b, ol, ot, orr, ob) -> {
@@ -4262,7 +4310,7 @@ public class MassActivity extends Activity {
                 refreshSel();
             }
 
-            /** إطار ذهبي يحيط بالرسالة المحددة من كل الجهات، خارجها بمسافة 2dp (.selected-message: outline 2px + offset 2px). */
+            /** الرسالة المحددة: شريط ظل خفيف بعرض الصف كاملاً (بدل الإطار القديم). */
             final java.util.HashMap<View, Object[]> selRings = new java.util.HashMap<>();
 
             /** انحناءات الفقاعة (TL,TR,BR,BL) + إزاحة: الزاوية المدبّبة 6dp (أسفل اليمين للمرسلة وأسفل اليسار للمستلمة). */
@@ -4276,60 +4324,57 @@ public class MassActivity extends Activity {
                 return r;
             }
 
-            void markSel(final View mv, boolean on) {
-                if (mv == null) return;
-                Object[] old = selRings.remove(mv);
-                if (old != null) {
-                    try { ((ViewGroup) old[0]).getOverlay().remove((Drawable) old[1]); ((ViewGroup) old[0]).invalidate(); } catch (Throwable ignored) { }
-                }
-                if (Build.VERSION.SDK_INT >= 23) {
-                    if (!on) { mv.setForeground(null); }
-                    else {
-                        GradientDrawable g = new GradientDrawable();      // تظليل خفيف داخل الرسالة بلا حدّ
-                        g.setColor(selAccA(0x26));
-                        g.setCornerRadii(bubbleRadii(mv, 0));
-                        mv.setForeground(g);
-                    }
-                } else mv.setAlpha(on ? 0.72f : 1f);
-                if (!on || !(mv.getParent() instanceof ViewGroup)) return;
-                final ViewGroup par = (ViewGroup) mv.getParent();
-                par.setClipChildren(false);
-                if (par.getParent() instanceof ViewGroup) { ((ViewGroup) par.getParent()).setClipChildren(false); }
-                final int gap = dp(1), stroke = dp(2);      // الإطار يبعد 1dp فقط عن الفقاعة
+            /** لون الظل الخفيف حسب الثيم: داكن ← أبيض شفاف، فاتح ← لون الثيم (accent) شفاف. */
+            int bandBase() { return dark ? 0xFFFFFFFF : selAcc(); }
+            int bandAlpha() { return dark ? 0x26 : 0x2E; }
+
+            /** شريط ظل خفيف بعرض الصف كاملاً (حتى الجهة المقابلة للرسالة)، يتبع الرسالة لحظياً ويلتحم مع الصفوف المحددة المتجاورة. */
+            Drawable makeBand(final View mv, final int alpha) {
                 final android.graphics.Paint pt = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-                pt.setStyle(android.graphics.Paint.Style.STROKE);
-                pt.setStrokeWidth(stroke);
-                pt.setColor(selAcc());
-                final android.graphics.Path path = new android.graphics.Path();
-                Drawable ring = new Drawable() {
-                    @Override public void draw(android.graphics.Canvas c) {     // يقرأ مكان الرسالة لحظياً فيتبعها
-                        float in = gap + stroke / 2f;
-                        // لا يلتصق إطاران متجاوران: نقصّ الامتداد العمودي بحيث تبقى بينهما مسافة
-                        float vin = in;
+                pt.setStyle(android.graphics.Paint.Style.FILL);
+                pt.setColor(bandBase());
+                pt.setAlpha(alpha);
+                return new Drawable() {
+                    @Override public void draw(android.graphics.Canvas c) {
                         ViewGroup pr = (ViewGroup) mv.getParent();
-                        if (pr != null) {
-                            int i = pr.indexOfChild(mv);
-                            float room = Float.MAX_VALUE;
-                            if (i > 0) room = Math.min(room, mv.getTop() - pr.getChildAt(i - 1).getBottom());
-                            if (i >= 0 && i < pr.getChildCount() - 1) room = Math.min(room, pr.getChildAt(i + 1).getTop() - mv.getBottom());
-                            if (room < Float.MAX_VALUE) vin = Math.max(stroke / 2f, Math.min(in, room / 2f - dp(0.5f) - stroke / 2f));
-                        }
-                        float tx = mv.getTranslationX(), ty = mv.getTranslationY();
-                        android.graphics.RectF rc = new android.graphics.RectF(mv.getLeft() + tx - in, mv.getTop() + ty - vin,
-                                mv.getRight() + tx + in, mv.getBottom() + ty + vin);
-                        path.reset();
-                        // نفس انحناءات الفقاعة (مع الزاوية المدبّبة الصغيرة) مضافاً إليها الإزاحة
-                        path.addRoundRect(rc, bubbleRadii(mv, in), android.graphics.Path.Direction.CW);
-                        c.drawPath(path, pt);
+                        if (pr == null) return;
+                        float up = dp(6), down = dp(6);
+                        int i = pr.indexOfChild(mv);
+                        if (i > 0) up = Math.min(up, Math.max(0, mv.getTop() - pr.getChildAt(i - 1).getBottom()) / 2f);
+                        if (i >= 0 && i < pr.getChildCount() - 1) down = Math.min(down, Math.max(0, pr.getChildAt(i + 1).getTop() - mv.getBottom()) / 2f);
+                        float ty = mv.getTranslationY();
+                        c.drawRect(0, mv.getTop() + ty - up, pr.getWidth(), mv.getBottom() + ty + down, pt);
                     }
-                    @Override public void setAlpha(int a) { pt.setAlpha(a); }
+                    @Override public void setAlpha(int a) { pt.setAlpha(a); invalidateSelf(); }
                     @Override public void setColorFilter(android.graphics.ColorFilter cf) { pt.setColorFilter(cf); }
                     @Override public int getOpacity() { return android.graphics.PixelFormat.TRANSLUCENT; }
                 };
-                ring.setBounds(-dp(8), -dp(8), Math.max(par.getWidth(), mv.getRight()) + dp(8), Math.max(par.getHeight(), mv.getBottom()) + dp(8));
-                par.getOverlay().add(ring);
+            }
+
+            /** يضيف الشريط إلى overlay الأب ويعيد {الأب، الشريط} لإزالته لاحقاً. */
+            Object[] addBand(View mv, int alpha) {
+                if (mv == null || !(mv.getParent() instanceof ViewGroup)) return null;
+                ViewGroup par = (ViewGroup) mv.getParent();
+                Drawable d = makeBand(mv, alpha);
+                d.setBounds(0, -dp(8), Math.max(par.getWidth(), 1), Math.max(par.getHeight(), mv.getBottom()) + dp(8));
+                par.getOverlay().add(d);
                 par.invalidate();
-                selRings.put(mv, new Object[]{par, ring});
+                return new Object[]{par, d};
+            }
+
+            void removeBand(Object[] b) {
+                if (b == null) return;
+                try { ((ViewGroup) b[0]).getOverlay().remove((Drawable) b[1]); ((ViewGroup) b[0]).invalidate(); } catch (Throwable ignored) { }
+            }
+
+            void markSel(final View mv, boolean on) {
+                if (mv == null) return;
+                removeBand(selRings.remove(mv));
+                if (Build.VERSION.SDK_INT >= 23) mv.setForeground(null);
+                else mv.setAlpha(1f);
+                if (!on) return;
+                Object[] b = addBand(mv, bandAlpha());
+                if (b != null) selRings.put(mv, b);
             }
 
             String firstSel() { return selIds.isEmpty() ? null : selIds.iterator().next(); }
@@ -4712,16 +4757,10 @@ public class MassActivity extends Activity {
                 if (mv == null) return;
                 android.animation.ValueAnimator prev = flashAnims.remove(mv);
                 if (prev != null) prev.cancel();
-                // رسالتي: أبيض بنسبة 20% — رسالة المستلَم: لون الثيم (accent) أو الذهبي في ثيم بابل
-                Object[] fm = id != null ? msgMeta.get(id) : null;
-                final boolean fMine = fm != null && Boolean.TRUE.equals(fm[4]);
-                final float peak = fMine ? 0.20f : 0.42f;
-                final GradientDrawable g = new GradientDrawable();
-                g.setColor(fMine ? 0xFFFFFFFF : (Tk.chatPal != null ? (Tk.chatPal.accent | 0xFF000000) : cGold()));
-                g.setCornerRadii(bubbleRadii(mv, 0));
-                g.setAlpha(0);
-                final boolean fg = Build.VERSION.SDK_INT >= 23;
-                if (fg) mv.setForeground(g);
+                final Object[] fb = addBand(mv, 0);
+                if (fb == null) return;
+                final Drawable g = (Drawable) fb[1];
+                final float peak = dark ? 0.26f : 0.30f;
                 final android.animation.ValueAnimator va = android.animation.ValueAnimator.ofFloat(0f, 1f);
                 va.setDuration(1500);
                 va.setInterpolator(new android.view.animation.LinearInterpolator());
@@ -4729,16 +4768,12 @@ public class MassActivity extends Activity {
                     float t = (float) a.getAnimatedValue();
                     float pulse = (float) (0.5 - 0.5 * Math.cos(4 * Math.PI * t));          // نبضتان
                     float fade = 1f - 0.55f * t;                                            // تخفت تدريجياً
-                    float k = pulse * fade;
-                    if (fg) g.setAlpha(Math.round(255 * peak * k));
-                    else mv.setAlpha(1f - (fMine ? 0.20f : 0.3f) * k);
-                    float sc = 1f + 0.025f * (float) Math.sin(Math.PI * Math.min(1f, t * 1.6f));
-                    mv.setScaleX(sc); mv.setScaleY(sc);
+                    g.setAlpha(Math.round(255 * peak * pulse * fade));
                 });
                 final Runnable done = () -> {
                     flashAnims.remove(mv);
-                    mv.setScaleX(1f); mv.setScaleY(1f); mv.setAlpha(1f);
-                    if (fg) { if (selIds.contains(id)) markSel(mv, true); else mv.setForeground(null); }
+                    removeBand(fb);
+                    if (selIds.contains(id)) markSel(mv, true);
                 };
                 va.addListener(new android.animation.AnimatorListenerAdapter() {
                     @Override public void onAnimationEnd(android.animation.Animator an) { done.run(); }
@@ -5728,7 +5763,6 @@ public class MassActivity extends Activity {
 
             void uploadAudio(File f, long dur) {
                 if (currentChatId.isEmpty()) return;
-                toast("جاري إرسال الصوت...");
                 new Thread(() -> {
                     try {
                         java.io.FileInputStream fi = new java.io.FileInputStream(f);
@@ -6093,22 +6127,18 @@ public class MassActivity extends Activity {
                 if (csTargetId == null) return;
                 View mv = msgViewsById.get(csTargetId);
                 if (mv != null) markSel(mv, selIds.contains(csTargetId));
+                removeBand(csBand); csBand = null;
                 csTargetId = null;
             }
 
-            /** الرسالة المحدَّدة: إطار ذهبي 2dp يبقى حتى النتيجة التالية أو إغلاق البحث (.msg-bubble.search-match). */
+            /** نتيجة البحث الحالية: نفس الشريط الخفيف الممتد، يبقى حتى النتيجة التالية أو إغلاق البحث. */
+            Object[] csBand;
             void csMarkTarget(String id) {
                 csClearTarget();
                 View mv = msgViewsById.get(id);
                 if (mv == null) return;
                 csTargetId = id;
-                if (Build.VERSION.SDK_INT >= 23) {
-                    GradientDrawable g = new GradientDrawable();
-                    g.setColor(0x00000000);
-                    g.setStroke(dp(2), selAcc());
-                    g.setCornerRadii(bubbleRadii(mv, 0));
-                    mv.setForeground(g);
-                }
+                csBand = addBand(mv, bandAlpha());
             }
 
             void csJump(String id) {
