@@ -118,7 +118,10 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
     /** سماكة الحلقة (dp): 3 غير مشاهَدة وعند الدوران، 2 بعد المشاهدة. */
     private float ringThickDp() {
         if (ringSmall && !launching && !seen && flySc <= 0f) return 2f;   // الشريط المصغّر: الذهبي أنحف بـ 1dp (3 ← 2)
-        return launching || !seen ? 3f : 2f;
+        float bar = launching || !seen ? 3f : 2f;
+        // أثناء الطيران: تبدأ من سماكة الهيدر (2dp) وتنتهي بسماكة الشريط، فلا تقفز السماكة عند التبديل
+        if (flySc > 0f && !launching && !seen) return 2f + (bar - 2f) * flyP;
+        return bar;
     }
     /** أثناء طيران «قصتي» بين الهيدر والشريط: مقياس الطيران الحالي (0 = لا طيران) ونسبة التقدّم. */
     private float flySc = 0f, flyP = 0f;
@@ -127,7 +130,11 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
      *  وأثناء الطيران تنتقل تدريجياً إلى بُعد الشريط (5dp) بسماكة ثابتة على الشاشة كي لا تتبدّل عند الوصول. */
     private float ringOffPx() {
         float t = ringThickDp();
-        if (flySc > 0f) return dp(t + (5f - t) * flyP) / flySc;
+        if (flySc > 0f) {
+            // نقطة البداية = شكل الهيدر المطويّ تماماً: ذهبية → فراغ 1dp (إزاحة 3dp بسماكة 2dp)، رمادية → ملاصقة (2dp)
+            float hdrOff = (seen || launching) ? t : 3f;
+            return dp(hdrOff + (5f - hdrOff) * flyP) / flySc;
+        }
         if (ringSmall && seen && !launching) return dp(t);   // المصغّر: الرمادية ملاصقة للصورة بلا فراغ
         return dp(ringSmall ? t + 1f : 5f);                  // المصغّر: فراغ 1dp بين الحلقة الذهبية والصورة
     }
@@ -223,7 +230,7 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
             float gap = flySc > 0f ? dp(1) / flySc : dp(1);
             grow = Math.max(0f, ringOffPx() - ringThickPx() - gap) * (1f - morph);
         } else if (ring && seen && !ringSmall) {                      // المشاهَدة: الصورة +1dp (الفراغ 2dp) كما كان، حتى أثناء الفتح
-            grow = (flySc > 0f ? dp(1) / flySc : dp(1)) * (1f - morph);
+            grow = (flySc > 0f ? dp(1) * flyP / flySc : dp(1)) * (1f - morph);   // أثناء الطيران: من 0 (الهيدر) إلى 1dp (الشريط)
         }
         float Rc = R + grow - morph * thumbB;           // نصف قطر المحتوى (الصورة/الحرف)
         int toneShadow = blue ? 0x471F63D8 : 0x47B8861B;   // rgba(.., .28)

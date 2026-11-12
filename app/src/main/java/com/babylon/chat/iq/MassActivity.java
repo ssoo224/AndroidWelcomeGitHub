@@ -459,7 +459,7 @@ public class MassActivity extends Activity {
                         TextView T = (x instanceof TextView) ? (TextView) x : null;
                         if (Tk.handle(k, x, T, dark)) continue;
                         if (k.equals("bg")) x.setBackgroundColor(cBg());
-                        else if (k.equals("storybg")) x.setBackgroundColor(cBg());   // شريط القصص: بلون خلفية الصفحة في الطورين
+                        else if (k.equals("storybg")) x.setBackgroundColor(0);   // شريط القصص: شفاف ليظهر نقش/لون خلفية الصفحة نفسه (homepat) في الطورين فلا يختلف لونه
                         else if (k.equals("sf")) x.setBackgroundColor(cSf());
                         else if (k.equals("line")) x.setBackgroundColor(cBorder());
                         else if (k.equals("chatbg")) x.setBackgroundColor(cChatBg());
@@ -4667,7 +4667,7 @@ public class MassActivity extends Activity {
                 final android.graphics.Paint pf = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);   // أطراف متلاشية (أعلى/أسفل)
                 pf.setStyle(android.graphics.Paint.Style.FILL);
                 pf.setAlpha(alpha);
-                final float fade = dp(7);   // ارتفاع التلاشي على حدّي الشريط (كان 14dp ← أقل بـ 50%)
+                final float fade = dp(7);   // (التلاشي يُحسب الآن داخل draw بارتفاع 5dp داخل حدود الرسالة)
                 return new Drawable() {
                     /** تدرّج ناعم من الشفاف إلى لون الشريط (يتحكم alpha الفرشاة بالشدة النهائية). */
                     void fadeRect(android.graphics.Canvas c, float x0, float y0, float x1, float y1, boolean toTop) {
@@ -4689,7 +4689,13 @@ public class MassActivity extends Activity {
                         // مجاورة محددة: الشريط يمتد نصف الفراغ ليلتحم بها بلا خط فاصل؛ وإلا يبدأ بهامش 6dp ثم يتلاشى للخارج
                         float up = joinUp ? Math.max(0, mv.getTop() - prev.getBottom()) / 2f : 0f;
                         float down = joinDown ? Math.max(0, next.getTop() - mv.getBottom()) / 2f : 0f;
-                        c.drawRect(0, top - up, w, bottom + down, pt);   // الشريط بارتفاع الرسالة فقط، بلا هامش ولا تلاشٍ خارجها
+                        // الحافتان العلوية/السفلية تتلاشيان بلطف جداً «داخل» حدود الرسالة فقط (لا يتعدى التلاشي إلى الفراغ بين الرسالتين)؛
+                        // وجهة الالتحام بمجاورة محددة تبقى ممتلئة بلا تلاشٍ كي لا يظهر خط فاصل
+                        float f = Math.min(dp(5), (bottom - top) / 3f);
+                        float yT = top - up + (joinUp ? 0f : f), yB = bottom + down - (joinDown ? 0f : f);
+                        if (yB > yT) c.drawRect(0, yT, w, yB, pt);
+                        if (!joinUp) fadeRect(c, 0, top, w, top + f, true);
+                        if (!joinDown) fadeRect(c, 0, bottom - f, w, bottom, false);
                     }
                     @Override public void setAlpha(int a) { pt.setAlpha(a); pf.setAlpha(a); invalidateSelf(); }
                     @Override public void setColorFilter(android.graphics.ColorFilter cf) { pt.setColorFilter(cf); pf.setColorFilter(cf); }
