@@ -912,6 +912,7 @@ public final class StoryComposer {
         m.put("createdAt", now);
         m.put("expiresAt", now + hrs * 3600000L);
         m.put("pinned", pinned);
+        if (pinned) m.put("pinnedAt", now);   // ترتيب التثبيت: الأقدم تثبيتاً أولاً
         m.put("permanent", permanent);   // إظهار دائم في الملف الشخصي
         if (videoUrl != null) {
             m.put("mediaType", "video");

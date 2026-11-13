@@ -764,16 +764,10 @@ public final class MsgMenu {
                 if (wi != null) stable = wi.getStableInsetBottom();
                 int target = Math.max(0, overlap - stable);
                 if (target < dp(root.getContext(), 80)) target = 0;   // أصغر من أي لوحة مفاتيح: لا شيء يُرفع
-                if (target == cur[0] || (anim[0] != null && anim[0].isRunning() && (int) anim[0].getAnimatedValue() == target)) return;
-                final int from = cur[0], to = target;
+                if (target == cur[0]) return;
                 if (anim[0] != null) anim[0].cancel();
-                anim[0] = android.animation.ValueAnimator.ofInt(from, to);
-                anim[0].setDuration(180);
-                anim[0].addUpdateListener(a -> {
-                    cur[0] = (Integer) a.getAnimatedValue();
-                    root.setPadding(0, 0, 0, cur[0]);
-                });
-                anim[0].start();
+                cur[0] = target;
+                root.setPadding(0, 0, 0, target);   // ارتفاع فوري مع الكيبورد بلا حركة
             } catch (Throwable ignored) { }
         };
         root.getViewTreeObserver().addOnGlobalLayoutListener(l);

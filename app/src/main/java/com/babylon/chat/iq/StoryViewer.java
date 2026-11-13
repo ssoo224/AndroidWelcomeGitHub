@@ -85,6 +85,9 @@ public final class StoryViewer {
     /** أي حلقة تدعم القوس الدوّار (أفاتار القصص أو حلقة الملف الشخصي). */
     public interface Spin { void setLaunching(boolean on); boolean isLaunching(); }
 
+    /** نقطة انطلاق حركة الفتح (إحداثيات الشاشة) ونصف قطر البداية: صورة المستخدم / عنصر الملف / اقتباس الرد. -1 = بلا نقطة. */
+    public static float originX = -1f, originY = -1f, originR = 0f;
+
     /** عنوان إشعار الرد على القصة (نفس /api/index في الموقع) مثل: https://موقعك/api/index — فارغ = بلا إشعار. */
     public static String NOTIFY_URL = "";
     private static final String CLD_CLOUD = "xuljmnmh", CLD_PRESET = "stories_unsigned";
@@ -174,7 +177,7 @@ public final class StoryViewer {
                 pendingLaunch = false;
                 if (av != null) av.setLaunching(false);
             }
-        }, 220);
+        }, 0);
     }
 
     // ------------------------------------------------------------ الحالة
@@ -482,14 +485,37 @@ public final class StoryViewer {
         });
 
         // --- حركة الفتح: .story-opening
+        final float ox = originX, oy = originY, orad = originR;
+        originX = -1f;
         ValueAnimator bg = ValueAnimator.ofInt(0, 255);
-        bg.setDuration(620);
-        bg.setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator());
+        bg.setDuration(220);
+        bg.setInterpolator(new android.view.animation.DecelerateInterpolator());
         bg.addUpdateListener(a -> { if (!swipeDragging && overlay != null) overlay.setBackgroundColor(Color.argb((Integer) a.getAnimatedValue(), 0, 0, 0)); });
         bg.start();
-        stage.setScaleX(.88f); stage.setScaleY(.88f); stage.setAlpha(.35f);
-        stage.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(720).withLayer()
-            .setInterpolator(new PathInterpolator(.18f, .78f, .22f, 1f)).start();
+        if (Build.VERSION.SDK_INT >= 21 && ox >= 0f) {
+            // تكبير دائري سريع من مكان النقر (الصورة/الملف/الرد)
+            stage.setVisibility(View.INVISIBLE);
+            stage.post(() -> {
+                try {
+                    if (closed || stage == null) return;
+                    int w = stage.getWidth(), h = stage.getHeight();
+                    if (w <= 0 || h <= 0) { stage.setVisibility(View.VISIBLE); return; }
+                    int[] loc = new int[2]; stage.getLocationOnScreen(loc);
+                    int cx = (int) Math.max(0f, Math.min((float) w, ox - loc[0]));
+                    int cy = (int) Math.max(0f, Math.min((float) h, oy - loc[1]));
+                    float end = (float) Math.hypot(Math.max(cx, w - cx), Math.max(cy, h - cy));
+                    Animator an = android.view.ViewAnimationUtils.createCircularReveal(stage, cx, cy, Math.max(1f, orad), end);
+                    an.setDuration(240);
+                    an.setInterpolator(new android.view.animation.DecelerateInterpolator(1.4f));
+                    stage.setVisibility(View.VISIBLE);
+                    an.start();
+                } catch (Throwable t) { if (stage != null) stage.setVisibility(View.VISIBLE); }
+            });
+        } else {
+            stage.setScaleX(.88f); stage.setScaleY(.88f); stage.setAlpha(.35f);
+            stage.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(220).withLayer()
+                .setInterpolator(new PathInterpolator(.18f, .78f, .22f, 1f)).start();
+        }
 
         showStory();
         handler.postDelayed(tick, 50);
@@ -1417,7 +1443,7 @@ public final class StoryViewer {
         syncPinIcon(next);
         refreshTime(s);
         if (idx < list.size() && list.get(idx) == s) rebuildBars();
-        db.collection("stories").document(s.id).update("pinned", next).addOnFailureListener(e -> {
+        db.collection("stories").document(s.id).update("pinned", next, "pinnedAt", next ? (Object) System.currentTimeMillis() : (Object) com.google.firebase.firestore.FieldValue.delete()).addOnFailureListener(e -> {
             s.pinned = !next;
             syncPinIcon(s.pinned);
             refreshTime(s);
@@ -1545,21 +1571,6 @@ public final class StoryViewer {
         card.addView(sTv, sp);
     }
 
-    /** خلفية زر «إلغاء» مع ظل سفلي متدرّج يميّزه (طبقتان خفيفتان تحت الزر). */
-    private Drawable shadowedBtnBg(int fill, boolean dk) {
-        GradientDrawable sh1 = new GradientDrawable();
-        sh1.setColor(dk ? 0x59000000 : 0x1F16202B); sh1.setCornerRadius(dp(12));
-        GradientDrawable sh2 = new GradientDrawable();
-        sh2.setColor(dk ? 0x99000000 : 0x3316202B); sh2.setCornerRadius(dp(12));
-        GradientDrawable top = new GradientDrawable();
-        top.setColor(fill); top.setCornerRadius(dp(12));
-        if (!dk) top.setStroke(1, 0x1416202B);
-        android.graphics.drawable.LayerDrawable ld = new android.graphics.drawable.LayerDrawable(new Drawable[]{sh1, sh2, top});
-        ld.setLayerInset(1, 0, 0, 0, dp(2));
-        ld.setLayerInset(2, 0, 0, 0, dp(4));
-        return ld;
-    }
-
     private TextView actionBtn(String text, int textColor, Drawable bg) {
         TextView b = tv(text, 14f * S, textColor, true);
         b.setGravity(Gravity.CENTER);
@@ -1581,8 +1592,12 @@ public final class StoryViewer {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(12), dp(11), dp(12), dp(11));
-        row.setBackground(dk ? round(0x0FFFFFFF, 12, 0x29FFFFFF, 1) : round(Tk.surface2(false), 12, Tk.border(false), 1));
+        if (dk) {
+            row.setPadding(dp(12), dp(11), dp(12), dp(11));
+            row.setBackground(round(0x0FFFFFFF, 12, 0x29FFFFFF, 1));
+        } else {
+            row.setPadding(dp(4), dp(8), dp(4), dp(8));   // النهاري: بلا مستطيل حول سويتش «إظهار بشكل دائم»
+        }
         LinearLayout copy = new LinearLayout(act);
         copy.setOrientation(LinearLayout.VERTICAL);
         TextView t = tv("إظهار بشكل دائم", 13.5f * S, dk ? Color.WHITE : Tk.text(false), true);
@@ -1677,9 +1692,11 @@ public final class StoryViewer {
         acts.setOrientation(LinearLayout.HORIZONTAL);
         acts.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         TextView cancel = actionBtn("إلغاء", isDark() ? Color.WHITE : Tk.chipFg(false), round(isDark() ? 0x17FFFFFF : Tk.chipBg(false), 12, 0, 0));
-        cancel.setBackground(shadowedBtnBg(isDark() ? 0x17FFFFFF : Tk.chipBg(false), isDark()));
-        cancel.setPadding(0, 0, 0, dp(4));   // يبقى النص في منتصف الجزء المرئي فوق الظل
         cancel.setOnClickListener(v -> closeModal());
+        // ظلّ خلف زر «إلغاء» مطابق لنافذة حذف القصة
+        cancel.setElevation(dp(4));
+        acts.setClipChildren(false); acts.setClipToPadding(false);
+        card.setClipChildren(false); card.setClipToPadding(false);
         GradientDrawable gold = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFF5D875, 0xFFB98B23});
         gold.setCornerRadius(dp(12));
         saveBtnTv = actionBtn("حفظ التعديلات", 0xFFFFFFFF, gold);

@@ -90,9 +90,14 @@ public class MassActivity extends Activity {
 
     private StoryComposer storyComposer;                              // نشر قصة (StoryComposer.java)
     private java.util.function.Consumer<Uri> pendingImageCallback = null;
+    private java.util.function.Consumer<Uri> pendingFileCallback = null;
     private Runnable pendingMicCallback = null;
     private static final int REQ_PICK_IMAGE = 1001;
     private static final int REQ_MIC_PERM = 1002;
+    private static final int REQ_PICK_FILE = 1003;
+
+    /** مستمع تقدّم رفع الملف (بدل LongConsumer لأن minSdk 21). */
+    interface LongCb { void on(long v); }
 
     @Override
     protected void onCreate(Bundle _savedInstanceState) {
@@ -239,6 +244,12 @@ public class MassActivity extends Activity {
         super.onActivityResult(requestCode, resultCode, data);
         try { if (StoryViewer.onActivityResult(requestCode, resultCode, data)) return; } catch (Throwable ignored) { }
         try { if (storyComposer != null && storyComposer.onActivityResult(requestCode, resultCode, data)) return; } catch (Throwable ignored) { }
+        if (requestCode == REQ_PICK_FILE) {
+            java.util.function.Consumer<Uri> fcb = pendingFileCallback;
+            pendingFileCallback = null;
+            if (resultCode == RESULT_OK && data != null && data.getData() != null && fcb != null) fcb.accept(data.getData());
+            return;
+        }
         if (requestCode == REQ_PICK_IMAGE && resultCode == RESULT_OK && data != null && data.getData() != null) {
             java.util.function.Consumer<Uri> cb = pendingImageCallback;
             pendingImageCallback = null;
@@ -1305,6 +1316,9 @@ public class MassActivity extends Activity {
 
             void show(String p) {
                 final String from = curPage;
+                BabylonFx.cancelTabSlide();   // تبديل سريع بين التبويبات: لا يبقى انتقال سابق يُظهر صفحته فوق الحالية
+                for (String pg0 : pages) { View pv0 = v(pg0); if (pv0 != null && (pv0.getTranslationX() != 0f)) { pv0.animate().cancel(); pv0.setTranslationX(0f); pv0.setAlpha(1f); } }
+                final int tabGen0 = BabylonFx.tabGenNow();
                 prevPage = curPage; curPage = p;
                 if (stories != null && !p.equals("homeView")) stories.collapseNow();   // الانتقال لصفحة/قسم آخر يطوي القصص
                 applyInsets();
@@ -1331,6 +1345,7 @@ public class MassActivity extends Activity {
                     to.setVisibility(View.INVISIBLE);
                     final String pp = p;
                     to.post(() -> {
+                        if (tabGen0 != BabylonFx.tabGenNow()) return;   // حلّ مكانه تبديل أحدث
                         BabylonFx.tabSlide(fv, to, ti > fi ? -1 : 1, cBg(), () -> {
                             fv.setVisibility(View.GONE);
                             to.setVisibility(View.VISIBLE);
@@ -1460,7 +1475,6 @@ public class MassActivity extends Activity {
                             try { applyProfilePhoto(); } catch (Throwable ignored) { }
                             try { buildStories(); } catch (Throwable ignored) { }
                             try { fillProfile(); } catch (Throwable ignored) { }
-                            try { loadProfileStories(true); } catch (Throwable ignored) { }
                         }
                     })
                     .addOnFailureListener(e -> {
@@ -2353,6 +2367,8 @@ public class MassActivity extends Activity {
 
             /** مراقبة لحظية للرسائل غير المقروءة في محادثة واحدة (تُنشأ مرة واحدة لكل محادثة). */
             final java.util.HashMap<String, ListenerRegistration> unreadRegs = new java.util.HashMap<>();
+            final java.util.HashMap<String, Boolean> sentUnreadByUid = new java.util.HashMap<>();   // otherUid -> لي رسالة غير مقروءة لديه
+            final java.util.HashMap<String, Boolean> lastMineByUid = new java.util.HashMap<>();     // otherUid -> آخر رسالة في القائمة مني (تُعرض علامة ✓/✓✓)
             void watchUnread(final String chatId, final String otherId) {
                 if (chatId == null || chatId.isEmpty() || unreadRegs.containsKey(chatId)) return;
                 try {
@@ -2362,11 +2378,17 @@ public class MassActivity extends Activity {
                             if (err != null || qs == null) return;
                             int cnt = 0;
                             final long clrU = chatClearedAt(chatId);
-                            for (DocumentSnapshot md : qs.getDocuments())
-                                if (!myUid.equals(md.getString("sender")) && !myUid.equals(md.getString("senderId")) && !msgCleared(md, clrU)) cnt++;
+                            boolean sentUnread = false;   // لي رسالة لم تُقرأ بعد (✓ بدل ✓✓)
+                            for (DocumentSnapshot md : qs.getDocuments()) {
+                                boolean mineMsg = myUid.equals(md.getString("sender")) || myUid.equals(md.getString("senderId"));
+                                if (mineMsg) { if (!msgCleared(md, clrU)) sentUnread = true; }
+                                else if (!msgCleared(md, clrU)) cnt++;
+                            }
                             final String nv = String.valueOf(cnt);
                             unreadByUid.put(otherId, nv);
                             boolean changed = false;
+                            Boolean oldSu = sentUnreadByUid.put(otherId, sentUnread);
+                            if (oldSu == null || oldSu != sentUnread) changed = true;
                             for (int i = 0; i < chatData.size(); i++) {
                                 String[] row = chatData.get(i);
                                 if (row.length > 4 && row[4].equals(otherId)) {
@@ -2415,15 +2437,24 @@ public class MassActivity extends Activity {
                                 lastMsg0 = (byMe ? "رداً على القصة" : "رداً على قصتك") + " \u200F\"" + lastMsg0.trim().replace('\n', ' ') + "\"\u200F";   // الجملة كلها تبدأ من نفس جهة باقي الرسائل تحت الاسم: العبارة أولاً ثم النص المقتبس بعدها (علامتا التنصيص حول النص)
                             }
                             long lastAt0 = chatTs(m);
+                            boolean lastMine0 = myUid.equals(String.valueOf(m.get("lastSender")));
+                            try {   // حذف «لدي فقط»: آخر رسالة متبقية تظهر مكان المحذوفة (ما دام لم تصل رسالة أحدث)
+                                String ov = sp.getString("lastov_" + m.get("__id"), null);
+                                if (ov != null) {
+                                    String[] op = ov.split("\\|", 3);
+                                    if (op.length == 3 && Long.parseLong(op[0]) == lastAt0) { lastMsg0 = op[2]; lastAt0 = Long.parseLong(op[1]); lastMine0 = false; }
+                                }
+                            } catch (Throwable ignored) { }
                             try {   // رسائل وهمية (حظرني): تظهر عندي كآخر رسالة إن كانت أحدث
                                 String[] gl = GhostStore.last(act, String.valueOf(m.get("__id")));
-                                if (gl != null && Long.parseLong(gl[1]) > lastAt0 && !gl[0].isEmpty()) { lastMsg0 = gl[0].replace('\n', ' '); lastAt0 = Long.parseLong(gl[1]); }
+                                if (gl != null && Long.parseLong(gl[1]) > lastAt0 && !gl[0].isEmpty()) { lastMsg0 = gl[0].replace('\n', ' '); lastAt0 = Long.parseLong(gl[1]); lastMine0 = false; }
                             } catch (Throwable ignored) { }
                             final long lastAt = lastAt0;
                             final String lastMsg = lastMsg0;
                             final String lastTime = lastAt > 0 ? listTime(lastAt) : "";
                             final String fChatId = String.valueOf(m.get("__id"));
                             chatTsMap.put(fOtherId, lastAt);
+                            lastMineByUid.put(fOtherId, lastMine0);
                             chatIdByUid.put(fOtherId, fChatId);
                             { Object ca = m.get("clearedAll"); chatClearedAll.put(fChatId, ca instanceof Number ? ((Number) ca).longValue() : 0L); }
                             if (chatIsCleared(fChatId, lastAt)) continue;   // محذوفة عندي ولم يصلها جديد بعد الحذف
@@ -2492,8 +2523,17 @@ public class MassActivity extends Activity {
             void openStory(final String uid, final String name, final String letter, final Bitmap photo, final boolean blue, final StoryViewer.Spin av,
                            final String startId, final java.util.Set<String> playIds) {
                 if (myUid == null || myUid.isEmpty() || db == null) return;
+                {   // نقطة انطلاق التكبير: مركز الصورة إن كان النقر عليها، وإلا موضع النقر (عنصر الملف / اقتباس الرد)
+                    float ox = tapX, oy = tapY, orad = dp(10);
+                    if (av instanceof View && ((View) av).isShown() && ((View) av).getWidth() > 0) {
+                        View avv = (View) av; int[] al = new int[2]; avv.getLocationOnScreen(al);
+                        ox = al[0] + avv.getWidth() / 2f; oy = al[1] + avv.getHeight() / 2f; orad = Math.min(avv.getWidth(), avv.getHeight()) / 2f;
+                    }
+                    if (ox == 0f && oy == 0f) ox = oy = -1f;
+                    StoryViewer.originX = ox; StoryViewer.originY = oy; StoryViewer.originR = orad;
+                }
                 StoryViewer.launch(act, db, myUid, av, uid, name, letter, photo, blue, startId, playIds, new StoryViewer.Listener() {
-                    @Override public void onClosed() { try { buildStories(); } catch (Throwable ignored) { } try { refreshProfileRings(); } catch (Throwable ignored) { } try { refreshProfileStories(); } catch (Throwable ignored) { } }
+                    @Override public void onClosed() { try { buildStories(); } catch (Throwable ignored) { } try { refreshProfileRings(); } catch (Throwable ignored) { } }   // لا إعادة تحميل لشبكة قصص الملف عند الخروج من قصة (كانت تسبب وميضاً)
                     @Override public void openChat(String u) { try { UI.this.openChat(name, u); } catch (Throwable ignored) { } }
                     @Override public void onStoriesChanged(long until) {
                         if (uid.equals(myUid)) myStoryUntil = until; else storyUntil.put(uid, until);
@@ -2531,10 +2571,17 @@ public class MassActivity extends Activity {
                         long exv = perm ? Long.MAX_VALUE : (ex == null ? 0L : ex);   // الدائمة تُعدّ نشطة دائماً (بلا تعتيم الأرشيف)
                         String vu = d.getString("videoUrl");
                         Double du = d.getDouble("duration");
+                        Long pat = d.getLong("pinnedAt");
                         items.add(new Object[]{d.getId(), d.getString("imageUrl") == null ? "" : d.getString("imageUrl"),
-                                vu != null && !vu.isEmpty(), pinned, cr == null ? 0L : cr, exv > now, exv, du == null ? 0d : du.doubleValue()});
+                                vu != null && !vu.isEmpty(), pinned, cr == null ? 0L : cr, exv > now, exv, du == null ? 0d : du.doubleValue(),
+                                pat != null ? pat : (cr == null ? 0L : cr)});
                     }
-                    java.util.Collections.sort(items, (a, b) -> Long.compare((Long) b[4], (Long) a[4]));   // الأحدث أولاً
+                    java.util.Collections.sort(items, (a, b) -> {   // المثبّتة أولاً بترتيب التثبيت (الأقدم تثبيتاً أولاً)، ثم الباقي الأحدث أولاً
+                        boolean pa = (Boolean) a[3], pb = (Boolean) b[3];
+                        if (pa != pb) return pa ? -1 : 1;
+                        if (pa) return Long.compare((Long) a[8], (Long) b[8]);
+                        return Long.compare((Long) b[4], (Long) a[4]);
+                    });
                     renderStoryGrid(mine, uid, items);
                 });
             }
@@ -2576,10 +2623,11 @@ public class MassActivity extends Activity {
                 for (int i = 0; i < items.size(); i += cols) {
                     LinearLayout row = new LinearLayout(act);
                     row.setOrientation(LinearLayout.HORIZONTAL);
-                    row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);   // نفس ترتيب شبكة الـ HTML في صفحة RTL
+                    row.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);   // أول قصة مثبّتة تبدأ من اليسار ثم التي بعدها
                     LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(-1, ch);
                     if (i > 0) rlp.topMargin = gap;
                     grid.addView(row, rlp);
+                    BabylonFx.rise(row, 2 + i / cols);   // حركة الظهور نفسها لبقية عناصر القسم، صفاً صفاً
                     for (int c = 0; c < cols; c++) {
                         LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(0, ch, 1f);
                         if (c > 0) clp.setMarginStart(gap);
@@ -2635,7 +2683,7 @@ public class MassActivity extends Activity {
                             dlp.setMargins(dp(5), 0, 0, dp(4));
                             card.addView(db0, dlp);
                         }
-                        {   // شارة المشاهدات أسفل اليمين: 👁 59 (تظهر بعد جلب العدد)
+                        if (mine) {   // شارة المشاهدات أسفل اليمين: 👁 59 (تظهر بعد جلب العدد) — لصاحب القصة فقط
                             final LinearLayout eb = tileBadge(R.drawable.ic_tile_eye, dp(12), dp(9), "0");
                             eb.setVisibility(View.GONE);
                             FrameLayout.LayoutParams elp = new FrameLayout.LayoutParams(-2, dp(15), Gravity.BOTTOM | Gravity.RIGHT);
@@ -2913,7 +2961,7 @@ public class MassActivity extends Activity {
                         final StoryAvatarView fav = av; final String fUid = rowUid, fName = dn;
                         final boolean fBlue = StoryAvatarView.toneBlue(rowUid);
                         av.ring(true, StoryViewer.isSeen(act, myUid, rowUid, storyUntil.get(rowUid)));
-                        av.setOnClickListener(vv -> openStory(fUid, fName, fName.length() > 0 ? fName.substring(0, 1).toUpperCase() : "?", rowPhoto, fBlue, fav));
+                        av.setOnClickListener(vv -> { if (chatSelMode) { toggleChatSel(fUid); return; } openStory(fUid, fName, fName.length() > 0 ? fName.substring(0, 1).toUpperCase() : "?", rowPhoto, fBlue, fav); });
                         av.setOnLongClickListener(vv -> row.performLongClick());
                     }
                     // الأفاتار بحجم منطقة محتوى الصف نفسها (65.8 - 2*6.9 ≈ 52dp) بلا هوامش سالبة؛
@@ -2946,6 +2994,15 @@ public class MassActivity extends Activity {
                     tm.setTypeface(null, hasUnread ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
                     tm.setTextColor(hasUnread ? cGold() : (dark ? 0xFF8798AA : 0xFF6B7A8C)); tm.setIncludeFontPadding(false);
                     r1.addView(tm, new LinearLayout.LayoutParams(-2, -2));   // الوقت في أقصى اليسار
+                    if (Boolean.TRUE.equals(lastMineByUid.get(rowUid))) {   // آخر رسالة مني: ✓ مرسلة، ✓✓ مقروءة (على يمين الوقت)
+                        boolean seen = !Boolean.TRUE.equals(sentUnreadByUid.get(rowUid)) && sentUnreadByUid.containsKey(rowUid);
+                        ImageView tk = new ImageView(act);
+                        tk.setImageResource(seen ? R.drawable.ic_check_double_16 : R.drawable.ic_check_16);
+                        tk.setColorFilter(seen ? cGold() : (dark ? 0xFF8798AA : 0xFF6B7A8C));
+                        LinearLayout.LayoutParams tkp = new LinearLayout.LayoutParams(dp(17), dp(17));
+                        tkp.setMarginStart(dp(3));
+                        r1.addView(tk, tkp);
+                    }
                     r1.addView(nm, new LinearLayout.LayoutParams(0, -2, 1f));
                     // صف آخر رسالة + شارة غير المقروء
                     LinearLayout r2 = new LinearLayout(act);
@@ -3045,7 +3102,7 @@ public class MassActivity extends Activity {
                     final String fName = c[0], fUid = c[4];
                     row.setOnClickListener(x -> { if (chatSelMode) toggleChatSel(fUid); else openChat(fName, fUid); });
                     row.setOnLongClickListener(x -> {
-                        try { x.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); } catch (Throwable ignored) { }
+                        // لا نستدعي performHapticFeedback هنا: View يهتز تلقائياً عند إرجاع true من الضغط المطوّل (استدعاؤه يدوياً كان يسبّب اهتزازاً مزدوجاً)
                         if (!chatSelMode) enterChatSel(fUid); else toggleChatSel(fUid);
                         return true;
                     });
@@ -3610,7 +3667,7 @@ public class MassActivity extends Activity {
                         if (c0 != null) ((ScrollView) ms).scrollTo(0, Math.max(0, c0.getHeight() + ms.getPaddingTop() + ms.getPaddingBottom() - ms.getHeight()));
                         area.animate().cancel();
                         area.setAlpha(0f);
-                        area.animate().alpha(1f).setDuration(100).start();   // ظهور أسرع (كان 180)؛ ناعم بعد انتهاء حركة الدخول
+                        area.animate().alpha(1f).setDuration(20).start();   // ظهور أسرع (كان 180)؛ ناعم بعد انتهاء حركة الدخول
                         return true;
                     }
                 });
@@ -3657,7 +3714,7 @@ public class MassActivity extends Activity {
                             }
                         });
                     }
-                    uiH.postDelayed(() -> { View a1 = v("messagesArea"); if (a1 != null && a1.getAlpha() < 1f) a1.animate().alpha(1f).setDuration(80).start(); }, 600);
+                    uiH.postDelayed(() -> { View a1 = v("messagesArea"); if (a1 != null && a1.getAlpha() < 1f) a1.animate().alpha(1f).setDuration(20).start(); }, 600);
                 }
                 MsgViews.storyOpen = (bv, sid, byMe) -> {   // اقتباس «رد على القصة»: يفتح القصة نفسها
                     if (selecting) { if (bv != null) toggleSel(bv); return; }
@@ -3707,7 +3764,8 @@ public class MassActivity extends Activity {
 
                         }
                         if (wasFirst && chatId.equals(currentChatId)) renderGhosts(chatId, snapshots);
-                        saveMsgCache(chatId, snapshots);   // آخر 50 رسالة نصية للمحادثة في الخزن المحلي
+                        final com.google.firebase.firestore.QuerySnapshot snapForCache = snapshots;
+                        uiH.post(() -> saveMsgCache(chatId, snapForCache));   // بعد رسم الإطار لا قبله (لا يؤخّر ظهور الرسالة)؛ آخر 50 رسالة نصية للمحادثة في الخزن المحلي
                         if (!liveBatch && !(wasFirst && !rebuilt && cacheShown)) revealChatBottom();   // ظهرت من الخزن: لا إعادة إخفاء/وميض
                     };
                 // لا تُعالَج الرسائل أثناء حركة الدخول (تفادياً للتقطيع والتداخل)؛ تُؤجَّل بالترتيب إلى نهايتها
@@ -3917,7 +3975,9 @@ public class MassActivity extends Activity {
                                     text = "\u21A9 " + (sMine ? "رد على القصة" : "رد على قصتك") + "\u0001" + sQt + "\u0002" + (sSid.length() > 0 ? "story:" + sSid : "") + "\u0002" + sKind + "\n" + text;
                                 }
                                 mediaQuote = null;
-                                if (rTo != null && rTo.length() > 0 && ("image".equals(type) || "audio".equals(type))) {
+                                final String fileUrl = gStr(d, "fileUrl");
+                                if (fileUrl != null && fileUrl.length() > 0 && !"file".equals(type)) type = "file";   // رسالة ملف من نسخة الويب (بلا type)
+                                if (rTo != null && rTo.length() > 0 && ("image".equals(type) || "audio".equals(type) || "file".equals(type))) {
                                     String qSid = gStr(d, "replyToSenderId");
                                     String qNm = qSid == null || qSid.isEmpty() ? "" : replyOwner(qSid.equals(myUid));
                                     String qId = gStr(d, "replyToId"), qTy = gStr(d, "replyToType");
@@ -3927,8 +3987,12 @@ public class MassActivity extends Activity {
                                 String url = gStr(d, "data");
                                 if (url == null) url = gStr(d, "url");
                                 String sender = gStr(d, "sender");
+                                if (sender == null) sender = gStr(d, "senderId");
                                 Long time = gLong(d, "timestamp");
+                                if (time == null) time = gLong(d, "createdAt");
                                 Long dur = gLong(d, "duration");
+                                final String fileName = gStr(d, "fileName");
+                                final Long fileSizeL = gLong(d, "fileSize");
                                 boolean mine = myUid.equals(sender);
                                 final long ts = time != null ? time : System.currentTimeMillis();
                                 String timeStr = timeLabel(ts);
@@ -3939,7 +4003,8 @@ public class MassActivity extends Activity {
 
                                 try {
                                     addDaySep(ts);
-                                    if (type.equals("image") && url != null) addImageMsg(url, mine, timeStr);
+                                    if (type.equals("file") && fileUrl != null) addFileMsg(fileUrl, fileName == null ? "ملف" : fileName, fileSizeL == null ? 0L : fileSizeL, mine, timeStr, state, false);
+                                    else if (type.equals("image") && url != null) addImageMsg(url, mine, timeStr);
                                     else if (type.equals("audio") && url != null) addAudioMsg(url, dur != null ? dur : 0, mine, timeStr);
                                     else if (text != null) addMsg(text, mine, timeStr, state);
                                     LinearLayout ma0 = (LinearLayout) v("messagesArea");
@@ -3947,7 +4012,8 @@ public class MassActivity extends Activity {
                                         View last = ma0.getChildAt(ma0.getChildCount() - 1);
                                         msgViewsById.put(id, last);
                                         vpRebind(id, last);
-                                        msgMeta.put(id, new Object[]{type, text, url, dur != null ? dur : 0L, mine, ts});
+                                        msgMeta.put(id, new Object[]{type, text, "file".equals(type) ? fileUrl : url, dur != null ? dur : 0L, mine, ts,
+                                                "file".equals(type) ? (fileName == null ? "ملف" : fileName) : null, "file".equals(type) ? (fileSizeL == null ? 0L : fileSizeL) : 0L});
                                         if (Boolean.TRUE.equals(gBool(d, "forwarded")) && last instanceof LinearLayout && !(last instanceof MsgViews.VoiceBubble)) {
                                             TextView fl = new TextView(act);
                                             fl.setText("↪ معاد توجيهها"); fl.setTextSize(11); fl.setTypeface(null, android.graphics.Typeface.BOLD_ITALIC);
@@ -4574,8 +4640,8 @@ public class MassActivity extends Activity {
                 MsgMenu.Spec sp0 = new MsgMenu.Spec();
                 sp0.canCopy = kind == 0 && raw.trim().length() > 0;
                 sp0.canEdit = kind == 0 && mine;
-                sp0.canDownload = kind == 1 && url != null;
-                sp0.downloadLabel = "تحميل الصورة";
+                sp0.canDownload = (kind == 1 || kind == 3) && url != null;
+                sp0.downloadLabel = kind == 3 ? "تحميل الملف" : "تحميل الصورة";
                 sp0.myReaction = id != null && myReact.get(id) != null ? myReact.get(id) : "";
                 sp0.canPin = id != null && !currentChatId.isEmpty();
                 sp0.pinned = id != null && pinIndexOf(id) >= 0;
@@ -4628,7 +4694,7 @@ public class MassActivity extends Activity {
                 String id = idOfView(b);
                 Object[] m = id != null ? msgMeta.get(id) : null;
                 String type = m != null ? (String) m[0] : "text";
-                int kind = "image".equals(type) ? 1 : "audio".equals(type) ? 2 : 0;
+                int kind = "image".equals(type) ? 1 : "audio".equals(type) ? 2 : "file".equals(type) ? 3 : 0;
                 String raw = kind == 0 && m != null && m[1] != null ? bodyOf(String.valueOf(m[1])) : "";
                 msgCb(b, mine, kind, m != null ? (String) m[2] : null, raw).reply();
             }
@@ -4639,9 +4705,11 @@ public class MassActivity extends Activity {
             MsgMenu.Cb msgCb(final View b, final boolean mine, final int kind, final String url, final String raw) {
                 return new MsgMenu.Cb() {
                     @Override public void reply() {
-                        String r = kind == 0 ? raw : (kind == 1 ? "صورة" : "بصمة صوتية");
+                        String fnm = "ملف";
+                        if (kind == 3) { Object[] fm = msgMeta.get(idOfView(b)); if (fm != null && fm.length > 6 && fm[6] != null) fnm = String.valueOf(fm[6]); }
+                        String r = kind == 0 ? raw : (kind == 1 ? "صورة" : kind == 3 ? "\uD83D\uDCCE " + fnm : "بصمة صوتية");
                         replyText = r.length() > 40 ? r.substring(0, 40) + "…" : r;
-                        replyId = idOfView(b); replyMine = mine; replyKind = kind == 1 ? "image" : kind == 2 ? "audio" : "text";
+                        replyId = idOfView(b); replyMine = mine; replyKind = kind == 1 ? "image" : kind == 2 ? "audio" : kind == 3 ? "file" : "text";
                         String ownerNm = replyOwner(mine);
                         setLabel("replyLabel", ownerNm.isEmpty() ? "الرد على الرسالة" : "الرد على " + ownerNm, icon("ic_reply", 16));
                         { TextView rl_ = tv("replyLabel"); if (rl_ != null) { rl_.setCompoundDrawablePadding(dp(5)); rl_.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, icon("ic_reply", 16), 0); style(rl_); } }
@@ -4656,7 +4724,12 @@ public class MassActivity extends Activity {
                         cm.setPrimaryClip(ClipData.newPlainText("msg", raw));
                         toast("تم نسخ النص!");
                     }
-                    @Override public void download() { saveImageMsg(url); }
+                    @Override public void download() {
+                        if (kind == 3) {
+                            Object[] fm = msgMeta.get(idOfView(b));
+                            saveFileMsg(url, fm != null && fm.length > 6 && fm[6] != null ? String.valueOf(fm[6]) : "file");
+                        } else saveImageMsg(url);
+                    }
                     @Override public void edit() {
                         editing = b; replyText = null;
                         setLabel("replyLabel", "تعديل الرسالة", icon("ic_edit", 16));
@@ -4856,7 +4929,7 @@ public class MassActivity extends Activity {
                 if (one && mv != null) {
                     Object[] m = msgMeta.get(fid);
                     final String type = m != null ? (String) m[0] : "text";
-                    final int kind = "image".equals(type) ? 1 : "audio".equals(type) ? 2 : 0;
+                    final int kind = "image".equals(type) ? 1 : "audio".equals(type) ? 2 : "file".equals(type) ? 3 : 0;
                     final String url = m != null ? (String) m[2] : null;
                     final boolean mine = m != null && Boolean.TRUE.equals(m[4]);
                     final String raw = kind == 0 && m != null && m[1] != null ? bodyOf(String.valueOf(m[1])) : "";
@@ -5136,6 +5209,7 @@ public class MassActivity extends Activity {
                             sp.edit().putStringSet("hidden_msgs_" + cid, h).apply();
                             clearSel();
                             for (String id : ids) removeMsgView(id, null);
+                            fixChatPreviewAfterDelete(cid, false);
                         });
             }
 
@@ -5166,7 +5240,14 @@ public class MassActivity extends Activity {
                     String type = (String) m[0];
                     Map<String, Object> msg = new HashMap<>();
                     msg.put("type", type);
-                    if ("image".equals(type) || "audio".equals(type)) {
+                    if ("file".equals(type)) {
+                        if (m[2] == null) continue;
+                        String fnm = m.length > 6 && m[6] != null ? String.valueOf(m[6]) : "ملف";
+                        msg.put("fileUrl", m[2]); msg.put("fileName", fnm);
+                        msg.put("fileSize", m.length > 7 ? m[7] : 0L); msg.put("fileType", fileMimeOf(fnm));
+                        msg.put("senderId", myUid); msg.put("createdAt", base + sent);
+                        last = "\uD83D\uDCCE " + fnm;
+                    } else if ("image".equals(type) || "audio".equals(type)) {
                         if (m[2] == null) continue;
                         msg.put("data", m[2]); msg.put("duration", m[3]);
                         last = "image".equals(type) ? "📷 صورة" : "🎤 رسالة صوتية";
@@ -5237,6 +5318,7 @@ public class MassActivity extends Activity {
                     Object[] m = msgMeta.get(id);
                     String type = m != null ? (String) m[0] : "text";
                     String txt = "audio".equals(type) ? "♬ بصمة صوتية" : "image".equals(type) ? "▧ صورة"
+                            : "file".equals(type) ? "\uD83D\uDCCE " + (m != null && m.length > 6 && m[6] != null ? String.valueOf(m[6]) : "ملف")
                             : (m != null && m[1] != null ? bodyOf(String.valueOf(m[1])).trim() : "");
                     if (txt.length() > 90) txt = txt.substring(0, 90);
                     Map<String, Object> pm = new HashMap<>();
@@ -5384,6 +5466,7 @@ public class MassActivity extends Activity {
                 for (String id : ids) wb.delete(db.collection("chats").document(cid).collection("messages").document(id));
                 wb.commit().addOnSuccessListener(x -> {
                     for (String id : ids) removeMsgView(id, ids.size() == 1 ? single : null);
+                    fixChatPreviewAfterDelete(cid, true);
                     toast(ids.size() == 1 ? "تم حذف الرسالة لدى الجميع" : "تم حذف الرسائل لدى الجميع");
                 }).addOnFailureListener(e -> toast(e instanceof com.google.firebase.firestore.FirebaseFirestoreException
                         && ((com.google.firebase.firestore.FirebaseFirestoreException) e).getCode() == com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED
@@ -5406,7 +5489,59 @@ public class MassActivity extends Activity {
                             if (both && id != null && !cid.isEmpty()) { deleteMsgsForAll(java.util.Collections.singletonList(id), b); return; }
                             if (id != null) { java.util.Set<String> h = hiddenSet(); h.add(id); sp.edit().putStringSet("hidden_msgs_" + cid, h).apply(); }
                             removeMsgView(id, b);
+                            fixChatPreviewAfterDelete(cid, false);
                         });
+            }
+
+            /** آخر رسالة ما زالت ظاهرة في المحادثة المفتوحة: {preview, ts, mine} أو null إن لم تبقَ رسائل. */
+            Object[] lastRemainingMsg() {
+                Object[] best = null; long bt = -1;
+                for (Map.Entry<String, Object[]> e : msgMeta.entrySet()) {
+                    Object[] m = e.getValue();
+                    if (m == null || m.length < 6 || !(m[5] instanceof Number) || e.getKey().startsWith("ghost_")) continue;
+                    long ts = ((Number) m[5]).longValue();
+                    if (ts < bt) continue;
+                    String type = String.valueOf(m[0]), pv;
+                    if ("file".equals(type)) pv = "\uD83D\uDCCE " + (m.length > 6 && m[6] != null ? m[6] : "ملف");
+                    else if ("image".equals(type)) pv = "📷 صورة";
+                    else if ("audio".equals(type)) pv = "🎤 رسالة صوتية";
+                    else pv = m[1] == null ? "" : String.valueOf(m[1]);
+                    bt = ts; best = new Object[]{pv, ts, Boolean.TRUE.equals(m[4])};
+                }
+                return best;
+            }
+
+            /** بعد الحذف: وصف المحادثة في القائمة يتبع آخر رسالة متبقية (لدى الكل: يُحدَّث مستند المحادثة، لدي فقط: تجاوز محلي). */
+            void fixChatPreviewAfterDelete(final String cid, boolean forAll) {
+                try {
+                    if (cid == null || cid.isEmpty() || !cid.equals(currentChatId)) return;
+                    Object[] lr = lastRemainingMsg();
+                    String pv = lr == null ? "" : (String) lr[0];
+                    if (forAll) {
+                        Map<String, Object> cd = new HashMap<>();
+                        cd.put("participants", Arrays.asList(myUid, otherUid));
+                        cd.put("lastMessage", pv);
+                        if (lr != null) { cd.put("lastMessageAt", lr[1]); cd.put("lastSender", Boolean.TRUE.equals(lr[2]) ? myUid : otherUid); }
+                        cd.put("lastStoryReply", false);
+                        db.collection("chats").document(cid).set(cd, com.google.firebase.firestore.SetOptions.merge());
+                        return;
+                    }
+                    Long docTs = chatTsMap.get(otherUid);
+                    long base = docTs == null ? 0L : docTs;
+                    String old = sp.getString("lastov_" + cid, null);
+                    if (old != null) { try { base = Long.parseLong(old.split("\\|", 3)[0]); } catch (Throwable ignored) { } }
+                    long ts = lr == null ? base : ((Number) lr[1]).longValue();
+                    sp.edit().putString("lastov_" + cid, base + "|" + ts + "|" + pv).apply();
+                    for (int i = 0; i < chatData.size(); i++) {
+                        String[] r = chatData.get(i);
+                        if (r.length > 4 && r[4].equals(otherUid)) {
+                            chatData.set(i, new String[]{r[0], pv, ts > 0 ? listTime(ts) : r[2], r[3], r[4]});
+                            break;
+                        }
+                    }
+                    chatTsMap.put(otherUid, ts);
+                    buildChats();
+                } catch (Throwable ignored) { }
             }
 
             void removeMsgView(String id, View b) {
@@ -5756,13 +5891,21 @@ public class MassActivity extends Activity {
                     cancelReply();
                     return;
                 }
-                db.collection("chats").document(currentChatId).collection("messages")
-                    .add(msg);
-
-                updateChatMeta(fullText);
+                // أقصى سرعة: الحقل يُفرَّغ فوراً، والرسالة + ميتا المحادثة في دفعة واحدة (طلب شبكة واحد) وتظهر محلياً دون انتظار السيرفر
                 EditText mi = et("messageInput");
                 if (mi != null) mi.setText("");
                 cancelReply();
+                com.google.firebase.firestore.DocumentReference msgRef = db.collection("chats").document(currentChatId).collection("messages").document();
+                Map<String, Object> chatDoc = new HashMap<>();
+                chatDoc.put("participants", Arrays.asList(myUid, otherUid));
+                chatDoc.put("lastMessage", fullText);
+                chatDoc.put("lastMessageAt", System.currentTimeMillis());
+                chatDoc.put("lastSender", myUid);
+                chatDoc.put("lastStoryReply", false);
+                com.google.firebase.firestore.WriteBatch wb = db.batch();
+                wb.set(msgRef, msg);
+                wb.set(db.collection("chats").document(currentChatId), chatDoc, com.google.firebase.firestore.SetOptions.merge());
+                wb.commit();
             }
 
             /** رسالة وهمية: تُرسم وتُحفظ محلياً فقط (لا Firestore ولا ميتا للمحادثة). */
@@ -5865,6 +6008,270 @@ public class MassActivity extends Activity {
                 String preview = type.equals("image") ? ("image/gif".equals(mime) ? "🎞 GIF" : "📷 صورة")
                         : type.equals("audio") ? "🎤 رسالة صوتية" : "";
                 updateChatMeta(preview);
+            }
+
+
+            // =====================================================================
+            //  إرسال الملفات (مطابق لـ sendChatFile / bbFileCardHtml في الـ HTML): رفع إلى Cloudinary (raw) ثم رسالة فيها
+            //  fileUrl / fileName / fileSize / fileType. الحد الأقصى 25 ميجا. بطاقة الملف: مربع الامتداد + الاسم + الحجم.
+            // =====================================================================
+            final int MAX_FILE_MB = 25;
+
+            void pickFile() {
+                if (blocked) return;
+                pendingFileCallback = uri -> sendFile(uri);
+                Intent i = new Intent(Intent.ACTION_GET_CONTENT);
+                i.setType("*/*");
+                i.addCategory(Intent.CATEGORY_OPENABLE);
+                try {
+                    act.startActivityForResult(Intent.createChooser(i, "اختر ملفاً"), REQ_PICK_FILE);
+                } catch (Exception e) { toast("لا يوجد تطبيق لاختيار الملفات"); }
+            }
+
+            /** رسالة ملف في المحادثة؛ placeholder = بطاقة «جارٍ الرفع» بلا نقر. */
+            LinearLayout addFileMsg(final String url, final String name, long size, final boolean mine, String time, int state, boolean placeholder) {
+                final LinearLayout b = MsgViews.fileBubble(act, name, MsgViews.fileSizeLabel(size), mine, time, state, mediaQuote);
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+                lp.gravity = mine ? Gravity.RIGHT : Gravity.LEFT;
+                lp.setMargins(0, dp(4), 0, dp(4));
+                b.setLayoutParams(lp);
+                if (!placeholder) {
+                    b.setOnClickListener(x -> {
+                        if (selecting) { toggleSel(b); return; }
+                        View card = MsgViews.fileCardView(b);
+                        boolean onCard = false;
+                        if (card != null) {   // النقر على صف البطاقة (المربع/الاسم) يفتح الملف، وغيره يفتح قائمة الرسالة
+                            int[] cl = new int[2]; card.getLocationOnScreen(cl);
+                            onCard = tapX >= cl[0] && tapX <= cl[0] + card.getWidth() && tapY >= cl[1] && tapY <= cl[1] + card.getHeight();
+                        }
+                        if (onCard) openFileMsg(url, name); else msgMenu(b, mine, 3, url);
+                    });
+                    b.setOnLongClickListener(x -> { msgSelect(b, mine, 3, url); return true; });
+                    attachSwipeReply(b, mine);
+                }
+                LinearLayout msgArea = (LinearLayout) v("messagesArea");
+                if (msgArea != null) msgArea.addView(b);
+                style(b);
+                return b;
+            }
+
+            void sendFile(final Uri uri) {
+                if (uri == null || currentChatId.isEmpty() || otherUid.isEmpty() || blocked) return;
+                String nm = null; long sz = -1; String mime = null;
+                try {
+                    mime = act.getContentResolver().getType(uri);
+                    android.database.Cursor c = act.getContentResolver().query(uri, new String[]{android.provider.OpenableColumns.DISPLAY_NAME, android.provider.OpenableColumns.SIZE}, null, null, null);
+                    if (c != null) {
+                        try { if (c.moveToFirst()) { if (!c.isNull(0)) nm = c.getString(0); if (!c.isNull(1)) sz = c.getLong(1); } } finally { c.close(); }
+                    }
+                } catch (Throwable ignored) { }
+                if (nm == null || nm.trim().isEmpty()) { String ls = uri.getLastPathSegment(); nm = ls == null || ls.isEmpty() ? "ملف" : ls; }
+                if (sz < 0) { try { android.content.res.AssetFileDescriptor afd = act.getContentResolver().openAssetFileDescriptor(uri, "r"); if (afd != null) { sz = afd.getLength(); afd.close(); } } catch (Throwable ignored) { } }
+                if (sz == 0) { toast("الملف فارغ"); return; }
+                if (sz > MAX_FILE_MB * 1048576L) { toast("حجم الملف كبير (الأقصى " + MAX_FILE_MB + " ميجا)"); return; }
+                if (mime == null || mime.isEmpty()) mime = fileMimeOf(nm);
+
+                final String fName = nm, fMime = mime; final long fSize = sz;
+                final String chatId = currentChatId, peer = otherUid;
+                final boolean ghost = blockedByThem;
+                // الرد على رسالة يشمل الملفات أيضاً (bbReplyFields في الـ HTML)
+                final Map<String, Object> rf = new HashMap<>();
+                if (replyText != null) {
+                    rf.put("replyTo", replyText);
+                    rf.put("replyToId", replyId == null ? "" : replyId);
+                    rf.put("replyToSenderId", replyMine ? myUid : otherUid);
+                    rf.put("replyToType", replyKind);
+                }
+                cancelReply();
+
+                mediaQuote = null;
+                final LinearLayout ph = addFileMsg(null, fName, 0, true, timeLabel(System.currentTimeMillis()), MsgViews.WAIT, true);
+                final TextView phSize = MsgViews.fileSizeView(ph);
+                final String total = fSize > 0 ? MsgViews.fileSizeLabel(fSize) : "";
+                if (phSize != null) phSize.setText("0 B" + (total.isEmpty() ? "" : " / " + total));
+                scrollDown();
+
+                new Thread(() -> {
+                    try {
+                        final long[] last = {0};
+                        final String fileUrl = uploadChatFile(uri, fName, fSize, done -> {
+                            long nowMs = System.currentTimeMillis();
+                            if (nowMs - last[0] < 120) return;
+                            last[0] = nowMs;
+                            act.runOnUiThread(() -> { if (phSize != null) phSize.setText(MsgViews.fileSizeLabel(done) + (total.isEmpty() ? "" : " / " + total)); });
+                        });
+                        act.runOnUiThread(() -> {
+                            if (phSize != null) phSize.setText(total.isEmpty() ? "" : total + " / " + total);
+                            long nowT = System.currentTimeMillis();
+                            Map<String, Object> msg = new HashMap<>();
+                            msg.put("type", "file");
+                            msg.put("fileUrl", fileUrl);
+                            msg.put("fileName", fName);
+                            msg.put("fileSize", fSize);
+                            msg.put("fileType", fMime);
+                            msg.put("sender", myUid);
+                            msg.put("senderId", myUid);
+                            msg.put("timestamp", nowT);
+                            msg.put("createdAt", nowT);
+                            msg.putAll(rf);
+                            if (ghost) {
+                                if (chatId.equals(currentChatId)) sendGhost(msg);
+                            } else {
+                                db.collection("chats").document(chatId).collection("messages").add(msg);
+                                Map<String, Object> chatDoc = new HashMap<>();
+                                chatDoc.put("participants", Arrays.asList(myUid, peer));
+                                chatDoc.put("lastMessage", "\uD83D\uDCCE " + fName);
+                                chatDoc.put("lastMessageAt", nowT);
+                                chatDoc.put("lastSender", myUid);
+                                chatDoc.put("lastStoryReply", false);
+                                db.collection("chats").document(chatId).set(chatDoc, com.google.firebase.firestore.SetOptions.merge());
+                            }
+                            if (ph.getParent() instanceof ViewGroup) ((ViewGroup) ph.getParent()).removeView(ph);   // الرسالة الحقيقية تحلّ محل البطاقة المؤقتة
+                        });
+                    } catch (final Throwable t) {
+                        act.runOnUiThread(() -> {
+                            if (ph.getParent() instanceof ViewGroup) ((ViewGroup) ph.getParent()).removeView(ph);
+                            String em = t.getMessage();
+                            toast("تعذر رفع الملف" + (em == null || em.isEmpty() ? "" : ": " + em));
+                        });
+                    }
+                }).start();
+            }
+
+            /** رفع multipart إلى Cloudinary (raw/upload) مع تقدّم بالبايت؛ يرجع secure_url. */
+            String uploadChatFile(Uri uri, String fileName, long fileSize, final LongCb progress) throws Exception {
+                final String CLD_CLOUD = "xuljmnmh", CLD_PRESET = "stories_unsigned";
+                final String boundary = "----BabylonFile" + System.currentTimeMillis();
+                final String crlf = "\r\n";
+                StringBuilder pre = new StringBuilder();
+                pre.append("--").append(boundary).append(crlf).append("Content-Disposition: form-data; name=\"upload_preset\"").append(crlf).append(crlf).append(CLD_PRESET).append(crlf);
+                pre.append("--").append(boundary).append(crlf).append("Content-Disposition: form-data; name=\"folder\"").append(crlf).append(crlf).append("chat_files").append(crlf);
+                String safe = fileName.replace("\"", "_").replace("\r", "").replace("\n", "");
+                pre.append("--").append(boundary).append(crlf).append("Content-Disposition: form-data; name=\"file\"; filename=\"").append(safe).append("\"").append(crlf)
+                   .append("Content-Type: application/octet-stream").append(crlf).append(crlf);
+                byte[] head = pre.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                byte[] tail = (crlf + "--" + boundary + "--" + crlf).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL("https://api.cloudinary.com/v1_1/" + CLD_CLOUD + "/raw/upload").openConnection();
+                c.setRequestMethod("POST"); c.setDoOutput(true); c.setConnectTimeout(20000); c.setReadTimeout(120000);
+                c.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+                if (fileSize > 0) c.setFixedLengthStreamingMode(head.length + fileSize + tail.length); else c.setChunkedStreamingMode(65536);
+                java.io.InputStream in = null;
+                try {
+                    java.io.OutputStream out = c.getOutputStream();
+                    out.write(head);
+                    in = act.getContentResolver().openInputStream(uri);
+                    if (in == null) throw new Exception("تعذر قراءة الملف");
+                    byte[] buf = new byte[32768]; int n; long sent = 0;
+                    while ((n = in.read(buf)) > 0) {
+                        sent += n;
+                        if (sent > MAX_FILE_MB * 1048576L) throw new Exception("حجم الملف كبير (الأقصى " + MAX_FILE_MB + " ميجا)");
+                        out.write(buf, 0, n);
+                        if (progress != null) progress.on(sent);
+                    }
+                    out.write(tail); out.flush(); out.close();
+                    int code = c.getResponseCode();
+                    java.io.InputStream rs = code >= 200 && code < 300 ? c.getInputStream() : c.getErrorStream();
+                    java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+                    if (rs != null) { byte[] b2 = new byte[8192]; int k; while ((k = rs.read(b2)) > 0) bos.write(b2, 0, k); rs.close(); }
+                    org.json.JSONObject r = null;
+                    try { r = new org.json.JSONObject(bos.toString("UTF-8")); } catch (Throwable ignored) { }
+                    if (code >= 200 && code < 300 && r != null && r.optString("secure_url", "").length() > 0) return r.getString("secure_url");
+                    String em = r != null && r.optJSONObject("error") != null ? r.optJSONObject("error").optString("message", "" + code) : "رمز " + code;
+                    throw new Exception(em);
+                } finally {
+                    try { if (in != null) in.close(); } catch (Throwable ignored) { }
+                    c.disconnect();
+                }
+            }
+
+            /** نوع MIME حسب الامتداد (MIME في الـ HTML). */
+            String fileMimeOf(String name) {
+                String ext = "";
+                int i = name == null ? -1 : name.lastIndexOf('.');
+                if (i >= 0) ext = name.substring(i + 1).toLowerCase(Locale.US);
+                String m = ext.isEmpty() ? null : android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext);
+                if (m == null) {
+                    if (ext.equals("html") || ext.equals("htm")) m = "text/html";
+                    else if (ext.equals("apk")) m = "application/vnd.android.package-archive";
+                    else if (ext.equals("txt") || ext.equals("md") || ext.equals("log")) m = "text/plain";
+                    else if (ext.equals("json")) m = "application/json";
+                }
+                return m == null ? "application/octet-stream" : m;
+            }
+
+            /** ينزّل الملف إلى كاش التطبيق (مرة واحدة) ثم يعرض قائمة التطبيقات القادرة على فتحه (openWith في الـ HTML). */
+            void openFileMsg(final String url, final String name) {
+                if (url == null || url.isEmpty()) return;
+                toast("جارٍ تجهيز الملف…");
+                new Thread(() -> {
+                    try {
+                        File dir = new File(act.getCacheDir(), "chat_files"); dir.mkdirs();
+                        String safe = name == null || name.isEmpty() ? "file" : name.replaceAll("[\\\\/:*?\"<>|]", "_");
+                        File f = new File(dir, Integer.toHexString(url.hashCode()) + "_" + safe);
+                        if (!f.exists() || f.length() == 0) {
+                            java.net.HttpURLConnection conn = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
+                            conn.setConnectTimeout(20000); conn.setReadTimeout(60000); conn.connect();
+                            if (conn.getResponseCode() / 100 != 2) throw new Exception("http " + conn.getResponseCode());
+                            java.io.InputStream is = conn.getInputStream();
+                            java.io.FileOutputStream fo = new java.io.FileOutputStream(f);
+                            byte[] buf = new byte[16384]; int n;
+                            while ((n = is.read(buf)) > 0) fo.write(buf, 0, n);
+                            fo.close(); is.close(); conn.disconnect();
+                        }
+                        final Uri u = androidx.core.content.FileProvider.getUriForFile(act, act.getPackageName() + ".fileprovider", f);
+                        final String mime = fileMimeOf(name);
+                        act.runOnUiThread(() -> {
+                            Intent v = new Intent(Intent.ACTION_VIEW);
+                            v.setDataAndType(u, mime);
+                            v.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                            Intent ch = Intent.createChooser(v, "فتح باستخدام");
+                            ch.setClipData(ClipData.newRawUri("", u));
+                            ch.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                            try { act.startActivity(ch); }
+                            catch (Exception e) {
+                                try { act.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }   // لا تطبيق يفتح الملف محلياً: افتح الرابط خارجياً
+                                catch (Exception e2) { toast("لا يوجد تطبيق يفتح هذا الملف"); }
+                            }
+                        });
+                    } catch (Throwable t) { act.runOnUiThread(() -> toast("تعذر فتح الملف")); }
+                }).start();
+            }
+
+            /** تحميل الملف إلى مجلد التنزيلات (Download/Babylon Chat). */
+            void saveFileMsg(final String url, final String name) {
+                if (url == null || url.isEmpty()) return;
+                toast("جارٍ تحميل الملف…");
+                new Thread(() -> {
+                    try {
+                        String fn = name == null || name.isEmpty() ? "file" : name.replaceAll("[\\\\/:*?\"<>|]", "_");
+                        String mime = fileMimeOf(fn);
+                        java.net.HttpURLConnection conn = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
+                        conn.setConnectTimeout(20000); conn.setReadTimeout(60000); conn.connect();
+                        if (conn.getResponseCode() / 100 != 2) throw new Exception("http " + conn.getResponseCode());
+                        java.io.InputStream is = conn.getInputStream();
+                        java.io.OutputStream os;
+                        File legacy = null;
+                        if (Build.VERSION.SDK_INT >= 29) {
+                            android.content.ContentValues cv = new android.content.ContentValues();
+                            cv.put(android.provider.MediaStore.Downloads.DISPLAY_NAME, fn);
+                            cv.put(android.provider.MediaStore.Downloads.MIME_TYPE, mime);
+                            cv.put(android.provider.MediaStore.Downloads.RELATIVE_PATH, "Download/Babylon Chat");
+                            Uri u = act.getContentResolver().insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
+                            if (u == null) throw new Exception("insert");
+                            os = act.getContentResolver().openOutputStream(u);
+                        } else {
+                            File dir = new File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS), "Babylon Chat");
+                            dir.mkdirs();
+                            legacy = new File(dir, fn);
+                            os = new java.io.FileOutputStream(legacy);
+                        }
+                        byte[] buf = new byte[16384]; int n;
+                        while ((n = is.read(buf)) > 0) os.write(buf, 0, n);
+                        os.close(); is.close(); conn.disconnect();
+                        if (legacy != null) android.media.MediaScannerConnection.scanFile(act, new String[]{legacy.getAbsolutePath()}, new String[]{mime}, null);
+                        act.runOnUiThread(() -> toast("تم حفظ الملف في مجلد التنزيلات"));
+                    } catch (Throwable t) { act.runOnUiThread(() -> toast("تعذر تنزيل الملف")); }
+                }).start();
             }
 
             void pickImage() {
@@ -7126,7 +7533,24 @@ public class MassActivity extends Activity {
                 GradientDrawable g1 = new GradientDrawable(); g1.setColor(baseC); g1.setCornerRadius(dp(16));
                 GradientDrawable g2 = new GradientDrawable(); g2.setColor(inpC); g2.setCornerRadius(dp(16));
                 bar.setBackground(new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[]{g1, g2}));
-                bar.setElevation(dp(10));
+                // ظل خلف الشريط من كل الجهات (متمركز بلا إزاحة للأسفل): طبقات شفافة متدرّجة تتسع حول الشريط
+                {
+                    final int steps = 10;
+                    android.graphics.drawable.Drawable[] sl = new android.graphics.drawable.Drawable[steps];
+                    for (int i = 0; i < steps; i++) {
+                        GradientDrawable gs = new GradientDrawable();
+                        gs.setColor(dark ? 0x1A000000 : 0x0C1A2C46);
+                        float ext = pad * (steps - i) / (float) steps;      // يتسع من الحافة إلى 14dp حول الشريط
+                        gs.setCornerRadius(dp(16) + ext);
+                        sl[i] = gs;
+                    }
+                    android.graphics.drawable.LayerDrawable shadow = new android.graphics.drawable.LayerDrawable(sl);
+                    for (int i = 0; i < steps; i++) {
+                        int inset = Math.round(pad - pad * (steps - i) / (float) steps);
+                        shadow.setLayerInset(i, inset, inset, inset, inset);
+                    }
+                    rootF.setBackground(shadow);
+                }
                 rootF.addView(bar, new FrameLayout.LayoutParams(barW, barH));
 
                 final PopupWindow pw = new PopupWindow(rootF, barW + pad * 2, barH + pad * 2, true);
@@ -7136,7 +7560,7 @@ public class MassActivity extends Activity {
 
                 final Runnable[] acts = new Runnable[2];
                 acts[0] = () -> pickImage();
-                acts[1] = () -> toast("الملفات قريباً");
+                acts[1] = () -> pickFile();
                 int[] icons = {R.drawable.ic_attach_gallery, R.drawable.ic_attach_folder};
                 String[] labels = {"المعرض", "الملفات"};
                 for (int i = 0; i < 2; i++) {
@@ -7185,7 +7609,9 @@ public class MassActivity extends Activity {
                 else if (id.equals("navProfile") || id.equals("sxHero")) {
                     if ("profileView".equals(curPage)) return;
                     if (userJoin.isEmpty()) loadMyProfile();   // يُحمَّل مرة واحدة فقط؛ التعديلات تحدّث الصفحة بنفسها
+                    { LinearLayout mg = (LinearLayout) v("myStoriesGrid"); if (mg != null) mg.removeAllViews(); }   // يظهر الجديد بحركة دخول بدل وميض القديم
                     show("profileView");
+                    loadProfileStories(true);   // القصص تُحمَّل عند دخول القسم فقط
                 }
                 else if (id.equals("fltAll")) setFilter(false);
                 else if (id.equals("fltUnread")) setFilter(true);

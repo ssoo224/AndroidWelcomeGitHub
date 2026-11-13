@@ -537,7 +537,7 @@ final class SearchPage {
         });
         if (recent) {
             row.setOnLongClickListener(x -> {
-                x.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                // الاهتزاز يصدر تلقائياً من View عند إرجاع true (منعاً للاهتزاز المزدوج)
                 if (!selMode) {
                     selMode = true;
                     sel.clear();

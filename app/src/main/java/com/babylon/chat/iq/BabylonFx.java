@@ -144,7 +144,7 @@ public final class BabylonFx {
         v.setScaleX(0.94f);
         v.setScaleY(0.94f);
         v.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f)
-                .setDuration(160).setInterpolator(easeOut())   // ظهور الرسالة أسرع (كان 260)
+                .setDuration(50).setInterpolator(easeOut())   // ظهور الرسالة بأقصى سرعة (كان 160)
                 .withEndAction(() -> reset(v)).start();
     }
 
@@ -152,12 +152,13 @@ public final class BabylonFx {
     private static final boolean FOLD_HINGE_RIGHT = true;
     /** زاوية بداية الطي (درجة) ومدته (ms). إشارتها تحدّد اتجاه الدوران؛ اعكسها إن ظهر الدوران معكوساً. */
     private static final float FOLD_START_DEG = 78f;
-    private static final long FOLD_MS = 200;   // أسرع (كان 320)
+    private static final long FOLD_MS = 20;   // دخول المحادثة 20ms (كان 200)
+    private static final long LEAVE_MS = 200;   // مدة الخروج كما كانت
     /** وقت (uptime) انتهاء حركة الطيّ؛ تنتظره المحادثة قبل رسم الرسائل كي لا تتداخل معها ولا تُقطّعها. */
     private static volatile long foldEndUptime = 0L;
 
     /** يُستدعى فور بدء فتح المحادثة (قبل أول إطار) ليعرف تحميل الرسائل أن الحركة ستبدأ. */
-    public static void chatFoldBegin() { foldEndUptime = SystemClock.uptimeMillis() + FOLD_MS + 40; }
+    public static void chatFoldBegin() { foldEndUptime = SystemClock.uptimeMillis() + FOLD_MS + 5; }
 
     /** ms المتبقية حتى تنتهي حركة الطيّ (0 إن لم تكن جارية). */
     public static long chatFoldRemaining() { return Math.max(0L, foldEndUptime - SystemClock.uptimeMillis()); }
@@ -174,7 +175,7 @@ public final class BabylonFx {
         }
         final int w = chat.getWidth(), h = chat.getHeight();
         if (w <= 0 || h <= 0) return;
-        foldEndUptime = SystemClock.uptimeMillis() + FOLD_MS + 30;   // التوقيت الدقيق بعد بدء الرسم الفعلي
+        foldEndUptime = SystemClock.uptimeMillis() + FOLD_MS + 5;   // التوقيت الدقيق بعد بدء الرسم الفعلي
         // دخول عادي متناسق مع بقية الشاشات الثانوية (bbViewIn): تلاشٍ + ارتفاع خفيف + تكبير بسيط
         chat.setAlpha(0f);
         chat.setTranslationY(dp(chat, 10));
@@ -191,7 +192,7 @@ public final class BabylonFx {
         if (chat.getVisibility() != View.VISIBLE || chat.getWidth() <= 0 || chat.getHeight() <= 0) { if (end != null) end.run(); return; }
         reset(chat);
         chat.animate().alpha(0f).translationY(dp(chat, 10)).scaleX(0.985f).scaleY(0.985f)
-                .setDuration(FOLD_MS).setInterpolator(new PathInterpolator(0.4f, 0f, 1f, 1f))
+                .setDuration(LEAVE_MS).setInterpolator(new PathInterpolator(0.4f, 0f, 1f, 1f))
                 .withEndAction(() -> { reset(chat); if (end != null) end.run(); }).start();   // لا يُنفَّذ إن أُلغيت الحركة (دخول محادثة جديدة)
     }
 
@@ -278,16 +279,31 @@ public final class BabylonFx {
      * انتقال جانبي سريع بين المحادثات / الإعدادات / الملف الشخصي (140ms).
      * @param dir  -1 : الصفحة الجديدة تدخل من اليسار، +1 : من اليمين.
      */
+    private static int tabGen = 0;
+    private static View sFrom, sTo;
+    private static Drawable sFromTmp, sToTmp;
+
+    private static void restoreTabBgs() {
+        if (sFrom != null && sFromTmp != null && sFrom.getBackground() == sFromTmp) sFrom.setBackground(null);
+        if (sTo != null && sToTmp != null && sTo.getBackground() == sToTmp) sTo.setBackground(null);
+        sFrom = sTo = null; sFromTmp = sToTmp = null;
+    }
+
+    /** يُبطل أي انتقال تبويبات جارٍ (تنظيفه ورد النداء الخاص به) ويُرجع خلفيات الصفحتين المؤقتة. */
+    public static void cancelTabSlide() { tabGen++; restoreTabBgs(); }
+
+    public static int tabGenNow() { return tabGen; }
+
     public static void tabSlide(final View from, final View to, int dir, int bgColor, final Runnable done) {
         if (from == null || to == null || to.getWidth() <= 0) {
             if (done != null) done.run();
             return;
         }
         final float w = to.getWidth();
-        final Drawable fromBg = from.getBackground();
-        final Drawable toBg = to.getBackground();
-        if (fromBg == null) from.setBackground(new ColorDrawable(bgColor));
-        if (toBg == null) to.setBackground(new ColorDrawable(bgColor));
+        cancelTabSlide();   // أي انتقال سابق لم ينتهِ يُبطَل (لا يُنفَّذ تنظيفه المتأخر فيُظهر صفحة قديمة فوق الحالية)
+        final int g = tabGen;
+        if (from.getBackground() == null) { sFromTmp = new ColorDrawable(bgColor); from.setBackground(sFromTmp); sFrom = from; }
+        if (to.getBackground() == null) { sToTmp = new ColorDrawable(bgColor); to.setBackground(sToTmp); sTo = to; }
         from.setVisibility(View.VISIBLE);
         to.setVisibility(View.VISIBLE);
         from.setTranslationX(0f);
@@ -297,11 +313,11 @@ public final class BabylonFx {
             boolean ran = false;
             @Override public void run() {
                 if (ran) return; ran = true;
+                if (g != tabGen) return;   // حلّ مكانه انتقال أحدث
                 from.animate().cancel(); to.animate().cancel();
                 from.setTranslationX(0f); to.setTranslationX(0f);
                 from.setVisibility(View.GONE);
-                if (fromBg == null) from.setBackground(null);
-                if (toBg == null) to.setBackground(null);
+                restoreTabBgs();
                 if (done != null) done.run();
             }
         };

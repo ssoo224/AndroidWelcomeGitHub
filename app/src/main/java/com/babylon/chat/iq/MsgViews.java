@@ -754,6 +754,111 @@ public final class MsgViews {
         an.start();
     }
 
+
+    // ------------------------------------------------------------------ رسالة ملف (بطاقة .file-card في الـ HTML)
+    /** امتداد الملف بحروف كبيرة (حتى 5 رموز) أو FILE (extOf في الـ HTML). */
+    public static String fileExt(String name) {
+        if (name != null) {
+            int i = name.lastIndexOf('.');
+            if (i >= 0 && i < name.length() - 1) {
+                String e = name.substring(i + 1);
+                if (e.length() <= 5 && e.matches("[A-Za-z0-9]+")) return e.toUpperCase(java.util.Locale.US);
+            }
+        }
+        return "FILE";
+    }
+
+    /** حجم الملف مقروءاً: B / KB / MB (fmtSize في الـ HTML). */
+    public static String fileSizeLabel(long n) {
+        if (n < 0) n = 0;
+        if (n < 1024) return n + " B";
+        if (n < 1048576) return String.format(java.util.Locale.US, n < 10240 ? "%.1f KB" : "%.0f KB", n / 1024.0);
+        return String.format(java.util.Locale.US, "%.1f MB", n / 1048576.0);
+    }
+
+    /**
+     * فقاعة ملف مطابقة لـ .file-card: مربع امتداد 44dp بانحناء 12 (خلفية رمادية شفافة) + الاسم بالخط العريض سطراً واحداً
+     * + الحجم تحته، ثم صف الوقت. تحمل الوسم "fileCard" على صف البطاقة (للنقر) ويمكن تحديث الحجم عبر {@link #fileSizeView}.
+     */
+    public static LinearLayout fileBubble(Activity a, String name, String sizeText, boolean mine, String time, int state, String quote) {
+        LinearLayout b = new Bub(a);
+        b.setOrientation(LinearLayout.VERTICAL);
+        b.setTag(mine ? "bubMine" : "bubOther");
+        b.setPadding(dp(a, 10), dp(a, 6), dp(a, 10), dp(a, 5));
+        b.setMinimumWidth(dp(a, 230));
+        b.setGravity(Gravity.START | Gravity.TOP);
+        b.setContentDescription("\uD83D\uDCCE " + name);
+        if (quote != null) b.addView(replyQuote(a, quote, mine, null));
+
+        LinearLayout card = new LinearLayout(a);
+        card.setTag("fileCard");
+        card.setOrientation(LinearLayout.HORIZONTAL);
+        card.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);   // المربع في اليمين ثم الاسم والحجم (صفحة RTL)
+        card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setPadding(dp(a, 2), dp(a, 2), dp(a, 2), dp(a, 4));
+
+        android.widget.FrameLayout ico = new android.widget.FrameLayout(a);
+        android.graphics.drawable.GradientDrawable ig = new android.graphics.drawable.GradientDrawable();
+        ig.setColor(0x337F8CA0); ig.setCornerRadius(dp(a, 12));   // rgba(127,140,160,.2)
+        ico.setBackground(ig);
+        TextView ext = new TextView(a);
+        ext.setText(fileExt(name));
+        ext.setTextSize(9.5f);
+        ext.setTypeface(null, android.graphics.Typeface.BOLD);
+        ext.setLetterSpacing(0.03f);
+        ext.setTextDirection(View.TEXT_DIRECTION_LTR);
+        ext.setIncludeFontPadding(false);
+        ext.setGravity(Gravity.CENTER);
+        ext.setTag(mine ? "mtM" : "mtO");
+        ico.addView(ext, new android.widget.FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
+        card.addView(ico, new LinearLayout.LayoutParams(dp(a, 44), dp(a, 44)));
+
+        LinearLayout body = new LinearLayout(a);
+        body.setOrientation(LinearLayout.VERTICAL);
+        TextView nm = new TextView(a);
+        nm.setText(name);
+        nm.setTextSize(14);
+        nm.setTypeface(null, android.graphics.Typeface.BOLD);
+        nm.setSingleLine(true);
+        nm.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        nm.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG);
+        nm.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
+        nm.setTag(mine ? "mtM" : "mtO");
+        body.addView(nm, new LinearLayout.LayoutParams(-1, -2));
+        TextView sz = new TextView(a);
+        sz.setText(sizeText);
+        sz.setTextSize(11.5f);
+        sz.setTextDirection(View.TEXT_DIRECTION_LTR);
+        sz.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
+        if (mine) sz.setTypeface(null, android.graphics.Typeface.BOLD);   // .msg-bubble.mine .fc-size: أبيض عريض
+        sz.setTag(mine ? "mmM" : "mmO");
+        sz.setIncludeFontPadding(false);
+        LinearLayout.LayoutParams szl = new LinearLayout.LayoutParams(-1, -2);
+        szl.topMargin = dp(a, 2);
+        body.addView(sz, szl);
+        LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(0, -2, 1f);
+        bl.setMarginStart(dp(a, 10));
+        card.addView(body, bl);
+        b.addView(card, new LinearLayout.LayoutParams(-1, -2));
+        b.addView(metaRow(a, mine, time, state));
+        return b;
+    }
+
+    /** سطر الحجم داخل فقاعة الملف (لعرض تقدّم الرفع «٠ B / ٣ MB»). */
+    public static TextView fileSizeView(View bubble) {
+        View c = bubble.findViewWithTag("fileCard");
+        if (c instanceof LinearLayout && ((LinearLayout) c).getChildCount() > 1) {
+            View body = ((LinearLayout) c).getChildAt(1);
+            if (body instanceof LinearLayout && ((LinearLayout) body).getChildCount() > 1) {
+                View t = ((LinearLayout) body).getChildAt(1);
+                if (t instanceof TextView) return (TextView) t;
+            }
+        }
+        return null;
+    }
+
+    public static View fileCardView(View bubble) { return bubble.findViewWithTag("fileCard"); }
+
     public static LinearLayout metaRow(Activity a, boolean mine, String time, int state) {
         LinearLayout m = new LinearLayout(a);
         m.setOrientation(LinearLayout.HORIZONTAL);
