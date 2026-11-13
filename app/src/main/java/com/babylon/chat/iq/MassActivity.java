@@ -2421,6 +2421,8 @@ public class MassActivity extends Activity {
                         });
                         // تبنى القائمة الجديدة كاملةً ثم تُستبدل مرة واحدة: لا تفريغ للقائمة ولا إعادة رسم جزئية (كانت تُخفي محادثات ثم تُظهرها)
                         if (snapshots.getMetadata().isFromCache() && snapshots.isEmpty() && !chatData.isEmpty()) return;   // نتيجة محلية فارغة مؤقتة لا تمسح القائمة
+                        // لقطة الخزن المحلي الناقصة (بعض المحادثات فقط) كانت تستبدل القائمة فتختفي محادثات ثم تعود حين تصل لقطة السيرفر: تُتجاهل وننتظر السيرفر
+                        if (snapshots.getMetadata().isFromCache() && !chatData.isEmpty() && snapshots.size() < chatData.size()) return;
                         final List<String[]> fresh = new ArrayList<>();
                         final List<Runnable> fetches = new ArrayList<>();
                         for (Map<String, Object> m : temp) {
@@ -2948,7 +2950,7 @@ public class MassActivity extends Activity {
                     row.setElevation(0f);
                     LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2);
                     rp.bottomMargin = dp(3);                              // المسافة بين المحادثات 3dp
-                    if (rowSel) { rp.topMargin = 0; rp.bottomMargin = dp(2); }   // المسافة بين محادثتين محدَّدتين = 2dp
+                    // المسافة ثابتة 3dp للمحددة وغير المحددة: تغيّرها (2dp) كان يزيح القائمة 1dp مع كل تحديد فتبدو ترتجّ
                     row.setLayoutParams(rp);
                     StoryAvatarView av = new StoryAvatarView(act);
                     boolean ringOn = c.length > 4 && storyUntil.get(c[4]) != null && storyUntil.get(c[4]) > System.currentTimeMillis();
@@ -3377,8 +3379,12 @@ public class MassActivity extends Activity {
                 ensureChatSelBar();
                 updateChatSelBar();
                 View mh = v("mainHeader");
+                if (chatSelBar != null && mh != null && mh.getHeight() > 0) {   // شريط التحديد بارتفاع الهيدر نفسه: لا قفزة في القائمة عند التبديل
+                    ViewGroup.LayoutParams slp = chatSelBar.getLayoutParams();
+                    if (slp != null && slp.height != mh.getHeight()) { slp.height = mh.getHeight(); chatSelBar.setLayoutParams(slp); }
+                }
                 if (mh != null) mh.setVisibility(View.GONE);
-                if (chatSelBar != null) { chatSelBar.setVisibility(View.VISIBLE); BabylonFx.barDown(chatSelBar, 0); }
+                if (chatSelBar != null) { BabylonFx.reset(chatSelBar); chatSelBar.setVisibility(View.VISIBLE); }   // بلا انزلاق/تلاشٍ
                 buildChats();
             }
 
@@ -3397,7 +3403,7 @@ public class MassActivity extends Activity {
                 View mh = v("mainHeader");
                 if (was && mh != null && "homeView".equals(curPage) && !chatOpen()) {
                     mh.setVisibility(View.VISIBLE);
-                    BabylonFx.barDown(mh, 0);
+                    BabylonFx.reset(mh);   // رجوع الهيدر بلا حركة
                 }
                 if (rebuild && was) buildChats();
             }

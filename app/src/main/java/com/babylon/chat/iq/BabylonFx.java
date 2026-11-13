@@ -54,7 +54,7 @@ public final class BabylonFx {
     }
 
     /** يمنع التشغيل المتكرر أثناء حركة سابقة على نفس العنصر. */
-    private static void reset(View v) {
+    public static void reset(View v) {
         v.animate().cancel();
         v.setAlpha(1f);
         v.setTranslationX(0f);
