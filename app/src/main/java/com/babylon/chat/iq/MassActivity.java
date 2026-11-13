@@ -455,7 +455,7 @@ public class MassActivity extends Activity {
                 hintLeft(mi);
                 // ملصقات/GIF/صور من لوحة المفاتيح
                 if (mi instanceof RichEditText) ((RichEditText) mi).setOnRichContent((uri, mime, release) -> sendKeyboardContent(uri, mime, release));
-                mi.setOnFocusChangeListener((vw, f) -> mi.setBackground(msgInpBg(f)));
+                mi.setOnFocusChangeListener((vw, f) -> { mi.setBackground(msgInpBg(f)); if (f) Tk.selectionTint(mi, selAcc()); });
                 syncSend();
             }
 
@@ -509,6 +509,7 @@ public class MassActivity extends Activity {
                         }
                         else if (k.equals("msginp")) {
                             x.setBackground(msgInpBg(x.hasFocus()));
+                            if (x instanceof EditText) Tk.selectionTint((EditText) x, selAcc());   // تحديد/مقبضا/مؤشر حقل المحادثة بلون ثيم المحادثة (ذهبي في بابل)
                             if (T != null) {
                                 boolean th = Tk.chatPal != null;   // الليلي والنهاري يتبعان الثيم
                                 T.setTextColor(th ? Tk.crInk(cText()) : cText());
@@ -1227,14 +1228,18 @@ public class MassActivity extends Activity {
                 boolean near = nearBottom(sv);
                 int dTop = top - ms.getPaddingTop(), dBot = bot - ms.getPaddingBottom();
                 ms.setPadding(0, top, 0, bot);
-                if (dTop != 0 && ms.getWidth() > 0 && ms.getHeight() > 0) {   // حدّث مدى التمرير فوراً كي لا يُقصّ التعويض فيقفز المحتوى
+                if ((dTop != 0 || dBot != 0) && ms.getWidth() > 0 && ms.getHeight() > 0) {   // حدّث مدى التمرير فوراً كي لا يُقصّ التعويض فيقفز المحتوى
                     ms.measure(View.MeasureSpec.makeMeasureSpec(ms.getWidth(), View.MeasureSpec.EXACTLY),
                             View.MeasureSpec.makeMeasureSpec(ms.getHeight(), View.MeasureSpec.EXACTLY));
                     ms.layout(ms.getLeft(), ms.getTop(), ms.getRight(), ms.getBottom());
                 }
                 // تغيّر ارتفاع الرأس (ظهور/اختفاء شريط الصوتية): ثبّت الرسائل في مكانها بتعويض التمرير فوراً بلا قفزة
                 if (dTop != 0) sv.scrollBy(0, dTop);
-                if (near && dBot != 0) scrollDown();
+                if (near && dBot != 0) {
+                    // التثبيت أسفل الرسائل فوراً في نفس الإطار؛ fullScroll يحرّك التمرير بأنيميشن (~250ms) فيظهر اهتزاز خفيف عند إغلاق الكيبورد
+                    View c = sv.getChildAt(0);
+                    if (c != null) sv.scrollTo(0, Math.max(0, c.getHeight() + sv.getPaddingTop() + sv.getPaddingBottom() - sv.getHeight()));
+                }
             }
 
             void setupChatGlass() {
@@ -1729,7 +1734,7 @@ public class MassActivity extends Activity {
                 ic.setImageResource(R.drawable.ic_block_16);
                 ic.setScaleType(ImageView.ScaleType.FIT_CENTER);
                 ic.setPadding(dp(10.5f), dp(10.5f), dp(10.5f), dp(10.5f));
-                GradientDrawable ib = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFF87171, 0xFFDC2626});
+                GradientDrawable ib = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{androidx_blend(selAcc(), 0xFFFFFFFF, 0.28f), selAcc()});   // تدرّج بلون الثيم
                 ib.setShape(GradientDrawable.OVAL);
                 ic.setBackground(ib);
                 top.addView(ic, new LinearLayout.LayoutParams(dp(46), dp(46)));
@@ -1741,7 +1746,7 @@ public class MassActivity extends Activity {
                 t1.setText("هذا المستخدم محظور");
                 t1.setTextSize(16.5f);
                 t1.setTypeface(null, android.graphics.Typeface.BOLD);
-                t1.setTextColor(dark ? 0xFFFCA5A5 : 0xFFB91C1C);
+                t1.setTextColor(selAcc());
                 t1.setGravity(Gravity.CENTER);
                 info.addView(t1, new LinearLayout.LayoutParams(-2, -2));
                 TextView t2 = new TextView(act);
@@ -1761,7 +1766,7 @@ public class MassActivity extends Activity {
                 btn.setOrientation(LinearLayout.HORIZONTAL);
                 btn.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
                 btn.setGravity(Gravity.CENTER);
-                int fg = dark ? 0xFFFCA5A5 : 0xFFDC2626;
+                int fg = selAcc();
                 ImageView ulIv = new ImageView(act);
                 ulIv.setImageDrawable(dr(R.drawable.ic_unlock_19, 19, fg));
                 ulIv.setScaleType(ImageView.ScaleType.FIT_CENTER);
@@ -1776,9 +1781,9 @@ public class MassActivity extends Activity {
                 ltx.setMarginStart(dp(8));
                 btn.addView(btnTxt, ltx);
                 GradientDrawable bb = new GradientDrawable();
-                bb.setColor(dark ? 0x24DC2626 : 0xFFFFFFFF);
+                bb.setColor(dark ? selAccA(0x24) : 0xFFFFFFFF);
                 bb.setCornerRadius(dp(14));
-                bb.setStroke(dp(2), dark ? 0xFFF87171 : 0xFFDC2626);
+                bb.setStroke(dp(1), selAcc());   // 1dp أنحف من قبل (كان 2dp)
                 btn.setBackground(bb);
                 btn.setOnClickListener(x -> unblockUser(otherUid));
                 LinearLayout.LayoutParams lb = new LinearLayout.LayoutParams(-1, dp(46));
@@ -2520,10 +2525,10 @@ public class MassActivity extends Activity {
                     final ArrayList<Object[]> items = new ArrayList<>();   // id, imageUrl, video, pinned, createdAt, active, expiresAt
                     for (com.google.firebase.firestore.DocumentSnapshot d : snap.getDocuments()) {
                         Long ex = d.getLong("expiresAt"), cr = d.getLong("createdAt");
-                        Boolean pn = d.getBoolean("pinned");
-                        boolean pinned = pn != null && pn;
-                        if (!mine && !pinned) continue;
-                        long exv = ex == null ? 0L : ex;
+                        Boolean pn = d.getBoolean("pinned"), pm = d.getBoolean("permanent");
+                        boolean pinned = pn != null && pn, perm = pm != null && pm;
+                        if (!mine && !pinned && !perm) continue;   // غير صاحب الملف يرى المثبّتة والدائمة فقط
+                        long exv = perm ? Long.MAX_VALUE : (ex == null ? 0L : ex);   // الدائمة تُعدّ نشطة دائماً (بلا تعتيم الأرشيف)
                         String vu = d.getString("videoUrl");
                         Double du = d.getDouble("duration");
                         items.add(new Object[]{d.getId(), d.getString("imageUrl") == null ? "" : d.getString("imageUrl"),
@@ -2609,6 +2614,18 @@ public class MassActivity extends Activity {
                             FrameLayout.LayoutParams plp = new FrameLayout.LayoutParams(dp(15), dp(15), Gravity.TOP | Gravity.RIGHT);
                             plp.setMargins(0, dp(6), dp(6), 0);
                             card.addView(pi, plp);
+                        }
+                        if (!active && !pinned) {   // مؤرشفة: كتابة خفيفة في مكان دبوس التثبيت
+                            TextView arch = new TextView(act);
+                            arch.setText("مؤرشفة");
+                            arch.setTextSize(10.5f);
+                            arch.setTextColor(0xFFFFFFFF);
+                            arch.setAlpha(0.78f);
+                            arch.setIncludeFontPadding(false);
+                            arch.setShadowLayer(dp(2), 0, dp(1), 0x99000000);
+                            FrameLayout.LayoutParams alp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.RIGHT);
+                            alp.setMargins(0, dp(7), dp(7), 0);
+                            card.addView(arch, alp);
                         }
                         final double durSec = it.length > 7 ? (Double) it[7] : 0d;
                         if (video && durSec > 0) {   // شارة المدة أسفل اليسار: ▶ 0:39
@@ -4783,7 +4800,7 @@ public class MassActivity extends Activity {
                         float down = joinDown ? Math.max(0, next.getTop() - mv.getBottom() - 2 * ext) / 2f : 0f;
                         // الحافتان العلوية/السفلية تتلاشيان بلطف جداً «داخل» حدود الرسالة فقط (لا يتعدى التلاشي إلى الفراغ بين الرسالتين)؛
                         // وجهة الالتحام بمجاورة محددة تبقى ممتلئة بلا تلاشٍ كي لا يظهر خط فاصل
-                        float f = Math.min(dp(5), (bottom - top) / 3f);
+                        float f = Math.min(dp(5), (bottom - top) / 3f) * 0.9f;   // منطقة التلاشي أقل بـ 10%
                         float yT = top - up + (joinUp ? 0f : f), yB = bottom + down - (joinDown ? 0f : f);
                         if (yB > yT) c.drawRect(0, yT, w, yB, pt);
                         if (!joinUp) fadeRect(c, 0, top, w, top + f, true);
@@ -5335,7 +5352,7 @@ public class MassActivity extends Activity {
                 xb.setImageResource(R.drawable.ic_mm_unpin); xb.setColorFilter(selAcc());
                 xb.setPadding(dp(8), dp(8), dp(8), dp(8));
                 xb.setContentDescription("إلغاء التثبيت");
-                xb.setOnClickListener(x -> confirm("إلغاء التثبيت", "هل تريد إلغاء تثبيت هذه الرسالة؟", () -> {
+                xb.setOnClickListener(x -> MsgMenu.showMsgConfirm(act, dark, "إلغاء التثبيت", "هل تريد إلغاء تثبيت هذه الرسالة؟", "تأكيد", () -> {
                     List<Map<String, Object>> np = new ArrayList<>(pins);
                     int at = pinIndexOf(String.valueOf(p.get("id")));
                     if (at >= 0) np.remove(at);
@@ -5384,7 +5401,7 @@ public class MassActivity extends Activity {
                 }
                 final String nm = peerName();
                 MsgMenu.showMsgDelete(act, dark, "حذف الرسالة", "هل ترغب حقًا في حذف هذه الرسالة؟",
-                        mine ? "حذف من عند " + nm + (time.isEmpty() ? "" : " | " + time) + " أيضًا" : null,
+                        mine ? "حذف من عند " + nm + " أيضًا" : null,
                         both -> {
                             if (both && id != null && !cid.isEmpty()) { deleteMsgsForAll(java.util.Collections.singletonList(id), b); return; }
                             if (id != null) { java.util.Set<String> h = hiddenSet(); h.add(id); sp.edit().putStringSet("hidden_msgs_" + cid, h).apply(); }
@@ -5993,21 +6010,32 @@ public class MassActivity extends Activity {
                 return String.format(Locale.US, "%02d:%02d", s / 60, s % 60);
             }
 
+            /** لون أعمدة موجة التسجيل: لون الثيم الحالي معتماً تماماً (كي لا تختلط الدرجات بعد تبديل الثيم). */
+            int waveColor() { return (Tk.chatPal != null ? Tk.chatPal.mineFrom : cGold()) | 0xFF000000; }
+
+            /** يعيد تلوين الأعمدة الموجودة بلون الثيم الحالي (يُستدعى عند تغيير الثيم أثناء التسجيل/المعاينة). */
+            void recolorWave() {
+                int c = waveColor();
+                for (View b : waveBars) b.setBackground(shape(c, 2, 0));
+            }
+
             void buildWave() {
                 final LinearLayout w = (LinearLayout) v("recWave");
-                if (w == null || w.getChildCount() > 0) return;
-                int width = w.getWidth() > 0 ? w.getWidth() : act.getResources().getDisplayMetrics().widthPixels / 2;
-                int n = Math.max(8, (width + dp(5)) / dp(8));        // عمود 3dp + فراغ 5dp
+                if (w == null) return;
+                w.removeAllViews();           // بناء جديد في كل تسجيل: لا أعمدة قديمة بألوان ثيم سابق
                 waveBars.clear();
+                int width = w.getWidth() > 0 ? w.getWidth() : act.getResources().getDisplayMetrics().widthPixels / 2;
+                int n = Math.max(8, (width + dp(4)) / dp(7));        // عمود 3dp + فراغ 4dp
+                final int col = waveColor();
                 for (int i = 1; i <= n; i++) {
                     View b = new View(act);
                     int h = dp(10);
                     if (i % 3 == 0) h = dp(19);
                     if (i % 5 == 0) h = dp(23);
                     LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(3), h);
-                    lp.setMarginEnd(dp(5));
+                    lp.setMarginEnd(dp(4));
                     b.setLayoutParams(lp);
-                    b.setBackground(shape(Tk.chatPal != null ? Tk.chatPal.mineFrom : cGold(), 2, 0));   // موجة التسجيل تتبع الثيم
+                    b.setBackground(shape(col, 2, 0));   // موجة التسجيل تتبع الثيم
                     w.addView(b);
                     waveBars.add(b);
                 }
@@ -6425,7 +6453,7 @@ public class MassActivity extends Activity {
                     popLeft = loc[0] + bw + xoff - popW;
                 }
                 final float pivotX = (loc[0] + bw / 2f) - popLeft;   // منتصف زر ⋮ داخل البطاقة
-                pw.showAsDropDown(cm, xoff, dp(2), gravity);
+                pw.showAsDropDown(cm, xoff, dp(5), gravity);   // 2dp + 3dp: القائمة أخفض قليلاً عن زر ⋮
 
                 // ---- حركة الانبثاق من الزر: تمدد من نقطة منتصفه مع ظهور تدريجي، وعناصر تدخل متتابعة
                 card.setPivotX(pivotX);
@@ -6596,9 +6624,7 @@ public class MassActivity extends Activity {
                 }
                 View cl = v("csClear");
                 if (cl instanceof ImageView) {
-                    GradientDrawable cg = new GradientDrawable();
-                    cg.setShape(GradientDrawable.OVAL); cg.setColor(0x38808080);
-                    cl.setBackground(cg);
+                    cl.setBackground(null);   // × بدون دائرة خلفية
                     ((ImageView) cl).setColorFilter(cMuted());
                 }
                 TextView cc = tv("csCount");
@@ -6967,6 +6993,8 @@ public class MassActivity extends Activity {
                 try { buildThemeStrip(); } catch (Throwable ignored) { }
                 style(v("chatView"));
                 try { syncBars(); } catch (Throwable ignored) { }
+                try { recolorWave(); } catch (Throwable ignored) { }   // موجة التسجيل بلون الثيم الجديد فوراً
+                try { if (blkBanner != null) applyChatBlockUi(); } catch (Throwable ignored) { }   // لافتة الحظر تتبع الثيم فوراً
                 try { renderPinnedBar(); } catch (Throwable ignored) { }   // شريط التثبيت يتبع الثيم فوراً
                 try { if (vpBar != null && vpShown && vpMode.length() > 0) vpStyle(vpMode); } catch (Throwable ignored) { }   // الشريط الصوتي داخل المحادثة يتبع ثيم المحادثة فوراً
             }
@@ -7128,13 +7156,17 @@ public class MassActivity extends Activity {
                     });
                 }
 
+                // الإحداثيات نسبة إلى نافذة النشاط نفسها (وليس الشاشة) كي لا تنزاح النافذة للأسفل بمقدار شريط الحالة/لوحة المفاتيح
+                pw.setClippingEnabled(false);
+                pw.setInputMethodMode(PopupWindow.INPUT_METHOD_NOT_NEEDED);
                 int[] loc = new int[2];
-                anchor.getLocationOnScreen(loc);
-                int screenW = act.getResources().getDisplayMetrics().widthPixels;
+                anchor.getLocationInWindow(loc);
+                View decor = act.getWindow().getDecorView();
+                int winW = decor.getWidth() > 0 ? decor.getWidth() : act.getResources().getDisplayMetrics().widthPixels;
                 int left = loc[0] + anchor.getWidth() / 2 - dp(53);
-                left = Math.max(dp(8), Math.min(screenW - dp(114), left));
-                int top = loc[1] - dp(8) - barH;   // 8dp فوق زر الوسائط
-                try { pw.showAtLocation(anchor, Gravity.NO_GRAVITY, left - pad, top - pad); } catch (Throwable t) { return; }
+                left = Math.max(dp(8), Math.min(winW - dp(114), left));
+                int top = loc[1] - dp(8) - barH;   // 8dp فوق زر الوسائط مباشرة
+                try { pw.showAtLocation(decor, Gravity.NO_GRAVITY, left - pad, top - pad); } catch (Throwable t) { return; }
 
                 // حركة الظهور: من أسفل الوسط، scale(.4,.6) + إزاحة 10 ← 1 (.22ث) والشفافية .15ث
                 bar.setPivotX(barW / 2f); bar.setPivotY(barH);

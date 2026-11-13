@@ -68,8 +68,13 @@ public class MainActivity extends Activity {
             }
             try {   // تضخيم تجريبي يُرمى: يسخّن تحليل الـXML وكاش الموارد وتحميل كلاسات الـViews
                 android.view.LayoutInflater inf = android.view.LayoutInflater.from(new android.view.ContextThemeWrapper(app, R.style.NoActionBar));
-                if (loggedIn) com.babylon.chat.iq.databinding.MassBinding.inflate(inf);
-                else com.babylon.chat.iq.databinding.Main2Binding.inflate(inf);
+                if (loggedIn) {
+                    com.babylon.chat.iq.databinding.MassBinding.inflate(inf);
+                    for (String pf : new String[]{"part_profile", "part_settings"}) {   // MassActivity.init يضخّمها على الخيط الرئيسي أيضاً
+                        int lid = app.getResources().getIdentifier(pf, "layout", app.getPackageName());
+                        if (lid != 0) inf.inflate(lid, null);
+                    }
+                } else com.babylon.chat.iq.databinding.Main2Binding.inflate(inf);
             } catch (Throwable ignored) { }
             ht.quitSafely();
         });
@@ -114,28 +119,42 @@ public class MainActivity extends Activity {
         proceed();
     }
 
+    /**
+     * بناء الشاشة التالية يشغل الخيط الرئيسي لأجزاء من الثانية، وأي حركة دائرية (النبض، التوهج، النقاط، اللمعان) تتجمّد وسط دورتها فيظهر «توقف».
+     * الحل: نُنهي هذه الحركات بنعومة (الشعار يستقر على حجمه الطبيعي، التوهج والنقاط يخبوان) خلال ~200ms، ثم نبدأ الانتقال،
+     * فيكون أي تجمّد لاحق على مشهد ساكن لا يُلاحَظ، ثم تظهر الواجهة التالية بالتلاشي.
+     */
+    private void settleThen(final Runnable next) {
+        for (Animator a : animators) a.cancel();
+        animators.clear();
+        if (shine != null) shine.cancel();
+        android.view.animation.DecelerateInterpolator di = new android.view.animation.DecelerateInterpolator();
+        binding.logoCircle.animate().scaleX(1f).scaleY(1f).setDuration(200).setInterpolator(di).start();
+        binding.logoGlow.animate().alpha(0f).setDuration(200).setInterpolator(di).start();
+        binding.linear22.animate().alpha(0f).setDuration(200).setInterpolator(di).start();
+        handler.postDelayed(next, 215);
+    }
+
     private void proceed() {
         if (navigated || isFinishing()) return;
         navigated = true;
-        boolean loggedIn = FirebaseAuth.getInstance().getCurrentUser() != null;
-        if (loggedIn) {
-            startActivity(new Intent(this, MassActivity.class));
-            overridePendingTransition(R.anim.chat_fade_in, R.anim.splash_hold);   // تتلاشى للمحادثة والسبلاش يواصل حركته
-            finish();
-            return;
-        }
-        // غير مسجّل: نمرّر موضع/حجم اللوكو والعنوان لشاشة الدخول لتكمل الحركة من نفس المكان
-        final Intent i = new Intent(this, Main2Activity.class);
-        putViewInfo(i, binding.logoCircle, "logo");
-        putViewInfo(i, binding.title, "title");
-        // نخفي التوهج والنقاط بسرعة ثم ننتقل (لا وجود لهما في شاشة الدخول)
-        binding.logoGlow.animate().alpha(0f).setDuration(160).start();
-        binding.linear22.animate().alpha(0f).setDuration(160).start();
-        handler.postDelayed(() -> {
+        final boolean loggedIn = FirebaseAuth.getInstance().getCurrentUser() != null;
+        settleThen(() -> {
+            if (isFinishing()) return;
+            if (loggedIn) {
+                startActivity(new Intent(this, MassActivity.class));
+                overridePendingTransition(R.anim.chat_fade_in, R.anim.splash_hold);   // تتلاشى للمحادثة والسبلاش ساكن تحتها
+                finish();
+                return;
+            }
+            // غير مسجّل: نمرّر موضع/حجم اللوكو والعنوان لشاشة الدخول لتكمل الحركة من نفس المكان (الشعار الآن بحجمه الطبيعي)
+            Intent i = new Intent(this, Main2Activity.class);
+            putViewInfo(i, binding.logoCircle, "logo");
+            putViewInfo(i, binding.title, "title");
             startActivity(i);
             overridePendingTransition(0, 0);   // بلا انتقال افتراضي ليبدو اللوكو ثابتاً
             finish();
-        }, 170);
+        });
     }
 
     /** يحفظ مركز الـView على الشاشة (بالبكسل) وعرضه الظاهر الحالي مع احتساب نبض الـscale. */

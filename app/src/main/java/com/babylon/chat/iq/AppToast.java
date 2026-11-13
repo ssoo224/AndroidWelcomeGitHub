@@ -171,8 +171,8 @@ public final class AppToast {
             decor.getLocationOnScreen(loc);
             int decorBottom = loc[1] + decor.getHeight();
             boolean kb = dm.heightPixels - vis.bottom > dp(act, 160);
-            bottomMargin = Math.max(0, decorBottom - vis.bottom) + dp(act, kb ? 14 : 96);
-        } catch (Throwable t) { bottomMargin = dp(act, 96); }
+            bottomMargin = Math.max(0, decorBottom - vis.bottom) + dp(act, kb ? 4 : 86);   // أنزلنا الإشعار 10dp (كان 14/96)
+        } catch (Throwable t) { bottomMargin = dp(act, 86); }
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(cardW, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
         lp.bottomMargin = bottomMargin;
         card.setAlpha(0f);

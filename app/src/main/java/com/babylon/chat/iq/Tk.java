@@ -383,4 +383,26 @@ public final class Tk {
         if (ProfileTags.apply(tag, x, t, dark)) return true;
         return false;
     }
+
+    /**
+     * لون تحديد النص ومقبضا التحديد ومؤشر الكتابة في حقل واحد (حقل رسالة المحادثة يتبع ثيم المحادثة؛
+     * بقية الحقول تأخذ الذهبي من ثيم التطبيق). color معتم؛ يُضاف له شفافية للتظليل.
+     */
+    public static void selectionTint(android.widget.EditText e, int color) {
+        if (e == null) return;
+        final int c = color | 0xFF000000;
+        try { e.setHighlightColor((c & 0x00FFFFFF) | 0x59000000); } catch (Throwable ignored) { }
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            try {
+                android.graphics.drawable.Drawable l = e.getTextSelectHandleLeft();
+                android.graphics.drawable.Drawable r = e.getTextSelectHandleRight();
+                android.graphics.drawable.Drawable m = e.getTextSelectHandle();
+                if (l != null) { l = l.mutate(); l.setTint(c); e.setTextSelectHandleLeft(l); }
+                if (r != null) { r = r.mutate(); r.setTint(c); e.setTextSelectHandleRight(r); }
+                if (m != null) { m = m.mutate(); m.setTint(c); e.setTextSelectHandle(m); }
+                android.graphics.drawable.Drawable cur = e.getTextCursorDrawable();
+                if (cur != null) { cur = cur.mutate(); cur.setTint(c); e.setTextCursorDrawable(cur); }
+            } catch (Throwable ignored) { }
+        }
+    }
 }

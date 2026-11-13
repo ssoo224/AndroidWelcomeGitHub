@@ -100,6 +100,7 @@ public final class StoryViewer {
         String id = "", imageUrl = "", videoUrl = "", caption = "";
         long createdAt, expiresAt;
         boolean pinned;
+        boolean permanent;   // إظهار دائم في الملف الشخصي
         double duration;
     }
 
@@ -247,9 +248,9 @@ public final class StoryViewer {
                 long now = System.currentTimeMillis();
                 for (DocumentSnapshot d : snap.getDocuments()) {
                     Long ex = d.getLong("expiresAt"), cr = d.getLong("createdAt");
-                    Boolean pnK = d.getBoolean("pinned");
+                    Boolean pnK = d.getBoolean("pinned"), pmK = d.getBoolean("permanent");
                     // قائمة محددة: قصة الغير لا تُعرض إن انتهت ولم تكن مثبتة (صاحبها وحده يرى أرشيفه)
-                    boolean keep = ex != null && (playIds != null ? (playIds.contains(d.getId()) && (mine || ex > now || (pnK != null && pnK))) : ex > now);
+                    boolean keep = ex != null && (playIds != null ? (playIds.contains(d.getId()) && (mine || ex > now || (pnK != null && pnK) || (pmK != null && pmK))) : ex > now);
                     if (!keep) continue;
                     Story s = new Story();
                     s.id = d.getId();
@@ -258,6 +259,7 @@ public final class StoryViewer {
                     s.caption = nz(d.getString("caption"));
                     s.createdAt = cr == null ? 0 : cr; s.expiresAt = ex;
                     Boolean pn = d.getBoolean("pinned"); s.pinned = pn != null && pn;
+                    Boolean pm = d.getBoolean("permanent"); s.permanent = pm != null && pm;
                     Double du = d.getDouble("duration"); s.duration = du == null ? 0 : du;
                     list.add(s);
                 }
@@ -404,7 +406,7 @@ public final class StoryViewer {
         // --- أشرطة التقدم (.sv-bars)
         bars = new LinearLayout(act);
         bars.setOrientation(LinearLayout.HORIZONTAL);
-        bars.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        bars.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);   // الأشرطة من اليسار إلى اليمين
         bars.setPadding(dp(10), dp(10) + sat, dp(10), 0);
         stage.addView(bars, new FrameLayout.LayoutParams(-1, -2, Gravity.TOP));
 
@@ -794,10 +796,41 @@ public final class StoryViewer {
         pickerBox.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(kbTarget).setDuration(200)
             .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f)).start();
     }
+    private int modalPad = 0, modalPadTarget = 0;
+    private ValueAnimator modalPadAnim;
+
+    /** نوافذ الإدارة (تعديل القصة…): تُرفع قاعدة الطبقة بمقدار ما تغطّيه لوحة المفاتيح فترتفع البطاقة معها وتهبط معها. */
+    private void updateModalKeyboard(int imeH) {
+        final FrameLayout m = modal;
+        if (m == null || overlay == null) { modalPad = 0; modalPadTarget = 0; return; }
+        int target = 0;
+        if (imeH > 0) {
+            try {
+                View rv = overlay.getRootView();
+                int[] loc = new int[2];
+                overlay.getLocationInWindow(loc);
+                int ovBottom = loc[1] + overlay.getHeight();
+                int kbTop = rv.getHeight() - kbBottom;
+                target = Math.max(0, ovBottom - kbTop);   // إن كانت النافذة تتقلّص أصلاً بـ adjustResize فالفرق صفر
+            } catch (Throwable ignored) { }
+        }
+        if (target == modalPadTarget) return;
+        modalPadTarget = target;
+        if (modalPadAnim != null) modalPadAnim.cancel();
+        modalPadAnim = ValueAnimator.ofInt(modalPad, target);
+        modalPadAnim.setDuration(180);
+        modalPadAnim.addUpdateListener(a -> {
+            modalPad = (Integer) a.getAnimatedValue();
+            if (modal == m) m.setPadding(0, 0, 0, modalPad);
+        });
+        modalPadAnim.start();
+    }
+
     /** يرفع التذييل (الرد/التفاعلات/المنتقي) والتعليق فوق لوحة المفاتيح، ويخفي منتقي الضغط المطوّل عند ظهورها. */
     private void updateKeyboard() {
         if (closed || overlay == null || foot == null) return;
         int imeH = Math.max(0, kbBottom - kbStable);
+        updateModalKeyboard(imeH);
         float shift = 0f;
         if (imeH > 0) {
             try {
@@ -877,24 +910,8 @@ public final class StoryViewer {
         dur = SDUR;
         final int token = ++loadToken;
 
-        // شريط التقدم
-        bars.removeAllViews();
-        for (int k = 0; k < list.size(); k++) {
-            FrameLayout b = new FrameLayout(act);
-            b.setBackground(round(0x4DFFFFFF, 2, 0, 0));
-            b.setClipToOutline(true);
-            b.setOutlineProvider(new ViewOutlineProvider() {
-                @Override public void getOutline(View v, Outline o) { o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), dp(2)); }
-            });
-            View f = new View(act);
-            f.setBackgroundColor(Color.WHITE);
-            f.setScaleX(0f);
-            b.addView(f, new FrameLayout.LayoutParams(-1, -1));
-            LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(0, dp(3), 1f);
-            if (k > 0) bp.setMarginEnd(0);
-            bp.setMarginStart(k == list.size() - 1 ? 0 : dp(3));
-            bars.addView(b, bp);
-        }
+        // شريط التقدم: يظهر فقط عند عرض قصة مثبّتة (بعدد القصص المثبّتة، حدّها 6)
+        rebuildBars();
 
         // الوسائط
         img.setImageDrawable(null);
@@ -955,6 +972,8 @@ public final class StoryViewer {
                     sb.append(" ");
                     sb.setSpan(new ImageSpan(d, ImageSpan.ALIGN_BASELINE), a, a + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                 } catch (Throwable ignored) { sb.append("مثبتة"); }
+            } else if (s.permanent) {
+                sb.append(" · ظاهرة دائماً");
             } else if (s.expiresAt > System.currentTimeMillis()) {
                 sb.append(" · تنتهي بعد ").append(leftTxt(s.expiresAt));
             } else {
@@ -1028,14 +1047,53 @@ public final class StoryViewer {
         });
     }
 
+    /** حدّ تثبيت القصص. */
+    private static final int MAX_PINS = 6;
+    /** فهارس القصص (في list) التي يمثّلها كل شريط بالترتيب. */
+    private int[] barMap = new int[0];
+
+    /** الأشرطة العلوية تظهر فقط حين تكون القصة المعروضة مثبّتة؛ عددها = القصص المثبّتة (حتى 6). */
+    private void rebuildBars() {
+        if (bars == null) return;
+        bars.removeAllViews();
+        barMap = new int[0];
+        if (idx < 0 || idx >= list.size() || !list.get(idx).pinned) { bars.setVisibility(View.GONE); return; }
+        ArrayList<Integer> pins = new ArrayList<>();
+        for (int k = 0; k < list.size(); k++) if (list.get(k).pinned) pins.add(k);
+        int n = Math.min(MAX_PINS, pins.size());
+        int pos = pins.indexOf(idx);
+        int from = pos >= n ? pos - n + 1 : 0;
+        barMap = new int[n];
+        for (int k = 0; k < n; k++) barMap[k] = pins.get(from + k);
+        bars.setVisibility(View.VISIBLE);
+        for (int k = 0; k < n; k++) {
+            FrameLayout b = new FrameLayout(act);
+            b.setBackground(round(0x4DFFFFFF, 2, 0, 0));
+            b.setClipToOutline(true);
+            b.setOutlineProvider(new ViewOutlineProvider() {
+                @Override public void getOutline(View v, Outline o) { o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), dp(2)); }
+            });
+            View f = new View(act);
+            f.setBackgroundColor(Color.WHITE);
+            f.setScaleX(0f);
+            b.addView(f, new FrameLayout.LayoutParams(-1, -1));
+            LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(0, dp(3), 1f);
+            bp.setMarginStart(0);
+            bp.setMarginEnd(k == n - 1 ? 0 : dp(3));
+            bars.addView(b, bp);
+        }
+        updateBars();
+    }
+
     private void updateBars() {
         if (bars == null) return;
-        for (int k = 0; k < bars.getChildCount(); k++) {
+        for (int k = 0; k < bars.getChildCount() && k < barMap.length; k++) {
             View b = bars.getChildAt(k);
             if (!(b instanceof FrameLayout) || ((FrameLayout) b).getChildCount() == 0) continue;
             View f = ((FrameLayout) b).getChildAt(0);
-            float frac = k < idx ? 1f : (k == idx ? Math.min(1f, t / (float) (dur <= 0 ? SDUR : dur)) : 0f);
-            f.setPivotX(f.getWidth());          // الصفحة RTL: الشريط يمتلئ من اليمين
+            int li = barMap[k];
+            float frac = li < idx ? 1f : (li == idx ? Math.min(1f, t / (float) (dur <= 0 ? SDUR : dur)) : 0f);
+            f.setPivotX(0f);                    // الشريط يمتلئ من اليسار إلى اليمين
             f.setPivotY(0f);
             f.setScaleX(frac);
         }
@@ -1083,8 +1141,8 @@ public final class StoryViewer {
     private int zone(float x, float y) {
         float w = touch.getWidth(), h = touch.getHeight();
         if (y < dp(80) + sat || y > h - dp(150)) return 0;
-        if (x < w * .38f) return 1;      // يسار: التالي
-        if (x > w * .62f) return -1;     // يمين: السابق
+        if (x < w * .38f) return -1;     // يسار: السابق
+        if (x > w * .62f) return 1;      // يمين: التالي (الاتجاه من اليسار إلى اليمين)
         return 0;
     }
 
@@ -1340,13 +1398,30 @@ public final class StoryViewer {
         if (idx >= list.size()) return;
         final Story s = list.get(idx);
         final boolean next = !s.pinned;
+        if (!next) { applyPin(s, false); return; }
+        // حدّ التثبيت 6 قصص (يُحسب من قاعدة البيانات لأن list قد لا تحوي كل المثبّتة)
+        db.collection("stories").whereEqualTo("userId", uid).whereEqualTo("pinned", true).get()
+            .addOnSuccessListener(q -> {
+                if (q.size() >= MAX_PINS) AppToast.show(act, "الحد الأقصى للتثبيت " + MAX_PINS + " قصص");
+                else applyPin(s, true);
+            })
+            .addOnFailureListener(e -> {
+                int c = 0; for (Story x : list) if (x.pinned) c++;
+                if (c >= MAX_PINS) AppToast.show(act, "الحد الأقصى للتثبيت " + MAX_PINS + " قصص");
+                else applyPin(s, true);
+            });
+    }
+
+    private void applyPin(final Story s, final boolean next) {
         s.pinned = next;
         syncPinIcon(next);
         refreshTime(s);
+        if (idx < list.size() && list.get(idx) == s) rebuildBars();
         db.collection("stories").document(s.id).update("pinned", next).addOnFailureListener(e -> {
             s.pinned = !next;
             syncPinIcon(s.pinned);
             refreshTime(s);
+            if (idx < list.size() && list.get(idx) == s) rebuildBars();
             AppToast.show(act, "تعذر تحديث التثبيت");
         });
     }
@@ -1387,6 +1462,7 @@ public final class StoryViewer {
     // ------------------------------------------------------------ نوافذ الإدارة (#storyManageModal)
     private FrameLayout openScrim(int color) {
         closeModal();
+        modalPad = 0; modalPadTarget = 0;
         modal = new FrameLayout(act);
         modal.setBackgroundColor(color);
         modal.setClickable(true);
@@ -1469,6 +1545,21 @@ public final class StoryViewer {
         card.addView(sTv, sp);
     }
 
+    /** خلفية زر «إلغاء» مع ظل سفلي متدرّج يميّزه (طبقتان خفيفتان تحت الزر). */
+    private Drawable shadowedBtnBg(int fill, boolean dk) {
+        GradientDrawable sh1 = new GradientDrawable();
+        sh1.setColor(dk ? 0x59000000 : 0x1F16202B); sh1.setCornerRadius(dp(12));
+        GradientDrawable sh2 = new GradientDrawable();
+        sh2.setColor(dk ? 0x99000000 : 0x3316202B); sh2.setCornerRadius(dp(12));
+        GradientDrawable top = new GradientDrawable();
+        top.setColor(fill); top.setCornerRadius(dp(12));
+        if (!dk) top.setStroke(1, 0x1416202B);
+        android.graphics.drawable.LayerDrawable ld = new android.graphics.drawable.LayerDrawable(new Drawable[]{sh1, sh2, top});
+        ld.setLayerInset(1, 0, 0, 0, dp(2));
+        ld.setLayerInset(2, 0, 0, 0, dp(4));
+        return ld;
+    }
+
     private TextView actionBtn(String text, int textColor, Drawable bg) {
         TextView b = tv(text, 14f * S, textColor, true);
         b.setGravity(Gravity.CENTER);
@@ -1480,6 +1571,52 @@ public final class StoryViewer {
     private void placeCard(FrameLayout scrim, LinearLayout card) {
         int sw = act.getResources().getDisplayMetrics().widthPixels;
         scrim.addView(card, new FrameLayout.LayoutParams(Math.min(sw - dp(44), dp(390)), -2, Gravity.CENTER));
+    }
+
+    private boolean editPerm;   // حالة «إظهار بشكل دائم» أثناء نافذة التعديل
+
+    /** صف مفتاح «إظهار بشكل دائم» داخل نافذة تعديل القصة (مفعّل/مطفأ حسب حالة القصة). */
+    private View buildPermRow(final boolean dk) {
+        LinearLayout row = new LinearLayout(act);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(12), dp(11), dp(12), dp(11));
+        row.setBackground(dk ? round(0x0FFFFFFF, 12, 0x29FFFFFF, 1) : round(Tk.surface2(false), 12, Tk.border(false), 1));
+        LinearLayout copy = new LinearLayout(act);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        TextView t = tv("إظهار بشكل دائم", 13.5f * S, dk ? Color.WHITE : Tk.text(false), true);
+        t.setGravity(Gravity.START);
+        TextView sub = tv("تبقى القصة ظاهرة في الملف الشخصي دائماً. عند الإيقاف تُؤرشف بعد انتهاء مدتها.", 11.5f * S, dk ? 0xA6FFFFFF : Tk.muted(false), false);
+        sub.setGravity(Gravity.START);
+        sub.setLineSpacing(0f, 1.25f);
+        LinearLayout.LayoutParams sbp = new LinearLayout.LayoutParams(-1, -2); sbp.topMargin = dp(3);
+        copy.addView(t, new LinearLayout.LayoutParams(-1, -2));
+        copy.addView(sub, sbp);
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, -2, 1f);
+        cp.setMarginEnd(dp(12));
+        row.addView(copy, cp);
+
+        FrameLayout sw = new FrameLayout(act);
+        final View track = new View(act), knob = new View(act);
+        sw.addView(track, new FrameLayout.LayoutParams(dp(48), dp(28)));
+        FrameLayout.LayoutParams kp = new FrameLayout.LayoutParams(dp(22), dp(22));
+        kp.topMargin = dp(3);
+        sw.addView(knob, kp);
+        row.addView(sw, new LinearLayout.LayoutParams(dp(48), dp(28)));
+        final Runnable refresh = () -> {
+            if (editPerm) {
+                GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFF5D875, 0xFFB98B23});
+                g.setCornerRadius(dp(999)); track.setBackground(g);
+            } else track.setBackground(round(dk ? 0x33FFFFFF : Tk.border(false), 999, 0, 0));
+            knob.setBackground(round(0xFFFFFFFF, 999, 0, 0));
+            FrameLayout.LayoutParams k = (FrameLayout.LayoutParams) knob.getLayoutParams();
+            k.setMarginStart(editPerm ? dp(23) : dp(3));
+            knob.setLayoutParams(k);
+        };
+        refresh.run();
+        row.setOnClickListener(v -> { editPerm = !editPerm; refresh.run(); });
+        return row;
     }
 
     private void showEditModal() {
@@ -1532,10 +1669,16 @@ public final class StoryViewer {
         LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-1, -2); mp.topMargin = dp(11);
         card.addView(media, mp);
 
+        editPerm = s.permanent;
+        LinearLayout.LayoutParams pmp = new LinearLayout.LayoutParams(-1, -2); pmp.topMargin = dp(11);
+        card.addView(buildPermRow(dk), pmp);
+
         LinearLayout acts = new LinearLayout(act);
         acts.setOrientation(LinearLayout.HORIZONTAL);
         acts.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         TextView cancel = actionBtn("إلغاء", isDark() ? Color.WHITE : Tk.chipFg(false), round(isDark() ? 0x17FFFFFF : Tk.chipBg(false), 12, 0, 0));
+        cancel.setBackground(shadowedBtnBg(isDark() ? 0x17FFFFFF : Tk.chipBg(false), isDark()));
+        cancel.setPadding(0, 0, 0, dp(4));   // يبقى النص في منتصف الجزء المرئي فوق الظل
         cancel.setOnClickListener(v -> closeModal());
         GradientDrawable gold = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFF5D875, 0xFFB98B23});
         gold.setCornerRadius(dp(12));
@@ -1571,6 +1714,8 @@ public final class StoryViewer {
             try {
                 final Map<String, Object> upd = new HashMap<>();
                 upd.put("caption", caption);
+                final boolean fPerm = editPerm;
+                upd.put("permanent", fPerm);   // إظهار دائم في الملف الشخصي (مفعّل/مطفأ)
                 String upUrl = null; boolean isVideo = false; double duration = s.duration > 0 ? s.duration : 30;
                 if (file != null) {
                     String mime = act.getContentResolver().getType(file);
@@ -1603,6 +1748,7 @@ public final class StoryViewer {
                 final String fUp = upUrl; final boolean fVid = isVideo; final double fDur = duration;
                 db.collection("stories").document(s.id).update(upd).addOnSuccessListener(v -> {
                     s.caption = caption;
+                    s.permanent = fPerm;
                     if (fUp != null) {
                         s.imageUrl = (String) upd.get("imageUrl");
                         if (fVid) { s.videoUrl = fUp; s.duration = fDur; } else { s.videoUrl = ""; s.duration = 0; }

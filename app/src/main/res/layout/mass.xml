@@ -599,7 +599,7 @@
 							android:layout_width="28dp"
 							android:layout_height="28dp"
 							android:layout_marginEnd="6dp"
-							android:padding="7dp"
+							android:padding="6dp"
 							android:contentDescription="مسح"
 							android:src="@drawable/ic_close_16"
 							android:visibility="gone" />

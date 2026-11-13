@@ -96,6 +96,8 @@ public final class StoryComposer {
     private LinearLayout chipsRow;
     private boolean pin = false;
     private View pinSwitchTrack, pinSwitchKnob;
+    private View permSwitchTrack, permSwitchKnob;   // خيار «إظهار بشكل دائم»
+    private boolean permanent = false;
     private int hours = 24;
     private String posterDataUrl;
     private Uri videoUri;           // null = صورة
@@ -412,7 +414,7 @@ public final class StoryComposer {
     private void openComposer(String posterUrl, Uri video, double duration, long size) {
         if (dlg != null) return;
         posterDataUrl = posterUrl; videoUri = video; videoDuration = duration; videoSize = size;
-        hours = 24; pin = false; publishing = false;
+        hours = 24; pin = false; permanent = false; publishing = false;
 
         dlg = new Dialog(act, android.R.style.Theme_Black_NoTitleBar);
         dlg.requestWindowFeature(Window.FEATURE_NO_TITLE);
@@ -620,6 +622,41 @@ public final class StoryComposer {
         refreshPin();
         body.addView(pinCard, spCardLp());
 
+        // ---- بطاقة «إظهار بشكل دائم»: القصة تبقى ظاهرة في الملف الشخصي دائماً (بلا حدّ التثبيت وبلا دبوس)
+        LinearLayout permCard = newCard();
+        LinearLayout permRow = new LinearLayout(act);
+        permRow.setOrientation(LinearLayout.HORIZONTAL);
+        permRow.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout pcopy = new LinearLayout(act);
+        pcopy.setOrientation(LinearLayout.VERTICAL);
+        pcopy.setGravity(Gravity.RIGHT);
+        TextView qt = new TextView(act);
+        qt.setGravity(Gravity.RIGHT); qt.setTextDirection(View.TEXT_DIRECTION_RTL);
+        qt.setText("إظهار بشكل دائم"); tsz(qt, 14); qt.setTypeface(null, Typeface.BOLD); qt.setTextColor(spText());
+        TextView qs = new TextView(act);
+        qs.setGravity(Gravity.RIGHT); qs.setTextDirection(View.TEXT_DIRECTION_RTL);
+        qs.setText("تبقى القصة ظاهرة في ملفك الشخصي دائماً حتى بعد انتهاء مدتها"); tsz(qs, 11.5f); qs.setTextColor(spSub());
+        qs.setLineSpacing(0, 1.15f);
+        LinearLayout.LayoutParams qsl = new LinearLayout.LayoutParams(-1, -2);
+        qsl.topMargin = px(3);
+        pcopy.addView(qt, new LinearLayout.LayoutParams(-1, -2)); pcopy.addView(qs, qsl);
+        LinearLayout.LayoutParams pcl = new LinearLayout.LayoutParams(0, -2, 1f);
+        pcl.setMarginStart(px(12)); pcl.setMarginEnd(px(12));
+        FrameLayout psw = new FrameLayout(act);
+        permSwitchTrack = new View(act);
+        permSwitchKnob = new View(act);
+        psw.addView(permSwitchTrack, new FrameLayout.LayoutParams(px(48), px(28)));
+        FrameLayout.LayoutParams pkp = new FrameLayout.LayoutParams(px(22), px(22));
+        pkp.topMargin = px(3);
+        psw.addView(permSwitchKnob, pkp);
+        permRow.addView(psw, new LinearLayout.LayoutParams(px(48), px(28)));
+        permRow.addView(pcopy, pcl);
+        permRow.addView(spIcon(R.drawable.ic_tile_eye, spGold(), 34, 19, spSoft(), 11));
+        permRow.setOnClickListener(v -> { if (!publishing) { permanent = !permanent; refreshPerm(); } });
+        permCard.addView(permRow, new LinearLayout.LayoutParams(-1, -2));
+        refreshPerm();
+        body.addView(permCard, spCardLp());
+
         // ---- .sp-footer
         View fline = new View(act);
         fline.setBackgroundColor(spBorder());
@@ -744,6 +781,16 @@ public final class StoryComposer {
         pinSwitchKnob.setLayoutParams(kp);
     }
 
+    private void refreshPerm() {
+        if (permSwitchTrack == null) return;
+        permSwitchTrack.setBackground(permanent ? goldGrad(999) : box(spBorder(), 999, 0));
+        permSwitchKnob.setBackground(box(0xFFFFFFFF, 999, 0));
+        permSwitchKnob.setElevation(px(1.5f));
+        FrameLayout.LayoutParams kp = (FrameLayout.LayoutParams) permSwitchKnob.getLayoutParams();
+        kp.setMarginStart(permanent ? px(23) : px(3));
+        permSwitchKnob.setLayoutParams(kp);
+    }
+
     private void playPreview() {
         if (previewVid == null || videoUri == null) return;
         try {
@@ -815,6 +862,15 @@ public final class StoryComposer {
                     showErr("وصلت إلى الحد الأقصى: 3 قصص نشطة");
                     return;
                 }
+                if (pin) {   // حدّ التثبيت 6 قصص
+                    int pc = 0;
+                    for (com.google.firebase.firestore.DocumentSnapshot d : snap.getDocuments()) { Boolean pn = d.getBoolean("pinned"); if (pn != null && pn) pc++; }
+                    if (pc >= 6) {
+                        setBusy(false, LBL_PUBLISH);
+                        showErr("الحد الأقصى للتثبيت 6 قصص");
+                        return;
+                    }
+                }
                 doPublish();
             })
             .addOnFailureListener(e -> {
@@ -856,6 +912,7 @@ public final class StoryComposer {
         m.put("createdAt", now);
         m.put("expiresAt", now + hrs * 3600000L);
         m.put("pinned", pinned);
+        m.put("permanent", permanent);   // إظهار دائم في الملف الشخصي
         if (videoUrl != null) {
             m.put("mediaType", "video");
             m.put("videoUrl", videoUrl);

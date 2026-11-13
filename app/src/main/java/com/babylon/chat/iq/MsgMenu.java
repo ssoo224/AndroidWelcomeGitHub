@@ -608,7 +608,17 @@ public final class MsgMenu {
      */
     public static void showMsgDelete(final Activity act, final boolean dark, String title, String question,
                                      String checkLabel, final ChatDelCb cb) {
-        buildDelete(act, dark, true, title, question, checkLabel, cb);
+        buildDelete(act, dark, true, title, question, checkLabel, "حذف", new int[]{0xFFFF6A70, 0xFFC52D3A}, cb);
+    }
+
+    /**
+     * نافذة تأكيد بنفس قالب «حذف الرسالة» تماماً (ثيم المحادثة، نفس الأبعاد والحركة)،
+     * لكن زر التأكيد بالذهبي المتدرّج (نفس goldShape) بدل الأحمر — مثل «إلغاء التثبيت».
+     */
+    public static void showMsgConfirm(final Activity act, final boolean dark, String title, String question,
+                                      String okLabel, final Runnable onOk) {
+        buildDelete(act, dark, true, title, question, null, okLabel, new int[]{0xFFF5D875, 0xFFB98B23},
+                both -> { if (onOk != null) onOk.run(); });
     }
 
     private static int blend(int c, int to, float f) {
@@ -619,7 +629,7 @@ public final class MsgMenu {
     }
 
     private static void buildDelete(final Activity act, final boolean dark, boolean usePal, String title, CharSequence question,
-                                    String checkLabel, final ChatDelCb cb) {
+                                    String checkLabel, String okLabel, int[] okColors, final ChatDelCb cb) {
         final ChatThemes.Pal pal = usePal ? Tk.chatPal : null;
         final int cardC  = pal != null ? (pal.other | 0xFF000000) : (dark ? 0xFF17212B : 0xFFFFFFFF);
         final int textC  = pal != null ? (pal.textOther | 0xFF000000) : (dark ? 0xFFF1F5F9 : 0xFF16202B);
@@ -705,9 +715,9 @@ public final class MsgMenu {
         btns.setOrientation(LinearLayout.HORIZONTAL);
         btns.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         TextView ok = new TextView(act);
-        ok.setText("حذف"); ok.setTextSize(15.5f); ok.setTypeface(null, Typeface.BOLD);
+        ok.setText(okLabel); ok.setTextSize(15.5f); ok.setTypeface(null, Typeface.BOLD);
         ok.setTextColor(0xFFFFFFFF); ok.setGravity(Gravity.CENTER); ok.setClickable(true);
-        GradientDrawable og = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFFF6A70, 0xFFC52D3A});
+        GradientDrawable og = new GradientDrawable(GradientDrawable.Orientation.TL_BR, okColors);
         og.setCornerRadius(dp(act, 16));
         ok.setBackground(og);
         ok.setOnClickListener(v -> { final boolean b = both[0]; dismiss(); cb.onDelete(b); });
@@ -732,6 +742,48 @@ public final class MsgMenu {
         root.addView(card, lp);
         card.setAlpha(0f); card.setScaleX(.92f); card.setScaleY(.92f);
         card.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(160).start();
+        followKeyboard(root);
+    }
+
+    /**
+     * عند ظهور لوحة المفاتيح ترتفع البطاقة معها وتهبط عند إخفائها: يُرفع قاع الطبقة بمقدار ارتفاع اللوحة
+     * فتبقى البطاقة (المتمركزة) ضمن المساحة المرئية. يُحسب الارتفاع من الإطار المرئي للنافذة بعد خصم شريط النظام.
+     */
+    private static void followKeyboard(final FrameLayout root) {
+        final int[] cur = {0};
+        final android.animation.ValueAnimator[] anim = {null};
+        final android.view.ViewTreeObserver.OnGlobalLayoutListener l = () -> {
+            try {
+                android.graphics.Rect vis = new android.graphics.Rect();
+                root.getWindowVisibleDisplayFrame(vis);
+                int[] loc = new int[2];
+                root.getLocationOnScreen(loc);
+                int overlap = (loc[1] + root.getHeight()) - vis.bottom;   // ما يغطّيه من الطبقة (الحشوة لا تغيّر ارتفاعها)
+                int stable = 0;
+                android.view.WindowInsets wi = root.getRootWindowInsets();
+                if (wi != null) stable = wi.getStableInsetBottom();
+                int target = Math.max(0, overlap - stable);
+                if (target < dp(root.getContext(), 80)) target = 0;   // أصغر من أي لوحة مفاتيح: لا شيء يُرفع
+                if (target == cur[0] || (anim[0] != null && anim[0].isRunning() && (int) anim[0].getAnimatedValue() == target)) return;
+                final int from = cur[0], to = target;
+                if (anim[0] != null) anim[0].cancel();
+                anim[0] = android.animation.ValueAnimator.ofInt(from, to);
+                anim[0].setDuration(180);
+                anim[0].addUpdateListener(a -> {
+                    cur[0] = (Integer) a.getAnimatedValue();
+                    root.setPadding(0, 0, 0, cur[0]);
+                });
+                anim[0].start();
+            } catch (Throwable ignored) { }
+        };
+        root.getViewTreeObserver().addOnGlobalLayoutListener(l);
+        root.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+            @Override public void onViewAttachedToWindow(View v) { }
+            @Override public void onViewDetachedFromWindow(View v) {
+                try { v.getViewTreeObserver().removeOnGlobalLayoutListener(l); } catch (Throwable ignored) { }
+                if (anim[0] != null) anim[0].cancel();
+            }
+        });
     }
 
     // ------------------------------------------------------------------ نافذة حذف المحادثة (openDeleteChatsDialog / .cl-dlg.cl-del في الـ HTML)
@@ -754,7 +806,7 @@ public final class MsgMenu {
             sb.setSpan(new android.text.style.StyleSpan(Typeface.BOLD), a, sb.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
         sb.append(post == null ? "" : post);
-        buildDelete(act, dark, false, title, sb, checkLabel, cb);
+        buildDelete(act, dark, false, title, sb, checkLabel, "حذف", new int[]{0xFFFF6A70, 0xFFC52D3A}, cb);
     }
 
     private static View dialogBtn(Context c, String label, int fill, int fg, int stroke, final Runnable r) {
