@@ -3792,6 +3792,8 @@ public class MassActivity extends Activity {
                 };
                 final com.google.firebase.firestore.EventListener<com.google.firebase.firestore.QuerySnapshot> onSnap = (snapshots, e) -> {
                         if (e != null || snapshots == null) return;
+                        // لقطة محلية فارغة مؤقتة: انتظر لقطة السيرفر لتُعدّ «الأولى»، وإلا تُرسم كل الرسائل كأنها جديدة (حركة ظهور لكل رسالة) بلا كشف سلس
+                        if (firstSnap[0] && snapshots.isEmpty() && snapshots.getMetadata().isFromCache()) return;
                         final boolean wasFirst = firstSnap[0];
                         firstSnap[0] = false;
                         final boolean rebuilt = !cacheRenderedIds.isEmpty() && reconcileCachedMsgs(snapshots);
@@ -3804,10 +3806,11 @@ public class MassActivity extends Activity {
                             if (dc.getType() == DocumentChange.Type.MODIFIED) {
                                 DocumentSnapshot md = dc.getDocument();
                                 View mv = msgViewsById.get(md.getId());
-                                if (mv != null) applyReactions(md.getId(), mv, md.get("reactions"));
+                                // MetadataChanges.INCLUDE يُصدر MODIFIED لكل الرسائل عند وصول تأكيد السيرفر: أعِد الرسم فقط إن تغيّر المحتوى فعلاً (وإلا ترمش التفاعلات والعلامات)
+                                if (mv != null && !reactSame(md.getId(), md.get("reactions"))) applyReactions(md.getId(), mv, md.get("reactions"));
                                 if (mv != null && myUid.equals(md.getString("sender"))) {
                                     boolean rd = Boolean.TRUE.equals(md.getBoolean("read"));
-                                    MsgViews.setState(mv, rd ? MsgViews.READ : (md.getMetadata().hasPendingWrites() ? MsgViews.WAIT : MsgViews.SENT));
+                                    setTickIfChanged(md.getId(), mv, rd ? MsgViews.READ : (md.getMetadata().hasPendingWrites() ? MsgViews.WAIT : MsgViews.SENT));
                                 }
                                 continue;
                             }
@@ -3880,6 +3883,13 @@ public class MassActivity extends Activity {
                         if (ts > 0) d.put("timestamp", ts);
                         if (o.has("read")) d.put("read", o.optBoolean("read"));
                         if (o.has("forwarded")) d.put("forwarded", o.optBoolean("forwarded"));
+                        org.json.JSONObject rxj = o.optJSONObject("reactions");
+                        if (rxj != null) {
+                            HashMap<String, Object> rxm = new HashMap<>();
+                            java.util.Iterator<String> rki = rxj.keys();
+                            while (rki.hasNext()) { String rk = rki.next(); String rv = rxj.optString(rk, ""); if (rv.length() > 0) rxm.put(rk, rv); }
+                            if (!rxm.isEmpty()) d.put("reactions", rxm);
+                        }
                         for (String k : new String[]{"replyTo", "replyToSenderId", "replyToId", "replyToType"})
                             if (o.has(k)) d.put(k, o.optString(k));
                         if (o.optBoolean("storyReply", false)) {
@@ -3934,6 +3944,8 @@ public class MassActivity extends Activity {
                         if (rd != null) o.put("read", rd.booleanValue());
                         Boolean fw = gBool(m, "forwarded");
                         if (fw != null) o.put("forwarded", fw.booleanValue());
+                        Object rxo = m.get("reactions");   // التفاعلات تُحفظ أيضاً: بدونها تظهر بعد وصول السيرفر فيتغيّر ارتفاع الرسائل (وميض)
+                        if (rxo instanceof Map && !((Map<?, ?>) rxo).isEmpty()) o.put("reactions", new org.json.JSONObject((Map<?, ?>) rxo));
                         for (String k : new String[]{"replyTo", "replyToSenderId", "replyToId", "replyToType"}) {
                             String v = gStr(m, k);
                             if (v != null) o.put(k, v);
@@ -3965,14 +3977,36 @@ public class MassActivity extends Activity {
                 } catch (Throwable ignored) { }
             }
 
+            final java.util.HashMap<String, Integer> tickState = new java.util.HashMap<>();   // msgId -> آخر حالة علامة رُسمت
+
+            void setTickIfChanged(String id, View mv, int ns) {
+                Integer cur = tickState.get(id);
+                if (cur != null && cur == ns) return;
+                MsgViews.setState(mv, ns);
+                tickState.put(id, ns);
+            }
+
+            /** هل تفاعلات الرسالة المرسومة هي نفسها الواردة؟ (null = لا تفاعلات = خريطة فارغة) */
+            boolean reactSame(String id, Object raw) {
+                if (!reactRaw.containsKey(id)) return false;
+                Object o = reactRaw.get(id);
+                boolean oe = o == null || (o instanceof Map && ((Map<?, ?>) o).isEmpty());
+                boolean ne = raw == null || (raw instanceof Map && ((Map<?, ?>) raw).isEmpty());
+                if (oe || ne) return oe && ne;
+                return o.equals(raw);
+            }
+
             /** يوفّق الرسائل المرسومة من الخزن مع لقطة السيرفر. يرجع true إذا أُعيد بناء المحادثة بالكامل. */
             boolean reconcileCachedMsgs(com.google.firebase.firestore.QuerySnapshot sn) {
                 boolean needRebuild = false;
                 java.util.HashSet<String> srv = new java.util.HashSet<>();
+                final java.util.Set<String> hidR = hiddenSet();      // المحذوفة «لدي فقط» والمحذوفة بحذف المحادثة موجودة في السيرفر وغائبة عن الخزن عمداً:
+                final long clrR = chatClearedAt(currentChatId);      // عدّها «ناقصة» كان يُعيد بناء المحادثة كلها (ترمش) في كل دخول
                 for (DocumentSnapshot dd : sn.getDocuments()) {
                     srv.add(dd.getId());
-                    if (!renderedMsgIds.contains(dd.getId())) {
+                    if (!renderedMsgIds.contains(dd.getId()) && !hidR.contains(dd.getId())) {
                         Long t = dd.getLong("timestamp");
+                        if (clrR > 0 && t != null && t > 0 && t <= clrR) continue;
                         // رسالة أقدم من آخر رسالة محفوظة (مثل صورة) ليست في الخزن: إضافتها بالنهاية تُفسد الترتيب
                         if (t != null && t < cacheMaxTs) { needRebuild = true; break; }
                     }
@@ -3996,10 +4030,10 @@ public class MassActivity extends Activity {
             void syncRenderedMsg(String id, DocumentSnapshot md) {
                 View mv = msgViewsById.get(id);
                 if (mv == null) return;
-                try { applyReactions(id, mv, md.get("reactions")); } catch (Throwable ignored) { }
+                try { if (!reactSame(id, md.get("reactions"))) applyReactions(id, mv, md.get("reactions")); } catch (Throwable ignored) { }
                 boolean rd = Boolean.TRUE.equals(md.getBoolean("read"));
                 if (myUid.equals(md.getString("sender"))) {
-                    try { MsgViews.setState(mv, rd ? MsgViews.READ : (md.getMetadata().hasPendingWrites() ? MsgViews.WAIT : MsgViews.SENT)); } catch (Throwable ignored) { }
+                    try { setTickIfChanged(id, mv, rd ? MsgViews.READ : (md.getMetadata().hasPendingWrites() ? MsgViews.WAIT : MsgViews.SENT)); } catch (Throwable ignored) { }
                 } else if (!rd) {
                     try { md.getReference().update("read", true); } catch (Throwable ignored) { }
                 }
@@ -4089,7 +4123,7 @@ public class MassActivity extends Activity {
                                             ((LinearLayout) last).addView(fl, 0);
                                             style(fl);
                                         }
-                                        if (mine) MsgViews.setState(last, state);
+                                        if (mine) { MsgViews.setState(last, state); tickState.put(id, state); }
                                         applyReactions(id, last, d.get("reactions"));
                                     }
                                     scrollDown();
