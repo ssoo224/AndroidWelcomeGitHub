@@ -2331,6 +2331,7 @@ public class MassActivity extends Activity {
                         long ts = o.optLong("ts", 0L);
                         String un = o.optString("unread", "0");
                         String cid = o.optString("cid");
+                        try { if (chatIsCleared(cid.isEmpty() ? getChatId(myUid, uid) : cid, ts)) continue; } catch (Throwable ignored) { }   // لا تُعاد محادثة محذوفة من الكاش
                         if (!"?".equals(nm)) nameCache.put(uid, nm);
                         unreadByUid.put(uid, un);
                         chatTsMap.put(uid, ts);
@@ -2369,6 +2370,7 @@ public class MassActivity extends Activity {
             final java.util.HashMap<String, ListenerRegistration> unreadRegs = new java.util.HashMap<>();
             final java.util.HashMap<String, Boolean> sentUnreadByUid = new java.util.HashMap<>();   // otherUid -> لي رسالة غير مقروءة لديه
             final java.util.HashMap<String, Boolean> lastMineByUid = new java.util.HashMap<>();     // otherUid -> آخر رسالة في القائمة مني (تُعرض علامة ✓/✓✓)
+            final java.util.HashMap<String, Boolean> lastSeenByUid = new java.util.HashMap<>();     // otherUid -> آخر رسالة في المحادثة مني وقد قُرئت فعلاً
             void watchUnread(final String chatId, final String otherId) {
                 if (chatId == null || chatId.isEmpty() || unreadRegs.containsKey(chatId)) return;
                 try {
@@ -2399,6 +2401,18 @@ public class MassActivity extends Activity {
                             if (changed) { try { buildChats(); } catch (Throwable ignored) { } }
                         });
                     unreadRegs.put(chatId, reg);
+                    // آخر رسالة في المحادثة: هي مصدر علامة ✓/✓✓ في القائمة (يعمل حتى مع الرسائل القديمة التي بلا حقل read)
+                    ListenerRegistration regLast = db.collection("chats").document(chatId).collection("messages")
+                        .orderBy("timestamp", Query.Direction.DESCENDING).limit(1)
+                        .addSnapshotListener((qs, err) -> {
+                            if (err != null || qs == null || qs.isEmpty()) return;
+                            DocumentSnapshot ld = qs.getDocuments().get(0);
+                            boolean mineLast = myUid.equals(ld.getString("sender")) || myUid.equals(ld.getString("senderId"));
+                            boolean seenNow = mineLast && Boolean.TRUE.equals(ld.getBoolean("read"));
+                            Boolean old = lastSeenByUid.put(otherId, seenNow);
+                            if (old == null || old != seenNow) { try { buildChats(); } catch (Throwable ignored) { } }
+                        });
+                    unreadRegs.put(chatId + "#last", regLast);
                 } catch (Throwable ignored) { }
             }
 
@@ -2997,7 +3011,8 @@ public class MassActivity extends Activity {
                     tm.setTextColor(hasUnread ? cGold() : (dark ? 0xFF8798AA : 0xFF6B7A8C)); tm.setIncludeFontPadding(false);
                     r1.addView(tm, new LinearLayout.LayoutParams(-2, -2));   // الوقت في أقصى اليسار
                     if (Boolean.TRUE.equals(lastMineByUid.get(rowUid))) {   // آخر رسالة مني: ✓ مرسلة، ✓✓ مقروءة (على يمين الوقت)
-                        boolean seen = !Boolean.TRUE.equals(sentUnreadByUid.get(rowUid)) && sentUnreadByUid.containsKey(rowUid);
+                        // ✓✓ فقط إن أكّد السيرفر أن آخر رسالة في المحادثة (وهي مني) read==true؛ قبل وصول البيانات تبقى ✓
+                        boolean seen = Boolean.TRUE.equals(lastSeenByUid.get(rowUid));
                         ImageView tk = new ImageView(act);
                         tk.setImageResource(seen ? R.drawable.ic_check_double_16 : R.drawable.ic_check_16);
                         tk.setColorFilter(seen ? cGold() : (dark ? 0xFF8798AA : 0xFF6B7A8C));
@@ -3564,32 +3579,68 @@ public class MassActivity extends Activity {
                     String[] c = it.next();
                     if (c.length > 4 && uids.contains(c[4])) it.remove();
                 }
+                // تنظيف النسخ المحلية للمحادثات المحذوفة (كاش الرسائل + الرسائل الوهمية + المخفية + تجاوز آخر رسالة)
+                for (String cid : stamps.keySet()) {
+                    try { LocalCache.removeMessages(cid); } catch (Throwable ignored) { }
+                    try { GhostStore.clear(act, cid); } catch (Throwable ignored) { }
+                    try { sp.edit().remove("hidden_msgs_" + cid).remove("lastov_" + cid).apply(); } catch (Throwable ignored) { }
+                }
                 exitChatSel(false);
                 buildChats();
                 try { buildStories(); } catch (Throwable ignored) { }
                 if (!both) return;
-                for (final java.util.Map.Entry<String, Long> e : stamps.entrySet()) {
-                    final String cid = e.getKey();
-                    java.util.Map<String, Object> d = new java.util.HashMap<>();
-                    d.put("clearedAll", e.getValue());
-                    db.collection("chats").document(cid).set(d, com.google.firebase.firestore.SetOptions.merge())
-                        .addOnSuccessListener(x -> purgeChatMessages(cid, 0, 0));
-                }
+                delFailShown = false;
+                for (final java.util.Map.Entry<String, Long> e : stamps.entrySet()) deleteChatForAll(e.getKey(), e.getValue());
             }
 
-            /** purgeChatMessages: يحذف رسائل المحادثة على دفعات 400؛ إن رفضت القواعد حذف الكل يحذف رسائلي فقط. */
-            void purgeChatMessages(final String cid, final int mode, final int round) {
-                if (round >= 30) return;
+            boolean delFailShown = false;
+
+            /** يبلّغ المستخدم بسبب فشل الحذف عند الطرف الآخر (مرة واحدة) بدل الفشل الصامت. */
+            void delFail(Exception e) {
+                if (delFailShown) return;
+                delFailShown = true;
+                boolean perm = e instanceof com.google.firebase.firestore.FirebaseFirestoreException
+                        && ((com.google.firebase.firestore.FirebaseFirestoreException) e).getCode() == com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED;
+                toast(perm ? "حُذفت عندك فقط: قواعد Firestore لا تسمح بالحذف عند الطرف الآخر"
+                           : "حُذفت عندك فقط: تعذر الحذف عند الطرف الآخر، تحقق من الاتصال");
+                android.util.Log.e("Babylon", "delete chat for all failed", e);
+            }
+
+            /**
+             * حذف محادثة عند الطرفين:
+             *  1) clearedAll في مستند المحادثة: يخفيها فوراً عند الطرف الآخر حتى لو فشل باقي الحذف.
+             *  2) حذف كل الرسائل على دفعات (إن رفضت القواعد حذف رسائل الغير تُحذف رسائلي فقط).
+             *  3) إن حُذفت كل الرسائل فعلاً يُحذف مستند المحادثة نفسه فتختفي من قائمة الطرف الآخر نهائياً.
+             */
+            void deleteChatForAll(final String cid, final long stamp) {
+                java.util.Map<String, Object> d = new java.util.HashMap<>();
+                d.put("clearedAll", stamp);
+                db.collection("chats").document(cid).set(d, com.google.firebase.firestore.SetOptions.merge()).addOnCompleteListener(t -> {
+                    final boolean flagOk = t.isSuccessful();
+                    if (!flagOk) delFail(t.getException());
+                    purgeChatMessages(cid, 0, 0, all -> {
+                        if (!all) { if (!flagOk) delFail(null); return; }
+                        db.collection("chats").document(cid).delete().addOnFailureListener(er -> { if (!flagOk) delFail(er); });
+                    });
+                });
+            }
+
+            /** purgeChatMessages: يحذف رسائل المحادثة على دفعات 400؛ done(true) فقط إن حُذف الكل، وإلا done(false) (حذف رسائلي فقط أو فشل). */
+            void purgeChatMessages(final String cid, final int mode, final int round, final com.google.android.gms.tasks.OnSuccessListener<Boolean> done) {
+                if (round >= 250) { done.onSuccess(false); return; }
                 Query q = db.collection("chats").document(cid).collection("messages").limit(400);
                 if (mode == 1) q = q.whereEqualTo("sender", myUid);
                 else if (mode == 2) q = q.whereEqualTo("senderId", myUid);
                 q.get().addOnSuccessListener(qs -> {
-                    if (qs.isEmpty()) { if (mode == 1) purgeChatMessages(cid, 2, 0); return; }
+                    if (qs.isEmpty()) {
+                        if (mode == 1) purgeChatMessages(cid, 2, 0, done); else done.onSuccess(mode == 0);
+                        return;
+                    }
                     com.google.firebase.firestore.WriteBatch b = db.batch();
                     for (DocumentSnapshot d : qs.getDocuments()) b.delete(d.getReference());
-                    b.commit().addOnSuccessListener(x -> purgeChatMessages(cid, mode, round + 1))
-                        .addOnFailureListener(er -> { if (mode == 0) purgeChatMessages(cid, 1, 0); });
-                }).addOnFailureListener(er -> { if (mode == 0) purgeChatMessages(cid, 1, 0); });
+                    b.commit().addOnSuccessListener(x -> purgeChatMessages(cid, mode, round + 1, done))
+                        .addOnFailureListener(er -> { if (mode == 0) purgeChatMessages(cid, 1, 0, done); else { delFail(er); done.onSuccess(false); } });
+                }).addOnFailureListener(er -> { if (mode == 0) purgeChatMessages(cid, 1, 0, done); else { delFail(er); done.onSuccess(false); } });
             }
 
             void deleteChatMessages(String chatId, Runnable onDone) {
@@ -3808,6 +3859,7 @@ public class MassActivity extends Activity {
             void renderCachedMessages(String chatId) {
                 cacheRenderedIds.clear(); cacheMaxTs = 0L;
                 try {
+                    if (!sp.getBoolean("cache_complete_" + chatId, false)) return;   // خزن ناقص: لا يُعرض (يُرسم كل شيء مرة واحدة من لقطة Firestore بدل رسمين متتاليين)
                     org.json.JSONArray arr = LocalCache.getMessages(chatId);
                     if (arr == null || arr.length() == 0) return;
                     java.util.Set<String> hid = hiddenSet();
@@ -3900,6 +3952,15 @@ public class MassActivity extends Activity {
                         rev.add(o);
                     }
                     for (int ri = rev.size() - 1; ri >= 0; ri--) out.put(rev.get(ri));   // ترتيب تصاعدي
+                    // الخزن «كامل» فقط إن احتوى كل رسائل المحادثة الظاهرة: عندها لا يجد السيرفر رسالة ناقصة فلا إعادة بناء.
+                    // المحادثات الأطول من 50 رسالة أو التي فيها ملفات/وسائط كبيرة لا تُعرض من الخزن (كانت تُمسح وتُعاد كلها عند وصول السيرفر = «إعادة تحميل» ظاهرة).
+                    int visible = 0;
+                    for (DocumentSnapshot dd : docs) {
+                        Long dts = dd.getLong("timestamp");
+                        boolean gone = hid.contains(dd.getId()) || (clr > 0 && dts != null && dts > 0 && dts <= clr);
+                        if (!gone) visible++;
+                    }
+                    sp.edit().putBoolean("cache_complete_" + chatId, rev.size() == visible).apply();
                     LocalCache.putMessages(chatId, out);
                 } catch (Throwable ignored) { }
             }
@@ -5264,6 +5325,7 @@ public class MassActivity extends Activity {
                     }
                     msg.put("sender", myUid);
                     msg.put("timestamp", base + sent);
+                    msg.put("read", false);
                     msg.put("forwarded", true);
                     db.collection("chats").document(tcid).collection("messages").add(msg);
                     sent++;
@@ -5884,6 +5946,7 @@ public class MassActivity extends Activity {
                 msg.put("text", fullText);
                 msg.put("sender", myUid);
                 msg.put("timestamp", System.currentTimeMillis());
+                msg.put("read", false);   // بدونه لا يطابق استعلام read==false فتظهر ✓✓ دائماً
                 if (replyText != null) {
                     msg.put("replyTo", replyText);
                     msg.put("replyToId", replyId == null ? "" : replyId);
@@ -6000,6 +6063,7 @@ public class MassActivity extends Activity {
                 if (mime != null) msg.put("mime", mime);
                 msg.put("sender", myUid);
                 msg.put("timestamp", System.currentTimeMillis());
+                msg.put("read", false);
                 if (replyText != null) {   // الرد على رسالة يشمل الصور والصوتيات أيضاً (bbReplyFields في الـ HTML)
                     msg.put("replyTo", replyText);
                     msg.put("replyToId", replyId == null ? "" : replyId);
@@ -6119,6 +6183,7 @@ public class MassActivity extends Activity {
                             msg.put("senderId", myUid);
                             msg.put("timestamp", nowT);
                             msg.put("createdAt", nowT);
+                            msg.put("read", false);
                             msg.putAll(rf);
                             if (ghost) {
                                 if (chatId.equals(currentChatId)) sendGhost(msg);
@@ -7495,7 +7560,7 @@ public class MassActivity extends Activity {
                 avatarsClear();
                 try { LocalCache.clearAll(); } catch (Throwable ignored) { }
                 vpStop();   // تسجيل الخروج يوقف الصوتية (if(cur&&!currentUser) stop() في الـ HTML)
-                try { for (ListenerRegistration ur : unreadRegs.values()) ur.remove(); unreadRegs.clear(); unreadByUid.clear(); } catch (Throwable ignored) { }
+                try { for (ListenerRegistration ur : unreadRegs.values()) ur.remove(); unreadRegs.clear(); unreadByUid.clear(); lastSeenByUid.clear(); } catch (Throwable ignored) { }
                 mAuth.signOut();
                 sp.edit().putBoolean("logged", false).apply();
                 Intent out = new Intent(act, Main2Activity.class);

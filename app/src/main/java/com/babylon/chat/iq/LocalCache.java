@@ -118,6 +118,18 @@ final class LocalCache {
         } catch (Throwable ignored) { }
     }
 
+    /** يحذف كاش رسائل محادثة واحدة (عند حذفها). */
+    static void removeMessages(String chatId) {
+        final File d = dir;
+        if (d == null) return;
+        final String name = "msgs_" + safeName(chatId) + ".json";
+        try {
+            IO.execute(() -> {
+                try { new File(d, name).delete(); new File(d, name + ".tmp").delete(); } catch (Throwable ignored) { }
+            });
+        } catch (Throwable ignored) { }
+    }
+
     // ------------------------------------------------------------------ مسح (تسجيل الخروج)
     static void clearAll() {
         final File d = dir;

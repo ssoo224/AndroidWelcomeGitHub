@@ -41,6 +41,11 @@ final class GhostStore {
         catch (Throwable t) { return new JSONArray(); }
     }
 
+    /** يمسح الرسائل الوهمية المحفوظة لمحادثة (عند حذفها). */
+    static synchronized void clear(Context c, String chatId) {
+        try { sp(c).edit().remove(chatId).apply(); } catch (Throwable ignored) { }
+    }
+
     /** آخر رسالة وهمية: {المعاينة، الوقت} أو null. */
     static String[] last(Context c, String chatId) {
         try {
