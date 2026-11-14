@@ -222,6 +222,10 @@ public final class MsgViews {
         @Override public void onClick(View v) {
             try {
                 String u = url;
+                if (!u.matches("(?i)^[a-z][a-z0-9+.-]*:.*")) u = "https://" + u;
+                // رابط داخلي babylon://u/username: يُفتح داخل التطبيق مباشرة
+                if (v.getContext() instanceof MassActivity && ((MassActivity) v.getContext()).handleDeepLink(android.net.Uri.parse(u))) return;
+                u = url;
                 if (!u.matches("(?i)^[a-z][a-z0-9+.-]*:.*")) u = "http://" + u;
                 v.getContext().startActivity(new android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(u)));
             } catch (Throwable ignored) { }
@@ -234,6 +238,7 @@ public final class MsgViews {
         if (!(cs instanceof android.text.Spannable)) return;
         final android.text.Spannable sp = (android.text.Spannable) cs;
         android.text.util.Linkify.addLinks(sp, android.text.util.Linkify.WEB_URLS | android.text.util.Linkify.EMAIL_ADDRESSES);
+        android.text.util.Linkify.addLinks(sp, java.util.regex.Pattern.compile("babylon://u/[\\w.]+", java.util.regex.Pattern.CASE_INSENSITIVE), "babylon://");   // رابط داخلي إلى ملف مستخدم
         android.text.style.URLSpan[] us = sp.getSpans(0, sp.length(), android.text.style.URLSpan.class);
         if (us.length == 0) return;
         for (android.text.style.URLSpan u : us) {

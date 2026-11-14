@@ -85,6 +85,38 @@ public class MassActivity extends Activity {
     private final java.util.Set<String> renderedMsgIds = new java.util.HashSet<>();
     private ListenerRegistration pinsListener;                       // الرسائل المثبتة: chats/{id}.pins
     private Runnable vpStopHook;                                      // يوقف مشغّل الصوت عند الإغلاق (UI صنف محلي)
+    /** فتح ملف مستخدم من رابط ba.iq/username (تُسنَد من initializeLogic بعد بناء الواجهة). */
+    private interface ListCb { void done(java.util.List<String> list); }
+    /** صور المستخدم (base64، الأحدث أولاً) مخزّنة مؤقتاً لكل uid؛ المصدر users/{uid}/photos. */
+    private final java.util.HashMap<String, java.util.List<String>> photoListCache = new java.util.HashMap<>();
+    private interface DeepCb { void open(String username); }
+    private DeepCb deepOpener;
+    private String pendingDeepUser;
+
+    /** يفتح ملف المستخدم من رابط داخلي babylon://u/username؛ يُرجع true إن كان الرابط من هذا النوع. */
+    public boolean handleDeepLink(android.net.Uri u) {
+        try {
+            if (u == null || u.getHost() == null) return false;
+            String h = u.getHost().toLowerCase();
+            boolean scheme = "babylon".equalsIgnoreCase(u.getScheme()) && h.equals("u");   // رابط داخلي فقط: babylon://u/username
+            if (!scheme) return false;
+            java.util.List<String> seg = u.getPathSegments();
+            String name = seg == null || seg.isEmpty() ? "" : seg.get(0);
+            if (name.startsWith("@")) name = name.substring(1);
+            name = name.trim().toLowerCase();
+            if (name.isEmpty()) return true;
+            if (deepOpener != null) deepOpener.open(name); else pendingDeepUser = name;
+            return true;
+        } catch (Throwable t) { return false; }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (intent != null && intent.getData() != null) handleDeepLink(intent.getData());
+    }
+
     private java.util.function.BooleanSupplier backHook;             // زر الرجوع يلغي تحديد الرسائل أولاً
     private java.util.function.Consumer<android.view.MotionEvent> touchHook;   // نقرة واحدة في أي مكان تُلغي تحديد الرسائل
 
@@ -123,6 +155,10 @@ public class MassActivity extends Activity {
             db = FirebaseFirestore.getInstance();
 
             if (currentUser == null) {
+                try {   // الرابط يُحفظ ليُفتح بعد تسجيل الدخول
+                    if (getIntent() != null && getIntent().getData() != null)
+                        getSharedPreferences("babylon_boot", MODE_PRIVATE).edit().putString("pending_link", getIntent().getData().toString()).apply();
+                } catch (Throwable ignored) { }
                 startActivity(new Intent(this, Main2Activity.class));
                 finish();
                 return;
@@ -140,6 +176,17 @@ public class MassActivity extends Activity {
             saveAndDie(e, "initializeLogic");
             return;
         }
+
+        // رابط ba.iq/username: من الـIntent الحالي أو المحفوظ قبل تسجيل الدخول
+        try {
+            android.net.Uri link = getIntent() != null ? getIntent().getData() : null;
+            android.content.SharedPreferences bp = getSharedPreferences("babylon_boot", MODE_PRIVATE);
+            String saved = bp.getString("pending_link", null);
+            if (link == null && saved != null) link = android.net.Uri.parse(saved);
+            if (saved != null) bp.edit().remove("pending_link").apply();
+            final android.net.Uri fl = link;
+            if (fl != null) getWindow().getDecorView().postDelayed(() -> handleDeepLink(fl), 500);
+        } catch (Throwable ignored) { }
 
         // إشعار قادم من شاشة الدخول (تم تسجيل الدخول / تم إنشاء الحساب)
         final String carried = getIntent() != null ? getIntent().getStringExtra("bb_toast") : null;
@@ -371,6 +418,7 @@ public class MassActivity extends Activity {
             String userName = "", userUsername = "", userBio = "", userGov = "", userEmail = "", userJoin = "";
             String userPhoto = "", shownPhoto = "";
             Bitmap photoBmp = null;
+            String otherPhotoRaw = "";                  // نص صورة الشخص المعروض (base64/رابط) لقائمة الصور
             Bitmap otherPhotoBmp = null;                // صورة الشخص المعروض (بروفايل الشخص الآخر)
 
             int dp(float d) { return (int) (d * act.getResources().getDisplayMetrics().density + 0.5f); }
@@ -697,6 +745,29 @@ public class MassActivity extends Activity {
                     pat.setTag("pattern");
                     f.addView(pat, 0, new FrameLayout.LayoutParams(-1, -1));
                 }
+                // ⋮ في ملفي (الصورة مصغّرة): نفس زر النقاط الثلاث وقائمته «حفظ الصورة» (في وضع التكبير يظهر مع العدّاد)
+                if (f.getId() == R.id.frame_layout642 && f.findViewWithTag("dots") == null) {
+                    final float dd = act.getResources().getDisplayMetrics().density;
+                    View dots = new View(act) {
+                        private final android.graphics.Paint pt = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+                        @Override protected void onDraw(android.graphics.Canvas c) {
+                            float cx = getWidth() / 2f, cy = getHeight() / 2f;
+                            pt.setColor(0x4D000000);
+                            c.drawCircle(cx, cy, 17f * dd, pt);
+                            pt.setColor(0xFFFFFFFF);
+                            c.drawCircle(cx, cy - 6f * dd, 2f * dd, pt);
+                            c.drawCircle(cx, cy, 2f * dd, pt);
+                            c.drawCircle(cx, cy + 6f * dd, 2f * dd, pt);
+                        }
+                    };
+                    dots.setTag("dots");
+                    dots.setClickable(true);
+                    dots.setOnClickListener(x -> photoMenu(x, photoBmp));
+                    FrameLayout.LayoutParams dl = new FrameLayout.LayoutParams(dp(48), dp(48), Gravity.TOP | Gravity.RIGHT);
+                    dl.topMargin = dp(5);
+                    dl.rightMargin = dp(7);
+                    f.addView(dots, dl);
+                }
                 f.requestLayout();
             }
 
@@ -837,21 +908,89 @@ public class MassActivity extends Activity {
             /** handleAvatarClick / openOtherStories: الضغط على صورة الملف الشخصي يفتح القصة بقوس دوّار (أو النشر إن لم توجد قصة). */
             void wireProfileAvatarClicks() {
                 final TextView mineAv = tv("pAvatarText"), otherAv = tv("otherAvatarText");
-                if (mineAv != null) mineAv.setOnClickListener(vw -> {
-                    if (hasStoryFor(true)) {
-                        android.graphics.drawable.Drawable bg = mineAv.getBackground();
-                        CharSequence lt = mineAv.getText();
-                        openStory(myUid, "قصتي", lt != null && lt.length() > 0 ? lt.toString().substring(0, 1) : "?", photoBmp, false,
-                                bg instanceof ProfileRing ? (StoryViewer.Spin) bg : null);
-                    } else startStoryPublish();
-                });
-                if (otherAv != null) otherAv.setOnClickListener(vw -> {
+                final Runnable storyMine = () -> {
+                    android.graphics.drawable.Drawable bg = mineAv.getBackground();
+                    CharSequence lt = mineAv.getText();
+                    openStory(myUid, "قصتي", lt != null && lt.length() > 0 ? lt.toString().substring(0, 1) : "?", photoBmp, false,
+                            bg instanceof ProfileRing ? (StoryViewer.Spin) bg : null);
+                };
+                final Runnable storyOther = () -> {
                     if (otherUid == null || otherUid.isEmpty() || !hasStoryFor(false)) return;
                     android.graphics.drawable.Drawable bg = otherAv.getBackground();
                     String nm = dispName(otherUid, "");
                     openStory(otherUid, nm, nm.length() > 0 ? nm.substring(0, 1).toUpperCase() : "?", otherPhotoBmp, StoryAvatarView.toneBlue(otherUid),
                             bg instanceof ProfileRing ? (StoryViewer.Spin) bg : null);
-                });
+                };
+                if (mineAv != null) {
+                    mineAv.setOnClickListener(vw -> { if (hasStoryFor(true)) storyMine.run(); else startStoryPublish(); });
+                    // ضغط مطوّل: يعرض الصورة؛ وإن وُجدت قصة يظهر خياران (مشاهدة القصة / عرض الصورة)
+                    mineAv.setOnLongClickListener(vw -> {
+                        vw.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+                        final Runnable showPhoto = () -> {
+                            if (photoBmp == null) { toast("لا توجد صورة لعرضها"); return; }
+                            openGallery(myUid, userPhoto, photoBmp, tv("pHeaderName") != null ? tv("pHeaderName").getText() : "", tv("pHeaderStatus") != null ? tv("pHeaderStatus").getText() : "");
+                        };
+                        if (hasStoryFor(true)) avatarMenu(vw, storyMine, showPhoto); else showPhoto.run();
+                        return true;
+                    });
+                }
+                if (otherAv != null) {
+                    otherAv.setOnClickListener(vw -> storyOther.run());
+                    otherAv.setOnLongClickListener(vw -> {
+                        vw.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+                        final Runnable showPhoto = () -> {
+                            if (otherPhotoBmp == null) { toast("لا توجد صورة لعرضها"); return; }
+                            openGallery(otherUid, otherPhotoRaw, otherPhotoBmp, tv("otherHeaderName") != null ? tv("otherHeaderName").getText() : "", tv("otherHeaderStatus") != null ? tv("otherHeaderStatus").getText() : "");
+                        };
+                        if (hasStoryFor(false)) avatarMenu(vw, storyOther, showPhoto); else showPhoto.run();
+                        return true;
+                    });
+                }
+            }
+
+            /** قائمة الضغط المطوّل على الصورة عند وجود قصة: «مشاهدة القصة» و«عرض الصورة». */
+            void avatarMenu(final View anchor, final Runnable onStory, final Runnable onPhoto) {
+                final View host = v("root");
+                if (anchor == null || host == null) return;
+                final int txt = dark ? 0xFFF1F5F9 : 0xFF17212B;
+                final android.widget.PopupWindow[] pwRef = new android.widget.PopupWindow[1];
+                LinearLayout card = new LinearLayout(act);
+                card.setOrientation(LinearLayout.VERTICAL);
+                card.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                card.setMinimumWidth(dp(190));
+                card.setPadding(dp(6), dp(6), dp(6), dp(6));
+                GradientDrawable bg = new GradientDrawable();
+                bg.setColor(dark ? 0xFF1B2230 : 0xFFFFFFFF);
+                bg.setCornerRadius(dp(16));
+                bg.setStroke(dp(1), dark ? 0xFF2E3848 : 0xFFE1E6EE);
+                card.setBackground(bg);
+                View st = menuItem(R.drawable.ic_tile_eye, "مشاهدة القصة", txt);
+                st.setOnClickListener(x -> { pwRef[0].dismiss(); onStory.run(); });
+                View ph = menuItem(R.drawable.ic_sv_image, "عرض الصورة", txt);
+                ph.setOnClickListener(x -> { pwRef[0].dismiss(); onPhoto.run(); });
+                card.addView(st);
+                card.addView(ph);
+                FrameLayout holder = new FrameLayout(act);
+                holder.setClipChildren(false);
+                holder.setPadding(dp(10), 0, dp(10), dp(16));
+                holder.addView(card, new FrameLayout.LayoutParams(-2, -2));
+                final android.widget.PopupWindow pw = new android.widget.PopupWindow(holder, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true);
+                pwRef[0] = pw;
+                pw.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0));
+                pw.setOutsideTouchable(true);
+                pw.setClippingEnabled(false);
+                card.measure(View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+                int cardW = Math.max(card.getMeasuredWidth(), dp(190));
+                int[] loc = new int[2];
+                anchor.getLocationOnScreen(loc);
+                int sw = act.getResources().getDisplayMetrics().widthPixels;
+                int cx = loc[0] + anchor.getWidth() / 2;
+                int cardX = Math.max(dp(10), Math.min(sw - dp(10) - cardW, cx - cardW / 2));
+                pw.showAtLocation(host, Gravity.TOP | Gravity.LEFT, cardX - dp(10), loc[1] + anchor.getHeight() - dp(4));
+                holder.setPivotX(cx - cardX + dp(10)); holder.setPivotY(0f);
+                holder.setAlpha(0f); holder.setScaleX(0.5f); holder.setScaleY(0.5f);
+                holder.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(180)
+                        .setInterpolator(new android.view.animation.OvershootInterpolator(1.1f)).start();
             }
 
             void refreshProfileRings() {
@@ -1055,7 +1194,7 @@ public class MassActivity extends Activity {
                 }
             }
 
-            /** بطاقة «نوع الخط» أسفل المظهر والمحادثات: عادي / عريض / نسخ / مضغوط / آلة كاتبة؛ الاختيار يغيّر خط التطبيق كله. */
+            /** بطاقة «نوع الخط» أسفل المظهر والمحادثات: عادي / عريض / نسخ عربي / أميري / آلة كاتبة؛ الاختيار يغيّر خط التطبيق كله. */
             void buildFontStrip() {
                 View sv = v("fontStrip");
                 if (!(sv instanceof LinearLayout)) return;
@@ -1079,12 +1218,13 @@ public class MassActivity extends Activity {
                     });
                     TextView sample = new TextView(act);
                     sample.setText("أبجد Aa");
-                    sample.setTextSize(17);
+                    sample.setTextSize(id.startsWith("ar_") ? 15.5f : 17f);   // الخطوط العربية المرفقة أطول ارتفاعاً فتُصغَّر قليلاً
                     sample.setTypeface(FontManager.preview(id));
+                    sample.setSingleLine(true);
                     sample.setTextColor(on ? cGold() : cText());
                     sample.setGravity(Gravity.CENTER);
                     sample.setIncludeFontPadding(false);
-                    chip.addView(sample, new LinearLayout.LayoutParams(-2, -2));
+                    chip.addView(sample, new LinearLayout.LayoutParams(-2, dp(30)));   // ارتفاع ثابت: كل المربعات بنفس الحجم مهما كان ارتفاع الخط
                     TextView lab = new TextView(act);
                     lab.setText(FontManager.LABELS[i]);
                     lab.setTextSize(11.5f);
@@ -1888,10 +2028,28 @@ public class MassActivity extends Activity {
             }
 
             /** قائمة النقاط الثلاث لبروفايل الآخر (#otherTopMenu): إضافة/تعديل/حذف جهة الدردشة. */
+            /** يفتح ملف المستخدم صاحب @username (من رابط ba.iq/username). */
+            void openProfileByUsername(final String uname) {
+                if (uname == null || uname.isEmpty()) return;
+                db.collection("users").whereEqualTo("username", uname).limit(1).get().addOnSuccessListener(qs -> {
+                    try {
+                        if (qs == null || qs.isEmpty()) { AppToast.show(act, "المستخدم غير موجود"); return; }
+                        com.google.firebase.firestore.DocumentSnapshot d = qs.getDocuments().get(0);
+                        String uid = d.getId();
+                        if (uid.equals(myUid)) { show("profileView"); return; }
+                        String un = firstNonEmpty(d.getString("username"), uname);
+                        String nm = firstNonEmpty(d.getString("name"), un);
+                        profileFromChat = false;
+                        openOther(nm, un, uid);
+                    } catch (Throwable ignored) { }
+                }).addOnFailureListener(e -> AppToast.show(act, "تعذّر فتح الرابط"));
+            }
+
             /** قائمة النقاط الثلاث فوق الصورة المكبّرة: «حفظ الصورة» (بنفس بطاقة قائمة الملف الآخر). */
             void photoMenu(final View anchor, final Bitmap bmp) {
                 final View host = v("root");
-                if (anchor == null || host == null || bmp == null) return;
+                if (bmp == null) { AppToast.show(act, "لا توجد صورة لحفظها"); return; }
+                if (anchor == null || host == null) return;
                 final int txt = dark ? 0xFFF1F5F9 : 0xFF17212B;
                 final android.widget.PopupWindow[] pwRef = new android.widget.PopupWindow[1];
                 LinearLayout card = new LinearLayout(act);
@@ -2148,7 +2306,8 @@ public class MassActivity extends Activity {
                 startBlocksListener();
                 blocked = uid != null && myBlocks.contains(uid);
                 blockedByThem = false; otherOrigName = name == null ? "" : name; otherVerified = false;
-                otherPhotoBmp = null;
+                otherPhotoBmp = null; otherPhotoRaw = "";
+                if (heroOther != null) heroOther.setPhotoCount(1);
                 TextView oAv = tv("otherAvatarText");
                 if (oAv != null) { oAv.setText(name.length() > 0 ? name.substring(0, 1) : "?"); style(oAv); }
                 TextView oName = tv("otherHeaderName");
@@ -2269,6 +2428,9 @@ public class MassActivity extends Activity {
                 if (!Boolean.TRUE.equals(d.getBoolean("hideAvatar"))) {
                     final String ph = firstNonEmpty(d.getString("photo"), d.getString("avatarUrl"));
                     final String reqUid = otherUid;
+                    otherPhotoRaw = ph;
+                    if (!ph.isEmpty() && reqUid != null && !ph.startsWith("http"))
+                        loadPhotoList(reqUid, ph, l -> { if (reqUid.equals(otherUid) && heroOther != null) heroOther.setPhotoCount(Math.max(1, l.size())); });
                     Bitmap cachedAv = (ph.isEmpty() || reqUid == null) ? null : peerPhotos.get(reqUid);
                     if (cachedAv != null && !cachedAv.isRecycled() && sigOf(ph).equals(peerPhotoSig.get(reqUid))) {   // الصورة محفوظة ولم تتغير: بلا فك ولا تحميل
                         otherPhotoBmp = cachedAv;
@@ -6524,6 +6686,79 @@ public class MassActivity extends Activity {
                 throw new Exception("الصورة كبيرة جداً");
             }
 
+            /** يضيف الصورة الجديدة إلى سجلّ صوري (users/{uid}/photos)، ويحفظ القديمة فيه إن كان السجل فارغاً. */
+            void addToPhotoHistory(final String oldB64, final String newB64) {
+                try {
+                    final com.google.firebase.firestore.CollectionReference col = db.collection("users").document(myUid).collection("photos");
+                    col.limit(1).get().addOnSuccessListener(qs -> {
+                        try {
+                            if (qs.isEmpty() && oldB64 != null && !oldB64.isEmpty() && !oldB64.equals(newB64)) {
+                                java.util.HashMap<String, Object> o = new java.util.HashMap<>();
+                                o.put("b", oldB64);
+                                o.put("ts", new com.google.firebase.Timestamp(new java.util.Date(System.currentTimeMillis() - 2000)));
+                                col.add(o);
+                            }
+                            java.util.HashMap<String, Object> n = new java.util.HashMap<>();
+                            n.put("b", newB64);
+                            n.put("ts", com.google.firebase.firestore.FieldValue.serverTimestamp());
+                            col.add(n).addOnCompleteListener(t -> { photoListCache.remove(myUid); try { refreshOwnPhotoCount(); } catch (Throwable ignored) { } });
+                        } catch (Throwable ignored) { }
+                    });
+                } catch (Throwable ignored) { }
+            }
+
+            /** يحمّل قائمة صور المستخدم (الأحدث أولاً، والصورة الحالية دائماً أولها). عند الفشل: الحالية فقط. */
+            void loadPhotoList(final String uid, final String curB64, final ListCb cb) {
+                if (uid == null || curB64 == null || curB64.isEmpty()) { cb.done(new java.util.ArrayList<>()); return; }
+                java.util.List<String> cached = photoListCache.get(uid);
+                if (cached != null && !cached.isEmpty() && cached.get(0).equals(curB64)) { cb.done(cached); return; }
+                db.collection("users").document(uid).collection("photos")
+                        .orderBy("ts", com.google.firebase.firestore.Query.Direction.DESCENDING).limit(10).get()
+                        .addOnSuccessListener(qs -> {
+                            java.util.ArrayList<String> out = new java.util.ArrayList<>();
+                            out.add(curB64);
+                            for (com.google.firebase.firestore.DocumentSnapshot d : qs.getDocuments()) {
+                                String b = d.getString("b");
+                                if (b != null && !b.isEmpty() && !out.contains(b)) out.add(b);
+                            }
+                            photoListCache.put(uid, out);
+                            cb.done(out);
+                        })
+                        .addOnFailureListener(e -> {
+                            java.util.ArrayList<String> one = new java.util.ArrayList<>();
+                            one.add(curB64);
+                            cb.done(one);
+                        });
+            }
+
+            void refreshOwnPhotoCount() {
+                if (userPhoto == null || userPhoto.isEmpty() || heroMe == null) return;
+                loadPhotoList(myUid, userPhoto, l -> { if (heroMe != null) heroMe.setPhotoCount(Math.max(1, l.size())); });
+            }
+
+            /** يفتح عارض الصور بكل صور المستخدم (إن وُجد أكثر من واحدة) ويبدأ من الحالية. */
+            void openGallery(final String uid, final String curB64, final Bitmap curBmp, final CharSequence nm, final CharSequence st) {
+                if (curBmp == null) return;
+                loadPhotoList(uid, curB64, list -> {
+                    if (list.size() <= 1) { PhotoViewer.show(act, java.util.Collections.singletonList(curBmp), nm, st, 0); return; }
+                    new Thread(() -> {
+                        final java.util.ArrayList<Bitmap> bms = new java.util.ArrayList<>();
+                        for (String b : list) {
+                            try {
+                                if (b.equals(curB64)) { bms.add(curBmp); continue; }
+                                if (b.startsWith("http")) continue;
+                                String raw = b.contains(",") ? b.substring(b.indexOf(',') + 1) : b;
+                                byte[] by = android.util.Base64.decode(raw, android.util.Base64.DEFAULT);
+                                Bitmap bm = BitmapFactory.decodeByteArray(by, 0, by.length);
+                                if (bm != null) bms.add(bm);
+                            } catch (Throwable ignored) { }
+                        }
+                        if (bms.isEmpty()) bms.add(curBmp);
+                        act.runOnUiThread(() -> PhotoViewer.show(act, bms, nm, st, 0));
+                    }).start();
+                });
+            }
+
             void pickProfilePhoto() {
                 pendingImageCallback = uri -> saveProfilePhoto(uri);
                 Intent i = new Intent(Intent.ACTION_GET_CONTENT);
@@ -6538,8 +6773,14 @@ public class MassActivity extends Activity {
                 new Thread(() -> {
                     try {
                         final String b64 = encodeImage(uri, 1080, 450 * 1024, true);   // 1080×1080 عالية الدقة (حد Firestore للمستند 1MiB)
+                        final String oldPhoto = userPhoto;
                         act.runOnUiThread(() -> db.collection("users").document(myUid).update("photo", b64)
-                            .addOnSuccessListener(a -> { userPhoto = b64; try { fillProfile(); } catch (Throwable ignored) {} toast("تم تحديث الصورة"); })
+                            .addOnSuccessListener(a -> {
+                                userPhoto = b64;
+                                addToPhotoHistory(oldPhoto, b64);
+                                try { fillProfile(); } catch (Throwable ignored) {}
+                                toast("تم تحديث الصورة");
+                            })
                             .addOnFailureListener(er -> toast("فشل: " + er.getMessage())));
                     } catch (Exception e) {
                         act.runOnUiThread(() -> toast("فشل معالجة الصورة: " + e.getMessage()));
@@ -6570,6 +6811,7 @@ public class MassActivity extends Activity {
                 }
                 applyPhotoTo(tv("pAvatarText"));
                 applyPhotoTo(tv("sxAvatar"));
+                try { refreshOwnPhotoCount(); } catch (Throwable ignored) { }
                 try { buildStories(); } catch (Throwable ignored) { }   // صورتي في «قصتي» بعد وصولها
             }
 
@@ -8063,12 +8305,8 @@ public class MassActivity extends Activity {
                     heroMe.setCoverTheme(CoverThemes.byId(coverId));
                     heroOther.setCoverTheme(CoverThemes.byId(otherCoverId));
                     heroMe.setDotsListener(anchor -> photoMenu(anchor, photoBmp));
-                    heroMe.setFullViewListener((nm, st) -> {
-                        if (photoBmp != null) PhotoViewer.show(act, java.util.Collections.singletonList(photoBmp), nm, st, 0);
-                    });
-                    heroOther.setFullViewListener((nm, st) -> {
-                        if (otherPhotoBmp != null) PhotoViewer.show(act, java.util.Collections.singletonList(otherPhotoBmp), nm, st, 0);
-                    });
+                    heroMe.setFullViewListener((nm, st) -> openGallery(myUid, userPhoto, photoBmp, nm, st));
+                    heroOther.setFullViewListener((nm, st) -> openGallery(otherUid, otherPhotoRaw, otherPhotoBmp, nm, st));
                     heroMe.setAvatarInset(ringTotalPx());       // الحلقة الذهبية خارج الصورة: المربع المكبّر يبدأ من حدود الصورة نفسها
                     heroOther.setAvatarInset(ringTotalPx());
                 } catch (Throwable ignored) { }
@@ -8098,6 +8336,8 @@ public class MassActivity extends Activity {
                 try { uiRef.refreshProfileRings(); } catch (Throwable ignored) { }
             }));
         } catch (Throwable ignored) { }
+        deepOpener = ui::openProfileByUsername;
+        if (pendingDeepUser != null) { final String pu = pendingDeepUser; pendingDeepUser = null; getWindow().getDecorView().post(() -> uiRef.openProfileByUsername(pu)); }
         backHook = ui::onBack;
         touchHook = ui::globalTap;
         vpStopHook = ui::vpStop;

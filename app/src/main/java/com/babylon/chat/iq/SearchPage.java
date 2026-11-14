@@ -451,8 +451,9 @@ final class SearchPage {
         LinearLayout row = new LinearLayout(act);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(14), dp(8.5f), dp(14), dp(8.5f));   // أقل بـ 5dp (كان 11+11)
-        row.setMinimumHeight(dp(69));                          // كان 74
+        // بطاقات «الأخيرة» أنحف بـ 5dp إضافية (64dp بدل 69)؛ نتائج البحث تبقى 69dp
+        row.setPadding(dp(14), dp(recent ? 6f : 8.5f), dp(14), dp(recent ? 6f : 8.5f));
+        row.setMinimumHeight(dp(recent ? 64 : 69));
         row.setBackground(cardBg(false));
         row.setElevation(0f);
         row.setClickable(true);
@@ -713,9 +714,9 @@ final class SearchPage {
             b.setTextColor(0xFFFFFFFF);
             b.setBackground(box(RED, 10, 0, 0));
         } else {
-            // «إلغاء»: شريط وكلمة ذهبيان بنفس الحواف: خلفية ذهبية خفيفة + إطار ذهبي + نص ذهبي
-            b.setTextColor(p.gold);
-            b.setBackground(box((p.gold & 0x00FFFFFF) | 0x26000000, 10, p.gold, 1.5f));
+            // «إلغاء»: أبيض بلا إطار، والكلمة سوداء
+            b.setTextColor(0xFF000000);
+            b.setBackground(box(0xFFFFFFFF, 10, 0, 0));
         }
         b.setClickable(true);
         return b;

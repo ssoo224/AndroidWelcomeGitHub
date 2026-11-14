@@ -20,8 +20,9 @@ import java.util.WeakHashMap;
 public final class FontManager {
     private FontManager() { }
 
-    private static final String[] BASE_IDS    = {"normal", "bold", "serif", "condensed", "mono"};
-    private static final String[] BASE_LABELS = {"عادي", "عريض", "نسخ", "مضغوط", "آلة كاتبة"};
+    // الترتيب: عادي، عريض، ثم الخطوط العربية المرفقة (نسخ عربي، أميري، ...)، وفي النهاية آلة كاتبة. (حُذف «نسخ» القديم و«مضغوط»)
+    private static final String[] BASE_IDS    = {"normal", "bold", "mono"};
+    private static final String[] BASE_LABELS = {"عادي", "عريض", "آلة كاتبة"};
     /** القائمتان تتوسّعان تلقائياً بكل خط عربي موجود في assets/fonts باسم ar_xxx.ttf (انظر init). */
     public static String[] IDS    = BASE_IDS;
     public static String[] LABELS = BASE_LABELS;
@@ -40,16 +41,27 @@ public final class FontManager {
         }
     }
 
+    private static String keyOf(String f) {
+        String low = f.toLowerCase();
+        return low.startsWith("ar_") && low.length() > 7 ? low.substring(3, low.length() - 4) : "";
+    }
+
     /** يفحص assets/fonts عن ملفات ar_*.ttf/otf (والعريض اختياري: ar_xxx_bold.ttf) ويضيفها لخيارات الخط. */
     public static synchronized void init(Context c) {
         if (scanned) return;
         scanned = true;
         try {
             String[] files = c.getApplicationContext().getAssets().list("fonts");
-            java.util.ArrayList<String> ids = new java.util.ArrayList<>(java.util.Arrays.asList(BASE_IDS));
-            java.util.ArrayList<String> labs = new java.util.ArrayList<>(java.util.Arrays.asList(BASE_LABELS));
+            java.util.ArrayList<String> ids = new java.util.ArrayList<>(java.util.Arrays.asList("normal", "bold"));
+            java.util.ArrayList<String> labs = new java.util.ArrayList<>(java.util.Arrays.asList("عادي", "عريض"));
             if (files != null) {
-                java.util.Arrays.sort(files);
+                // نسخ عربي أولاً ثم أميري ثم بقية الخطوط بالترتيب الأبجدي
+                final java.util.List<String> pref = java.util.Arrays.asList("naskh", "amiri");
+                java.util.Arrays.sort(files, (x, y) -> {
+                    int ix = pref.indexOf(keyOf(x)), iy = pref.indexOf(keyOf(y));
+                    if (ix < 0) ix = 99; if (iy < 0) iy = 99;
+                    return ix != iy ? Integer.compare(ix, iy) : x.compareToIgnoreCase(y);
+                });
                 for (String f : files) {
                     String low = f.toLowerCase();
                     if (!low.startsWith("ar_") || !(low.endsWith(".ttf") || low.endsWith(".otf"))) continue;
@@ -67,6 +79,7 @@ public final class FontManager {
                     } catch (Throwable ignored) { }
                 }
             }
+            ids.add("mono"); labs.add("آلة كاتبة");
             IDS = ids.toArray(new String[0]);
             LABELS = labs.toArray(new String[0]);
         } catch (Throwable ignored) { }
@@ -150,8 +163,6 @@ public final class FontManager {
             return t;
         }
         switch (id) {
-            case "serif":     t = Typeface.create("serif", style); break;
-            case "condensed": t = Typeface.create("sans-serif-condensed", style); break;
             case "mono":      t = Typeface.create(Typeface.MONOSPACE, style); break;
             default:          t = Typeface.create(Typeface.DEFAULT, style); break;   // normal / bold
         }

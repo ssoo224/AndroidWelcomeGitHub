@@ -53,6 +53,8 @@ public final class PhotoViewer {
     private boolean barsShown = true;
     private boolean closing = false;
     private int current = 0;
+    private int prevNavColor, prevUiFlags;
+    private boolean navSaved = false;
     private static PhotoViewer open;   // العارض المفتوح حالياً (لزر الرجوع في النشاط)
 
     /** يُغلق العارض إن كان مفتوحاً؛ true إذا أغلقه (تستعمله onBackPressed في النشاط). */
@@ -102,7 +104,12 @@ public final class PhotoViewer {
             @Override public Object instantiateItem(ViewGroup c, int pos) {
                 ZoomImageView iv = new ZoomImageView(act);
                 iv.setImageBitmap(photos.get(pos));
-                iv.onTap = () -> toggleBars();
+                iv.onTap = (x, w, zoomed) -> {
+                    // نقرة على الثلث الأيمن ← التالية، الثلث الأيسر ← السابقة، الوسط ← إظهار/إخفاء الأشرطة
+                    if (!zoomed && photos.size() > 1 && x > w * 0.72f) { if (current < photos.size() - 1) pager.setCurrentItem(current + 1, true); }
+                    else if (!zoomed && photos.size() > 1 && x < w * 0.28f) { if (current > 0) pager.setCurrentItem(current - 1, true); }
+                    else toggleBars();
+                };
                 c.addView(iv, new ViewGroup.LayoutParams(-1, -1));
                 return iv;
             }
@@ -125,7 +132,11 @@ public final class PhotoViewer {
         h.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
                 new int[]{0xB3000000, 0x00000000}));
 
-        IconView back = new IconView(act, true);
+        ImageView back = new ImageView(act);
+        back.setImageResource(R.drawable.ic_pv_back);   // سهم الرجوع القياسي (vector)
+        back.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        back.setPadding(dp(14), dp(14), dp(14), dp(14));
+        back.setClickable(true);
         back.setOnClickListener(v -> close());
         h.addView(back, new LinearLayout.LayoutParams(dp(52), dp(52)));
 
@@ -183,6 +194,7 @@ public final class PhotoViewer {
             strip.addView(th, lp);
         }
         root.addView(stripScroll, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
+        if (photos.size() <= 1) stripScroll.setVisibility(View.GONE);   // صورة واحدة: لا حاجة لشريط المصغّرات
 
         // زر الرجوع في النظام
         root.setOnKeyListener((v, code, ev) -> {
@@ -191,6 +203,15 @@ public final class PhotoViewer {
         });
 
         content.addView(root, new FrameLayout.LayoutParams(-1, -1));
+        // شريط الإيماءات/التنقل بنفس لون الداخل (أسود) أثناء العرض، ويُعاد كما كان عند الإغلاق
+        try {
+            android.view.Window w = act.getWindow();
+            prevNavColor = w.getNavigationBarColor();
+            prevUiFlags = w.getDecorView().getSystemUiVisibility();
+            navSaved = true;
+            w.setNavigationBarColor(Color.BLACK);
+            if (Build.VERSION.SDK_INT >= 26) w.getDecorView().setSystemUiVisibility(prevUiFlags & ~View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+        } catch (Throwable ignored) { }
         open = this;
         root.requestFocus();
 
@@ -271,6 +292,16 @@ public final class PhotoViewer {
         }
     }
 
+    private void restoreNavBar() {
+        if (!navSaved) return;
+        navSaved = false;
+        try {
+            android.view.Window w = act.getWindow();
+            w.setNavigationBarColor(prevNavColor);
+            if (Build.VERSION.SDK_INT >= 26) w.getDecorView().setSystemUiVisibility(prevUiFlags);
+        } catch (Throwable ignored) { }
+    }
+
     private void close() {
         if (closing || root == null) return;
         closing = true;
@@ -278,6 +309,7 @@ public final class PhotoViewer {
         root.animate().alpha(0f).setDuration(140).withEndAction(() -> {
             try { ((ViewGroup) root.getParent()).removeView(root); } catch (Throwable ignored) { }
             if (open == this) open = null;
+            restoreNavBar();
         }).start();
     }
 
@@ -319,7 +351,8 @@ public final class PhotoViewer {
     // =====================================================================================
     /** ImageView بتقريب بإصبعين + تحريك + نقر مزدوج؛ لا يسرق السحب الأفقي من الـ ViewPager إلا وهو مكبّر. */
     private static final class ZoomImageView extends ImageView {
-        Runnable onTap;
+        interface TapCb { void tap(float x, int width, boolean zoomed); }
+        TapCb onTap;
         private final Matrix m = new Matrix();
         private final float[] v = new float[9];
         private float base = 1f;
@@ -360,7 +393,7 @@ public final class PhotoViewer {
                     return true;
                 }
                 @Override public boolean onSingleTapConfirmed(MotionEvent e) {
-                    if (onTap != null) onTap.run();
+                    if (onTap != null) onTap.tap(e.getX(), getWidth(), scale() > base * 1.05f);
                     return true;
                 }
             });
