@@ -89,6 +89,9 @@ public class MassActivity extends Activity {
     private interface ListCb { void done(java.util.List<String> list); }
     /** صور المستخدم (base64، الأحدث أولاً) مخزّنة مؤقتاً لكل uid؛ المصدر users/{uid}/photos. */
     private final java.util.HashMap<String, java.util.List<String>> photoListCache = new java.util.HashMap<>();
+    private final java.util.HashMap<String, String> photoDocByB64 = new java.util.HashMap<>();   // نص الصورة ← معرّف مستندها في users/{uid}/photos (للحذف)
+    private java.util.ArrayList<String> viewerIds = new java.util.ArrayList<>();                  // معرّفات صور العارض المفتوح (بنفس ترتيبها)
+    private boolean viewerOwn = false;
     private interface DeepCb { void open(String username); }
     private DeepCb deepOpener;
     private String pendingDeepUser;
@@ -752,8 +755,6 @@ public class MassActivity extends Activity {
                         private final android.graphics.Paint pt = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
                         @Override protected void onDraw(android.graphics.Canvas c) {
                             float cx = getWidth() / 2f, cy = getHeight() / 2f;
-                            pt.setColor(0x4D000000);
-                            c.drawCircle(cx, cy, 17f * dd, pt);
                             pt.setColor(0xFFFFFFFF);
                             c.drawCircle(cx, cy - 6f * dd, 2f * dd, pt);
                             c.drawCircle(cx, cy, 2f * dd, pt);
@@ -2045,8 +2046,12 @@ public class MassActivity extends Activity {
                 }).addOnFailureListener(e -> AppToast.show(act, "تعذّر فتح الرابط"));
             }
 
-            /** قائمة النقاط الثلاث فوق الصورة المكبّرة: «حفظ الصورة» (بنفس بطاقة قائمة الملف الآخر). */
+            /** قائمة ⋮ فوق الصورة (نفسها في الملف الشخصي وداخل العارض): «حفظ الصورة» + لصوري «اعتماد الصورة» و«حذف الصورة». */
             void photoMenu(final View anchor, final Bitmap bmp) {
+                photoMenu(anchor, bmp, 0, null, false);     // الصورة مصغّرة: حفظ فقط (الاعتماد/الحذف داخل الصورة المكبّرة)
+            }
+
+            void photoMenu(final View anchor, final Bitmap bmp, final int idx, final String id, final boolean own) {
                 final View host = v("root");
                 if (bmp == null) { AppToast.show(act, "لا توجد صورة لحفظها"); return; }
                 if (anchor == null || host == null) return;
@@ -2065,6 +2070,14 @@ public class MassActivity extends Activity {
                 View save = menuItem(R.drawable.ic_mm_download, "حفظ الصورة", txt);
                 save.setOnClickListener(x -> { pwRef[0].dismiss(); PhotoViewer.saveBitmap(act, bmp); });
                 card.addView(save);
+                if (own && id != null && !id.isEmpty()) {
+                    View ok = menuItem(R.drawable.ic_check_16, "اعتماد الصورة", txt);
+                    ok.setOnClickListener(x -> { pwRef[0].dismiss(); approveMyPhoto(id, idx); });
+                    card.addView(ok);
+                    View del = menuItem(R.drawable.ic_trash_menu_20, "حذف الصورة", 0xFFEF4444);
+                    del.setOnClickListener(x -> { pwRef[0].dismiss(); confirmDeleteMyPhoto(id, idx); });
+                    card.addView(del);
+                }
                 FrameLayout holder = new FrameLayout(act);
                 holder.setClipChildren(false);
                 holder.setPadding(dp(10), 0, dp(10), dp(16));
@@ -2139,8 +2152,9 @@ public class MassActivity extends Activity {
                     card.addView(del);
                 }
 
-                if (otherPhotoBmp != null) {
-                    final Bitmap ob = otherPhotoBmp;
+                final Bitmap curOther = (heroOther != null && heroOther.isExpanded() && heroOther.getCurrentBitmap() != null) ? heroOther.getCurrentBitmap() : otherPhotoBmp;
+                if (curOther != null) {
+                    final Bitmap ob = curOther;
                     View sv0 = menuItem(R.drawable.ic_mm_download, "حفظ الصورة", txt);
                     sv0.setOnClickListener(x -> { pwRef[0].dismiss(); PhotoViewer.saveBitmap(act, ob); });
                     card.addView(sv0);
@@ -2307,7 +2321,7 @@ public class MassActivity extends Activity {
                 blocked = uid != null && myBlocks.contains(uid);
                 blockedByThem = false; otherOrigName = name == null ? "" : name; otherVerified = false;
                 otherPhotoBmp = null; otherPhotoRaw = "";
-                if (heroOther != null) heroOther.setPhotoCount(1);
+                if (heroOther != null) heroOther.setPhotoIds(new java.util.ArrayList<String>(), null, 0);
                 TextView oAv = tv("otherAvatarText");
                 if (oAv != null) { oAv.setText(name.length() > 0 ? name.substring(0, 1) : "?"); style(oAv); }
                 TextView oName = tv("otherHeaderName");
@@ -2430,7 +2444,7 @@ public class MassActivity extends Activity {
                     final String reqUid = otherUid;
                     otherPhotoRaw = ph;
                     if (!ph.isEmpty() && reqUid != null && !ph.startsWith("http"))
-                        loadPhotoList(reqUid, ph, l -> { if (reqUid.equals(otherUid) && heroOther != null) heroOther.setPhotoCount(Math.max(1, l.size())); });
+                        loadPhotoList(reqUid, ph, l -> { if (reqUid.equals(otherUid) && heroOther != null) heroOther.setPhotoIds(heroIds(l), photoLoader()); });
                     Bitmap cachedAv = (ph.isEmpty() || reqUid == null) ? null : peerPhotos.get(reqUid);
                     if (cachedAv != null && !cachedAv.isRecycled() && sigOf(ph).equals(peerPhotoSig.get(reqUid))) {   // الصورة محفوظة ولم تتغير: بلا فك ولا تحميل
                         otherPhotoBmp = cachedAv;
@@ -6719,6 +6733,7 @@ public class MassActivity extends Activity {
                             out.add(curB64);
                             for (com.google.firebase.firestore.DocumentSnapshot d : qs.getDocuments()) {
                                 String b = d.getString("b");
+                                if (b != null && !b.isEmpty()) photoDocByB64.put(b, d.getId());
                                 if (b != null && !b.isEmpty() && !out.contains(b)) out.add(b);
                             }
                             photoListCache.put(uid, out);
@@ -6733,29 +6748,137 @@ public class MassActivity extends Activity {
 
             void refreshOwnPhotoCount() {
                 if (userPhoto == null || userPhoto.isEmpty() || heroMe == null) return;
-                loadPhotoList(myUid, userPhoto, l -> { if (heroMe != null) heroMe.setPhotoCount(Math.max(1, l.size())); });
+                loadPhotoList(myUid, userPhoto, l -> { if (heroMe != null) heroMe.setPhotoIds(heroIds(l), photoLoader()); });
             }
+
+            /** قائمة صور الهيرو: الأولى (الحالية) دائماً، وغيرها بدون الروابط (لا نفكّها هنا). */
+            java.util.List<String> heroIds(java.util.List<String> l) {
+                java.util.ArrayList<String> o = new java.util.ArrayList<>();
+                for (int i = 0; i < l.size(); i++) if (i == 0 || !l.get(i).startsWith("http")) o.add(l.get(i));
+                return o;
+            }
+
+            Bitmap decodePhotoB64(String b) {
+                try {
+                    if (b == null || b.isEmpty() || b.startsWith("http")) return null;
+                    String raw = b.contains(",") ? b.substring(b.indexOf(',') + 1) : b;
+                    byte[] by = android.util.Base64.decode(raw, android.util.Base64.DEFAULT);
+                    return BitmapFactory.decodeByteArray(by, 0, by.length);
+                } catch (Throwable t) { return null; }
+            }
+
+            ProfileHero.PhotoLoader photoLoader() { return id -> decodePhotoB64(id); }
 
             /** يفتح عارض الصور بكل صور المستخدم (إن وُجد أكثر من واحدة) ويبدأ من الحالية. */
             void openGallery(final String uid, final String curB64, final Bitmap curBmp, final CharSequence nm, final CharSequence st) {
+                openGallery(uid, curB64, curBmp, nm, st, null);
+            }
+
+            /** startId = معرّف الصورة التي يبدأ منها العارض (الصورة المعروضة في الهيرو)؛ null = الحالية. */
+            void openGallery(final String uid, final String curB64, final Bitmap curBmp, final CharSequence nm, final CharSequence st, final String startId) {
                 if (curBmp == null) return;
+                final boolean own = myUid != null && myUid.equals(uid);
                 loadPhotoList(uid, curB64, list -> {
-                    if (list.size() <= 1) { PhotoViewer.show(act, java.util.Collections.singletonList(curBmp), nm, st, 0); return; }
+                    if (list.size() <= 1) {
+                        viewerIds = new java.util.ArrayList<>(java.util.Collections.singletonList(curB64));
+                        viewerOwn = own;
+                        PhotoViewer.show(act, java.util.Collections.singletonList(curBmp), nm, st, 0, photoViewerMenu());
+                        return;
+                    }
                     new Thread(() -> {
                         final java.util.ArrayList<Bitmap> bms = new java.util.ArrayList<>();
+                        final java.util.ArrayList<String> ids = new java.util.ArrayList<>();
                         for (String b : list) {
                             try {
-                                if (b.equals(curB64)) { bms.add(curBmp); continue; }
+                                if (b.equals(curB64)) { bms.add(curBmp); ids.add(b); continue; }
                                 if (b.startsWith("http")) continue;
-                                String raw = b.contains(",") ? b.substring(b.indexOf(',') + 1) : b;
-                                byte[] by = android.util.Base64.decode(raw, android.util.Base64.DEFAULT);
-                                Bitmap bm = BitmapFactory.decodeByteArray(by, 0, by.length);
-                                if (bm != null) bms.add(bm);
+                                Bitmap bm = decodePhotoB64(b);
+                                if (bm != null) { bms.add(bm); ids.add(b); }
                             } catch (Throwable ignored) { }
                         }
-                        if (bms.isEmpty()) bms.add(curBmp);
-                        act.runOnUiThread(() -> PhotoViewer.show(act, bms, nm, st, 0));
+                        if (bms.isEmpty()) { bms.add(curBmp); ids.add(curB64); }
+                        int k0 = startId != null ? ids.indexOf(startId) : 0;
+                        final int startAt = Math.max(0, k0);
+                        act.runOnUiThread(() -> {
+                            viewerIds = ids;
+                            viewerOwn = own;
+                            PhotoViewer.show(act, bms, nm, st, startAt, photoViewerMenu());
+                        });
                     }).start();
+                });
+            }
+
+            /** ⋮ داخل العارض بكامل الشاشة: نفس قائمة ⋮ في الملف الشخصي (حفظ / اعتماد / حذف). */
+            PhotoViewer.MenuHandler photoViewerMenu() {
+                return (anchor, i, bmp) -> photoMenu(anchor, bmp, i, i >= 0 && i < viewerIds.size() ? viewerIds.get(i) : null, viewerOwn);
+            }
+
+            int photoCountNow() {
+                if (PhotoViewer.isOpen()) return viewerIds.size();
+                return heroMe != null ? heroMe.getCount() : 1;
+            }
+
+            /** اعتماد الصورة: تصبح صورة ملفي الحالية (يراها الجميع). */
+            void approveMyPhoto(final String id, final int idx) {
+                if (id == null || id.isEmpty() || myUid == null) return;
+                if (id.equals(userPhoto)) { toast("هذه هي صورتك الحالية"); return; }
+                db.collection("users").document(myUid).update("photo", id)
+                    .addOnSuccessListener(a -> {
+                        userPhoto = id;
+                        photoListCache.remove(myUid);
+                        try { fillProfile(); } catch (Throwable ignored) { }
+                        toast("تم اعتماد الصورة");
+                        try {
+                            if (PhotoViewer.isOpen()) {
+                                PhotoViewer.moveToFront(idx);
+                                if (idx > 0 && idx < viewerIds.size()) viewerIds.add(0, viewerIds.remove(idx));
+                            }
+                        } catch (Throwable ignored) { }
+                        loadPhotoList(myUid, userPhoto, l -> { if (heroMe != null) heroMe.setPhotoIds(heroIds(l), photoLoader(), 0); });
+                    })
+                    .addOnFailureListener(e -> toast("تعذّر اعتماد الصورة"));
+            }
+
+            /** حذف الصورة بعد التأكيد. لا يمكن حذف الصورة الوحيدة. */
+            void confirmDeleteMyPhoto(final String id, final int idx) {
+                if (id == null || id.isEmpty() || myUid == null) return;
+                String sub = "سيتم حذف هذه الصورة نهائياً.";
+                if (id.equals(userPhoto)) sub += photoCountNow() <= 1 ? "<br>وسيبقى ملفك بدون صورة." : "<br>وستصبح الصورة التالية هي صورة ملفك.";
+                cardDialog("حذف الصورة", sub, null, "حذف", true, () -> deleteMyPhoto(id, idx));
+            }
+
+            void deleteMyPhoto(final String id, final int idx) {
+                final boolean wasCurrent = id.equals(userPhoto);
+                loadPhotoList(myUid, userPhoto, list -> {
+                    String repl = "";
+                    if (wasCurrent) for (String s2 : list) if (!s2.equals(id)) { repl = s2; break; }
+                    final String newMain = repl;
+                    final String docId = photoDocByB64.get(id);
+                    if (docId == null && !wasCurrent) { toast("تعذّر حذف الصورة"); return; }
+                    final Runnable ui = () -> {
+                        photoDocByB64.remove(id);
+                        photoListCache.remove(myUid);
+                        if (wasCurrent) { userPhoto = newMain; try { fillProfile(); } catch (Throwable ignored) { } }
+                        if (userPhoto == null || userPhoto.isEmpty()) { try { if (heroMe != null) heroMe.reset(); } catch (Throwable ignored) { } }
+                        toast("تم حذف الصورة");
+                        try {
+                            if (PhotoViewer.isOpen()) {
+                                PhotoViewer.removeAt(idx);
+                                if (idx >= 0 && idx < viewerIds.size()) viewerIds.remove(idx);
+                            }
+                        } catch (Throwable ignored) { }
+                        loadPhotoList(myUid, userPhoto, l -> { if (heroMe != null) heroMe.setPhotoIds(heroIds(l), photoLoader(), -1); });
+                    };
+                    final Runnable setMain = () -> {
+                        if (!wasCurrent) { ui.run(); return; }
+                        db.collection("users").document(myUid).update("photo", newMain)
+                            .addOnSuccessListener(x -> ui.run())
+                            .addOnFailureListener(e -> toast("تعذّر حذف الصورة"));
+                    };
+                    if (docId == null) { setMain.run(); return; }
+                    db.collection("users").document(myUid).collection("photos").document(docId).delete()
+                        .addOnSuccessListener(x -> setMain.run())
+                        .addOnFailureListener(e -> toast("تعذّر حذف الصورة"));
                 });
             }
 
@@ -6801,7 +6924,17 @@ public class MassActivity extends Activity {
             }
 
             void applyProfilePhoto() {
-                if (userPhoto == null || userPhoto.isEmpty()) { photoBmp = null; shownPhoto = ""; return; }
+                if (userPhoto == null || userPhoto.isEmpty()) {
+                    boolean had = photoBmp != null;
+                    photoBmp = null; shownPhoto = "";
+                    if (had) {      // حُذفت الصورة: يعود الأفاتار إلى الحرف الذهبي ويُفرَّغ الهيرو وقائمة الصور
+                        try { fixAvatar("pAvatarText"); } catch (Throwable ignored) { }
+                        try { TextView sx = tv("sxAvatar"); if (sx != null) sx.setBackground(Tk.ringAvatar(sx, dark)); } catch (Throwable ignored) { }
+                        try { if (heroMe != null) { heroMe.reset(); heroMe.setPhotoIds(new java.util.ArrayList<String>(), null, 0); } } catch (Throwable ignored) { }
+                        try { buildStories(); } catch (Throwable ignored) { }
+                    }
+                    return;
+                }
                 if (!userPhoto.equals(shownPhoto)) {
                     try {
                         byte[] b = android.util.Base64.decode(userPhoto, android.util.Base64.DEFAULT);
@@ -8304,11 +8437,17 @@ public class MassActivity extends Activity {
                             v("otherBack"), v("otherMoreBtn"), pal);
                     heroMe.setCoverTheme(CoverThemes.byId(coverId));
                     heroOther.setCoverTheme(CoverThemes.byId(otherCoverId));
-                    heroMe.setDotsListener(anchor -> photoMenu(anchor, photoBmp));
-                    heroMe.setFullViewListener((nm, st) -> openGallery(myUid, userPhoto, photoBmp, nm, st));
-                    heroOther.setFullViewListener((nm, st) -> openGallery(otherUid, otherPhotoRaw, otherPhotoBmp, nm, st));
+                    heroMe.setDotsListener(anchor -> {
+                        String cid = heroMe.getCurrentId();
+                        if (cid == null) cid = userPhoto;
+                        Bitmap cb = heroMe.getCurrentBitmap();
+                        photoMenu(anchor, cb != null ? cb : photoBmp, heroMe.getIndex(), cid, true);
+                    });
+                    heroMe.setFullViewListener((nm, st) -> openGallery(myUid, userPhoto, photoBmp, nm, st, heroMe.getCurrentId()));
+                    heroOther.setFullViewListener((nm, st) -> openGallery(otherUid, otherPhotoRaw, otherPhotoBmp, nm, st, heroOther.getCurrentId()));
                     heroMe.setAvatarInset(ringTotalPx());       // الحلقة الذهبية خارج الصورة: المربع المكبّر يبدأ من حدود الصورة نفسها
                     heroOther.setAvatarInset(ringTotalPx());
+                    try { refreshOwnPhotoCount(); } catch (Throwable ignored) { }   // قائمة صوري للتمرير (الهيرو أُنشئ بعد وصول الصورة)
                 } catch (Throwable ignored) { }
                 try {
                     BabylonFx.shine(tv("textview621"));

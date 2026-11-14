@@ -74,7 +74,90 @@ public final class ProfileHero implements PullScrollView.Controller {
     public interface DotsListener { void onDots(View anchor); }
     private DotsListener dotsListener;
     public void setDotsListener(DotsListener r) { dotsListener = r; }
-    public void setPhotoCount(int n) { countPill.setText(String.format(java.util.Locale.US, "1/%d", Math.max(1, n))); }
+    public void setPhotoCount(int n) { total = Math.max(1, n); updatePill(); }
+
+    // ---- قائمة الصور (الأحدث/الحالية أولاً): تمرير أفقي ونقر على الحافتين وهي مكبّرة
+    public interface PhotoLoader { Bitmap load(String id); }
+    private java.util.List<String> pIds = new ArrayList<>();
+    private PhotoLoader loader;
+    private int pIdx = 0, total = 1, gen = 0, dragDir = 0;
+    private boolean swapping = false;
+    private final java.util.HashMap<Integer, Bitmap> pCache = new java.util.HashMap<>();
+
+    /** يضبط قائمة الصور؛ startIdx = -1 يُبقي الفهرس الحالي (مع ضبطه ضمن الحدود). */
+    public void setPhotoIds(java.util.List<String> ids, PhotoLoader l, int startIdx) {
+        if (ids != null && startIdx < 0 && ids.equals(pIds)) { loader = l; return; }   // لا تغيير: لا نعيد الضبط ولا نقطع العرض
+        gen++;
+        synchronized (pCache) { pCache.clear(); }
+        pIds = ids != null ? new ArrayList<>(ids) : new ArrayList<String>();
+        loader = l;
+        total = Math.max(1, pIds.size());
+        pIdx = startIdx >= 0 ? startIdx : pIdx;
+        pIdx = Math.max(0, Math.min(pIdx, total - 1));
+        updatePill();
+        if (hero.getVisibility() == View.VISIBLE) { showCurrent(); prefetch(); }
+    }
+    public void setPhotoIds(java.util.List<String> ids, PhotoLoader l) { setPhotoIds(ids, l, -1); }
+    public int getIndex() { return pIdx; }
+    public int getCount() { return Math.max(1, pIds.size()); }
+    public String getCurrentId() { return pIdx >= 0 && pIdx < pIds.size() ? pIds.get(pIdx) : null; }
+    public Bitmap getCurrentBitmap() { return bitmapAt(pIdx); }
+
+    private void updatePill() {
+        countPill.setText(String.format(java.util.Locale.US, "%d/%d", pIdx + 1, Math.max(1, total)));
+    }
+
+    /** صورة الفهرس i: الأول = صورة الملف الحالية، والباقي من الذاكرة المؤقتة أو بفك سريع. */
+    private Bitmap bitmapAt(int i) {
+        Bitmap b = null;
+        if (i == 0 && photo != null) b = photo.get();
+        if (b != null && !b.isRecycled()) return b;
+        if (i < 0 || i >= pIds.size() || loader == null) return null;
+        synchronized (pCache) { b = pCache.get(i); }
+        if (b != null && !b.isRecycled()) return b;
+        try { b = loader.load(pIds.get(i)); } catch (Throwable t) { b = null; }
+        if (b != null) synchronized (pCache) { pCache.put(i, b); }
+        return b;
+    }
+
+    /** يجهّز الصورتين المجاورتين في خيط خلفي ويحذف البعيد منها لتوفير الذاكرة. */
+    private void prefetch() {
+        if (loader == null) return;
+        final int g = gen, c = pIdx;
+        final java.util.List<String> ids = pIds;
+        synchronized (pCache) {
+            java.util.Iterator<java.util.Map.Entry<Integer, Bitmap>> it = pCache.entrySet().iterator();
+            while (it.hasNext()) if (Math.abs(it.next().getKey() - c) > 1) it.remove();
+        }
+        new Thread(() -> {
+            for (int k : new int[]{c + 1, c - 1}) {
+                if (k <= 0 || k >= ids.size()) continue;
+                synchronized (pCache) { if (pCache.containsKey(k)) continue; }
+                Bitmap b = null;
+                try { b = loader.load(ids.get(k)); } catch (Throwable ignored) { }
+                if (b != null && g == gen) synchronized (pCache) { pCache.put(k, b); }
+            }
+        }).start();
+    }
+
+    private void applyBitmapTo(FadeImageView iv, Bitmap bm) {
+        if (bm == null) return;
+        bm.setHasMipMap(true);
+        iv.setImageBitmap(bm);
+    }
+
+    /** يعرض صورة الفهرس الحالي في الطبقة المكبّرة (والامتداد المموّه تحتها). */
+    private void showCurrent() {
+        Bitmap bm = bitmapAt(pIdx);
+        if (bm == null) bm = photo != null ? photo.get() : null;
+        if (bm == null) return;
+        applyBitmapTo(heroImg, bm);
+        heroImg.setTranslationX(0f);
+        try {
+            int h = Math.max(1, 24 * bm.getHeight() / Math.max(1, bm.getWidth()));
+            heroExt.setImageBitmap(Bitmap.createScaledBitmap(bm, 24, h, true));
+        } catch (Throwable t) { heroExt.setImageBitmap(null); }
+    }
     private float lastPullDy = 0f;
     public void setFullViewListener(FullViewListener l) { fullListener = l; }
 
@@ -101,7 +184,7 @@ public final class ProfileHero implements PullScrollView.Controller {
     private final CoverPattern coverPat;
     private final View coverFade;
     private final ImageView heroExt;
-    private final FadeImageView heroImg;
+    private final FadeImageView heroImg, heroImg2;
     private final TextView heroLetter, heroName, heroStatus;
     private final View heroShade;
     private final LinearLayoutLtr infoHolder;
@@ -172,6 +255,12 @@ public final class ProfileHero implements PullScrollView.Controller {
         heroImg.setScaleType(ImageView.ScaleType.CENTER_CROP);
         hero.addView(heroImg, new FrameLayout.LayoutParams(-1, 0));
 
+        // الصورة القادمة أثناء السحب الأفقي (تنزلق بجانب الحالية)
+        heroImg2 = new FadeImageView(act);
+        heroImg2.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        heroImg2.setVisibility(View.GONE);
+        hero.addView(heroImg2, new FrameLayout.LayoutParams(-1, 0));
+
         heroLetter = new TextView(act);
         heroLetter.setGravity(Gravity.CENTER);
         heroLetter.setTextColor(0xFFFFFFFF);
@@ -240,7 +329,7 @@ public final class ProfileHero implements PullScrollView.Controller {
         pb.setColor(0x66707070);
         pb.setCornerRadius(40 * d);
         countPill.setBackground(pb);
-        topCtl.addView(countPill, new FrameLayout.LayoutParams(-2, (int) (28 * d), Gravity.TOP | Gravity.RIGHT));
+        topCtl.addView(countPill, new FrameLayout.LayoutParams(-2, (int) (27 * d), Gravity.TOP | Gravity.RIGHT));
         if (own) {
             dotsBtn = new View(act) {
                 private final Paint dp = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -333,10 +422,12 @@ public final class ProfileHero implements PullScrollView.Controller {
 
     private void prepareContent() {
         // محتوى الطبقة: صورة المستخدم أو الحرف
-        Bitmap bm = photo != null ? photo.get() : null;
+        Bitmap bm = bitmapAt(pIdx);
+        if (bm == null && photo != null) bm = photo.get();
         if (bm != null) {
             bm.setHasMipMap(true);
             heroImg.setImageBitmap(bm);
+            heroImg.setTranslationX(0f);
             heroImg.setVisibility(View.VISIBLE);
             heroLetter.setVisibility(View.GONE);
             hero.setBackgroundColor(0xFF16213A);
@@ -505,7 +596,7 @@ public final class ProfileHero implements PullScrollView.Controller {
             rightPill = host.getWidth() - (a[0] - h[0]) + 2 * d;
         }
         FrameLayout.LayoutParams pl = (FrameLayout.LayoutParams) countPill.getLayoutParams();
-        pl.topMargin = (int) (cy - 14 * d);
+        pl.topMargin = (int) (cy - 13.5f * d);
         pl.rightMargin = (int) rightPill;
         countPill.setLayoutParams(pl);
         if (dotsBtn != null) {
@@ -557,6 +648,9 @@ public final class ProfileHero implements PullScrollView.Controller {
         FrameLayout.LayoutParams ip = (FrameLayout.LayoutParams) heroImg.getLayoutParams();
         ip.height = (int) size; heroImg.setLayoutParams(ip);
         heroImg.setFade(ext > 0 ? ext * 1.15f : 0f);
+        FrameLayout.LayoutParams ip2 = (FrameLayout.LayoutParams) heroImg2.getLayoutParams();
+        ip2.height = (int) size; heroImg2.setLayoutParams(ip2);
+        heroImg2.setFade(ext > 0 ? ext * 1.15f : 0f);
         FrameLayout.LayoutParams lt = (FrameLayout.LayoutParams) heroLetter.getLayoutParams();
         lt.height = (int) size; heroLetter.setLayoutParams(lt);
         heroLetter.setTextSize(Math.max(20f, (size / d) * 0.34f));
@@ -614,6 +708,18 @@ public final class ProfileHero implements PullScrollView.Controller {
         }
         p = 0f;
         expanded = false;
+        resetSwipe();
+        if (pIdx != 0) { pIdx = 0; updatePill(); }
+    }
+
+    private void resetSwipe() {
+        heroImg.animate().cancel();
+        heroImg2.animate().cancel();
+        heroImg.setTranslationX(0f);
+        heroImg2.setTranslationX(0f);
+        heroImg2.setVisibility(View.GONE);
+        dragDir = 0;
+        swapping = false;
     }
 
     /** يُستدعى عند مغادرة الشاشة أو تغيير الثيم. */
@@ -654,10 +760,93 @@ public final class ProfileHero implements PullScrollView.Controller {
         animateTo(p >= THRESH ? 1f : 0f);
     }
 
-    /** النقر على الصورة المكبّرة (لا على زر) يغلقها. */
+    /** النقر على الصورة المكبّرة: الحافة اليمنى ← التالية، اليسرى ← السابقة، الوسط ← إغلاق. */
     @Override public void onTap(float x, float y) {
-        if (!expanded) return;
-        if (y <= hero.getTranslationY() + hero.getHeight()) animateTo(0f);
+        if (!full()) return;
+        if (y <= hero.getTranslationY() + hero.getHeight()) {
+            if (pIds.size() > 1 && !swapping) {
+                float w = Math.max(1f, hero.getWidth());
+                if (x > w * 0.72f) { if (pIdx < pIds.size() - 1) animateSwitch(1); return; }
+                if (x < w * 0.28f) { if (pIdx > 0) animateSwitch(-1); return; }
+            }
+            animateTo(0f);
+        }
+    }
+
+    // ------------------------------------------------- التمرير الأفقي بين الصور
+    private boolean full() { return expanded || p >= 0.99f; }
+
+    @Override public boolean canSwipe() { return full() && pIds.size() > 1 && !swapping; }
+
+    @Override public void onSwipeMove(float dx) {
+        if (!canSwipe()) return;
+        float w = Math.max(1f, hero.getWidth());
+        int dir = dx < 0 ? 1 : -1;                 // سحب لليسار ← التالية
+        int ni = pIdx + dir;
+        if (ni < 0 || ni >= pIds.size()) {         // آخر/أول صورة: مقاومة مطّاطية فقط
+            heroImg2.setVisibility(View.GONE);
+            dragDir = 0;
+            heroImg.setTranslationX(dx * 0.25f);
+            return;
+        }
+        if (dir != dragDir) {
+            Bitmap nb = bitmapAt(ni);
+            if (nb != null) applyBitmapTo(heroImg2, nb);
+            heroImg2.setVisibility(View.VISIBLE);
+            dragDir = dir;
+        }
+        heroImg.setTranslationX(dx);
+        heroImg2.setTranslationX(dx + (dir > 0 ? w : -w));
+    }
+
+    @Override public void onSwipeEnd(float dx, float vx) {
+        if (swapping) return;
+        float w = Math.max(1f, hero.getWidth());
+        boolean fling = Math.abs(vx) > 900f * d;
+        int dir = 0;
+        if (dx < -w * 0.22f || (fling && vx < 0 && dx < 0)) dir = 1;
+        else if (dx > w * 0.22f || (fling && vx > 0 && dx > 0)) dir = -1;
+        int ni = pIdx + dir;
+        if (dir == 0 || ni < 0 || ni >= pIds.size() || dragDir != dir) { settle(0); return; }
+        settle(dir);
+    }
+
+    /** نقرة على الحافة: ينزلق الإطار الحالي والقادم معاً. */
+    private void animateSwitch(int dir) {
+        int ni = pIdx + dir;
+        if (swapping || ni < 0 || ni >= pIds.size()) return;
+        float w = Math.max(1f, hero.getWidth());
+        Bitmap nb = bitmapAt(ni);
+        if (nb != null) applyBitmapTo(heroImg2, nb);
+        heroImg2.setTranslationX(dir > 0 ? w : -w);
+        heroImg2.setVisibility(View.VISIBLE);
+        dragDir = dir;
+        settle(dir);
+    }
+
+    /** dir = 0: عودة للصورة الحالية، وإلا انتقال للتالية (+1) أو السابقة (-1). */
+    private void settle(final int dir) {
+        swapping = true;
+        final float w = Math.max(1f, hero.getWidth());
+        float endMain = dir == 0 ? 0f : (dir > 0 ? -w : w);
+        long dur = 190;
+        if (dragDir != 0) {
+            float endNext = dir == 0 ? (dragDir > 0 ? w : -w) : 0f;
+            heroImg2.animate().translationX(endNext).setDuration(dur).start();
+        }
+        heroImg.animate().translationX(endMain).setDuration(dur).withEndAction(() -> {
+            if (dir != 0) {
+                pIdx += dir;
+                showCurrent();
+                updatePill();
+                prefetch();
+            }
+            heroImg.setTranslationX(0f);
+            heroImg2.setTranslationX(0f);
+            heroImg2.setVisibility(View.GONE);
+            dragDir = 0;
+            swapping = false;
+        }).start();
     }
 
     private void animateTo(final float target) {
@@ -673,7 +862,7 @@ public final class ProfileHero implements PullScrollView.Controller {
             @Override public void onAnimationCancel(Animator animation) { cancelled = true; }
             @Override public void onAnimationEnd(Animator animation) {
                 if (cancelled) return;      // لمسة جديدة أثناء الحركة: لا نغلق ولا نثبّت
-                if (target == 0f) hideHero(); else expanded = true;
+                if (target == 0f) hideHero(); else { expanded = true; prefetch(); }
             }
         });
         anim.start();

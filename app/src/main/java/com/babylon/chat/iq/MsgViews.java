@@ -173,7 +173,7 @@ public final class MsgViews {
         t.setTypeface(null, android.graphics.Typeface.NORMAL);   // العريض عبر StyleSpan للحروف فقط
         t.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG);
         t.setText(richText(body), TextView.BufferType.SPANNABLE);   // نص + إيموجي معاً بلا فقدان
-        linkify(t);   // الروابط: أزرق فاتح + خط سفلي، والنقر يفتحها
+        linkify(t);   // الروابط: أزرق سمائي + خط سفلي، والنقر يفتحها
         t.setTag(mine ? "mtM" : "mtO");
         t.setPadding(dp(a, 2), 0, dp(a, 2), dp(a, 4));
         t.setLineSpacing(0, 1.12f);
@@ -216,7 +216,7 @@ public final class MsgViews {
         final String url;
         LinkSpan(String url) { this.url = url; }
         @Override public void updateDrawState(android.text.TextPaint ds) {
-            ds.setColor(0xFF7DD3FC);
+            ds.setColor(0xFF0EA5E9);
             ds.setUnderlineText(true);
         }
         @Override public void onClick(View v) {

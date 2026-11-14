@@ -42,8 +42,14 @@ import java.util.List;
  */
 public final class PhotoViewer {
 
+    /** قائمة النقاط الثلاث: إن وُجد معالج يُعرض بدل القائمة البسيطة (نفس قائمة الملف الشخصي: حفظ/اعتماد/حذف). */
+    public interface MenuHandler { void onMenu(View anchor, int index, Bitmap bmp); }
+
+    private static final int SEL = 62, UNSEL = 44;   // أضلاع المصغّرات المربعة (dp): المحددة / العادية
+
     private final Activity act;
     private final List<Bitmap> photos;
+    private MenuHandler handler;
     private final float d;
     private FrameLayout root;
     private ViewPager pager;
@@ -73,8 +79,46 @@ public final class PhotoViewer {
 
     /** يفتح العارض فوق الشاشة الحالية. title = الاسم، subtitle = السطر الثاني (مثلاً الحالة). */
     public static void show(Activity act, List<Bitmap> photos, CharSequence title, CharSequence subtitle, int startIndex) {
+        show(act, photos, title, subtitle, startIndex, null);
+    }
+
+    public static void show(Activity act, List<Bitmap> photos, CharSequence title, CharSequence subtitle, int startIndex, MenuHandler handler) {
         if (act == null || photos == null || photos.isEmpty()) return;
-        new PhotoViewer(act, new ArrayList<>(photos)).build(title, subtitle, startIndex);
+        PhotoViewer v = new PhotoViewer(act, new ArrayList<>(photos));
+        v.handler = handler;
+        v.build(title, subtitle, startIndex);
+    }
+
+    /** هل العارض مفتوح الآن؟ */
+    public static boolean isOpen() {
+        PhotoViewer o = open;
+        return o != null && o.root != null && o.root.getParent() != null && !o.closing;
+    }
+
+    /** يحذف الصورة ذات الفهرس i من العارض المفتوح (بعد حذفها فعلياً)؛ يُغلق العارض إن فرغ. */
+    public static void removeAt(int i) {
+        PhotoViewer o = open;
+        if (o == null || o.root == null || o.closing || i < 0 || i >= o.photos.size()) return;
+        o.photos.remove(i);
+        if (o.photos.isEmpty()) { o.close(); return; }
+        o.current = Math.max(0, Math.min(o.current, o.photos.size() - 1));
+        o.refreshPager();
+    }
+
+    /** ينقل الصورة i إلى المقدمة (صارت هي المعتمدة) ويعرضها. */
+    public static void moveToFront(int i) {
+        PhotoViewer o = open;
+        if (o == null || o.root == null || o.closing || i <= 0 || i >= o.photos.size()) return;
+        o.photos.add(0, o.photos.remove(i));
+        o.current = 0;
+        o.refreshPager();
+    }
+
+    private void refreshPager() {
+        pager.getAdapter().notifyDataSetChanged();
+        pager.setCurrentItem(current, false);
+        rebuildStrip();
+        refreshStrip(false);
     }
 
     private int dp(float v) { return Math.round(v * d); }
@@ -88,7 +132,74 @@ public final class PhotoViewer {
         ViewGroup content = act.findViewById(android.R.id.content);
         if (content == null) return;
 
-        root = new FrameLayout(act);
+        final int slop = android.view.ViewConfiguration.get(act).getScaledTouchSlop();
+        root = new FrameLayout(act) {
+            private float downX, downY;
+            private boolean drag;
+            private android.view.VelocityTracker vt;
+
+            private boolean pageZoomed() {
+                for (int i = 0; i < pager.getChildCount(); i++) {
+                    View c = pager.getChildAt(i);
+                    if (c instanceof ZoomImageView && c.getTag() instanceof Integer && (Integer) c.getTag() == current)
+                        return ((ZoomImageView) c).isZoomed();
+                }
+                return false;
+            }
+
+            @Override public boolean onInterceptTouchEvent(MotionEvent ev) {
+                switch (ev.getActionMasked()) {
+                    case MotionEvent.ACTION_DOWN:
+                        downX = ev.getX(); downY = ev.getY(); drag = false;
+                        if (vt != null) vt.recycle();
+                        vt = android.view.VelocityTracker.obtain();
+                        vt.addMovement(ev);
+                        break;
+                    case MotionEvent.ACTION_MOVE:
+                        if (vt != null) vt.addMovement(ev);
+                        if (!drag && !closing && ev.getPointerCount() == 1 && !pageZoomed()) {
+                            float dy = ev.getY() - downY, dx = ev.getX() - downX;
+                            if (Math.abs(dy) > slop * 1.5f && Math.abs(dy) > Math.abs(dx) * 1.2f) { drag = true; return true; }
+                        }
+                        break;
+                    default:
+                        break;
+                }
+                return drag;
+            }
+
+            @Override public boolean onTouchEvent(MotionEvent ev) {
+                if (!drag) return super.onTouchEvent(ev);
+                if (vt != null) vt.addMovement(ev);
+                float h = Math.max(1f, getHeight());
+                float dy = ev.getY() - downY;
+                switch (ev.getActionMasked()) {
+                    case MotionEvent.ACTION_MOVE: {
+                        float prog = Math.min(1f, Math.abs(dy) / (h * 0.45f));
+                        pager.setTranslationY(dy);
+                        float sc = 1f - 0.2f * prog;
+                        pager.setScaleX(sc); pager.setScaleY(sc);
+                        setBackgroundColor(Color.argb(Math.round(255 * (1f - prog)), 0, 0, 0));
+                        float ba = barsShown ? 1f - Math.min(1f, prog * 2f) : 0f;
+                        header.setAlpha(ba); stripScroll.setAlpha(ba);
+                        return true;
+                    }
+                    case MotionEvent.ACTION_UP:
+                    case MotionEvent.ACTION_CANCEL: {
+                        drag = false;
+                        float vy = 0f;
+                        if (vt != null) { vt.computeCurrentVelocity(1000); vy = vt.getYVelocity(); vt.recycle(); vt = null; }
+                        boolean up = ev.getActionMasked() == MotionEvent.ACTION_UP;
+                        boolean fling = Math.abs(vy) > 1100f * d && vy * dy > 0;
+                        if (up && (Math.abs(dy) > dp(110) || fling)) dismissDrag(dy < 0 ? -1 : 1);
+                        else cancelDrag();
+                        return true;
+                    }
+                    default:
+                        return true;
+                }
+            }
+        };
         root.setBackgroundColor(Color.BLACK);
         root.setClickable(true);                       // يمنع وصول اللمس للصفحة التي خلفه
         root.setFocusableInTouchMode(true);
@@ -103,6 +214,7 @@ public final class PhotoViewer {
             @Override public boolean isViewFromObject(View v, Object o) { return v == o; }
             @Override public Object instantiateItem(ViewGroup c, int pos) {
                 ZoomImageView iv = new ZoomImageView(act);
+                iv.setTag(pos);
                 iv.setImageBitmap(photos.get(pos));
                 iv.onTap = (x, w, zoomed) -> {
                     // نقرة على الثلث الأيمن ← التالية، الثلث الأيسر ← السابقة، الوسط ← إظهار/إخفاء الأشرطة
@@ -114,6 +226,7 @@ public final class PhotoViewer {
                 return iv;
             }
             @Override public void destroyItem(ViewGroup c, int pos, Object o) { c.removeView((View) o); }
+            @Override public int getItemPosition(Object o) { return POSITION_NONE; }   // بعد الحذف/الاعتماد تُعاد بناء الصفحات
         });
         pager.addOnPageChangeListener(new ViewPager.SimpleOnPageChangeListener() {
             @Override public void onPageSelected(int pos) { current = pos; refreshStrip(true); }
@@ -174,7 +287,9 @@ public final class PhotoViewer {
         stripScroll = new HorizontalScrollView(act);
         stripScroll.setHorizontalScrollBarEnabled(false);
         stripScroll.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-        stripScroll.setPadding(dp(8), dp(8), dp(8), bottom + dp(10));
+        // حشو جانبي = نصف عرض الشاشة إلا نصف المصغّرة المحددة: أول مصغّرة تبدأ من المنتصف وأي مصغّرة تُوسَّط
+        int sidePad = Math.max(0, (act.getResources().getDisplayMetrics().widthPixels - dp(SEL)) / 2);
+        stripScroll.setPadding(sidePad, dp(8), sidePad, bottom + dp(10));
         stripScroll.setClipToPadding(false);
         strip = new LinearLayout(act);
         strip.setOrientation(LinearLayout.HORIZONTAL);
@@ -183,18 +298,8 @@ public final class PhotoViewer {
         stripScroll.addView(strip, new FrameLayout.LayoutParams(-2, -2));
         stripScroll.setBackground(new GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP,
                 new int[]{0xB3000000, 0x00000000}));
-        for (int i = 0; i < photos.size(); i++) {
-            final int idx = i;
-            ImageView th = new ImageView(act);
-            th.setScaleType(ImageView.ScaleType.CENTER_CROP);
-            th.setImageBitmap(photos.get(i));
-            th.setOnClickListener(v -> pager.setCurrentItem(idx, true));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(40), dp(54));
-            lp.rightMargin = dp(3);
-            strip.addView(th, lp);
-        }
         root.addView(stripScroll, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
-        if (photos.size() <= 1) stripScroll.setVisibility(View.GONE);   // صورة واحدة: لا حاجة لشريط المصغّرات
+        rebuildStrip();
 
         // زر الرجوع في النظام
         root.setOnKeyListener((v, code, ev) -> {
@@ -219,11 +324,42 @@ public final class PhotoViewer {
         pager.setCurrentItem(current, false);
         refreshStrip(false);
 
-        // ظهور سريع: تلاشٍ + تكبير بسيط
-        pager.setScaleX(0.94f);
-        pager.setScaleY(0.94f);
-        root.animate().alpha(1f).setDuration(160).start();
-        pager.animate().scaleX(1f).scaleY(1f).setDuration(180).start();
+        // ظهور بتكبير: الصورة تنمو من مكان الصورة المكبّرة (مربّع أعلى الشاشة) إلى كامل الشاشة مع تلاشٍ، ثم تنزلق الأشرطة
+        final int sw = act.getResources().getDisplayMetrics().widthPixels;
+        final android.view.animation.Interpolator ease = new android.view.animation.PathInterpolator(0.22f, 1f, 0.36f, 1f);
+        pager.setPivotX(sw / 2f);
+        pager.setPivotY(sw / 2f);
+        pager.setScaleX(0.62f);
+        pager.setScaleY(0.62f);
+        pager.setAlpha(0f);
+        header.setAlpha(0f);
+        header.setTranslationY(-dp(24));
+        stripScroll.setAlpha(0f);
+        stripScroll.setTranslationY(dp(24));
+        root.animate().alpha(1f).setDuration(200).start();
+        pager.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(340).setInterpolator(ease).start();
+        header.animate().alpha(1f).translationY(0f).setStartDelay(140).setDuration(260).setInterpolator(ease).start();
+        stripScroll.animate().alpha(1f).translationY(0f).setStartDelay(140).setDuration(260).setInterpolator(ease).start();
+    }
+
+    private void rebuildStrip() {
+        strip.removeAllViews();
+        for (int i = 0; i < photos.size(); i++) {
+            final int idx = i;
+            ImageView th = new ImageView(act);
+            th.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            th.setImageBitmap(photos.get(i));
+            final float r = dp(5);                      // حواف منحنية 5dp (تتبع العرض المتغيّر للمصغّرة المحددة)
+            th.setOutlineProvider(new android.view.ViewOutlineProvider() {
+                @Override public void getOutline(View view, android.graphics.Outline o) { o.setRoundRect(0, 0, view.getWidth(), view.getHeight(), r); }
+            });
+            th.setClipToOutline(true);
+            th.setOnClickListener(v -> pager.setCurrentItem(idx, true));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(UNSEL), dp(UNSEL));
+            lp.leftMargin = dp(2); lp.rightMargin = dp(2);
+            strip.addView(th, lp);
+        }
+        stripScroll.setVisibility(photos.size() <= 1 ? View.GONE : View.VISIBLE);   // صورة واحدة: لا حاجة لشريط المصغّرات
     }
 
     private void refreshStrip(boolean animate) {
@@ -231,15 +367,16 @@ public final class PhotoViewer {
             View th = strip.getChildAt(i);
             boolean sel = i == current;
             LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) th.getLayoutParams();
-            lp.width = dp(sel ? 66 : 40);
-            lp.leftMargin = sel ? dp(6) : 0;
-            lp.rightMargin = sel ? dp(9) : dp(3);
+            lp.width = dp(sel ? SEL : UNSEL);
+            lp.height = lp.width;                       // مربّعة دائماً
+            lp.leftMargin = dp(sel ? 5 : 2);
+            lp.rightMargin = dp(sel ? 5 : 2);
             th.setLayoutParams(lp);
             th.setAlpha(sel ? 1f : 0.75f);
         }
         final View sel = strip.getChildAt(current);
         if (sel != null) stripScroll.post(() -> {
-            int x = sel.getLeft() - (stripScroll.getWidth() - sel.getWidth()) / 2;
+            int x = stripScroll.getPaddingLeft() + sel.getLeft() + sel.getWidth() / 2 - stripScroll.getWidth() / 2;
             if (animate) stripScroll.smoothScrollTo(Math.max(0, x), 0); else stripScroll.scrollTo(Math.max(0, x), 0);
         });
     }
@@ -247,12 +384,17 @@ public final class PhotoViewer {
     private void toggleBars() {
         barsShown = !barsShown;
         float a = barsShown ? 1f : 0f;
-        header.animate().alpha(a).setDuration(150).start();
-        stripScroll.animate().alpha(a).setDuration(150).start();
+        // الشريط العلوي يصعد ويختفي، والمصغّرات تهبط وتختفي (والعكس عند النقر ثانيةً)
+        android.view.animation.Interpolator ease = new android.view.animation.PathInterpolator(0.22f, 1f, 0.36f, 1f);
+        header.animate().alpha(a).translationY(barsShown ? 0f : -(header.getHeight() + dp(8)))
+                .setStartDelay(0).setInterpolator(ease).setDuration(240).start();
+        stripScroll.animate().alpha(a).translationY(barsShown ? 0f : (stripScroll.getHeight() + dp(8)))
+                .setStartDelay(0).setInterpolator(ease).setDuration(240).start();
         header.setClickable(barsShown);
     }
 
     private void showMenu(View anchor) {
+        if (handler != null) { handler.onMenu(anchor, current, photos.get(current)); return; }
         TextView item = new TextView(act);
         item.setText("حفظ في المعرض");
         item.setTextColor(0xFF1B1B1B);
@@ -302,15 +444,48 @@ public final class PhotoViewer {
         } catch (Throwable ignored) { }
     }
 
+    private void removeRoot() {
+        try { ((ViewGroup) root.getParent()).removeView(root); } catch (Throwable ignored) { }
+        if (open == this) open = null;
+        restoreNavBar();
+    }
+
     private void close() {
         if (closing || root == null) return;
         closing = true;
-        pager.animate().scaleX(0.94f).scaleY(0.94f).setDuration(140).start();
-        root.animate().alpha(0f).setDuration(140).withEndAction(() -> {
-            try { ((ViewGroup) root.getParent()).removeView(root); } catch (Throwable ignored) { }
-            if (open == this) open = null;
-            restoreNavBar();
-        }).start();
+        pager.animate().scaleX(0.7f).scaleY(0.7f).alpha(0f).setDuration(200).start();
+        header.animate().alpha(0f).setStartDelay(0).setDuration(120).start();
+        stripScroll.animate().alpha(0f).setStartDelay(0).setDuration(120).start();
+        root.animate().alpha(0f).setDuration(200).withEndAction(this::removeRoot).start();
+    }
+
+    /** إغلاق بالسحب العمودي: الصورة تكمل خروجها بنفس الاتجاه (dir = -1 للأعلى، 1 للأسفل) والخلفية تتلاشى. */
+    private void dismissDrag(int dir) {
+        if (closing || root == null) return;
+        closing = true;
+        float h = Math.max(1f, root.getHeight());
+        pager.animate().translationY(dir * h * 0.6f).alpha(0f).setStartDelay(0).setDuration(220)
+                .setInterpolator(new android.view.animation.AccelerateInterpolator(1.2f)).start();
+        header.animate().alpha(0f).setStartDelay(0).setDuration(100).start();
+        stripScroll.animate().alpha(0f).setStartDelay(0).setDuration(100).start();
+        root.animate().alpha(0f).setDuration(220).withEndAction(this::removeRoot).start();
+    }
+
+    /** لم يبلغ السحب الحد: تعود الصورة والخلفية والأشرطة إلى مكانها. */
+    private void cancelDrag() {
+        pager.animate().translationY(0f).scaleX(1f).scaleY(1f).setStartDelay(0).setDuration(200)
+                .setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
+        float ba = barsShown ? 1f : 0f;
+        header.animate().alpha(ba).setStartDelay(0).setDuration(200).start();
+        stripScroll.animate().alpha(ba).setStartDelay(0).setDuration(200).start();
+        final int steps = 1;
+        android.animation.ValueAnimator va = android.animation.ValueAnimator.ofInt(0, 255);
+        final int from = root.getBackground() instanceof android.graphics.drawable.ColorDrawable
+                ? Color.alpha(((android.graphics.drawable.ColorDrawable) root.getBackground()).getColor()) : 255;
+        va.setIntValues(from, 255);
+        va.setDuration(200);
+        va.addUpdateListener(a -> root.setBackgroundColor(Color.argb((Integer) a.getAnimatedValue(), 0, 0, 0)));
+        va.start();
     }
 
     // =====================================================================================
@@ -400,6 +575,7 @@ public final class PhotoViewer {
         }
 
         private float scale() { m.getValues(v); return v[Matrix.MSCALE_X]; }
+        boolean isZoomed() { return scale() > base * 1.01f; }
 
         @Override public void setImageBitmap(Bitmap bm) {
             super.setImageBitmap(bm);
