@@ -235,6 +235,7 @@ public class MassActivity extends Activity {
 
     @Override
     public void onBackPressed() {
+        try { if (PhotoViewer.closeIfOpen()) return; } catch (Throwable ignored) { }
         try { if (backHook != null && backHook.getAsBoolean()) return; } catch (Throwable ignored) { }
         // لا نستدعي super: زر الرجوع لا يُغلق التطبيق أبداً
     }
@@ -1887,6 +1888,48 @@ public class MassActivity extends Activity {
             }
 
             /** قائمة النقاط الثلاث لبروفايل الآخر (#otherTopMenu): إضافة/تعديل/حذف جهة الدردشة. */
+            /** قائمة النقاط الثلاث فوق الصورة المكبّرة: «حفظ الصورة» (بنفس بطاقة قائمة الملف الآخر). */
+            void photoMenu(final View anchor, final Bitmap bmp) {
+                final View host = v("root");
+                if (anchor == null || host == null || bmp == null) return;
+                final int txt = dark ? 0xFFF1F5F9 : 0xFF17212B;
+                final android.widget.PopupWindow[] pwRef = new android.widget.PopupWindow[1];
+                LinearLayout card = new LinearLayout(act);
+                card.setOrientation(LinearLayout.VERTICAL);
+                card.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                card.setMinimumWidth(dp(176));
+                card.setPadding(dp(6), dp(6), dp(6), dp(6));
+                GradientDrawable bg = new GradientDrawable();
+                bg.setColor(dark ? 0xFF1B2230 : 0xFFFFFFFF);
+                bg.setCornerRadius(dp(16));
+                bg.setStroke(dp(1), dark ? 0xFF2E3848 : 0xFFE1E6EE);
+                card.setBackground(bg);
+                View save = menuItem(R.drawable.ic_mm_download, "حفظ الصورة", txt);
+                save.setOnClickListener(x -> { pwRef[0].dismiss(); PhotoViewer.saveBitmap(act, bmp); });
+                card.addView(save);
+                FrameLayout holder = new FrameLayout(act);
+                holder.setClipChildren(false);
+                holder.setPadding(dp(10), 0, dp(10), dp(16));
+                holder.addView(card, new FrameLayout.LayoutParams(-2, -2));
+                final android.widget.PopupWindow pw = new android.widget.PopupWindow(holder, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true);
+                pwRef[0] = pw;
+                pw.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0));
+                pw.setOutsideTouchable(true);
+                pw.setClippingEnabled(false);
+                card.measure(View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+                int cardW = Math.max(card.getMeasuredWidth(), dp(176));
+                int[] loc = new int[2];
+                anchor.getLocationOnScreen(loc);
+                int sw = act.getResources().getDisplayMetrics().widthPixels;
+                int cx = loc[0] + anchor.getWidth() / 2;
+                int cardX = Math.min(sw - dp(10) - cardW, cx + dp(26) - cardW);
+                pw.showAtLocation(host, Gravity.TOP | Gravity.LEFT, cardX - dp(10), loc[1] + anchor.getHeight() - dp(6));
+                holder.setPivotX(cardW - dp(16)); holder.setPivotY(0f);
+                holder.setAlpha(0f); holder.setScaleX(0.4f); holder.setScaleY(0.4f);
+                holder.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(190)
+                        .setInterpolator(new android.view.animation.OvershootInterpolator(1.1f)).start();
+            }
+
             void otherMenu() {
                 final View more = v("otherMoreBtn");
                 final View host = v("root");
@@ -1936,6 +1979,13 @@ public class MassActivity extends Activity {
                                 null, "حذف", true, () -> deleteContact(uid));
                     });
                     card.addView(del);
+                }
+
+                if (otherPhotoBmp != null) {
+                    final Bitmap ob = otherPhotoBmp;
+                    View sv0 = menuItem(R.drawable.ic_mm_download, "حفظ الصورة", txt);
+                    sv0.setOnClickListener(x -> { pwRef[0].dismiss(); PhotoViewer.saveBitmap(act, ob); });
+                    card.addView(sv0);
                 }
 
                 // ---- القائمة متصلة بالنقاط الثلاث: سهم صغير يشير إلى النقاط، وتنبثق القائمة من مركزها ----
@@ -3125,6 +3175,8 @@ public class MassActivity extends Activity {
                     });
                     list.addView(row);
                     style(row);
+                    FontManager.applyTo(act, row);   // الخط يُطبَّق قبل أول قياس: كان يُطبَّق بعد إطار فيتغير عرض الوقت وتهتز ✓ مع كل تحديد
+                    chatRowPress(row);   // حركة نقر: تصغير سريع عند اللمس ثم ارتداد
                     if (rowSel) {   // التحديد: ذهبي معتم يغطي الصف بالكامل (لا تظهر النقوش خلفه) + إطار ذهبي
                         GradientDrawable sg = new GradientDrawable();
                         int selBase = cSf() | 0xFF000000;   // طبقة أساس معتمة
@@ -3663,6 +3715,25 @@ public class MassActivity extends Activity {
                 return u1.compareTo(u2) < 0 ? u1 + "_" + u2 : u2 + "_" + u1;
             }
 
+            /** حركة نقر لصف المحادثة عبر StateListAnimator (لا تتعارض مع مستمعات اللمس/السحب/الضغط المطوّل). */
+            void chatRowPress(final View row) {
+                try {
+                    android.animation.StateListAnimator sla = new android.animation.StateListAnimator();
+                    android.animation.ObjectAnimator down = android.animation.ObjectAnimator.ofPropertyValuesHolder(row,
+                            android.animation.PropertyValuesHolder.ofFloat(View.SCALE_X, 0.96f),
+                            android.animation.PropertyValuesHolder.ofFloat(View.SCALE_Y, 0.96f));
+                    down.setDuration(70);
+                    android.animation.ObjectAnimator up = android.animation.ObjectAnimator.ofPropertyValuesHolder(row,
+                            android.animation.PropertyValuesHolder.ofFloat(View.SCALE_X, 1f),
+                            android.animation.PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f));
+                    up.setDuration(140);
+                    up.setInterpolator(new android.view.animation.OvershootInterpolator(1.6f));
+                    sla.addState(new int[]{android.R.attr.state_pressed}, down);
+                    sla.addState(new int[]{}, up);
+                    row.setStateListAnimator(sla);
+                } catch (Throwable ignored) { }
+            }
+
             void openChat(String name, String uid) {
                 if (stories != null) stories.collapseNow();   // دخول محادثة يطوي القصص
                 if (chatSelMode) exitChatSel(false);
@@ -3691,7 +3762,9 @@ public class MassActivity extends Activity {
                 if (messagesListener != null) messagesListener.remove();
 
                 currentChatId = getChatId(myUid, uid);
-                loadMessages(currentChatId);
+                final String openCid = currentChatId;
+                // تحميل الرسائل بعد أول إطار: النقر يفتح المحادثة وتبدأ الحركة فوراً دون انتظار قراءة الخزن ورسم الفقاعات
+                uiH.post(() -> { if (openCid.equals(currentChatId)) loadMessages(openCid); });
                 restoreRecording(currentChatId);   // تعود الصوتية المسجّلة إن وُجدت
                 listenPins(currentChatId);
                 vis("chatView", true);
@@ -3722,9 +3795,8 @@ public class MassActivity extends Activity {
                         if (o.isAlive()) o.removeOnPreDrawListener(this);
                         View c0 = ((ScrollView) ms).getChildAt(0);
                         if (c0 != null) ((ScrollView) ms).scrollTo(0, Math.max(0, c0.getHeight() + ms.getPaddingTop() + ms.getPaddingBottom() - ms.getHeight()));
-                        area.animate().cancel();
-                        area.setAlpha(0f);
-                        area.animate().alpha(1f).setDuration(20).start();   // ظهور أسرع (كان 180)؛ ناعم بعد انتهاء حركة الدخول
+                        // لا نُصفّر الشفافية إن كانت الرسائل ظاهرة أصلاً (كان هذا سبب الوميض عند وصول السيرفر)
+                        if (area.getAlpha() < 1f) area.animate().alpha(1f).setDuration(20).start();
                         return true;
                     }
                 });
@@ -7117,8 +7189,14 @@ public class MassActivity extends Activity {
                 GradientDrawable pg = new GradientDrawable();
                 pg.setColor(csPanelBg());
                 pg.setCornerRadii(new float[]{0, 0, 0, 0, r, r, r, r});
-                if (Tk.chatPal != null) pg.setStroke(dp(1), Tk.crLine(cBorder()));
-                p.setBackground(pg);
+                if (Tk.chatPal != null) {
+                    // الإطار بلا حافة علوية: لا خط فاصل بين شريط الإشعارات ولوحة البحث
+                    GradientDrawable ps = new GradientDrawable();
+                    ps.setColor(Color.TRANSPARENT);
+                    ps.setCornerRadii(new float[]{0, 0, 0, 0, r, r, r, r});
+                    ps.setStroke(dp(1), Tk.crLine(cBorder()));
+                    p.setBackground(new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[]{pg, new TopClipDrawable(ps, dp(2))}));
+                } else p.setBackground(pg);
                 if (Build.VERSION.SDK_INT >= 21) p.setElevation(dp(6));
                 // نفس لون وشكل حقل كتابة الرسالة (msginp): الخلفية + النص + التلميح، وزر الرجوع بنفس اللون
                 boolean th = Tk.chatPal != null;
@@ -7132,7 +7210,8 @@ public class MassActivity extends Activity {
                 EditText in = et("chatMessageSearchInput");
                 if (in != null) {
                     in.setTextColor(inkC); in.setHintTextColor(mutedC);
-                    in.setOnFocusChangeListener((vv, has) -> { if (fld != null) fld.setBackground(msgInpBg(has)); });
+                    in.setOnFocusChangeListener((vv, has) -> { if (fld != null) fld.setBackground(msgInpBg(has)); if (has) Tk.selectionTint(in, selAcc()); });
+                    Tk.selectionTint(in, selAcc());   // تظليل التحديد ومقبضاه والمؤشر بلون ثيم المحادثة (مثل حقل الرسالة)
                 }
                 View cl = v("csClear");
                 if (cl instanceof ImageView) {
@@ -7638,28 +7717,16 @@ public class MassActivity extends Activity {
                 GradientDrawable g1 = new GradientDrawable(); g1.setColor(baseC); g1.setCornerRadius(dp(16));
                 GradientDrawable g2 = new GradientDrawable(); g2.setColor(inpC); g2.setCornerRadius(dp(16));
                 bar.setBackground(new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[]{g1, g2}));
-                // ظل خلف الشريط من كل الجهات (متمركز بلا إزاحة للأسفل): طبقات شفافة متدرّجة تتسع حول الشريط
-                {
-                    final int steps = 10;
-                    android.graphics.drawable.Drawable[] sl = new android.graphics.drawable.Drawable[steps];
-                    for (int i = 0; i < steps; i++) {
-                        GradientDrawable gs = new GradientDrawable();
-                        gs.setColor(dark ? 0x1A000000 : 0x0C1A2C46);
-                        float ext = pad * (steps - i) / (float) steps;      // يتسع من الحافة إلى 14dp حول الشريط
-                        gs.setCornerRadius(dp(16) + ext);
-                        sl[i] = gs;
-                    }
-                    android.graphics.drawable.LayerDrawable shadow = new android.graphics.drawable.LayerDrawable(sl);
-                    for (int i = 0; i < steps; i++) {
-                        int inset = Math.round(pad - pad * (steps - i) / (float) steps);
-                        shadow.setLayerInset(i, inset, inset, inset, inset);
-                    }
-                    rootF.setBackground(shadow);
-                }
+                // ظل مطابق لظل زر «إلغاء» في نافذة حذف القصة: elevation = 4dp
+                bar.setOutlineProvider(new android.view.ViewOutlineProvider() {
+                    @Override public void getOutline(View vw, android.graphics.Outline o) { o.setRoundRect(0, 0, vw.getWidth(), vw.getHeight(), dp(16)); }
+                });
+                bar.setElevation(dp(4));
                 rootF.addView(bar, new FrameLayout.LayoutParams(barW, barH));
 
                 final PopupWindow pw = new PopupWindow(rootF, barW + pad * 2, barH + pad * 2, true);
                 pw.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0));
+                pw.setElevation(0f);   // لا ظل إضافي من النافذة نفسها
                 pw.setOutsideTouchable(true);
                 pw.setAnimationStyle(0);
 
@@ -7681,7 +7748,7 @@ public class MassActivity extends Activity {
                     bar.addView(b, bl);
                     BabylonFx.press(b, 0.92f);
                     b.setOnClickListener(vv -> {
-                        bar.animate().alpha(0f).setDuration(150).withEndAction(() -> { try { pw.dismiss(); } catch (Throwable ignored) { } acts[k].run(); }).start();
+                        bar.animate().alpha(0f).translationZ(-dp(4)).setDuration(120).withEndAction(() -> { try { pw.dismiss(); } catch (Throwable ignored) { } acts[k].run(); }).start();   // الظل يختفي مع الشريط في نفس اللحظة
                     });
                 }
 
@@ -7695,12 +7762,13 @@ public class MassActivity extends Activity {
                 int left = loc[0] + anchor.getWidth() / 2 - dp(53);
                 left = Math.max(dp(8), Math.min(winW - dp(114), left));
                 int top = loc[1] - dp(8) - barH;   // 8dp فوق زر الوسائط مباشرة
+                // الحالة الابتدائية قبل إظهار النافذة: لا يظهر الشريط/الظل لإطار واحد بحجمه الكامل
+                bar.setPivotX(barW / 2f); bar.setPivotY(barH);
+                bar.setAlpha(0f); bar.setScaleX(0.4f); bar.setScaleY(0.6f); bar.setTranslationY(dp(10)); bar.setTranslationZ(-dp(4));
                 try { pw.showAtLocation(decor, Gravity.NO_GRAVITY, left - pad, top - pad); } catch (Throwable t) { return; }
 
-                // حركة الظهور: من أسفل الوسط، scale(.4,.6) + إزاحة 10 ← 1 (.22ث) والشفافية .15ث
-                bar.setPivotX(barW / 2f); bar.setPivotY(barH);
-                bar.setAlpha(0f); bar.setScaleX(0.4f); bar.setScaleY(0.6f); bar.setTranslationY(dp(10));
-                bar.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f).setDuration(220)
+                // حركة الظهور: من أسفل الوسط، scale(.4,.6) + إزاحة 10 ← 1 (.22ث) والشفافية .15ث؛ الظل ينمو مع الشريط
+                bar.animate().alpha(1f).scaleX(1f).scaleY(1f).translationY(0f).translationZ(0f).setDuration(220)
                     .setInterpolator(new android.view.animation.PathInterpolator(0.2f, 0.9f, 0.3f, 1.15f)).start();
             }
 
@@ -7994,6 +8062,13 @@ public class MassActivity extends Activity {
                             v("otherBack"), v("otherMoreBtn"), pal);
                     heroMe.setCoverTheme(CoverThemes.byId(coverId));
                     heroOther.setCoverTheme(CoverThemes.byId(otherCoverId));
+                    heroMe.setDotsListener(anchor -> photoMenu(anchor, photoBmp));
+                    heroMe.setFullViewListener((nm, st) -> {
+                        if (photoBmp != null) PhotoViewer.show(act, java.util.Collections.singletonList(photoBmp), nm, st, 0);
+                    });
+                    heroOther.setFullViewListener((nm, st) -> {
+                        if (otherPhotoBmp != null) PhotoViewer.show(act, java.util.Collections.singletonList(otherPhotoBmp), nm, st, 0);
+                    });
                     heroMe.setAvatarInset(ringTotalPx());       // الحلقة الذهبية خارج الصورة: المربع المكبّر يبدأ من حدود الصورة نفسها
                     heroOther.setAvatarInset(ringTotalPx());
                 } catch (Throwable ignored) { }

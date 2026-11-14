@@ -173,6 +173,7 @@ public final class MsgViews {
         t.setTypeface(null, android.graphics.Typeface.NORMAL);   // العريض عبر StyleSpan للحروف فقط
         t.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG);
         t.setText(richText(body), TextView.BufferType.SPANNABLE);   // نص + إيموجي معاً بلا فقدان
+        linkify(t);   // الروابط: أزرق فاتح + خط سفلي، والنقر يفتحها
         t.setTag(mine ? "mtM" : "mtO");
         t.setPadding(dp(a, 2), 0, dp(a, 2), dp(a, 4));
         t.setLineSpacing(0, 1.12f);
@@ -209,11 +210,92 @@ public final class MsgViews {
         }
     }
 
+    // ------------------------------------------------------------------ الروابط
+    /** رابط داخل الرسالة: أزرق فاتح مع خط سفلي. */
+    private static final class LinkSpan extends android.text.style.ClickableSpan {
+        final String url;
+        LinkSpan(String url) { this.url = url; }
+        @Override public void updateDrawState(android.text.TextPaint ds) {
+            ds.setColor(0xFF7DD3FC);
+            ds.setUnderlineText(true);
+        }
+        @Override public void onClick(View v) {
+            try {
+                String u = url;
+                if (!u.matches("(?i)^[a-z][a-z0-9+.-]*:.*")) u = "http://" + u;
+                v.getContext().startActivity(new android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(u)));
+            } catch (Throwable ignored) { }
+        }
+    }
+
+    /** يحوّل الروابط/البريد في نص الرسالة إلى LinkSpan، بدون MovementMethod كي يبقى الضغط المطوّل وقائمة الرسالة يعملان. */
+    static void linkify(final TextView t) {
+        CharSequence cs = t.getText();
+        if (!(cs instanceof android.text.Spannable)) return;
+        final android.text.Spannable sp = (android.text.Spannable) cs;
+        android.text.util.Linkify.addLinks(sp, android.text.util.Linkify.WEB_URLS | android.text.util.Linkify.EMAIL_ADDRESSES);
+        android.text.style.URLSpan[] us = sp.getSpans(0, sp.length(), android.text.style.URLSpan.class);
+        if (us.length == 0) return;
+        for (android.text.style.URLSpan u : us) {
+            int st = sp.getSpanStart(u), en = sp.getSpanEnd(u);
+            String url = u.getURL();
+            sp.removeSpan(u);
+            sp.setSpan(new LinkSpan(url), st, en, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        t.setOnTouchListener(new View.OnTouchListener() {
+            private LinkSpan hit;
+            private long downT;
+            private float dx, dy;
+
+            private LinkSpan spanAt(MotionEvent ev) {
+                android.text.Layout lay = t.getLayout();
+                if (lay == null) return null;
+                float x = ev.getX() - t.getTotalPaddingLeft() + t.getScrollX();
+                float y = ev.getY() - t.getTotalPaddingTop() + t.getScrollY();
+                if (y < 0 || y > lay.getHeight()) return null;
+                int line = lay.getLineForVertical((int) y);
+                if (x < lay.getLineLeft(line) || x > lay.getLineRight(line)) return null;
+                int off = lay.getOffsetForHorizontal(line, x);
+                LinkSpan[] ls = sp.getSpans(off, off, LinkSpan.class);
+                return ls.length > 0 ? ls[0] : null;
+            }
+
+            @Override public boolean onTouch(View v, MotionEvent ev) {
+                switch (ev.getActionMasked()) {
+                    case MotionEvent.ACTION_DOWN:
+                        hit = spanAt(ev);
+                        downT = ev.getEventTime(); dx = ev.getX(); dy = ev.getY();
+                        return hit != null;
+                    case MotionEvent.ACTION_MOVE:
+                        if (hit != null && (Math.abs(ev.getX() - dx) > 24 || Math.abs(ev.getY() - dy) > 24)) hit = null;
+                        return hit != null;
+                    case MotionEvent.ACTION_UP: {
+                        LinkSpan h = hit; hit = null;
+                        if (h == null) return false;
+                        if (ev.getEventTime() - downT >= android.view.ViewConfiguration.getLongPressTimeout()) {
+                            // ضغط مطوّل على الرابط: يمرَّر لقائمة الرسالة كأي موضع آخر في الفقاعة
+                            for (android.view.ViewParent pp = t.getParent(); pp instanceof View; pp = pp.getParent()) {
+                                if (((View) pp).isLongClickable()) { ((View) pp).performLongClick(); break; }
+                            }
+                        } else h.onClick(t);
+                        return true;
+                    }
+                    case MotionEvent.ACTION_CANCEL:
+                        hit = null;
+                        return false;
+                    default:
+                        return hit != null;
+                }
+            }
+        });
+    }
+
     /** يحوّل النص إلى Spannable تُغلَّف فيه كل مجموعة إيموجي (علم/keycap/ZWJ/لون بشرة) بـ EmojiRun، وبقية الحروف كما هي. */
     public static CharSequence richText(String raw) {
         if (raw == null || raw.isEmpty()) return "";
         int[] cp = cps(raw);
         int n = cp.length;
+        final boolean boldMsgs = FontManager.isBoldMode();   // الرسائل عريضة فقط عند اختيار نوع الخط «عريض»؛ عادي/نسخ/غيرهما بوزن عادي
         android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder();
         int i = 0;
         int runStart = -1;   // بداية مجموعة إيموجي متتالية: تُغلَّف كلها بـ EmojiRun واحد (بدل Span لكل إيموجي) لتُقاس وتُرسم معاً بثبات
@@ -239,7 +321,8 @@ public final class MsgViews {
             int from = sb.length();
             sb.append(new String(cp, s, i - s));
             // الخط العريض يُطبَّق على الحروف فقط؛ الإيموجي تبقى نصاً عادياً فيرسمها النظام بخطه الملوّن ويلفّها مع السطر طبيعياً (حتى في الرسائل الطويلة)
-            if (!emoji) { if (runStart < 0) runStart = from; }
+            if (!boldMsgs) { /* نوع الخط ≠ عريض: لا تعريض إجباري، الرسالة تتبع خط التطبيق */ }
+            else if (!emoji) { if (runStart < 0) runStart = from; }
             else if (runStart >= 0) { sb.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), runStart, from, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE); runStart = -1; }
         }
         if (runStart >= 0) sb.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), runStart, sb.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);

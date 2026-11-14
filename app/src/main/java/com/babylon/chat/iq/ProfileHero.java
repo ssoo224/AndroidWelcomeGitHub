@@ -62,6 +62,22 @@ public final class ProfileHero implements PullScrollView.Controller {
 
     private static final float THRESH = 0.45f;
 
+    /** تُستدعى عند سحب الصورة المكبّرة للأسفل مرة أخرى: تفتح الصورة بكامل الشاشة. */
+    public interface FullViewListener { void open(CharSequence name, CharSequence status); }
+    private FullViewListener fullListener;
+
+    // عدّاد الصور (1/N) والنقاط الثلاث فوق الصورة المكبّرة — مثل تليجرام
+    private final boolean own;
+    private final FrameLayout topCtl;
+    private final TextView countPill;
+    private final View dotsBtn;                 // لملفي فقط (ملف الشخص الآخر عنده زر ⋮ خاص به)
+    public interface DotsListener { void onDots(View anchor); }
+    private DotsListener dotsListener;
+    public void setDotsListener(DotsListener r) { dotsListener = r; }
+    public void setPhotoCount(int n) { countPill.setText(String.format(java.util.Locale.US, "1/%d", Math.max(1, n))); }
+    private float lastPullDy = 0f;
+    public void setFullViewListener(FullViewListener l) { fullListener = l; }
+
     private final Activity act;
     private final PullScrollView sv;
     private final ViewGroup content;       // الابن المباشر لـ ScrollView
@@ -116,6 +132,7 @@ public final class ProfileHero implements PullScrollView.Controller {
         this.pal = pal;
         this.d = act.getResources().getDisplayMetrics().density;
         this.rangePx = (own ? 320f : 150f) * d;
+        this.own = own;
 
         // الابن المباشر للمحتوى الذي يحوي الأزرار (يتغير مكانه حسب الـ XML)
         View a = quick != null ? quick : infoBox;
@@ -206,6 +223,40 @@ public final class ProfileHero implements PullScrollView.Controller {
         int at = host.indexOfChild(sv);
         host.addView(coverUnder, at, new FrameLayout.LayoutParams(-1, 0));
         host.addView(hero, at + 1, new FrameLayout.LayoutParams(0, 0));
+
+        // ---- طبقة علوية: pill «1/N» + ⋮ (فوق كل شيء، تظهر مع الاسم عند اكتمال التكبير)
+        topCtl = new FrameLayout(act);
+        topCtl.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        topCtl.setVisibility(View.GONE);
+        topCtl.setAlpha(0f);
+        countPill = new TextView(act);
+        countPill.setText("1/1");
+        countPill.setTextColor(0xFFFFFFFF);
+        countPill.setTextSize(15);
+        countPill.setGravity(Gravity.CENTER);
+        countPill.setPadding((int) (12 * d), 0, (int) (12 * d), 0);
+        countPill.setTextDirection(View.TEXT_DIRECTION_LTR);
+        GradientDrawable pb = new GradientDrawable();
+        pb.setColor(0x66707070);
+        pb.setCornerRadius(40 * d);
+        countPill.setBackground(pb);
+        topCtl.addView(countPill, new FrameLayout.LayoutParams(-2, (int) (28 * d), Gravity.TOP | Gravity.RIGHT));
+        if (own) {
+            dotsBtn = new View(act) {
+                private final Paint dp = new Paint(Paint.ANTI_ALIAS_FLAG);
+                @Override protected void onDraw(Canvas c) {
+                    dp.setColor(0xFFFFFFFF);
+                    float cx = getWidth() / 2f, cy = getHeight() / 2f, r = 2.3f * d, g = 7f * d;
+                    c.drawCircle(cx, cy - g, r, dp); c.drawCircle(cx, cy, r, dp); c.drawCircle(cx, cy + g, r, dp);
+                }
+            };
+            dotsBtn.setClickable(true);
+            dotsBtn.setOnClickListener(v -> { if (dotsListener != null) dotsListener.onDots(v); });
+            topCtl.addView(dotsBtn, new FrameLayout.LayoutParams((int) (48 * d), (int) (48 * d), Gravity.TOP | Gravity.RIGHT));
+        } else {
+            dotsBtn = null;
+        }
+        host.addView(topCtl, new FrameLayout.LayoutParams(-1, -2, Gravity.TOP));
 
         sv.setController(this);
     }
@@ -439,7 +490,34 @@ public final class ProfileHero implements PullScrollView.Controller {
     }
 
     // ------------------------------------------------------------- تطبيق v
+    /** يضبط مكان الـ pill والنقاط: ملفي = تحت شريط الحالة؛ ملف آخر = بمحاذاة زر ⋮ الموجود. */
+    private void alignTop() {
+        ViewGroup host = (ViewGroup) topCtl.getParent();
+        if (host == null) return;
+        int sbId = act.getResources().getIdentifier("status_bar_height", "dimen", "android");
+        float sb = sbId > 0 ? act.getResources().getDimensionPixelSize(sbId) : 24 * d;
+        float cy = sb + 29 * d;
+        float rightPill = 55 * d;
+        if (!own && moreBtn != null && moreBtn.getWidth() > 0) {
+            int[] a = new int[2], h = new int[2];
+            moreBtn.getLocationInWindow(a); host.getLocationInWindow(h);
+            cy = a[1] - h[1] + moreBtn.getHeight() / 2f;
+            rightPill = host.getWidth() - (a[0] - h[0]) + 2 * d;
+        }
+        FrameLayout.LayoutParams pl = (FrameLayout.LayoutParams) countPill.getLayoutParams();
+        pl.topMargin = (int) (cy - 14 * d);
+        pl.rightMargin = (int) rightPill;
+        countPill.setLayoutParams(pl);
+        if (dotsBtn != null) {
+            FrameLayout.LayoutParams dl = (FrameLayout.LayoutParams) dotsBtn.getLayoutParams();
+            dl.topMargin = (int) (cy - 24 * d);
+            dl.rightMargin = (int) (7 * d);
+            dotsBtn.setLayoutParams(dl);
+        }
+    }
+
     private void enterHero() {
+        alignTop();
         hero.setVisibility(View.VISIBLE);
         avatar.setAlpha(0f);
         enterCover();
@@ -494,6 +572,8 @@ public final class ProfileHero implements PullScrollView.Controller {
 
         float info = clamp((p - 0.55f) / 0.4f);
         infoHolder.setAlpha(info);
+        topCtl.setVisibility(info > 0.01f ? View.VISIBLE : View.GONE);
+        topCtl.setAlpha(info);
         FrameLayout.LayoutParams ilp = (FrameLayout.LayoutParams) infoHolder.getLayoutParams();
         ilp.bottomMargin = (int) (16 * d + ext);
         infoHolder.setLayoutParams(ilp);
@@ -520,6 +600,7 @@ public final class ProfileHero implements PullScrollView.Controller {
     private void hideHero() {
         boolean was = covered || hero.getVisibility() == View.VISIBLE;
         hero.setVisibility(View.GONE);
+        topCtl.setVisibility(View.GONE);
         if (was) {
             avatar.setAlpha(1f);
             if (nameV != null) nameV.setAlpha(1f);
@@ -550,6 +631,7 @@ public final class ProfileHero implements PullScrollView.Controller {
     }
 
     @Override public void onStart() {
+        lastPullDy = 0f;
         if (anim != null) anim.cancel();
         measure();
         prepareContent();
@@ -558,10 +640,17 @@ public final class ProfileHero implements PullScrollView.Controller {
     }
 
     @Override public void onPull(float totalDy) {
+        lastPullDy = totalDy;
         apply(p0 + totalDy / rangePx);
     }
 
     @Override public void onRelease() {
+        // الصورة مكبّرة أصلاً ثم سُحبت للأسفل مرة أخرى ← تفتح بكامل الشاشة (تقريب + تمرير بين الصور)
+        if (fullListener != null && p0 >= 0.999f && lastPullDy > 48f * d) {
+            animateTo(1f);
+            fullListener.open(heroName.getText(), heroStatus.getText());
+            return;
+        }
         animateTo(p >= THRESH ? 1f : 0f);
     }
 

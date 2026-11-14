@@ -219,6 +219,7 @@
 						android:layout_height="wrap_content"
 						android:layout_marginBottom="14dp"
 						android:gravity="center_vertical"
+						android:layoutDirection="rtl"
 						android:orientation="horizontal">
 						<FrameLayout
 							android:id="@+id/searchBack"
@@ -233,6 +234,7 @@
 								android:layout_height="22dp"
 								android:layout_gravity="center"
 								android:importantForAccessibility="no"
+								android:scaleX="-1"
 								android:src="@drawable/ic_sr_back" />
 						</FrameLayout>
 						<TextView

@@ -152,13 +152,14 @@ public final class BabylonFx {
     private static final boolean FOLD_HINGE_RIGHT = true;
     /** زاوية بداية الطي (درجة) ومدته (ms). إشارتها تحدّد اتجاه الدوران؛ اعكسها إن ظهر الدوران معكوساً. */
     private static final float FOLD_START_DEG = 78f;
-    private static final long FOLD_MS = 20;   // دخول المحادثة 20ms (كان 200)
+    private static final long FOLD_MS = 70;   // مدة حركة دخول المحادثة (أسرع ما يمكن مع بقاء الحركة ظاهرة)
+    private static final long MSG_WAIT_MS = 0;   // الرسائل لا تنتظر الحركة: تُرسم فوراً أثناءها
     private static final long LEAVE_MS = 200;   // مدة الخروج كما كانت
     /** وقت (uptime) انتهاء حركة الطيّ؛ تنتظره المحادثة قبل رسم الرسائل كي لا تتداخل معها ولا تُقطّعها. */
     private static volatile long foldEndUptime = 0L;
 
     /** يُستدعى فور بدء فتح المحادثة (قبل أول إطار) ليعرف تحميل الرسائل أن الحركة ستبدأ. */
-    public static void chatFoldBegin() { foldEndUptime = SystemClock.uptimeMillis() + FOLD_MS + 5; }
+    public static void chatFoldBegin() { foldEndUptime = SystemClock.uptimeMillis() + MSG_WAIT_MS; }
 
     /** ms المتبقية حتى تنتهي حركة الطيّ (0 إن لم تكن جارية). */
     public static long chatFoldRemaining() { return Math.max(0L, foldEndUptime - SystemClock.uptimeMillis()); }
@@ -175,12 +176,12 @@ public final class BabylonFx {
         }
         final int w = chat.getWidth(), h = chat.getHeight();
         if (w <= 0 || h <= 0) return;
-        foldEndUptime = SystemClock.uptimeMillis() + FOLD_MS + 5;   // التوقيت الدقيق بعد بدء الرسم الفعلي
+        foldEndUptime = SystemClock.uptimeMillis() + MSG_WAIT_MS;
         // دخول عادي متناسق مع بقية الشاشات الثانوية (bbViewIn): تلاشٍ + ارتفاع خفيف + تكبير بسيط
         chat.setAlpha(0f);
-        chat.setTranslationY(dp(chat, 10));
-        chat.setScaleX(0.985f);
-        chat.setScaleY(0.985f);
+        chat.setTranslationY(dp(chat, 14));
+        chat.setScaleX(0.98f);
+        chat.setScaleY(0.98f);
         chat.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f)
                 .setDuration(FOLD_MS).setInterpolator(easeOut())
                 .withEndAction(() -> reset(chat)).start();

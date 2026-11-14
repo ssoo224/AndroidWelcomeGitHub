@@ -90,6 +90,9 @@ public final class FontManager {
         return mode;
     }
 
+    /** هل نوع الخط الحالي «عريض»؟ (تستعمله فقاعات الرسائل لتقرّر التعريض). */
+    public static boolean isBoldMode() { return "bold".equals(mode); }
+
     public static int indexOf(String id) {
         for (int i = 0; i < IDS.length; i++) if (IDS[i].equals(id)) return i;
         return -1;
@@ -154,6 +157,11 @@ public final class FontManager {
         }
         cache.put(key, t);
         return t;
+    }
+
+    /** يطبّق خط التطبيق فوراً (بلا انتظار تخطيط الإطار التالي) على عنصر أُنشئ للتو: يمنع قفزة عرض النصوص بعد أول رسم. */
+    public static void applyTo(Context c, View v) {
+        try { current(c); apply(v); } catch (Throwable ignored) { }
     }
 
     private static void apply(View v) {

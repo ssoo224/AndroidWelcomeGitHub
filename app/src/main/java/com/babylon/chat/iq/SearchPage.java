@@ -316,11 +316,19 @@ final class SearchPage {
             case RESULTS:
                 for (int i = 0; i < found.size(); i++) {
                     View c = userCard(found.get(i), false);
-                    results.addView(c, gap(i));
+                    results.addView(c, cardGap(i));
                 }
                 break;
             default: break;
         }
+    }
+
+    /** الفاصل بين بطاقات المستخدمين: 3dp. */
+    private LinearLayout.LayoutParams cardGap(int index) {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = index == 0 ? 0 : dp(3);
+        return lp;
     }
 
     private LinearLayout.LayoutParams gap(int index) {
@@ -443,8 +451,8 @@ final class SearchPage {
         LinearLayout row = new LinearLayout(act);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(14), dp(11), dp(14), dp(11));
-        row.setMinimumHeight(dp(74));
+        row.setPadding(dp(14), dp(8.5f), dp(14), dp(8.5f));   // أقل بـ 5dp (كان 11+11)
+        row.setMinimumHeight(dp(69));                          // كان 74
         row.setBackground(cardBg(false));
         row.setElevation(0f);
         row.setClickable(true);
@@ -619,7 +627,9 @@ final class SearchPage {
         recentLabel.setTypeface(null, android.graphics.Typeface.BOLD);
         recentLabel.setTextColor(p.mute);
         recentLabel.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
-        head.addView(recentLabel, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        rlp.setMarginEnd(dp(24));   // «N محدد» يبتعد عن زر «حذف»
+        head.addView(recentLabel, rlp);
         recentActions = new LinearLayout(act);
         recentActions.setOrientation(LinearLayout.HORIZONTAL);
         recentActions.setGravity(Gravity.CENTER_VERTICAL);
@@ -639,7 +649,7 @@ final class SearchPage {
             final String id = ids.get(i);
             final Item it = recentCache.containsKey(id) ? recentCache.get(id) : placeholder(id);
             View card = userCard(it, true);
-            list.addView(card, gap(i));
+            list.addView(card, cardGap(i));
             if (!recentCache.containsKey(id) && fetching.add(id)) {
                 FirebaseFirestore.getInstance().collection("users").document(id).get()
                         .addOnSuccessListener(d -> {
@@ -698,8 +708,15 @@ final class SearchPage {
         b.setTypeface(null, android.graphics.Typeface.BOLD);
         b.setGravity(Gravity.CENTER);
         b.setPadding(dp(14), dp(6), dp(14), dp(6));
-        b.setTextColor(danger ? RED : p.gold);
-        b.setBackground(box(danger ? 0x26F87171 : p.chip, 40, 0, 0));
+        if (danger) {
+            // «حذف»: شريط أحمر مصمت بحواف منحنية (10dp) وليست دائرية
+            b.setTextColor(0xFFFFFFFF);
+            b.setBackground(box(RED, 10, 0, 0));
+        } else {
+            // «إلغاء»: شريط وكلمة ذهبيان بنفس الحواف: خلفية ذهبية خفيفة + إطار ذهبي + نص ذهبي
+            b.setTextColor(p.gold);
+            b.setBackground(box((p.gold & 0x00FFFFFF) | 0x26000000, 10, p.gold, 1.5f));
+        }
         b.setClickable(true);
         return b;
     }
