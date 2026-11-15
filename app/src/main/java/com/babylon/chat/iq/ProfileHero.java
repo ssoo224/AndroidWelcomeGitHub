@@ -713,8 +713,8 @@ public final class ProfileHero implements PullScrollView.Controller {
         heroShade.setAlpha(shA * shA * (3f - 2f * shA));
         heroExt.setVisibility(ext > 0 ? View.VISIBLE : View.INVISIBLE);
         // البلور (الامتداد المموّه) يظهر تدريجياً مع التكبير بدل أن يبرز دفعةً واحدة، ويختفي تدريجياً عند الإغلاق
-        float blurA = clamp((p - 0.05f) / 0.55f);
-        blurA = blurA * blurA * (3f - 2f * blurA);
+        // الامتداد المموّه يظهر كاملاً من أول السحب: الحافة السفلية للصورة تذوب فيه (كان يبدأ شفافاً فيظهر خلفه ضباب أبيض)
+        float blurA = 1f;
         heroExt.setAlpha(blurA);
         heroExt2.setAlpha(blurA);
 

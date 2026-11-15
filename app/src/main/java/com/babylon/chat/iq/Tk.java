@@ -299,7 +299,7 @@ public final class Tk {
             if (t != null) t.setTextColor(dark ? 0xFFFFFFFF : 0xFF2A3A48);
             return true;
         }
-        if (tag.equals("homepat")) { x.setBackground(pattern(x, dark, pageBg(dark))); return true; }
+        if (tag.equals("homepat")) { x.setBackground(new HomeBg(dark, x.getResources().getDisplayMetrics().density)); return true; }   // خلفية المحادثات: موجات حريرية ذهبية خفيفة (HomeBg)
         if (tag.equals("chatpat")) { x.setBackground(chatRoomBg(x, dark)); return true; }
         if (tag.equals("glasst")) {          // رأس المحادثة: طبقة زجاجية 72% تمتد خلف شريط الإشعارات وتتلاشى عند حافتها السفلية
             x.setBackground(new Glass(chatSurface(dark), true, dp(x, 16)));
@@ -360,9 +360,13 @@ public final class Tk {
             if (t != null) t.setTextColor(GOLD_INK);
             return true;
         }
-        if (tag.equals("navbg")) {           // #bottomNav.telegram-bottom-nav : كريمي نهاري / #17212B ليلي
-            x.setBackgroundColor(navBg(dark));
+        if (tag.equals("navbg")) {           // شريط التنقل العائم: كبسولة بيضاء/#17212B بظل ناعم وانحناء في المنتصف فقط (NavBarBg)
+            x.setBackground(new NavBarBg(dark, x.getResources().getDisplayMetrics().density));
             x.setElevation(0f);
+            return true;
+        }
+        if (tag.equals("navdiv")) {          // فاصل رأسي رفيع بين تبويبات الشريط
+            x.setBackgroundColor(dark ? 0x33FFFFFF : 0xFFD9D3C2);
             return true;
         }
         if (tag.equals("navline")) {         // الحدّ العلوي 1px + خط ذهبي متدرّج (::before في الـ HTML)

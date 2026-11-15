@@ -107,11 +107,25 @@ final class AuthBg extends Drawable {
         for (int i = 0; i < 2; i++) {
             c.save();
             if (i == 1) c.rotate(180f, bw / 2f, bh / 2f);   // الزاوية السفلية اليمنى = نفس الموجة مقلوبة
-            c.save(); c.translate(ox * (1f - eA), oy * (1f - eA)); c.drawPath(pA, fill); c.restore();
-            c.save(); c.translate(ox * (1f - eB), oy * (1f - eB)); c.drawPath(pB, fill); c.restore();
-            c.save(); c.translate(ox * (1f - eC), oy * (1f - eC)); c.drawPath(pC, line); c.restore();
+            drawLayer(c, pA, fill, ox, oy, eA);
+            drawLayer(c, pB, fill, ox, oy, eB);
+            drawLayer(c, pC, line, ox, oy, eC);
             c.restore();
         }
+    }
+
+    /**
+     * الانزلاق بالإزاحة فقط حتى الوصول للمكان النهائي، أما الارتداد (تجاوز المكان) فيكون بتكبير بسيط حول الزاوية:
+     * فتبقى حافتا الموجة ملتصقتين بحافتي الشاشة ولا تظهر فراغات أو حواف مستقيمة.
+     */
+    private void drawLayer(Canvas c, Path p, Paint paint, float ox, float oy, float e) {
+        float ee = e > 1f ? 1f : e;
+        float s = 1f + (e > 1f ? (e - 1f) * 0.9f : 0f);
+        c.save();
+        c.translate(ox * (1f - ee), oy * (1f - ee));
+        c.scale(s, s);
+        c.drawPath(p, paint);
+        c.restore();
     }
 
     @Override public void setAlpha(int a) { }

@@ -1260,7 +1260,7 @@ public class MassActivity extends Activity {
             }
 
             int tabIndex(String p) {
-                return p.equals("homeView") ? 0 : p.equals("settingsView") ? 1 : p.equals("profileView") ? 2 : -1;
+                return p.equals("settingsView") ? 0 : p.equals("homeView") ? 1 : p.equals("profileView") ? 2 : -1;   // الترتيب البصري الجديد يساراً→يميناً: الملف الشخصي | المحادثات | الإعدادات (يزداد الفهرس نحو اليسار)
             }
 
             boolean isProfilePage(String p) {
@@ -1432,7 +1432,7 @@ public class MassActivity extends Activity {
                     else {
                         top = cBg();
                         boolean nav = v("bottomNav") != null && v("bottomNav").getVisibility() == View.VISIBLE;
-                        bottom = nav ? Tk.navBg(dark) : cBg();
+                        bottom = cBg();   // الشريط عائم: منطقة الإيماءات بلون خلفية الصفحة
                         // صفحة البحث: خلفية --sr-bg وشريط الحالة بلون بداية تدرّج الهيدر (مثل الـ HTML)
                         boolean srch = "searchView".equals(curPage);
                         View rt = v("root");
@@ -1507,7 +1507,7 @@ public class MassActivity extends Activity {
                     if (ic != null) {
                         ic.setTag(null);
                         ic.setTextColor(on ? active : inactive);
-                        ic.setBackground(on ? shape(dark ? 0x24E4C45B : 0x29D4AF37, 13, 0) : null);   // .nav-icon.active: rgba(212,175,55,.16) / rgba(228,196,91,.14)
+                        ic.setBackground(null);   // التحديد صار كبسولة ذهبية خلف التبويب كله (انظر أدناه)
                         tintIcons(ic);
                     }
                     if (tx != null) {
@@ -1517,7 +1517,7 @@ public class MassActivity extends Activity {
                     }
                     View vv = v(id);
                     if (vv != null) {
-                        vv.setBackgroundColor(Color.TRANSPARENT);
+                        vv.setBackground(on ? new NavBarBg.Sel(dark, act.getResources().getDisplayMetrics().density) : null);
                         vv.setAlpha(on ? 1f : 0.78f);
                     }
                 }
