@@ -1,5 +1,6 @@
 package com.babylon.chat.iq;
 
+import android.animation.ValueAnimator;
 import android.graphics.Canvas;
 import android.graphics.ColorFilter;
 import android.graphics.LinearGradient;
@@ -10,6 +11,8 @@ import android.graphics.RadialGradient;
 import android.graphics.Rect;
 import android.graphics.Shader;
 import android.graphics.drawable.Drawable;
+import android.view.animation.LinearInterpolator;
+import android.view.animation.OvershootInterpolator;
 
 /**
  * خلفية شاشتي السبلاش وتسجيل الدخول: التدرّج الشعاعي المعتاد للتطبيق (نهاري/ليلي)
@@ -24,12 +27,36 @@ final class AuthBg extends Drawable {
     private final Path pA = new Path(), pB = new Path(), pC = new Path();
     private int bw = -1, bh = -1;
 
+    // حركة الدخول: الموجتان الذهبيتان تنزلقان من الزاويتين مع ارتداد خفيف ثم تثبتان في مكانهما النهائي
+    private ValueAnimator intro;
+    private float introT = 1f;                       // 1 = الوضع النهائي الثابت
+    private final OvershootInterpolator ov = new OvershootInterpolator(1.25f);
+
     AuthBg(boolean dark, float density) {
         this.dark = dark;
         this.d = density;
         line.setStyle(Paint.Style.STROKE);
         line.setStrokeCap(Paint.Cap.ROUND);
     }
+
+    /** يشغّل حركة الدخول مرة واحدة ثم تثبت الموجتان. */
+    void playIntro(long durationMs) {
+        stopIntro();
+        introT = 0f;
+        intro = ValueAnimator.ofFloat(0f, 1f);
+        intro.setDuration(durationMs);
+        intro.setInterpolator(new LinearInterpolator());
+        intro.addUpdateListener(a -> { introT = (float) a.getAnimatedValue(); invalidateSelf(); });
+        intro.start();
+        invalidateSelf();
+    }
+
+    void stopIntro() {
+        if (intro != null) { intro.cancel(); intro = null; }
+        introT = 1f;
+    }
+
+    private static float clamp01(float v) { return v < 0f ? 0f : (v > 1f ? 1f : v); }
 
     @Override protected void onBoundsChange(Rect b) { build(b.width(), b.height()); }
 
@@ -67,12 +94,22 @@ final class AuthBg extends Drawable {
         if (b.width() != bw || b.height() != bh) build(b.width(), b.height());
         if (bw <= 0) return;
         c.drawRect(b, bg);
+
+        final float t = introT;
+        final float eA = ov.getInterpolation(t);                              // الموجة الخلفية العريضة
+        final float eB = ov.getInterpolation(clamp01((t - 0.14f) / 0.86f));   // الموجة الوسطى تتأخر قليلاً
+        final float eC = ov.getInterpolation(clamp01((t - 0.07f) / 0.93f));   // خط التوهّج بينهما
+        final int a = Math.round(255f * clamp01(t * 2.6f));                   // تظهر بنعومة
+        fill.setAlpha(a);
+        line.setAlpha(a);
+        final float ox = -bw * 0.55f, oy = -bh * 0.26f;                       // الانطلاق من خارج الزاوية
+
         for (int i = 0; i < 2; i++) {
             c.save();
             if (i == 1) c.rotate(180f, bw / 2f, bh / 2f);   // الزاوية السفلية اليمنى = نفس الموجة مقلوبة
-            c.drawPath(pA, fill);
-            c.drawPath(pB, fill);
-            c.drawPath(pC, line);
+            c.save(); c.translate(ox * (1f - eA), oy * (1f - eA)); c.drawPath(pA, fill); c.restore();
+            c.save(); c.translate(ox * (1f - eB), oy * (1f - eB)); c.drawPath(pB, fill); c.restore();
+            c.save(); c.translate(ox * (1f - eC), oy * (1f - eC)); c.drawPath(pC, line); c.restore();
             c.restore();
         }
     }

@@ -60,9 +60,14 @@ public final class AppToast {
     }
 
     public static void show(final Activity act, final String msg, final boolean dark) {
+        show(act, msg, dark, null);
+    }
+
+    /** يعرض الإشعار تحت العنصر anchor مباشرة (إن كان ظاهراً فوق الكيبورد)، وإلا في الموضع الافتراضي أسفل الشاشة. */
+    public static void show(final Activity act, final String msg, final boolean dark, final View anchor) {
         if (act == null || msg == null) return;
-        if (Looper.myLooper() != Looper.getMainLooper()) { H.post(() -> show(act, msg, dark)); return; }
-        try { build(act, msg, dark); } catch (Throwable ignored) { }
+        if (Looper.myLooper() != Looper.getMainLooper()) { H.post(() -> show(act, msg, dark, anchor)); return; }
+        try { build(act, msg, dark, anchor); } catch (Throwable ignored) { }
     }
 
     /** يخفي الإشعار الحالي إن كان من نوع «جارٍ…» (مثل إغلاق bt-loading في الـ HTML). */
@@ -72,7 +77,7 @@ public final class AppToast {
 
     private static int dp(Context c, float v) { return (int) (v * c.getResources().getDisplayMetrics().density + 0.5f); }
 
-    private static void build(Activity act, String msg, boolean dark) {
+    private static void build(Activity act, String msg, boolean dark, View anchor) {
         if (current != null) hide(current, false);   // الإشعار الجديد يستبدل القديم فوراً
 
         String kind = kindOf(msg);
@@ -175,6 +180,23 @@ public final class AppToast {
         } catch (Throwable t) { bottomMargin = dp(act, 86); }
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(cardW, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
         lp.bottomMargin = bottomMargin;
+        // تحت عنصر محدد (مثل «نسيت كلمة المرور؟»): نضع أعلى الإشعار أسفل العنصر بـ 12dp إن اتسعت المساحة المرئية
+        if (anchor != null && anchor.isShown()) {
+            try {
+                android.graphics.Rect vis2 = new android.graphics.Rect();
+                decor.getWindowVisibleDisplayFrame(vis2);
+                int[] al = new int[2], dl = new int[2];
+                anchor.getLocationOnScreen(al);
+                decor.getLocationOnScreen(dl);
+                int topM = al[1] + anchor.getHeight() - dl[1] + dp(act, 12);
+                int estH = dp(act, 58);
+                if (al[1] + anchor.getHeight() + dp(act, 12) + estH <= vis2.bottom) {
+                    lp.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+                    lp.topMargin = topM;
+                    lp.bottomMargin = 0;
+                }
+            } catch (Throwable ignored) { }
+        }
         card.setAlpha(0f);
         card.setTranslationY(dp(act, 26));
         card.setScaleX(0.96f); card.setScaleY(0.96f);

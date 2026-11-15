@@ -9,6 +9,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -21,7 +24,7 @@ import java.util.concurrent.Executors;
  */
 final class LocalCache {
 
-    static final int MAX_MSGS = 50;
+    static final int MAX_MSGS = 50;   // آخر 50 رسالة لكل محادثة (أو أقل إن كانت المحادثة أقصر) تُعرض من الجهاز فوراً
 
     private static final ExecutorService IO = Executors.newSingleThreadExecutor();
     private static File dir;
@@ -106,7 +109,7 @@ final class LocalCache {
     // ------------------------------------------------------------------ رسائل كل محادثة
     static JSONArray getMessages(String chatId) { return readArr("msgs_" + safeName(chatId) + ".json"); }
 
-    /** يحفظ آخر MAX_MSGS عنصر فقط (المصفوفة مرتبة تصاعدياً بالوقت). */
+    /** يحفظ آخر MAX_MSGS (50) عنصر فقط (المصفوفة مرتبة تصاعدياً بالوقت). */
     static void putMessages(String chatId, JSONArray a) {
         try {
             JSONArray out = a;
@@ -115,6 +118,57 @@ final class LocalCache {
                 for (int i = a.length() - MAX_MSGS; i < a.length(); i++) out.put(a.get(i));
             }
             writeAsync("msgs_" + safeName(chatId) + ".json", out.toString());
+        } catch (Throwable ignored) { }
+    }
+
+    /** نتيجة الدمج: هل بقي الخزن «كاملاً» (يحوي كل رسائل المحادثة الظاهرة). */
+    interface MergeDone { void done(boolean stillComplete); }
+
+    /**
+     * يضيف رسائل نصية واردة (وصلت والمحادثة مغلقة) إلى خزن محادثة موجود، بالترتيب ومن غير تكرار، في خيط الكتابة نفسه.
+     * otherIds: معرّفات رسائل غير نصية وردت أيضاً: إن لم تكن في الخزن أصلاً يصير الخزن «ناقصاً».
+     * إن تجاوز العدد MAX_MSGS يُقصّ الأقدم ويصير الخزن «ناقصاً» (لا يُعرض من الجهاز حتى تُفتح المحادثة وتُحفظ من جديد).
+     */
+    static void mergeIncoming(final String chatId, final List<JSONObject> add, final List<String> otherIds, final MergeDone cb) {
+        final File d = dir;
+        if (d == null) return;
+        final String name = "msgs_" + safeName(chatId) + ".json";
+        try {
+            IO.execute(() -> {
+                boolean complete = true;
+                try {
+                    File f = new File(d, name);
+                    JSONArray cur = readArr(name);
+                    if (cur == null) { if (cb != null) cb.done(false); return; }
+                    HashSet<String> ids = new HashSet<>();
+                    ArrayList<JSONObject> list = new ArrayList<>();
+                    for (int i = 0; i < cur.length(); i++) {
+                        JSONObject o = cur.optJSONObject(i);
+                        if (o == null) continue;
+                        list.add(o); ids.add(o.optString("id"));
+                    }
+                    if (otherIds != null) for (String id : otherIds) if (!ids.contains(id)) complete = false;
+                    boolean changed = false;
+                    if (add != null) for (JSONObject o : add) {
+                        String id = o.optString("id");
+                        if (id.isEmpty() || ids.contains(id)) continue;
+                        list.add(o); ids.add(id); changed = true;
+                    }
+                    if (changed) {
+                        java.util.Collections.sort(list, (a, b) -> Long.compare(a.optLong("timestamp", Long.MAX_VALUE), b.optLong("timestamp", Long.MAX_VALUE)));
+                        if (list.size() > MAX_MSGS) {
+                            complete = false;
+                            list = new ArrayList<>(list.subList(list.size() - MAX_MSGS, list.size()));
+                        }
+                        JSONArray out = new JSONArray();
+                        for (JSONObject o : list) out.put(o);
+                        File tmp = new File(d, name + ".tmp");
+                        try (FileOutputStream o = new FileOutputStream(tmp)) { o.write(out.toString().getBytes("UTF-8")); }
+                        if (!tmp.renameTo(f)) { f.delete(); tmp.renameTo(f); }
+                    }
+                } catch (Throwable t) { complete = false; }
+                if (cb != null) cb.done(complete);
+            });
         } catch (Throwable ignored) { }
     }
 

@@ -41,6 +41,8 @@ public class MainActivity extends Activity {
         setContentView(binding.getRoot());
 
         binding.getRoot().setBackground(AuthTheme.authBg(this, AuthTheme.isDark(this)));   // التدرّج + الموجتان الذهبيتان (نهاري/ليلي)
+        // حركة دخول الموجتين الذهبيتين في بداية السبلاش ثم تثبتان
+        if (binding.getRoot().getBackground() instanceof AuthBg) ((AuthBg) binding.getRoot().getBackground()).playIntro(1500);
         setupSystemBars();
         startAnimations();
         warmUp();   // تجهيز الشاشة التالية في الخلفية أثناء عرض السبلاش
@@ -233,5 +235,6 @@ public class MainActivity extends Activity {
         handler.removeCallbacksAndMessages(null);
         for (Animator a : animators) a.cancel();
         if (shine != null) shine.cancel();
+        if (binding != null && binding.getRoot().getBackground() instanceof AuthBg) ((AuthBg) binding.getRoot().getBackground()).stopIntro();
     }
 }

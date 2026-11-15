@@ -252,7 +252,7 @@ public final class ProfileHero implements PullScrollView.Controller {
         // --- بناء الطبقات تحت ScrollView داخل نفس الأب (الأزرار والمحتوى يبقيان فوق الصورة) ---
         hero = new FrameLayout(act);
         hero.setVisibility(View.GONE);
-        hero.setBackgroundColor(0xFF16213A);
+        hero.setBackgroundColor(Color.TRANSPARENT);   // كان كحلياً فيظهر أسفل الصورة كلون أسود/أزرق أثناء السحب
         hero.setClipToOutline(true);
         hero.setOutlineProvider(new ViewOutlineProvider() {
             @Override public void getOutline(View view, Outline o) {
@@ -479,7 +479,7 @@ public final class ProfileHero implements PullScrollView.Controller {
             heroImg.setTranslationX(0f);
             heroImg.setVisibility(View.VISIBLE);
             heroLetter.setVisibility(View.GONE);
-            hero.setBackgroundColor(0xFF16213A);
+            hero.setBackgroundColor(Color.TRANSPARENT);   // كان كحلياً فيظهر أسفل الصورة كلون أسود/أزرق أثناء السحب
             try {
                 int h = Math.max(1, 24 * bm.getHeight() / Math.max(1, bm.getWidth()));
                 heroExt.setImageBitmap(Bitmap.createScaledBitmap(bm, 24, h, true));

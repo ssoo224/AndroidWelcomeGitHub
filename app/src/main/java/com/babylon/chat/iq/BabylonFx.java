@@ -154,7 +154,8 @@ public final class BabylonFx {
     private static final float FOLD_START_DEG = 78f;
     private static final long FOLD_MS = 70;   // مدة حركة دخول المحادثة (أسرع ما يمكن مع بقاء الحركة ظاهرة)
     private static final long MSG_WAIT_MS = 0;   // الرسائل لا تنتظر الحركة: تُرسم فوراً أثناءها
-    private static final long LEAVE_MS = 200;   // مدة الخروج كما كانت
+    private static final long LEAVE_MS = 70;   // تلاشي الخروج سريع جداً
+    private static final long POP_MS = 90;     // انبثاق الدخول سريع جداً
     /** وقت (uptime) انتهاء حركة الطيّ؛ تنتظره المحادثة قبل رسم الرسائل كي لا تتداخل معها ولا تُقطّعها. */
     private static volatile long foldEndUptime = 0L;
 
@@ -164,7 +165,7 @@ public final class BabylonFx {
     /** ms المتبقية حتى تنتهي حركة الطيّ (0 إن لم تكن جارية). */
     public static long chatFoldRemaining() { return Math.max(0L, foldEndUptime - SystemClock.uptimeMillis()); }
 
-    /** فتح غرفة المحادثة بحركة دخول عادية (تلاشٍ + ارتفاع خفيف) مثل باقي الشاشات الثانوية. */
+    /** فتح غرفة المحادثة بانبثاق وتلاشٍ سريعين جداً. */
     public static void chatGrow(final View chat, View header, View composer) {
         if (chat == null) return;
         reset(chat);
@@ -177,23 +178,27 @@ public final class BabylonFx {
         final int w = chat.getWidth(), h = chat.getHeight();
         if (w <= 0 || h <= 0) return;
         foldEndUptime = SystemClock.uptimeMillis() + MSG_WAIT_MS;
-        // دخول معتم بلا شفافية: كان التلاشي (alpha 0→1) يُظهر القائمة والمحادثة متداخلتين نصف شفافتين لحظة الدخول.
-        // الآن المحادثة معتمة من أول إطار وتنزلق من اليسار فوق القائمة.
-        chat.setAlpha(1f);
-        chat.setTranslationX(-w * 0.18f);
-        chat.animate().translationX(0f)
-                .setDuration(160).setInterpolator(easeOut())
+        // انبثاق سريع جداً: تلاشٍ من الصفر + تكبير بسيط من الوسط
+        chat.setPivotX(w / 2f);
+        chat.setPivotY(h / 2f);
+        chat.setAlpha(0f);
+        chat.setScaleX(0.94f);
+        chat.setScaleY(0.94f);
+        chat.animate().alpha(1f).scaleX(1f).scaleY(1f)
+                .setDuration(POP_MS).setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f))
                 .withEndAction(() -> reset(chat)).start();
     }
 
-    /** الخروج من غرفة المحادثة بحركة معاكسة للدخول (تلاشٍ + نزول خفيف + تصغير بسيط)، ثم يُستدعى end (إخفاء الصفحة). */
+    /** الخروج من غرفة المحادثة بتلاشٍ سريع جداً مع تصغير بسيط، ثم يُستدعى end (إخفاء الصفحة). */
     public static void chatLeave(final View chat, final Runnable end) {
         if (chat == null) { if (end != null) end.run(); return; }
         if (chat.getVisibility() != View.VISIBLE || chat.getWidth() <= 0 || chat.getHeight() <= 0) { if (end != null) end.run(); return; }
         reset(chat);
-        chat.animate().translationX(-chat.getWidth() * 0.18f)
-                .setDuration(LEAVE_MS).setInterpolator(new PathInterpolator(0.4f, 0f, 1f, 1f))
-                .withEndAction(() -> { reset(chat); if (end != null) end.run(); }).start();   // لا يُنفَّذ إن أُلغيت الحركة (دخول محادثة جديدة)
+        chat.setPivotX(chat.getWidth() / 2f);
+        chat.setPivotY(chat.getHeight() / 2f);
+        chat.animate().alpha(0f).scaleX(0.96f).scaleY(0.96f)
+                .setDuration(LEAVE_MS).setInterpolator(new android.view.animation.AccelerateInterpolator(1.2f))
+                .withEndAction(() -> { if (end != null) end.run(); reset(chat); }).start();   // لا يُنفَّذ إن أُلغيت الحركة (دخول محادثة جديدة)
     }
 
     /**

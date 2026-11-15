@@ -2695,6 +2695,7 @@ public class MassActivity extends Activity {
                                 if (mineMsg) { if (!msgCleared(md, clrU)) sentUnread = true; }
                                 else if (!msgCleared(md, clrU)) cnt++;
                             }
+                            cacheIncomingText(chatId, qs);   // الرسائل النصية الواردة تُحفظ على الجهاز حتى لو لم تُفتح المحادثة
                             final String nv = String.valueOf(cnt);
                             unreadByUid.put(otherId, nv);
                             boolean changed = false;
@@ -4221,6 +4222,11 @@ public class MassActivity extends Activity {
                         if (o.has("data")) d.put("data", o.optString("data"));
                         if (o.has("url")) d.put("url", o.optString("url"));
                         if (o.has("duration")) d.put("duration", o.optLong("duration", 0L));
+                        if (o.has("fileUrl")) {
+                            d.put("fileUrl", o.optString("fileUrl"));
+                            if (o.has("fileName")) d.put("fileName", o.optString("fileName"));
+                            if (o.has("fileSize")) d.put("fileSize", o.optLong("fileSize", 0L));
+                        }
                         d.put("sender", o.optString("sender"));
                         long ts = o.optLong("timestamp", 0L);
                         if (ts > 0) d.put("timestamp", ts);
@@ -4250,7 +4256,7 @@ public class MassActivity extends Activity {
                 } catch (Throwable ignored) { }
             }
 
-            /** يحفظ آخر 50 رسالة (نص/صورة/صوتية ≤ ~450KB) من لقطة السيرفر، بدون المخفية/المحذوفة. */
+            /** يحفظ آخر 50 رسالة (نص/ملف/صورة/صوتية ≤ ~450KB) من لقطة السيرفر، بدون المخفية/المحذوفة. */
             void saveMsgCache(String chatId, com.google.firebase.firestore.QuerySnapshot sn) {
                 try {
                     long clr = chatClearedAt(chatId);
@@ -4258,6 +4264,7 @@ public class MassActivity extends Activity {
                     org.json.JSONArray out = new org.json.JSONArray();
                     java.util.List<DocumentSnapshot> docs = sn.getDocuments();
                     java.util.ArrayList<org.json.JSONObject> rev = new java.util.ArrayList<>();   // من الأحدث للأقدم حتى 50
+                    long budget = 8_000_000L;   // سقف إجمالي لحجم الوسائط المحفوظة (محارف) كي لا يثقل فتح المحادثة؛ ما زاد ينتظر السيرفر
                     for (int di = docs.size() - 1; di >= 0 && rev.size() < LocalCache.MAX_MSGS; di--) {
                         DocumentSnapshot dd = docs.get(di);
                         String ty = dd.getString("type");
@@ -4265,10 +4272,15 @@ public class MassActivity extends Activity {
                         Map<String, Object> m = dd.getData();
                         String text = gStr(m, "text");
                         String pay = gStr(m, "data"); if (pay == null) pay = gStr(m, "url");
-                        boolean media = ("image".equals(ty) || "audio".equals(ty)) && pay != null;
-                        if (!media && !"text".equals(ty)) continue;
-                        if (!media && text == null) continue;
+                        String fUrl = gStr(m, "fileUrl");
+                        boolean fileMsg = "file".equals(ty) || (fUrl != null && fUrl.length() > 0);
+                        if (fileMsg && fUrl == null) continue;
+                        boolean media = !fileMsg && ("image".equals(ty) || "audio".equals(ty)) && pay != null;
+                        if (!fileMsg && !media && !"text".equals(ty)) continue;
+                        if (!fileMsg && !media && text == null) continue;
                         if (media && pay.length() > CACHE_MAX_PAYLOAD) continue;
+                        if (media && pay.length() > budget) continue;
+                        if (media) budget -= pay.length();
                         if (hid.contains(dd.getId()) || msgClearedMap(m, clr)) continue;
                         org.json.JSONObject o = new org.json.JSONObject();
                         o.put("id", dd.getId());
@@ -4278,6 +4290,11 @@ public class MassActivity extends Activity {
                             o.put("data", pay);
                             Long du = gLong(m, "duration");
                             if (du != null) o.put("duration", du.longValue());
+                        }
+                        if (fileMsg) {   // رسائل الملفات تُحفظ أيضاً (الرابط والاسم والحجم فقط، لا محتوى الملف)
+                            o.put("fileUrl", fUrl);
+                            String fnm = gStr(m, "fileName"); if (fnm != null) o.put("fileName", fnm);
+                            Long fsz = gLong(m, "fileSize"); if (fsz != null) o.put("fileSize", fsz.longValue());
                         }
                         String sender = gStr(m, "sender");
                         o.put("sender", sender == null ? "" : sender);
@@ -4317,6 +4334,64 @@ public class MassActivity extends Activity {
                     }
                     sp.edit().putBoolean("cache_complete_" + chatId, rev.size() == visible).apply();
                     LocalCache.putMessages(chatId, out);
+                } catch (Throwable ignored) { }
+            }
+
+            /**
+             * رسائل نصية وصلت من الطرف الآخر والمحادثة مغلقة: تُضاف إلى الخزن المحلي للمحادثة (دون أن تُقرأ أو تُفتح)،
+             * فتظهر فوراً عند فتحها. تعمل فقط لمحادثة خزنها كامل؛ وغير النصية لا تُحفظ (وتجعل الخزن ناقصاً حتى تُفتح المحادثة).
+             */
+            void cacheIncomingText(final String chatId, com.google.firebase.firestore.QuerySnapshot qs) {
+                try {
+                    if (chatId == null || qs == null || !sp.getBoolean("cache_complete_" + chatId, false)) return;
+                    final long clr = chatClearedAt(chatId);
+                    final java.util.Set<String> hid = hiddenSet();
+                    final java.util.ArrayList<org.json.JSONObject> add = new java.util.ArrayList<>();
+                    final java.util.ArrayList<String> others = new java.util.ArrayList<>();
+                    for (DocumentSnapshot dd : qs.getDocuments()) {
+                        Map<String, Object> m = dd.getData();
+                        if (m == null) continue;
+                        String sender = gStr(m, "sender"); if (sender == null) sender = gStr(m, "senderId");
+                        if (myUid.equals(sender)) continue;                       // رسائلي أنا تُحفظ من داخل المحادثة
+                        if (hid.contains(dd.getId()) || msgClearedMap(m, clr)) continue;
+                        String ty = gStr(m, "type"); if (ty == null) ty = "text";
+                        String text = gStr(m, "text");
+                        String fUrl = gStr(m, "fileUrl");
+                        if (!"text".equals(ty) || text == null || (fUrl != null && fUrl.length() > 0)) { others.add(dd.getId()); continue; }
+                        org.json.JSONObject o = new org.json.JSONObject();
+                        o.put("id", dd.getId());
+                        o.put("type", "text");
+                        o.put("text", text);
+                        o.put("sender", sender == null ? "" : sender);
+                        Long ts = gLong(m, "timestamp");
+                        if (ts == null) ts = gLong(m, "createdAt");
+                        if (ts == null || ts <= 0) continue;                       // طابع الوقت لم يصل بعد (سيصل بلقطة لاحقة)
+                        o.put("timestamp", ts.longValue());
+                        Boolean rd = gBool(m, "read");
+                        if (rd != null) o.put("read", rd.booleanValue());
+                        Boolean fw = gBool(m, "forwarded");
+                        if (fw != null) o.put("forwarded", fw.booleanValue());
+                        for (String k : new String[]{"replyTo", "replyToSenderId", "replyToId", "replyToType"}) {
+                            String v = gStr(m, k);
+                            if (v != null) o.put(k, v);
+                        }
+                        if (Boolean.TRUE.equals(gBool(m, "storyReply"))) {
+                            o.put("storyReply", true);
+                            Object sdo2 = m.get("storyReplyData");
+                            if (sdo2 instanceof Map) {
+                                Object c2 = ((Map<?, ?>) sdo2).get("caption"), v2 = ((Map<?, ?>) sdo2).get("videoUrl");
+                                o.put("storyCap", c2 instanceof String ? (String) c2 : "");
+                                o.put("storyVid", v2 instanceof String && ((String) v2).length() > 0);
+                                Object i2 = ((Map<?, ?>) sdo2).get("storyId");
+                                o.put("storyId", i2 instanceof String ? (String) i2 : "");
+                            }
+                        }
+                        add.add(o);
+                    }
+                    if (add.isEmpty() && others.isEmpty()) return;
+                    LocalCache.mergeIncoming(chatId, add, others, complete -> {
+                        if (!complete) sp.edit().putBoolean("cache_complete_" + chatId, false).apply();
+                    });
                 } catch (Throwable ignored) { }
             }
 

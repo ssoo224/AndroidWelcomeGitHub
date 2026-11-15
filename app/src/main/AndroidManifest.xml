@@ -49,6 +49,7 @@
 
 		<activity
 			android:name=".Main2Activity"
+			android:windowSoftInputMode="adjustResize"
 			android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout"
 			android:hardwareAccelerated="true"
 			android:supportsPictureInPicture="true"

@@ -14,6 +14,7 @@ import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.view.animation.LinearInterpolator;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import com.babylon.chat.iq.databinding.Main2Binding;
@@ -295,7 +296,9 @@ public class Main2Activity extends Activity {
     }
 
     private void toast(String s) {
-        AppToast.show(this, s, dark);   // نفس إشعارات الـ HTML
+        // يظهر الإشعار تحت «نسيت كلمة المرور؟» (أو تحت زر التسجيل في تبويب إنشاء الحساب)
+        final View anchor = binding.loginForm.getVisibility() == View.VISIBLE ? binding.btnForgot : binding.btnRegister;
+        AppToast.show(this, s, dark, anchor);
     }
 
     @Override
@@ -432,10 +435,86 @@ public class Main2Activity extends Activity {
 
         final View rootView = binding.root;
         rootView.setOnApplyWindowInsetsListener((v, insets) -> {
-            v.setPadding(0, insets.getSystemWindowInsetTop(), 0, insets.getSystemWindowInsetBottom());
+            int top, bottom, ime = 0;
+            if (Build.VERSION.SDK_INT >= 30) {
+                top = insets.getInsets(WindowInsets.Type.systemBars()).top;
+                int nav = insets.getInsets(WindowInsets.Type.systemBars()).bottom;
+                ime = insets.getInsets(WindowInsets.Type.ime()).bottom;
+                bottom = Math.max(nav, ime);
+            } else {
+                top = insets.getSystemWindowInsetTop();
+                bottom = insets.getSystemWindowInsetBottom();
+                // على الأجهزة القديمة: أي إزاحة كبيرة في الأسفل تعني أن الكيبورد مفتوح
+                ime = bottom > dp(120) ? bottom : 0;
+            }
+            v.setPadding(0, top, 0, bottom);
+
+            final boolean shown = ime > 0;
+            if (shown != keyboardShown) {
+                keyboardShown = shown;
+                if (shown) v.postDelayed(this::scrollFormIntoView, 120);
+            }
             return insets;
         });
         rootView.requestApplyInsets();
+
+        // عند الضغط على أي حقل والكيبورد مفتوح: اجعل الحقل وزر الإجراء ظاهرين فوق الكيبورد
+        View.OnFocusChangeListener focusScroll = (fv, has) -> {
+            if (has && keyboardShown) fv.postDelayed(this::scrollFormIntoView, 120);
+        };
+        binding.editUser.setOnFocusChangeListener(focusScroll);
+        binding.editPass.setOnFocusChangeListener(focusScroll);
+        binding.editName.setOnFocusChangeListener(focusScroll);
+        binding.editUsername.setOnFocusChangeListener(focusScroll);
+        binding.editEmail.setOnFocusChangeListener(focusScroll);
+        binding.editRegPass.setOnFocusChangeListener(focusScroll);
+    }
+
+    private boolean keyboardShown = false;
+
+    private int dp(int v) {
+        return Math.round(v * getResources().getDisplayMetrics().density);
+    }
+
+    /** يمرّر الشاشة بحيث يظهر الحقل المحدد كاملاً مع زر (دخول/إنشاء) تحت الكيبورد مباشرة. */
+    private void scrollFormIntoView() {
+        final ScrollView sv = binding.root;
+        final View content = binding.linear26;
+        final boolean loginVisible = binding.loginForm.getVisibility() == View.VISIBLE;
+        final View btn = loginVisible ? binding.btnLogin : binding.btnRegister;
+
+        int btnBottom = offsetIn(content, btn) + btn.getHeight() + dp(16);
+        int viewportH = sv.getHeight() - sv.getPaddingTop() - sv.getPaddingBottom();
+        int target = Math.max(0, btnBottom - viewportH);
+
+        // لا تُخفِ الحقل المحدد أعلى الشاشة
+        View f = getCurrentFocus();
+        if (f != null && f != btn && isDescendant(content, f)) {
+            int fieldTop = offsetIn(content, f) - dp(40);
+            target = Math.min(target, Math.max(0, fieldTop));
+        }
+        sv.smoothScrollTo(0, target);
+    }
+
+    private static int offsetIn(View ancestor, View child) {
+        int y = 0;
+        View v = child;
+        while (v != null && v != ancestor) {
+            y += v.getTop();
+            if (!(v.getParent() instanceof View)) break;
+            v = (View) v.getParent();
+        }
+        return y;
+    }
+
+    private static boolean isDescendant(View ancestor, View child) {
+        View v = child;
+        while (v != null) {
+            if (v == ancestor) return true;
+            if (!(v.getParent() instanceof View)) return false;
+            v = (View) v.getParent();
+        }
+        return false;
     }
 
     private void setupTitleShine() {
