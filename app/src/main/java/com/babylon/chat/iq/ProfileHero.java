@@ -340,7 +340,7 @@ public final class ProfileHero implements PullScrollView.Controller {
         pb.setColor(0x66707070);
         pb.setCornerRadius(40 * d);
         countPill.setBackground(pb);
-        topCtl.addView(countPill, new FrameLayout.LayoutParams(-2, (int) (27 * d), Gravity.TOP | Gravity.RIGHT));
+        topCtl.addView(countPill, new FrameLayout.LayoutParams(-2, (int) (25 * d), Gravity.TOP | Gravity.LEFT));   // العدّاد يسار الشاشة وأنحف بـ 2dp (27 ← 25)
         if (own) {
             dotsBtn = new View(act) {
                 private final Paint dp = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -377,26 +377,54 @@ public final class ProfileHero implements PullScrollView.Controller {
     private static final class FadeImageView extends ImageView {
         private final Paint mask = new Paint(Paint.ANTI_ALIAS_FLAG);
         private float fade = 0f;
+        private int edgeSide = 0;          // -1: الحافة اليسرى تتلاشى، +1: اليمنى، 0: بلا تلاشٍ
+        private final float edgePx;        // عرض التلاشي عند الحدّ بين صورتين أثناء التمرير
 
         FadeImageView(Context c) {
             super(c);
             mask.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_IN));
+            edgePx = 26f * c.getResources().getDisplayMetrics().density;
         }
 
         void setFade(float px) {
             if (Math.abs(px - fade) > 0.5f) { fade = px; invalidate(); }
         }
 
+        /** تلاشٍ خفيف لحافة الصورة المواجهة للصورة المجاورة أثناء التمرير. */
+        void setEdge(int side) {
+            if (side != edgeSide) { edgeSide = side; invalidate(); }
+        }
+
         @Override protected void onDraw(Canvas c) {
             int w = getWidth(), h = getHeight();
-            if (fade <= 0.5f || h <= 0) { super.onDraw(c); return; }
+            boolean bot = fade > 0.5f, edge = edgeSide != 0 && w > 0;
+            if ((!bot && !edge) || h <= 0) { super.onDraw(c); return; }
             int sc = c.saveLayer(0, 0, w, h, null);
             super.onDraw(c);
-            float f = Math.min(fade, h);
-            mask.setShader(new LinearGradient(0, h - f, 0, h, 0xFF000000, 0x00000000, Shader.TileMode.CLAMP));
-            c.drawRect(0, h - f, w, h, mask);
+            if (bot) {
+                float f = Math.min(fade, h);
+                mask.setShader(new LinearGradient(0, h - f, 0, h, 0xFF000000, 0x00000000, Shader.TileMode.CLAMP));
+                c.drawRect(0, h - f, w, h, mask);
+            }
+            if (edge) {
+                float e = Math.min(edgePx, w / 2f);
+                if (edgeSide > 0) {
+                    mask.setShader(new LinearGradient(w - e, 0, w, 0, 0xFF000000, 0x00000000, Shader.TileMode.CLAMP));
+                    c.drawRect(w - e, 0, w, h, mask);
+                } else {
+                    mask.setShader(new LinearGradient(0, 0, e, 0, 0x00000000, 0xFF000000, Shader.TileMode.CLAMP));
+                    c.drawRect(0, 0, e, h, mask);
+                }
+            }
+            mask.setShader(null);
             c.restoreToCount(sc);
         }
+    }
+
+    /** dir>0: القادمة من اليمين (الحالية تتلاشى يمينها والقادمة يسارها)، dir<0 العكس، 0: إزالة التلاشي. */
+    private void seam(int dir) {
+        heroImg.setEdge(dir > 0 ? 1 : (dir < 0 ? -1 : 0));
+        heroImg2.setEdge(dir > 0 ? -1 : (dir < 0 ? 1 : 0));
     }
 
     private void collectButtons(View v) {
@@ -607,8 +635,9 @@ public final class ProfileHero implements PullScrollView.Controller {
             rightPill = host.getWidth() - (a[0] - h[0]) + 2 * d;
         }
         FrameLayout.LayoutParams pl = (FrameLayout.LayoutParams) countPill.getLayoutParams();
-        pl.topMargin = (int) (cy - 13.5f * d);
-        pl.rightMargin = (int) rightPill;
+        pl.topMargin = (int) (cy - 12.5f * d);   // منتصفه بمحاذاة منتصف النقاط (ارتفاع 25dp)
+        pl.leftMargin = (int) (18 * d);          // نفس هامش الاسم والأزرار من اليسار
+        pl.rightMargin = 0;
         countPill.setLayoutParams(pl);
         if (dotsBtn != null) {
             FrameLayout.LayoutParams dl = (FrameLayout.LayoutParams) dotsBtn.getLayoutParams();
@@ -634,7 +663,7 @@ public final class ProfileHero implements PullScrollView.Controller {
         if (hero.getVisibility() != View.VISIBLE) enterHero();
 
         float size = size0 + (W - size0) * p;
-        float ext = (quickH + 28 * d) * clamp(p * 2f);
+        float ext = (quickH + 23 * d) * clamp(p * 2f);   // أسفل الصورة مرفوع 5dp (كان 28dp) والأزرار تتبعه
         float top = avatarTop * (1f - p);
         float left = (W - size) / 2f;
         float heroH = size + ext;
@@ -697,7 +726,7 @@ public final class ProfileHero implements PullScrollView.Controller {
         applyGlass(p);
 
         // باقي المحتوى ينزل ليبدأ بعد الصورة الممتدة
-        float finalStart = W + (quickH + 28 * d) + 10 * d;
+        float finalStart = W + (quickH + 23 * d) + 10 * d;   // المحتوى تحت الصورة يصعد 5dp معها
         float shift = (finalStart - infoBottom) * p;
         boolean after = false;
         for (int i = 0; i < content.getChildCount(); i++) {
@@ -739,6 +768,7 @@ public final class ProfileHero implements PullScrollView.Controller {
         heroExt2.setTranslationX(0f);
         heroImg2.setVisibility(View.GONE);
         heroExt2.setVisibility(View.GONE);
+        seam(0);
         dragDir = 0;
         swapping = false;
     }
@@ -808,6 +838,7 @@ public final class ProfileHero implements PullScrollView.Controller {
             heroImg2.setVisibility(View.GONE);
             heroExt2.setVisibility(View.GONE);
             dragDir = 0;
+            seam(0);
             heroImg.setTranslationX(dx * 0.25f);
             heroExt.setTranslationX(dx * 0.25f);
             return;
@@ -819,6 +850,7 @@ public final class ProfileHero implements PullScrollView.Controller {
             heroExt2.setVisibility(View.VISIBLE);
             dragDir = dir;
         }
+        seam(dir);
         heroImg.setTranslationX(dx);
         heroExt.setTranslationX(dx);
         heroImg2.setTranslationX(dx + (dir > 0 ? w : -w));
@@ -849,6 +881,7 @@ public final class ProfileHero implements PullScrollView.Controller {
         heroImg2.setVisibility(View.VISIBLE);
         heroExt2.setVisibility(View.VISIBLE);
         dragDir = dir;
+        seam(dir);
         settle(dir);
     }
 
@@ -877,6 +910,7 @@ public final class ProfileHero implements PullScrollView.Controller {
             heroExt2.setTranslationX(0f);
             heroImg2.setVisibility(View.GONE);
             heroExt2.setVisibility(View.GONE);
+            seam(0);
             dragDir = 0;
             swapping = false;
         }).start();

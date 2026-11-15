@@ -748,27 +748,7 @@ public class MassActivity extends Activity {
                     pat.setTag("pattern");
                     f.addView(pat, 0, new FrameLayout.LayoutParams(-1, -1));
                 }
-                // ⋮ في ملفي (الصورة مصغّرة): نفس زر النقاط الثلاث وقائمته «حفظ الصورة» (في وضع التكبير يظهر مع العدّاد)
-                if (f.getId() == R.id.frame_layout642 && f.findViewWithTag("dots") == null) {
-                    final float dd = act.getResources().getDisplayMetrics().density;
-                    View dots = new View(act) {
-                        private final android.graphics.Paint pt = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-                        @Override protected void onDraw(android.graphics.Canvas c) {
-                            float cx = getWidth() / 2f, cy = getHeight() / 2f;
-                            pt.setColor(0xFFFFFFFF);
-                            c.drawCircle(cx, cy - 6f * dd, 2f * dd, pt);
-                            c.drawCircle(cx, cy, 2f * dd, pt);
-                            c.drawCircle(cx, cy + 6f * dd, 2f * dd, pt);
-                        }
-                    };
-                    dots.setTag("dots");
-                    dots.setClickable(true);
-                    dots.setOnClickListener(x -> photoMenu(x, photoBmp));
-                    FrameLayout.LayoutParams dl = new FrameLayout.LayoutParams(dp(48), dp(48), Gravity.TOP | Gravity.RIGHT);
-                    dl.topMargin = dp(5);
-                    dl.rightMargin = dp(7);
-                    f.addView(dots, dl);
-                }
+                // (حُذف زر ⋮ من غلاف ملفي في وضع الصورة المصغّرة؛ يبقى ⋮ داخل الصورة المكبّرة مع العدّاد)
                 f.requestLayout();
             }
 
@@ -792,7 +772,7 @@ public class MassActivity extends Activity {
                 final LinearLayout card = new LinearLayout(act);
                 card.setOrientation(LinearLayout.VERTICAL);
                 card.setPadding(dp(18), dp(18), dp(18), dp(18));
-                card.setBackground(shape(cSf(), 20, 0));
+                card.setBackground(shape(dark ? cSf() : 0xFFEEF1F6, 20, 0));   // نهاراً: أبيض رمادي (نفس خلفية الصفحة)؛ ليلاً كما كان
 
                 TextView title = new TextView(act);
                 title.setText("غلاف ملفك الشخصي");

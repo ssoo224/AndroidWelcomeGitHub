@@ -229,8 +229,8 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
         if (ring && !seen && (!ringSmall || flySc > 0f)) {          // غير المشاهَدة فقط: فراغ 1dp
             float gap = flySc > 0f ? dp(1) / flySc : dp(1);
             grow = Math.max(0f, ringOffPx() - ringThickPx() - gap) * (1f - morph);
-        } else if (!ring && !ringSmall) {
-            // بلا قصة (قصتي قبل الإضافة): الصورة تملأ حجم الحلقة كاملاً (القطر الخارجي = قطر الحلقة مع القصة: +5dp)
+        } else if (!ring && !ringSmall && padPx > 0f) {
+            // بلا قصة (قصتي قبل الإضافة) — فقط حين يوجد هامش رسم (شريط القصص)؛ صور المحادثات بلا هامش تبقى بحجمها دون تكبير/قصّ: الصورة تملأ حجم الحلقة كاملاً (القطر الخارجي = قطر الحلقة مع القصة: +5dp)
             grow = (flySc > 0f ? dp(5) * flyP / flySc : dp(5)) * (1f - morph);
         } else if (ring && seen && !ringSmall) {                      // المشاهَدة: الصورة +1dp (الفراغ 2dp) كما كان، حتى أثناء الفتح
             grow = (flySc > 0f ? dp(1) * flyP / flySc : dp(1)) * (1f - morph);   // أثناء الطيران: من 0 (الهيدر) إلى 1dp (الشريط)
@@ -329,18 +329,18 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
             }
         }
 
-        // علامة + (قصتي بدون قصة)
+        // علامة + (قصتي بدون قصة): نفس نسب الصورة المرجعية — القطر الخارجي (مع الحدّ) ≈ 44.5% من قطر الصورة،
+        // ومركزها عند 45° (أسفل اليمين) على مسافة ≈ 95% من نصف قطر الصورة، فتبرز قليلاً خارج حافتها
         if (plus && plusAlpha > 0.003f) {
-            float sz = dp(21.9f), pr = sz / 2f;
-            float pcx = cx + R + dp(3) - pr, pcy = cy + R + dp(3) - pr;
+            float pr = 0.445f * Rc;
+            float off = 0.95f * Rc * 0.70711f;
+            float pcx = cx + off, pcy = cy + off;
             int a = Math.round(255 * plusAlpha);
-            // ظل
-            // الحدّ
+            float bw = pr * 0.164f;                  // حدّ بلون السطح يفصلها عن الصورة
             p.reset(); p.setAntiAlias(true);
             p.setColor((surface & 0x00FFFFFF) | (a << 24));
             c.drawCircle(pcx, pcy, pr, p);
-            // الجسم
-            float ir = pr - dp(2);
+            float ir = pr - bw;
             p.reset(); p.setAntiAlias(true);
             if (dark) {
                 p.setColor((0x00FFFFFF) | (a << 24));
@@ -349,17 +349,17 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
                 p.setShader(lg); p.setAlpha(a);
             }
             c.drawCircle(pcx, pcy, ir, p);
-            // العلامة (SVG 24 → 12.5dp ، stroke 2.5)
-            float k = dp(12.5f) / 24f;
+            // العلامة: ذراع = 28% من قطر الدائرة الداخلية، بسماكة متناسبة
+            float arm = ir * 0.50f;
             p.reset(); p.setAntiAlias(true);
             p.setStyle(Paint.Style.STROKE);
             p.setStrokeCap(Paint.Cap.ROUND);
-            p.setStrokeWidth(2.5f * k);
+            p.setStrokeWidth(Math.max(dp(1.6f), ir * 0.24f));
             int pc = dark ? 0xFFD4A017 : 0xFFFFFFFF;
             p.setColor((pc & 0x00FFFFFF) | (a << 24));
             plusPath.reset();
-            plusPath.moveTo(pcx, pcy - 7 * k); plusPath.lineTo(pcx, pcy + 7 * k);
-            plusPath.moveTo(pcx - 7 * k, pcy); plusPath.lineTo(pcx + 7 * k, pcy);
+            plusPath.moveTo(pcx, pcy - arm); plusPath.lineTo(pcx, pcy + arm);
+            plusPath.moveTo(pcx - arm, pcy); plusPath.lineTo(pcx + arm, pcy);
             c.drawPath(plusPath, p);
         }
 
