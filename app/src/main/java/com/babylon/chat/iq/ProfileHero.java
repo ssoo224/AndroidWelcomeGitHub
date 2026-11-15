@@ -108,6 +108,10 @@ public final class ProfileHero implements PullScrollView.Controller {
 
     private void updatePill() {
         countPill.setText(String.format(java.util.Locale.US, "%d/%d", pIdx + 1, Math.max(1, total)));
+        // لا صور ← لا عدّاد وزر الرجوع ظاهر؛ توجد صور ← العدّاد ظاهر وزر الرجوع محذوف (ملف الشخص الآخر)
+        boolean has = pIds != null && !pIds.isEmpty();
+        countPill.setVisibility(has ? View.VISIBLE : View.GONE);
+        if (!own && backBtn != null) backBtn.setVisibility(has ? View.INVISIBLE : View.VISIBLE);
     }
 
     /** صورة الفهرس i: الأول = صورة الملف الحالية، والباقي من الذاكرة المؤقتة أو بفك سريع. */
@@ -341,6 +345,7 @@ public final class ProfileHero implements PullScrollView.Controller {
         countPill.setGravity(Gravity.CENTER);
         countPill.setPadding((int) (12 * d), 0, (int) (12 * d), 0);
         countPill.setTextDirection(View.TEXT_DIRECTION_LTR);
+        countPill.setVisibility(View.GONE);   // يظهر فقط عند وجود صور (updatePill)
         GradientDrawable pb = new GradientDrawable();
         pb.setColor(0x66707070);
         pb.setCornerRadius(40 * d);
@@ -703,6 +708,9 @@ public final class ProfileHero implements PullScrollView.Controller {
         sp.topMargin = (int) (size * 0.35f);
         sp.height = (int) (size * 0.65f + ext);
         heroShade.setLayoutParams(sp);
+        // التظليل الداكن أسفل الصورة يظهر تدريجياً مع التكبير (كان كاملاً من أول سحبة فتبدو الصورة معتمة)
+        float shA = clamp((p - 0.3f) / 0.5f);
+        heroShade.setAlpha(shA * shA * (3f - 2f * shA));
         heroExt.setVisibility(ext > 0 ? View.VISIBLE : View.INVISIBLE);
         // البلور (الامتداد المموّه) يظهر تدريجياً مع التكبير بدل أن يبرز دفعةً واحدة، ويختفي تدريجياً عند الإغلاق
         float blurA = clamp((p - 0.05f) / 0.55f);
@@ -825,7 +833,9 @@ public final class ProfileHero implements PullScrollView.Controller {
                 if (x > w * 0.72f) { animateSwitch(1); return; }
                 if (x < w * 0.28f) { animateSwitch(-1); return; }
             }
-            animateTo(0f);
+            // الوسط ← يفتح الصورة (عارض الصور) لا القصة
+            if (fullListener != null) fullListener.open(heroName.getText(), heroStatus.getText());
+            else animateTo(0f);
         }
     }
 

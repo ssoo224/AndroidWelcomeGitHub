@@ -507,6 +507,8 @@ public final class StoriesController {
             View c = bar.getChildAt(i);
             c.setPivotX(px(ITEM_W) / 2f); c.setPivotY(0f);
             c.setScaleX(p); c.setScaleY(p);
+            // الأسماء (ومنها «قصتي») تظهر في آخر إطار فقط، أي حين يكتمل فتح الشريط
+            if (c instanceof ViewGroup && ((ViewGroup) c).getChildCount() > 1) ((ViewGroup) c).getChildAt(1).setAlpha(p >= 0.999f ? 1f : 0f);
         }
         scroll.setAlpha(Math.min(1f, p * 1.5f));
         top.setPadding(0, 0, 0, Math.round(px(TOP_PB) * p));
@@ -530,6 +532,7 @@ public final class StoriesController {
         for (int i = 0; i < bar.getChildCount(); i++) {
             View c = bar.getChildAt(i);
             c.setScaleX(1f); c.setScaleY(1f);
+            if (c instanceof ViewGroup && ((ViewGroup) c).getChildCount() > 1) ((ViewGroup) c).getChildAt(1).setAlpha(1f);
         }
         scroll.setAlpha(1f);
         top.setPadding(0, 0, 0, px(TOP_PB));

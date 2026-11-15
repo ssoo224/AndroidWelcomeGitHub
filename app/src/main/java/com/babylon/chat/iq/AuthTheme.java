@@ -29,6 +29,11 @@ final class AuthTheme {
         return g;
     }
 
+    /** خلفية الشاشة الكاملة (التدرّج + الموجتان الذهبيتان) لشاشتي السبلاش والدخول. */
+    static android.graphics.drawable.Drawable authBg(Context c, boolean dark) {
+        return new AuthBg(dark, c.getResources().getDisplayMetrics().density);
+    }
+
     static GradientDrawable box(boolean dark, float radiusPx, int fillLight, int strokeLight, int strokePx) {
         GradientDrawable g = new GradientDrawable();
         g.setCornerRadius(radiusPx);

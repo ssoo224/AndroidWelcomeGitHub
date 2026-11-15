@@ -177,13 +177,12 @@ public final class BabylonFx {
         final int w = chat.getWidth(), h = chat.getHeight();
         if (w <= 0 || h <= 0) return;
         foldEndUptime = SystemClock.uptimeMillis() + MSG_WAIT_MS;
-        // دخول عادي متناسق مع بقية الشاشات الثانوية (bbViewIn): تلاشٍ + ارتفاع خفيف + تكبير بسيط
-        chat.setAlpha(0f);
-        chat.setTranslationY(dp(chat, 14));
-        chat.setScaleX(0.98f);
-        chat.setScaleY(0.98f);
-        chat.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f)
-                .setDuration(FOLD_MS).setInterpolator(easeOut())
+        // دخول معتم بلا شفافية: كان التلاشي (alpha 0→1) يُظهر القائمة والمحادثة متداخلتين نصف شفافتين لحظة الدخول.
+        // الآن المحادثة معتمة من أول إطار وتنزلق من اليسار فوق القائمة.
+        chat.setAlpha(1f);
+        chat.setTranslationX(-w * 0.18f);
+        chat.animate().translationX(0f)
+                .setDuration(160).setInterpolator(easeOut())
                 .withEndAction(() -> reset(chat)).start();
     }
 
@@ -192,7 +191,7 @@ public final class BabylonFx {
         if (chat == null) { if (end != null) end.run(); return; }
         if (chat.getVisibility() != View.VISIBLE || chat.getWidth() <= 0 || chat.getHeight() <= 0) { if (end != null) end.run(); return; }
         reset(chat);
-        chat.animate().alpha(0f).translationY(dp(chat, 10)).scaleX(0.985f).scaleY(0.985f)
+        chat.animate().translationX(-chat.getWidth() * 0.18f)
                 .setDuration(LEAVE_MS).setInterpolator(new PathInterpolator(0.4f, 0f, 1f, 1f))
                 .withEndAction(() -> { reset(chat); if (end != null) end.run(); }).start();   // لا يُنفَّذ إن أُلغيت الحركة (دخول محادثة جديدة)
     }

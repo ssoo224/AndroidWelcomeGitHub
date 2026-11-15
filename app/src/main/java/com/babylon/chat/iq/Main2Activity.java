@@ -333,11 +333,12 @@ public class Main2Activity extends Activity {
 
     /** الطور الليلي: الخلفية، حاوية التبويبات، الحقول، التسميات والنصوص. */
     private void applyTheme() {
-        if (!dark) return;
         float d = getResources().getDisplayMetrics().density;
-        binding.root.setBackground(AuthTheme.screenBg(true));
+        binding.root.setBackground(AuthTheme.authBg(this, dark));   // التدرّج + الموجتان الذهبيتان (نهاري/ليلي)
+        setupFieldIcons();
+        if (!dark) return;
         binding.subtitle.setTextColor(AuthTheme.MUTED);
-        binding.tabs.setBackground(AuthTheme.box(true, 14 * d, 0, 0, Math.max(1, Math.round(d))));
+        binding.tabs.setBackground(AuthTheme.box(true, 26 * d, 0, 0, Math.max(1, Math.round(d))));
         binding.tabRegister.setTextColor(AuthTheme.MUTED);   // التبويب النشط (الدخول) يبقى أبيض على الذهبي
         TextView[] labels = {binding.labelUser, binding.labelPass, binding.labelName, binding.labelUsername,
                 binding.labelEmail, binding.labelRegPass, binding.btnForgot};
@@ -345,9 +346,49 @@ public class Main2Activity extends Activity {
         android.widget.EditText[] inputs = {binding.editUser, binding.editPass, binding.editName,
                 binding.editUsername, binding.editEmail, binding.editRegPass};
         for (android.widget.EditText e : inputs) {
-            e.setBackground(AuthTheme.box(true, 12 * d, 0, 0, Math.max(1, Math.round(d))));
+            e.setBackground(AuthTheme.box(true, 26 * d, 0, 0, Math.max(1, Math.round(d))));
             e.setTextColor(AuthTheme.TEXT);
             e.setHintTextColor(AuthTheme.HINT);
+        }
+    }
+
+    /** أيقونات الحقول (يسار) + زر إظهار/إخفاء كلمة المرور (يمين) كما في التصميم الجديد؛ ألوانها من ألوان المشروع. */
+    private void setupFieldIcons() {
+        final int ic = dark ? AuthTheme.HINT : 0xFF6B7A8C;
+        final int pad = Math.round(12 * getResources().getDisplayMetrics().density);
+        final int[][] map = {
+            {R.id.edit_user, R.drawable.ic_mail_20}, {R.id.edit_pass, R.drawable.ic_lock_20},
+            {R.id.edit_name, R.drawable.ic_user_22}, {R.id.edit_username, R.drawable.ic_user_add_20},
+            {R.id.edit_email, R.drawable.ic_mail_20}, {R.id.edit_reg_pass, R.drawable.ic_lock_20}};
+        for (int[] m : map) {
+            final android.widget.EditText e = findViewById(m[0]);
+            if (e == null) continue;
+            e.setCompoundDrawablePadding(pad);
+            final android.graphics.drawable.Drawable left = getResources().getDrawable(m[1]).mutate();
+            left.setColorFilter(ic, android.graphics.PorterDuff.Mode.SRC_IN);
+            final boolean isPass = m[0] == R.id.edit_pass || m[0] == R.id.edit_reg_pass;
+            if (!isPass) { e.setCompoundDrawablesWithIntrinsicBounds(left, null, null, null); continue; }
+            final boolean[] shown = {false};
+            final Runnable apply = () -> {
+                android.graphics.drawable.Drawable eye = getResources().getDrawable(shown[0] ? R.drawable.ic_eye_20 : R.drawable.ic_eye_off_20).mutate();
+                eye.setColorFilter(ic, android.graphics.PorterDuff.Mode.SRC_IN);
+                int sel = e.getSelectionEnd();
+                e.setInputType(android.text.InputType.TYPE_CLASS_TEXT | (shown[0]
+                        ? android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD : android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD));
+                e.setTypeface(android.graphics.Typeface.DEFAULT);
+                e.setCompoundDrawablesWithIntrinsicBounds(left, null, eye, null);
+                try { e.setSelection(Math.max(0, sel)); } catch (Throwable ignored) { }
+            };
+            apply.run();
+            e.setOnTouchListener((v, ev) -> {
+                if (ev.getAction() == MotionEvent.ACTION_UP) {
+                    android.graphics.drawable.Drawable r = e.getCompoundDrawables()[2];
+                    if (r != null && ev.getX() >= e.getWidth() - e.getPaddingRight() - r.getIntrinsicWidth() - 12 * getResources().getDisplayMetrics().density) {
+                        shown[0] = !shown[0]; apply.run(); return true;
+                    }
+                }
+                return false;
+            });
         }
     }
 

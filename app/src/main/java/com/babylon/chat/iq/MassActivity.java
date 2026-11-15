@@ -80,6 +80,7 @@ public class MassActivity extends Activity {
     private String myUid = "";
 
     private ListenerRegistration messagesListener;
+    private volatile boolean loggedOut = false;   // بعد تسجيل الخروج لا تُعلَّم أي رسالة مقروءة
     private String currentChatId = "";
     private String otherUid = "";
     private final java.util.Set<String> renderedMsgIds = new java.util.HashSet<>();
@@ -886,7 +887,7 @@ public class MassActivity extends Activity {
                         });
             }
 
-            /** handleAvatarClick / openOtherStories: الضغط على صورة الملف الشخصي يفتح القصة بقوس دوّار (أو النشر إن لم توجد قصة). */
+            /** الضغط على صورة الملف الشخصي: قائمة (القصة / الصورة) إن وُجدت قصة، وإلا تُعرض الصورة مباشرة. */
             void wireProfileAvatarClicks() {
                 final TextView mineAv = tv("pAvatarText"), otherAv = tv("otherAvatarText");
                 final Runnable storyMine = () -> {
@@ -902,30 +903,39 @@ public class MassActivity extends Activity {
                     openStory(otherUid, nm, nm.length() > 0 ? nm.substring(0, 1).toUpperCase() : "?", otherPhotoBmp, StoryAvatarView.toneBlue(otherUid),
                             bg instanceof ProfileRing ? (StoryViewer.Spin) bg : null);
                 };
-                if (mineAv != null) {
-                    mineAv.setOnClickListener(vw -> { if (hasStoryFor(true)) storyMine.run(); else startStoryPublish(); });
-                    // ضغط مطوّل: يعرض الصورة؛ وإن وُجدت قصة يظهر خياران (مشاهدة القصة / عرض الصورة)
-                    mineAv.setOnLongClickListener(vw -> {
+                // ضغط مطوّل على النبذة (ملفي / ملف الآخر): ينسخ نصها
+                for (String[] bp : new String[][]{{"pBioRow", "pBioDisplay", "mine"}, {"otherBioRow", "otherBioDisplay", "other"}}) {
+                    final View row = v(bp[0]); final TextView txt = tv(bp[1]); final boolean mineBio = "mine".equals(bp[2]);
+                    if (row == null || txt == null) continue;
+                    row.setOnLongClickListener(vw -> {
+                        String t = mineBio ? userBio : String.valueOf(txt.getText());
+                        if (t == null || t.trim().isEmpty()) return false;
                         vw.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
-                        final Runnable showPhoto = () -> {
-                            if (photoBmp == null) { toast("لا توجد صورة لعرضها"); return; }
-                            openGallery(myUid, userPhoto, photoBmp, tv("pHeaderName") != null ? tv("pHeaderName").getText() : "", tv("pHeaderStatus") != null ? tv("pHeaderStatus").getText() : "");
-                        };
-                        if (hasStoryFor(true)) avatarMenu(vw, storyMine, showPhoto); else showPhoto.run();
+                        try {
+                            ClipboardManager cm = (ClipboardManager) act.getSystemService(Context.CLIPBOARD_SERVICE);
+                            cm.setPrimaryClip(ClipData.newPlainText("bio", t));
+                        } catch (Throwable ignored) { }
                         return true;
                     });
                 }
+                final Runnable photoMine = () -> {
+                    if (photoBmp == null) { toast("لا توجد صورة لعرضها"); return; }
+                    openGallery(myUid, userPhoto, photoBmp, tv("pHeaderName") != null ? tv("pHeaderName").getText() : "", tv("pHeaderStatus") != null ? tv("pHeaderStatus").getText() : "");
+                };
+                final Runnable photoOther = () -> {
+                    if (otherPhotoBmp == null) { toast("لا توجد صورة لعرضها"); return; }
+                    openGallery(otherUid, otherPhotoRaw, otherPhotoBmp, tv("otherHeaderName") != null ? tv("otherHeaderName").getText() : "", tv("otherHeaderStatus") != null ? tv("otherHeaderStatus").getText() : "");
+                };
+                // الضغط (والضغط المطوّل): وُجدت قصة ← قائمة (مشاهدة القصة / عرض الصورة)، وإلا ← تُفتح الصورة مباشرة (دون الدخول للاستوديو)
+                if (mineAv != null) {
+                    View.OnClickListener l = vw -> { if (hasStoryFor(true)) avatarMenu(vw, storyMine, photoMine); else photoMine.run(); };
+                    mineAv.setOnClickListener(l);
+                    mineAv.setOnLongClickListener(vw -> { vw.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); l.onClick(vw); return true; });
+                }
                 if (otherAv != null) {
-                    otherAv.setOnClickListener(vw -> storyOther.run());
-                    otherAv.setOnLongClickListener(vw -> {
-                        vw.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
-                        final Runnable showPhoto = () -> {
-                            if (otherPhotoBmp == null) { toast("لا توجد صورة لعرضها"); return; }
-                            openGallery(otherUid, otherPhotoRaw, otherPhotoBmp, tv("otherHeaderName") != null ? tv("otherHeaderName").getText() : "", tv("otherHeaderStatus") != null ? tv("otherHeaderStatus").getText() : "");
-                        };
-                        if (hasStoryFor(false)) avatarMenu(vw, storyOther, showPhoto); else showPhoto.run();
-                        return true;
-                    });
+                    View.OnClickListener l = vw -> { if (hasStoryFor(false)) avatarMenu(vw, storyOther, photoOther); else photoOther.run(); };
+                    otherAv.setOnClickListener(l);
+                    otherAv.setOnLongClickListener(vw -> { vw.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); l.onClick(vw); return true; });
                 }
             }
 
@@ -4367,7 +4377,7 @@ public class MassActivity extends Activity {
                 boolean rd = Boolean.TRUE.equals(md.getBoolean("read"));
                 if (myUid.equals(md.getString("sender"))) {
                     try { setTickIfChanged(id, mv, rd ? MsgViews.READ : (md.getMetadata().hasPendingWrites() ? MsgViews.WAIT : MsgViews.SENT)); } catch (Throwable ignored) { }
-                } else if (!rd) {
+                } else if (!rd && !loggedOut && mAuth.getCurrentUser() != null) {
                     try { md.getReference().update("read", true); } catch (Throwable ignored) { }
                 }
             }
@@ -4432,7 +4442,7 @@ public class MassActivity extends Activity {
                                 String timeStr = timeLabel(ts);
                                 Boolean readFlag = gBool(d, "read");
                                 boolean isRead = Boolean.TRUE.equals(readFlag);
-                                if (!mine && !isRead) { try { if (ref != null) ref.update("read", true); } catch (Throwable ignored) { } }
+                                if (!mine && !isRead && !loggedOut && mAuth.getCurrentUser() != null) { try { if (ref != null) ref.update("read", true); } catch (Throwable ignored) { } }
                                 int state = mine ? (isRead ? MsgViews.READ : (pending ? MsgViews.WAIT : MsgViews.SENT)) : MsgViews.SENT;
 
                                 try {
@@ -8312,12 +8322,14 @@ public class MassActivity extends Activity {
                 setOn(v(id + "OnBtn"), on, "goldo");
                 setOn(v(id + "OffBtn"), !on, "goldo");
             }
-            void confirm(String title, String msg, final Runnable ok) {
-                new AlertDialog.Builder(act).setTitle(title).setMessage(msg)
-                    .setPositiveButton("تأكيد", (d, w) -> ok.run())
-                    .setNegativeButton("إلغاء", null).show();
+            void confirm(String title, String msg, final Runnable ok) { confirm(title, msg, "تأكيد", ok); }
+            /** نافذة التأكيد بنفس بطاقة باقي النوافذ (cardDialog) بدل نافذة النظام. */
+            void confirm(String title, String msg, String okText, final Runnable ok) {
+                cardDialog(title, android.text.TextUtils.htmlEncode(msg), null, okText, true, ok);
             }
             void logout() {
+                loggedOut = true;   // قبل أي شيء: لا تُعتبر الرسائل مقروءة بعد الخروج
+                try { if (messagesListener != null) { messagesListener.remove(); messagesListener = null; } } catch (Throwable ignored) { }
                 avatarsClear();
                 try { LocalCache.clearAll(); } catch (Throwable ignored) { }
                 vpStop();   // تسجيل الخروج يوقف الصوتية (if(cur&&!currentUser) stop() في الـ HTML)
@@ -8485,7 +8497,7 @@ public class MassActivity extends Activity {
                     i.putExtra(Intent.EXTRA_TEXT, "حمّل تطبيق Babylon Chat");
                     act.startActivity(Intent.createChooser(i, "مشاركة رابط التحميل"));
                 }
-                else if (id.equals("itemLogout")) confirm("تسجيل الخروج", "هل تريد تسجيل الخروج؟", this::logout);
+                else if (id.equals("itemLogout")) confirm("تسجيل الخروج", "هل تريد تسجيل الخروج؟", "خروج", this::logout);
                 else if (id.equals("itemDelete")) confirm("حذف الحساب", "سيتم حذف حسابك وبياناتك نهائياً. متأكد؟", () -> {
                     if (currentUser != null) {
                         try { LocalCache.clearAll(); } catch (Throwable ignored) { }

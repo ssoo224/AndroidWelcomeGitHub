@@ -40,7 +40,7 @@ public class MainActivity extends Activity {
         binding = MainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
-        if (AuthTheme.isDark(this)) binding.getRoot().setBackground(AuthTheme.screenBg(true));   // الطور الليلي
+        binding.getRoot().setBackground(AuthTheme.authBg(this, AuthTheme.isDark(this)));   // التدرّج + الموجتان الذهبيتان (نهاري/ليلي)
         setupSystemBars();
         startAnimations();
         warmUp();   // تجهيز الشاشة التالية في الخلفية أثناء عرض السبلاش
@@ -131,6 +131,7 @@ public class MainActivity extends Activity {
         android.view.animation.DecelerateInterpolator di = new android.view.animation.DecelerateInterpolator();
         binding.logoCircle.animate().scaleX(1f).scaleY(1f).setDuration(200).setInterpolator(di).start();
         binding.logoGlow.animate().alpha(0f).setDuration(200).setInterpolator(di).start();
+        binding.logoRing.animate().alpha(0f).setDuration(200).setInterpolator(di).start();
         binding.linear22.animate().alpha(0f).setDuration(200).setInterpolator(di).start();
         handler.postDelayed(next, 215);
     }
