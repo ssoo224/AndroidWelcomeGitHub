@@ -8,6 +8,7 @@
 	android:layout_height="match_parent"
 	android:background="@drawable/bg_screen"
 	android:fillViewport="true"
+	android:clipToPadding="false"
 	android:layoutDirection="rtl">
 	<LinearLayout
 		android:id="@+id/linear26"

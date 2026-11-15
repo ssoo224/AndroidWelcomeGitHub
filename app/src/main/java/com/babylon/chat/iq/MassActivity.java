@@ -928,12 +928,24 @@ public class MassActivity extends Activity {
                 };
                 // الضغط (والضغط المطوّل): وُجدت قصة ← قائمة (مشاهدة القصة / عرض الصورة)، وإلا ← تُفتح الصورة مباشرة (دون الدخول للاستوديو)
                 if (mineAv != null) {
-                    View.OnClickListener l = vw -> { if (hasStoryFor(true)) avatarMenu(vw, storyMine, photoMine); else photoMine.run(); };
+                    View.OnClickListener l = vw -> {
+                        if (heroMe != null && heroMe.isFull()) {   // الصورة مكبّرة: النقر في الوسط يفتحها مباشرة بلا قائمة
+                            openGallery(myUid, userPhoto, photoBmp, tv("pHeaderName") != null ? tv("pHeaderName").getText() : "", tv("pHeaderStatus") != null ? tv("pHeaderStatus").getText() : "", heroMe.getCurrentId());
+                            return;
+                        }
+                        if (hasStoryFor(true)) avatarMenu(vw, storyMine, photoMine); else photoMine.run();
+                    };
                     mineAv.setOnClickListener(l);
                     mineAv.setOnLongClickListener(vw -> { vw.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); l.onClick(vw); return true; });
                 }
                 if (otherAv != null) {
-                    View.OnClickListener l = vw -> { if (hasStoryFor(false)) avatarMenu(vw, storyOther, photoOther); else photoOther.run(); };
+                    View.OnClickListener l = vw -> {
+                        if (heroOther != null && heroOther.isFull()) {
+                            openGallery(otherUid, otherPhotoRaw, otherPhotoBmp, tv("otherHeaderName") != null ? tv("otherHeaderName").getText() : "", tv("otherHeaderStatus") != null ? tv("otherHeaderStatus").getText() : "", heroOther.getCurrentId());
+                            return;
+                        }
+                        if (hasStoryFor(false)) avatarMenu(vw, storyOther, photoOther); else photoOther.run();
+                    };
                     otherAv.setOnClickListener(l);
                     otherAv.setOnLongClickListener(vw -> { vw.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS); l.onClick(vw); return true; });
                 }
@@ -1290,7 +1302,11 @@ public class MassActivity extends Activity {
                 boolean edge = chat || isProfilePage(curPage);
                 // داخل المحادثة (بلا لوحة مفاتيح) لا نحجز مساحة الإيماءات في الجذر: الطبقة الزجاجية للمدخل تمتد خلف شريط الإيماءات الشفاف
                 boolean kbUp = padBottom - navBottom > dp(100);
-                r.setPadding(0, edge ? 0 : sbTop, 0, (chat && !kbUp) ? 0 : padBottom);
+                View bnav = v("bottomNav");
+                boolean navOn = !chat && !kbUp && bnav != null && bnav.getVisibility() == View.VISIBLE;
+                r.setPadding(0, edge ? 0 : sbTop, 0, ((chat && !kbUp) || navOn) ? 0 : padBottom);
+                bars.setGlassBottom(navOn);
+                navGlassSync();
                 // الصفحة الرئيسية تبقى ظاهرة خلف حركة دخول/خروج المحادثة: نُبقي لها إزاحة شريط النظام بنفسها
                 // حتى لا تصعد تحت شريط الحالة ولا تنزل تحت أزرار التنقل أثناء الحركة.
                 View mp = v("mainPage");
@@ -1328,6 +1344,49 @@ public class MassActivity extends Activity {
                         @Override public void afterTextChanged(android.text.Editable ed) { keepEditVisible(); }
                     });
                 }
+            }
+
+            /**
+             * شريط التنقل الزجاجي: الصفحة تمتد خلفه حتى أسفل الشاشة (تحت شريط الإيماءات)، والطبقة الزجاجية (NavBarBg)
+             * تبدأ من منتصف الكبسولة. نُبقي مساحة كافية في آخر المحتوى وأزرار الصفحة حتى لا يُغطّى بالشريط.
+             */
+            void navGlassSync() {
+                try {
+                    View bn = v("bottomNav");
+                    if (!(bn instanceof LinearLayout)) return;
+                    boolean on = !chatOpen() && bn.getVisibility() == View.VISIBLE;
+                    int extra = on ? navBottom : 0;
+                    int h = dp(71) + extra;   // 7 أعلى + 54 الصف + 10 أسفل + شريط الإيماءات
+                    boolean changed = NavBarBg.EXTRA_BOTTOM != extra;
+                    NavBarBg.EXTRA_BOTTOM = extra;
+                    if (bn.getPaddingBottom() != dp(10) + extra) bn.setPadding(bn.getPaddingLeft(), bn.getPaddingTop(), bn.getPaddingRight(), dp(10) + extra);
+                    if (changed && bn.getBackground() instanceof NavBarBg) ((NavBarBg) bn.getBackground()).refresh();
+                    int ov = on ? h : 0;   // مقدار تداخل الشريط فوق الصفحة (الصفحة تمتد خلفه)
+                    if (bn.getLayoutParams() instanceof LinearLayout.LayoutParams) {
+                        LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) bn.getLayoutParams();
+                        if (lp.topMargin != -ov) { lp.topMargin = -ov; bn.setLayoutParams(lp); }
+                    }
+                    if (vpBar != null && vpBar.getParent() == v("mainPage") && vpBar.getLayoutParams() instanceof LinearLayout.LayoutParams && "bottom".equals(vpMode)) {
+                        LinearLayout.LayoutParams vl = (LinearLayout.LayoutParams) vpBar.getLayoutParams();
+                        if (vl.bottomMargin != ov) { vl.bottomMargin = ov; vpBar.setLayoutParams(vl); }
+                    }
+                    View cl = v("chatList");
+                    if (cl != null && cl.getPaddingBottom() != dp(88) + ov) cl.setPadding(cl.getPaddingLeft(), cl.getPaddingTop(), cl.getPaddingRight(), dp(88) + ov);
+                    View fab = v("newGroupFab");
+                    if (fab != null && fab.getLayoutParams() instanceof FrameLayout.LayoutParams) {
+                        FrameLayout.LayoutParams fl = (FrameLayout.LayoutParams) fab.getLayoutParams();
+                        if (fl.bottomMargin != dp(16) + ov) { fl.bottomMargin = dp(16) + ov; fab.setLayoutParams(fl); }
+                    }
+                    View sv = v("settingsView"), pv = v("profileView");
+                    if (sv instanceof ViewGroup && ((ViewGroup) sv).getChildCount() > 0) {
+                        View in = ((ViewGroup) sv).getChildAt(0);
+                        if (in.getPaddingBottom() != dp(32) + ov) in.setPadding(in.getPaddingLeft(), in.getPaddingTop(), in.getPaddingRight(), dp(32) + ov);
+                    }
+                    if (pv instanceof ViewGroup && ((ViewGroup) pv).getChildCount() > 0) {
+                        View in = ((ViewGroup) pv).getChildAt(0);
+                        if (in.getPaddingBottom() != dp(24) + ov) in.setPadding(in.getPaddingLeft(), in.getPaddingTop(), in.getPaddingRight(), dp(24) + ov);
+                    }
+                } catch (Throwable ignored) { }
             }
 
             /** حواف المحادثة: الرأس ينزل بقدر شريط الإشعارات (+4dp) ، والمدخل يترك مسافة سفلية كما في .chat-input-container. */
@@ -1502,8 +1561,8 @@ public class MassActivity extends Activity {
                     boolean on = id.equals(a2);
                     TextView ic = tv(id + "Ic");
                     TextView tx = tv(id + "Tx");
-                    int inactive = dark ? 0xFFE4C45B : 0xFFC29D30;   // نهاري: ذهبي #c29d30 / ليلي #e4c45b (الخامل بشفافية .78)
-                    int active = dark ? 0xFFE4C45B : 0xFFB8861B;     // النشط في النهار: ذهبي أغمق قليلاً
+                    int inactive = dark ? 0xFFE4C45B : 0xFFBF9334;   // نهاري: #BF9334 / ليلي #e4c45b (مطابق للمرجع)
+                    int active = dark ? 0xFFE4C45B : 0xFF9C6901;     // النشط في النهار: #9C6901 (مطابق للمرجع)
                     if (ic != null) {
                         ic.setTag(null);
                         ic.setTextColor(on ? active : inactive);
@@ -1518,7 +1577,7 @@ public class MassActivity extends Activity {
                     View vv = v(id);
                     if (vv != null) {
                         vv.setBackground(on ? new NavBarBg.Sel(dark, act.getResources().getDisplayMetrics().density) : null);
-                        vv.setAlpha(on ? 1f : 0.78f);
+                        vv.setAlpha(1f);
                     }
                 }
             }
@@ -2838,7 +2897,27 @@ public class MassActivity extends Activity {
                 a.add(java.util.Calendar.DAY_OF_YEAR, -1);
                 if (a.get(java.util.Calendar.YEAR) == b.get(java.util.Calendar.YEAR) && a.get(java.util.Calendar.DAY_OF_YEAR) == b.get(java.util.Calendar.DAY_OF_YEAR))
                     return "أمس";
-                return new SimpleDateFormat("d/M/yyyy", new Locale("ar")).format(new Date(ts));
+                return olderLabel(ts);
+            }
+
+            /**
+             * تسمية الرسالة الأقدم من أمس: خلال آخر أسبوع → اسم اليوم (الأحد…السبت)، بعد ذلك → «11 نوفمبر»،
+             * وبعد مرور سنة كاملة → التاريخ كاملاً «11 نوفمبر 2025».
+             */
+            String olderLabel(long ts) {
+                java.util.Calendar now = java.util.Calendar.getInstance(), c = java.util.Calendar.getInstance();
+                c.setTimeInMillis(ts);
+                java.util.Calendar a = (java.util.Calendar) now.clone(), b = (java.util.Calendar) c.clone();
+                for (java.util.Calendar x : new java.util.Calendar[]{a, b}) {
+                    x.set(java.util.Calendar.HOUR_OF_DAY, 0); x.set(java.util.Calendar.MINUTE, 0);
+                    x.set(java.util.Calendar.SECOND, 0); x.set(java.util.Calendar.MILLISECOND, 0);
+                }
+                long days = Math.round((a.getTimeInMillis() - b.getTimeInMillis()) / 86400000.0);
+                Locale ar = new Locale("ar");
+                if (days >= 0 && days < 7) return new SimpleDateFormat("EEEE", ar).format(new Date(ts));
+                java.util.Calendar yearAgo = (java.util.Calendar) now.clone();
+                yearAgo.add(java.util.Calendar.YEAR, -1);
+                return new SimpleDateFormat(c.before(yearAgo) ? "d MMMM yyyy" : "d MMMM", ar).format(new Date(ts));
             }
 
             /** فتح عارض القصص: قوس ذهبي دوّار على الحلقة ثم نافذة منبثقة (launchStoryWithGlow + startViewer في الـ HTML). */
@@ -3237,7 +3316,7 @@ public class MassActivity extends Activity {
                         cnt.setVisibility(unreadChats > 0 ? View.VISIBLE : View.GONE);
                         cnt.setText(String.valueOf(unreadChats));
                         GradientDrawable cg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE2B83F, 0xFFB8861B});
-                        cg.setCornerRadius(dp(11.5f)); cg.setStroke(dp(2), cSf());
+                        cg.setCornerRadius(dp(11.5f)); cg.setStroke(dp(1), cSf());   // الإطار الأبيض أنحف بـ 1dp (2 ← 1)
                         cnt.setBackground(cg);
                     }
                 }
@@ -3373,10 +3452,11 @@ public class MassActivity extends Activity {
                         TextView b = new TextView(act);
                         int unreadN = 0; try { unreadN = Integer.parseInt(c[3].trim()); } catch (Throwable ignored) { }
                         b.setText(unreadN > 99 ? "99+" : String.valueOf(unreadN)); b.setTextSize(12.5f); b.setTypeface(null, android.graphics.Typeface.BOLD);
-                        b.setGravity(Gravity.CENTER); b.setTextColor(0xFFFFFFFF); b.setIncludeFontPadding(false);
+                        b.setGravity(Gravity.CENTER); b.setTextColor(dark ? 0xFFE4C45B : 0xFFA9780F); b.setIncludeFontPadding(false);
                         b.setMinWidth(dp(22.9f)); b.setMinHeight(dp(22.9f));
                         b.setPadding(dp(7), 0, dp(7), 0);
-                        GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE2B83F, 0xFFB8861B});
+                        GradientDrawable bg = new GradientDrawable();   // ذهبي شفاف فقط، بلا تدرّج ولا إطار
+                        bg.setColor(dark ? 0x40E4C45B : 0x38D4A017);
                         bg.setCornerRadius(dp(11.5f));
                         b.setBackground(bg);
                         LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(-2, -2);
@@ -4132,7 +4212,8 @@ public class MassActivity extends Activity {
                         firstSnap[0] = false;
                         final boolean rebuilt = !cacheRenderedIds.isEmpty() && reconcileCachedMsgs(snapshots);
                         final boolean liveBatch = !wasFirst && !rebuilt;
-                        for (DocumentChange dc : snapshots.getDocumentChanges()) {
+                        // getDocumentChanges() الافتراضي يتجاهل تغيّرات الميتا (انتقال hasPendingWrites من true إلى false عند تأكيد السيرفر)، فتبقى علامة الساعة؛ INCLUDE يُصدرها كـ MODIFIED
+                        for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firestore.MetadataChanges.INCLUDE)) {
                             if (dc.getType() == DocumentChange.Type.REMOVED) {
                                 removeMsgView(dc.getDocument().getId(), null);
                                 continue;
@@ -4614,8 +4695,7 @@ public class MassActivity extends Activity {
                 if (n.get(java.util.Calendar.YEAR) == c.get(java.util.Calendar.YEAR) && n.get(java.util.Calendar.DAY_OF_YEAR) == c.get(java.util.Calendar.DAY_OF_YEAR)) return "اليوم";
                 n.add(java.util.Calendar.DAY_OF_YEAR, -1);
                 if (n.get(java.util.Calendar.YEAR) == c.get(java.util.Calendar.YEAR) && n.get(java.util.Calendar.DAY_OF_YEAR) == c.get(java.util.Calendar.DAY_OF_YEAR)) return "أمس";
-                String pat = c.get(java.util.Calendar.YEAR) != java.util.Calendar.getInstance().get(java.util.Calendar.YEAR) ? "d MMMM yyyy" : "d MMMM";
-                return new SimpleDateFormat(pat, new Locale("ar")).format(new Date(ts));
+                return olderLabel(ts);
             }
 
             void addDaySep(long ts) {
@@ -5021,6 +5101,7 @@ public class MassActivity extends Activity {
                         int idx = chat ? -1 : "bottom".equals(mode) ? target.indexOfChild(nav) : 0;
                         target.addView(vpBar, idx, lp);
                         vpMode = mode;
+                        navGlassSync();
                     }
                     vpBar.setVisibility(View.VISIBLE);
                     if (first) {   // vpIn / vpInUp / vpInChat

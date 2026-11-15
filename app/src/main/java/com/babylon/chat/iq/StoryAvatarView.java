@@ -231,7 +231,7 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
             grow = Math.max(0f, ringOffPx() - ringThickPx() - gap) * (1f - morph);
         } else if (!ring && !ringSmall && padPx > 0f) {
             // بلا قصة (قصتي قبل الإضافة) — فقط حين يوجد هامش رسم (شريط القصص)؛ صور المحادثات بلا هامش تبقى بحجمها دون تكبير/قصّ: الصورة تملأ حجم الحلقة كاملاً (القطر الخارجي = قطر الحلقة مع القصة: +5dp)
-            grow = (flySc > 0f ? dp(5) * flyP / flySc : dp(5)) * (1f - morph);
+            grow = (flySc > 0f ? dp(3.5f) * flyP / flySc : dp(3.5f)) * (1f - morph);   // قبل نشر قصة: الصورة أصغر بـ 3dp قطراً (كانت +5dp نصف قطر ← صارت +3.5dp)
         } else if (ring && seen && !ringSmall) {                      // المشاهَدة: الصورة +1dp (الفراغ 2dp) كما كان، حتى أثناء الفتح
             grow = (flySc > 0f ? dp(1) * flyP / flySc : dp(1)) * (1f - morph);   // أثناء الطيران: من 0 (الهيدر) إلى 1dp (الشريط)
         }

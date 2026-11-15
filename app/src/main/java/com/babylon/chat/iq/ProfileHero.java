@@ -842,6 +842,9 @@ public final class ProfileHero implements PullScrollView.Controller {
     // ------------------------------------------------- التمرير الأفقي بين الصور
     private boolean full() { return expanded || p >= 0.99f; }
 
+    /** الصورة مكبّرة (الغلاف الكامل): النقر في وسطها يفتح الصورة مباشرة. */
+    public boolean isFull() { return full(); }
+
     @Override public boolean canSwipe() { return full() && pIds.size() > 1 && !swapping; }
 
     @Override public void onSwipeMove(float dx) {

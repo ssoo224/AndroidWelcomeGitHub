@@ -27,6 +27,9 @@ public final class BabylonBars {
     private boolean hold = false;
     /** true داخل المحادثة: شريط الإيماءات شفاف والزجاج يمتد خلفه. */
     private boolean transparentBottom = false;
+    /** true حين يكون شريط التنقل العائم ظاهراً: شريط الإيماءات شفاف والطبقة الزجاجية للشريط تمتد خلفه. */
+    private boolean glassBottom = false;
+    public void setGlassBottom(boolean on) { glassBottom = on; }
 
     /** لون خلف شريط الحالة الحالي (0 = شفاف: الملف الشخصي). */
     public int topColor() { return curTop; }
@@ -190,6 +193,14 @@ public final class BabylonBars {
     }
 
     private void syncBottom(Window w, int bottom) {
+        if (glassBottom) {   // شريط التنقل الزجاجي: شريط الإيماءات شفاف مثل المحادثة
+            if (botAnim != null) botAnim.cancel();
+            curBottom = bottom;
+            first = false;
+            if (!hold) w.setNavigationBarColor(Color.TRANSPARENT);
+            transparentBottom = true;
+            return;
+        }
         if (transparentBottom && !hold) {   // الخروج من المحادثة: نعيد اللون الصلب فوراً بلا حركة
             if (botAnim != null) botAnim.cancel();
             transparentBottom = false;

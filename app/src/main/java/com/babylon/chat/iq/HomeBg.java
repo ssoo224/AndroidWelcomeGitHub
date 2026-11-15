@@ -1,5 +1,8 @@
 package com.babylon.chat.iq;
 
+import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.ColorFilter;
 import android.graphics.LinearGradient;
@@ -7,6 +10,7 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
+import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.drawable.Drawable;
 
@@ -31,7 +35,29 @@ final class HomeBg extends Drawable {
     // نسبة المنطقة المرسومة من ارتفاع الشاشة في اللقطة (الهيدر أعلاها ≈ 0.11 والشريط السفلي ≈ 0.12)
     private static final float TOP = 0.11f, SPAN = 0.77f;
 
-    HomeBg(boolean dark, float density) {
+    // الوضع النهاري: الخلفية الفعلية مأخوذة بكسلاً ببكسل من اللقطة المرجعية (res/drawable-nodpi/home_bg_light.webp)،
+    // بعرض الشاشة ومحاذاة للأسفل؛ ما فوقها لون الصفحة نفسه.
+    private static Bitmap art;
+    private final Paint artPaint = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
+    private final Bitmap photo;
+
+    HomeBg(Context ctx, boolean dark, float density) {
+        this(dark, density, dark ? null : loadArt(ctx));
+    }
+
+    private static synchronized Bitmap loadArt(Context ctx) {
+        if (art == null) {
+            try {
+                BitmapFactory.Options o = new BitmapFactory.Options();
+                o.inScaled = false;
+                art = BitmapFactory.decodeResource(ctx.getResources(), R.drawable.home_bg_light, o);
+            } catch (Throwable ignored) { }
+        }
+        return art;
+    }
+
+    private HomeBg(boolean dark, float density, Bitmap photo) {
+        this.photo = photo;
         this.dark = dark;
         this.d = density;
         line.setStyle(Paint.Style.STROKE);
@@ -45,7 +71,7 @@ final class HomeBg extends Drawable {
     private void build(int w, int h) {
         if (w <= 0 || h <= 0) return;
         bw = w; bh = h;
-        base.setColor(dark ? 0xFF0E1621 : 0xFFF4F6FA);   // نفس لون الهيدر وشريط التنقل (pageBg) فلا تظهر حدود
+        base.setColor(dark ? 0xFF0E1621 : 0xFFF8F9FD);   // نفس لون الهيدر وشريط التنقل (pageBg) فلا تظهر حدود
 
         // الموجة الحريرية الوسطى: خط ذهبي رفيع من حافة اليمين إلى اليسار + شريط كريمي يضيق نحو اليمين
         l1.reset();
@@ -113,6 +139,12 @@ final class HomeBg extends Drawable {
         c.save();
         c.translate(b.left, b.top);
         c.drawRect(0, 0, bw, bh, base);
+        if (photo != null) {
+            float sc = bw / (float) photo.getWidth(), ph = photo.getHeight() * sc;
+            c.drawBitmap(photo, null, new RectF(0, bh - ph, bw, bh), artPaint);
+            c.restore();
+            return;
+        }
         c.drawPath(arc, fill);
         c.drawPath(band1, fill1);
         c.drawPath(band3, fill3);

@@ -434,6 +434,7 @@ public class Main2Activity extends Activity {
         AuthTheme.systemBars(w, dark);
 
         final View rootView = binding.root;
+        binding.root.setClipToPadding(false);   // المحتوى يمرّ خلف شريط الإشعارات بدل أن يُقطع عند حافته
         rootView.setOnApplyWindowInsetsListener((v, insets) -> {
             int top, bottom, ime = 0;
             if (Build.VERSION.SDK_INT >= 30) {
