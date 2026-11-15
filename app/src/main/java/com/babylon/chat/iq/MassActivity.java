@@ -5156,7 +5156,8 @@ public class MassActivity extends Activity {
                 dragAnchor = area.indexOfChild(c);
                 dragBase.clear(); dragBase.addAll(selIds);
                 dragSel = true;
-                ms.requestDisallowInterceptTouchEvent(true);   // لا يسرق الـ ScrollView السحب فيتحوّل لتمرير عادي
+                android.view.ViewParent msParent = ms.getParent();
+                if (msParent != null) msParent.requestDisallowInterceptTouchEvent(true);   // لا يسرق الـ ScrollView السحب فيتحوّل لتمرير عادي
                 ms.postOnAnimation(dragScrollRun);
             }
 
