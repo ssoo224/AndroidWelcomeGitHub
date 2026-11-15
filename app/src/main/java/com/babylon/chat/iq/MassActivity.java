@@ -4013,7 +4013,9 @@ public class MassActivity extends Activity {
                 currentChatId = getChatId(myUid, uid);
                 final String openCid = currentChatId;
                 // تحميل الرسائل بعد أول إطار: النقر يفتح المحادثة وتبدأ الحركة فوراً دون انتظار قراءة الخزن ورسم الفقاعات
-                uiH.post(() -> { if (openCid.equals(currentChatId)) loadMessages(openCid); });
+                // بعد رسم أول إطار فعلاً (Choreographer) لا مجرد post: كان قراءة الخزن ورسم 50 فقاعة يحجبان الخيط الرئيسي فتبقى القائمة معلّقة قبل الدخول
+                final int gen = ++openGen;
+                android.view.Choreographer.getInstance().postFrameCallback(ft -> uiH.post(() -> { if (gen == openGen && openCid.equals(currentChatId)) loadMessages(openCid); }));
                 restoreRecording(currentChatId);   // تعود الصوتية المسجّلة إن وُجدت
                 listenPins(currentChatId);
                 vis("chatView", true);
@@ -4151,20 +4153,32 @@ public class MassActivity extends Activity {
                     };
                 // لا تُعالَج الرسائل أثناء حركة الدخول (تفادياً للتقطيع والتداخل)؛ تُؤجَّل بالترتيب إلى نهايتها
                 cacheShown = false;
-                renderCachedMessages(chatId);   // آخر 50 رسالة محفوظة تظهر فوراً قبل وصول السيرفر
-                if (!cacheRenderedIds.isEmpty()) {   // لا ننتظر السيرفر لإظهارها: تظهر بعد انتهاء حركة الدخول مباشرة
-                    cacheShown = true;
-                    uiH.postDelayed(() -> { if (chatId.equals(currentChatId)) revealChatBottom(); }, BabylonFx.chatFoldRemaining());
-                }
-                messagesListener = db.collection("chats").document(chatId).collection("messages")
-                    .orderBy("timestamp", Query.Direction.ASCENDING)
-                    .addSnapshotListener(com.google.firebase.firestore.MetadataChanges.INCLUDE,
-                        (sn, er) -> deferSnap(onSnap, chatId, sn, er));
+                final int gen0 = openGen;
+                // قراءة ملف الخزن وتحليل JSON (قد يحوي صوراً/صوتيات base64 كبيرة) في خيط خلفي، ثم الرسم والاشتراك على الخيط الرئيسي
+                new Thread(() -> {
+                    org.json.JSONArray cached = null;
+                    try { if (sp.getBoolean("cache_complete_" + chatId, false)) cached = LocalCache.getMessages(chatId); } catch (Throwable ignored) { }
+                    final org.json.JSONArray carr = cached;
+                    uiH.post(() -> {
+                        if (gen0 != openGen || !chatId.equals(currentChatId)) return;
+                        renderCachedMessages(chatId, carr);   // آخر 50 رسالة محفوظة تظهر قبل وصول السيرفر
+                        if (!cacheRenderedIds.isEmpty()) {   // لا ننتظر السيرفر لإظهارها: تظهر بعد انتهاء حركة الدخول مباشرة
+                            cacheShown = true;
+                            uiH.postDelayed(() -> { if (chatId.equals(currentChatId)) revealChatBottom(); }, BabylonFx.chatFoldRemaining());
+                        }
+                        if (messagesListener != null) messagesListener.remove();
+                        messagesListener = db.collection("chats").document(chatId).collection("messages")
+                            .orderBy("timestamp", Query.Direction.ASCENDING)
+                            .addSnapshotListener(com.google.firebase.firestore.MetadataChanges.INCLUDE,
+                                (sn, er) -> deferSnap(onSnap, chatId, sn, er));
+                    });
+                }).start();
             }
 
             // ================= خزن محلي لرسائل المحادثة (آخر 50 رسالة نصية فقط) =================
             final java.util.HashSet<String> cacheRenderedIds = new java.util.HashSet<>();   // رسائل رُسمت من الخزن وتنتظر تأكيد السيرفر
             long cacheMaxTs = 0L;
+            int openGen = 0;   // يلغي تحميلاً معلّقاً لمحادثة سبقتها محادثة أحدث
             boolean cacheShown = false;   // أُظهرت رسائل الخزن المحلي فلا تُعاد حركة الكشف عند وصول السيرفر
             static final int CACHE_MAX_PAYLOAD = 450_000;   // أكبر حجم (محارف) لصورة/صوتية تُحفظ محلياً؛ الأكبر تنتظر السيرفر
 
@@ -4180,11 +4194,9 @@ public class MassActivity extends Activity {
             }
 
             /** يرسم رسائل المحادثة المحفوظة محلياً (نصية فقط) فوراً. */
-            void renderCachedMessages(String chatId) {
+            void renderCachedMessages(String chatId, org.json.JSONArray arr) {   // arr: null إن كان الخزن ناقصاً (يُرسم كل شيء مرة واحدة من لقطة Firestore)
                 cacheRenderedIds.clear(); cacheMaxTs = 0L;
                 try {
-                    if (!sp.getBoolean("cache_complete_" + chatId, false)) return;   // خزن ناقص: لا يُعرض (يُرسم كل شيء مرة واحدة من لقطة Firestore بدل رسمين متتاليين)
-                    org.json.JSONArray arr = LocalCache.getMessages(chatId);
                     if (arr == null || arr.length() == 0) return;
                     java.util.Set<String> hid = hiddenSet();
                     long clr = chatClearedAt(chatId);
@@ -5122,7 +5134,90 @@ public class MassActivity extends Activity {
             }
 
             /** ضغط مطوّل = دخول وضع التحديد (أو تبديل تحديد الرسالة إن كان الوضع مفعلاً). */
-            void msgSelect(final View b, final boolean mine, final int kind, final String url) { toggleSel(b); }
+            void msgSelect(final View b, final boolean mine, final int kind, final String url) {
+                toggleSel(b);
+                String sid = idOfView(b);
+                if (fingerDown && sid != null && selIds.contains(sid)) beginDragSel(b);   // الإصبع ما زال على الشاشة: السحب يكمل التحديد
+            }
+
+            // ===== تحديد متعدد بضغطة مطوّلة واحدة + سحب (الشات يتمرّر تلقائياً عند الوصول لحافة الأعلى/الأسفل) =====
+            boolean fingerDown = false, dragSel = false;
+            int dragAnchor = -1;
+            float dragY = 0f;
+            final java.util.LinkedHashSet<String> dragBase = new java.util.LinkedHashSet<>();
+
+            void beginDragSel(View b) {
+                View ms = v("messagesScroll"), ar = v("messagesArea");
+                if (!(ar instanceof ViewGroup) || ms == null) return;
+                ViewGroup area = (ViewGroup) ar;
+                View c = b;
+                while (c != null && c.getParent() != area) c = c.getParent() instanceof View ? (View) c.getParent() : null;
+                if (c == null) return;
+                dragAnchor = area.indexOfChild(c);
+                dragBase.clear(); dragBase.addAll(selIds);
+                dragSel = true;
+                ms.requestDisallowInterceptTouchEvent(true);   // لا يسرق الـ ScrollView السحب فيتحوّل لتمرير عادي
+                ms.postOnAnimation(dragScrollRun);
+            }
+
+            void dragSelTouch(android.view.MotionEvent ev) {
+                switch (ev.getActionMasked()) {
+                    case android.view.MotionEvent.ACTION_DOWN: fingerDown = true; dragSel = false; dragY = ev.getRawY(); break;
+                    case android.view.MotionEvent.ACTION_MOVE: dragY = ev.getRawY(); if (dragSel) dragSelUpdate(); break;
+                    case android.view.MotionEvent.ACTION_UP:
+                    case android.view.MotionEvent.ACTION_CANCEL: fingerDown = false; dragSel = false; break;
+                    default: break;
+                }
+            }
+
+            /** يحدّد كل الرسائل بين رسالة البداية والرسالة تحت الإصبع (والرجوع للخلف يلغي ما بعدها). */
+            void dragSelUpdate() {
+                View ar = v("messagesArea");
+                if (!dragSel || !(ar instanceof ViewGroup) || dragAnchor < 0) return;
+                ViewGroup area = (ViewGroup) ar;
+                java.util.HashMap<View, String> idOf = new java.util.HashMap<>();
+                for (Map.Entry<String, View> en : msgViewsById.entrySet()) idOf.put(en.getValue(), en.getKey());
+                int[] loc = new int[2];
+                area.getLocationOnScreen(loc);
+                float y = dragY - loc[1];
+                int cur = -1; float best = Float.MAX_VALUE;
+                for (int i = 0; i < area.getChildCount(); i++) {
+                    View c = area.getChildAt(i);
+                    if (c.getVisibility() != View.VISIBLE || !idOf.containsKey(c)) continue;
+                    float d = y < c.getTop() ? c.getTop() - y : (y > c.getBottom() ? y - c.getBottom() : 0f);
+                    if (d < best) { best = d; cur = i; }
+                }
+                if (cur < 0) return;
+                int lo = Math.min(dragAnchor, cur), hi = Math.max(dragAnchor, cur);
+                java.util.LinkedHashSet<String> ns = new java.util.LinkedHashSet<>(dragBase);
+                for (int i = lo; i <= hi; i++) {
+                    String id = idOf.get(area.getChildAt(i));
+                    if (id != null && area.getChildAt(i).getVisibility() == View.VISIBLE) ns.add(id);
+                }
+                if (ns.equals(selIds)) return;
+                selIds.clear(); selIds.addAll(ns);
+                try { area.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK); } catch (Throwable ignored) { }
+                refreshSel();
+            }
+
+            /** تمرير تلقائي أثناء السحب قرب حافة الأعلى/الأسفل، والسرعة تزداد كلما اقترب الإصبع من الحافة. */
+            final Runnable dragScrollRun = new Runnable() {
+                @Override public void run() {
+                    if (!dragSel) return;
+                    View ms = v("messagesScroll");
+                    if (ms == null) { dragSel = false; return; }
+                    int[] l = new int[2];
+                    ms.getLocationOnScreen(l);
+                    float zone = dp(90), maxSp = dp(18);
+                    float topEdge = l[1] + ms.getPaddingTop() + dp(30), botEdge = l[1] + ms.getHeight() - ms.getPaddingBottom() - dp(30);
+                    float dy = 0f;
+                    if (dragY < topEdge + zone) dy = -Math.min(1.6f, (topEdge + zone - dragY) / zone) * maxSp;
+                    else if (dragY > botEdge - zone) dy = Math.min(1.6f, (dragY - (botEdge - zone)) / zone) * maxSp;
+                    if (dy != 0f) { chatUserTouched = true; ms.scrollBy(0, Math.round(dy)); }
+                    dragSelUpdate();   // التمرير يحرّك الرسائل تحت إصبع ثابت فتُحدَّد الرسالة الجديدة
+                    ms.postOnAnimation(this);
+                }
+            };
 
             MsgMenu.Cb msgCb(final View b, final boolean mine, final int kind, final String url, final String raw) {
                 return new MsgMenu.Cb() {
@@ -8661,7 +8756,7 @@ public class MassActivity extends Activity {
         deepOpener = ui::openProfileByUsername;
         if (pendingDeepUser != null) { final String pu = pendingDeepUser; pendingDeepUser = null; getWindow().getDecorView().post(() -> uiRef.openProfileByUsername(pu)); }
         backHook = ui::onBack;
-        touchHook = ui::globalTap;
+        touchHook = ev -> { ui.globalTap(ev); ui.dragSelTouch(ev); };
         vpStopHook = ui::vpStop;
 
         ui.bars.setup();

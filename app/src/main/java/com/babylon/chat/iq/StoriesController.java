@@ -416,7 +416,14 @@ public final class StoriesController {
     private void place(Fly f, float p) {
         float[] h = f.hr, b = f.br;
         float hx = h[0] + h[2] / 2f, hy = h[1] + h[3] / 2f, bx = b[0] + b[2] / 2f, by = b[1] + b[3] / 2f;
-        float cx = hx + (bx - hx) * p, cy = hy + (by - hy) * p;
+        // مسار «قصتي»: الإزاحة الأفقية تتأخر (p=0 الهيدر ← p=1 الشريط) فتصعد الصورة بمحاذاة زر البحث
+        // بدل أن تقطع زاويته بخط مستقيم؛ القصص الأخرى تبقى على المسار المباشر
+        float pxp = p;
+        if (!f.thumb) {
+            float q = clamp((1f - p) / 0.4f);
+            pxp = 1f - q * q * (3f - 2f * q);
+        }
+        float cx = hx + (bx - hx) * pxp, cy = hy + (by - hy) * p;
         float sc = (h[2] + (b[2] - h[2]) * p) / b[2];
         f.v.setTranslationX(cx - (b[2] + 2 * px(RP)) / 2f);
         f.v.setTranslationY(cy - (b[3] + 2 * px(RP)) / 2f);

@@ -332,15 +332,16 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
         // علامة + (قصتي بدون قصة): نفس نسب الصورة المرجعية — القطر الخارجي (مع الحدّ) ≈ 44.5% من قطر الصورة،
         // ومركزها عند 45° (أسفل اليمين) على مسافة ≈ 95% من نصف قطر الصورة، فتبرز قليلاً خارج حافتها
         if (plus && plusAlpha > 0.003f) {
-            float pr = 0.445f * Rc;
+            float pr0 = 0.445f * Rc;
+            float bw = Math.max(0f, pr0 * 0.164f - dp(1));   // الشريط حول الدائرة أقل بـ 1dp
+            float ir = pr0 * (1f - 0.164f) - dp(1);          // الدائرة الذهبية أصغر بـ 2dp قطراً (1dp نصف قطر)
+            float pr = ir + bw;
             float off = 0.95f * Rc * 0.70711f;
             float pcx = cx + off, pcy = cy + off;
             int a = Math.round(255 * plusAlpha);
-            float bw = pr * 0.164f;                  // حدّ بلون السطح يفصلها عن الصورة
             p.reset(); p.setAntiAlias(true);
             p.setColor((surface & 0x00FFFFFF) | (a << 24));
             c.drawCircle(pcx, pcy, pr, p);
-            float ir = pr - bw;
             p.reset(); p.setAntiAlias(true);
             if (dark) {
                 p.setColor((0x00FFFFFF) | (a << 24));

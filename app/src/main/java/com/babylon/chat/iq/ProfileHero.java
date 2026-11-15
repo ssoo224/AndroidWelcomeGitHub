@@ -103,6 +103,9 @@ public final class ProfileHero implements PullScrollView.Controller {
     public String getCurrentId() { return pIdx >= 0 && pIdx < pIds.size() ? pIds.get(pIdx) : null; }
     public Bitmap getCurrentBitmap() { return bitmapAt(pIdx); }
 
+    /** فهرس دائري: بعد الأخيرة تأتي الأولى وقبل الأولى تأتي الأخيرة. */
+    private int wrap(int i) { int n = Math.max(1, pIds.size()); return ((i % n) + n) % n; }
+
     private void updatePill() {
         countPill.setText(String.format(java.util.Locale.US, "%d/%d", pIdx + 1, Math.max(1, total)));
     }
@@ -127,10 +130,12 @@ public final class ProfileHero implements PullScrollView.Controller {
         final java.util.List<String> ids = pIds;
         synchronized (pCache) {
             java.util.Iterator<java.util.Map.Entry<Integer, Bitmap>> it = pCache.entrySet().iterator();
-            while (it.hasNext()) if (Math.abs(it.next().getKey() - c) > 1) it.remove();
+            final int n0 = Math.max(1, ids.size());
+            while (it.hasNext()) { int dd = Math.abs(it.next().getKey() - c); if (Math.min(dd, n0 - dd) > 1) it.remove(); }
         }
         new Thread(() -> {
-            for (int k : new int[]{c + 1, c - 1}) {
+            for (int k0 : new int[]{c + 1, c - 1}) {
+                int k = ((k0 % Math.max(1, ids.size())) + Math.max(1, ids.size())) % Math.max(1, ids.size());
                 if (k <= 0 || k >= ids.size()) continue;
                 synchronized (pCache) { if (pCache.containsKey(k)) continue; }
                 Bitmap b = null;
@@ -817,8 +822,8 @@ public final class ProfileHero implements PullScrollView.Controller {
         if (y <= hero.getTranslationY() + hero.getHeight()) {
             if (pIds.size() > 1 && !swapping) {
                 float w = Math.max(1f, hero.getWidth());
-                if (x > w * 0.72f) { if (pIdx < pIds.size() - 1) animateSwitch(1); return; }
-                if (x < w * 0.28f) { if (pIdx > 0) animateSwitch(-1); return; }
+                if (x > w * 0.72f) { animateSwitch(1); return; }
+                if (x < w * 0.28f) { animateSwitch(-1); return; }
             }
             animateTo(0f);
         }
@@ -833,16 +838,7 @@ public final class ProfileHero implements PullScrollView.Controller {
         if (!canSwipe()) return;
         float w = Math.max(1f, hero.getWidth());
         int dir = dx < 0 ? 1 : -1;                 // سحب لليسار ← التالية
-        int ni = pIdx + dir;
-        if (ni < 0 || ni >= pIds.size()) {         // آخر/أول صورة: مقاومة مطّاطية فقط
-            heroImg2.setVisibility(View.GONE);
-            heroExt2.setVisibility(View.GONE);
-            dragDir = 0;
-            seam(0);
-            heroImg.setTranslationX(dx * 0.25f);
-            heroExt.setTranslationX(dx * 0.25f);
-            return;
-        }
+        int ni = wrap(pIdx + dir);                 // تمرير دائري: من آخر صورة للأولى ومن الأولى للأخيرة
         if (dir != dragDir) {
             Bitmap nb = bitmapAt(ni);
             if (nb != null) { applyBitmapTo(heroImg2, nb); setExt(heroExt2, nb); }
@@ -864,15 +860,14 @@ public final class ProfileHero implements PullScrollView.Controller {
         int dir = 0;
         if (dx < -w * 0.22f || (fling && vx < 0 && dx < 0)) dir = 1;
         else if (dx > w * 0.22f || (fling && vx > 0 && dx > 0)) dir = -1;
-        int ni = pIdx + dir;
-        if (dir == 0 || ni < 0 || ni >= pIds.size() || dragDir != dir) { settle(0); return; }
+        if (dir == 0 || dragDir != dir) { settle(0); return; }
         settle(dir);
     }
 
     /** نقرة على الحافة: ينزلق الإطار الحالي والقادم معاً. */
     private void animateSwitch(int dir) {
-        int ni = pIdx + dir;
-        if (swapping || ni < 0 || ni >= pIds.size()) return;
+        if (swapping || pIds.size() < 2) return;
+        int ni = wrap(pIdx + dir);
         float w = Math.max(1f, hero.getWidth());
         Bitmap nb = bitmapAt(ni);
         if (nb != null) { applyBitmapTo(heroImg2, nb); setExt(heroExt2, nb); }
@@ -899,7 +894,7 @@ public final class ProfileHero implements PullScrollView.Controller {
         heroExt.animate().translationX(endMain).setDuration(dur).start();
         heroImg.animate().translationX(endMain).setDuration(dur).withEndAction(() -> {
             if (dir != 0) {
-                pIdx += dir;
+                pIdx = wrap(pIdx + dir);
                 showCurrent();
                 updatePill();
                 prefetch();
