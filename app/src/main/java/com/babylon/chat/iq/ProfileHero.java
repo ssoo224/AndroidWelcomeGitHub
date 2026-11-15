@@ -140,6 +140,14 @@ public final class ProfileHero implements PullScrollView.Controller {
         }).start();
     }
 
+    /** امتداد مموّه (تصغير شديد) يلتصق بأسفل الصورة. */
+    private void setExt(ImageView ext, Bitmap bm) {
+        try {
+            int h = Math.max(1, 24 * bm.getHeight() / Math.max(1, bm.getWidth()));
+            ext.setImageBitmap(Bitmap.createScaledBitmap(bm, 24, h, true));
+        } catch (Throwable t) { ext.setImageBitmap(null); }
+    }
+
     private void applyBitmapTo(FadeImageView iv, Bitmap bm) {
         if (bm == null) return;
         bm.setHasMipMap(true);
@@ -153,10 +161,8 @@ public final class ProfileHero implements PullScrollView.Controller {
         if (bm == null) return;
         applyBitmapTo(heroImg, bm);
         heroImg.setTranslationX(0f);
-        try {
-            int h = Math.max(1, 24 * bm.getHeight() / Math.max(1, bm.getWidth()));
-            heroExt.setImageBitmap(Bitmap.createScaledBitmap(bm, 24, h, true));
-        } catch (Throwable t) { heroExt.setImageBitmap(null); }
+        heroExt.setTranslationX(0f);
+        setExt(heroExt, bm);
     }
     private float lastPullDy = 0f;
     public void setFullViewListener(FullViewListener l) { fullListener = l; }
@@ -183,7 +189,7 @@ public final class ProfileHero implements PullScrollView.Controller {
     private final FrameLayout coverUnder;      // لون الغلاف + النقوش + التدرّج (كلها خلف الصورة)
     private final CoverPattern coverPat;
     private final View coverFade;
-    private final ImageView heroExt;
+    private final ImageView heroExt, heroExt2;     // heroExt2: امتداد الصورة القادمة أثناء التمرير (يتحرك ملاصقاً لها)
     private final FadeImageView heroImg, heroImg2;
     private final TextView heroLetter, heroName, heroStatus;
     private final View heroShade;
@@ -250,6 +256,11 @@ public final class ProfileHero implements PullScrollView.Controller {
         heroExt.setScaleType(ImageView.ScaleType.CENTER_CROP);
         heroExt.setColorFilter(0xFFE6E6E6, PorterDuff.Mode.MULTIPLY);
         hero.addView(heroExt, new FrameLayout.LayoutParams(-1, -1));
+        heroExt2 = new ImageView(act);
+        heroExt2.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        heroExt2.setColorFilter(0xFFE6E6E6, PorterDuff.Mode.MULTIPLY);
+        heroExt2.setVisibility(View.GONE);
+        hero.addView(heroExt2, new FrameLayout.LayoutParams(-1, -1));
 
         heroImg = new FadeImageView(act);
         heroImg.setScaleType(ImageView.ScaleType.CENTER_CROP);
@@ -659,6 +670,11 @@ public final class ProfileHero implements PullScrollView.Controller {
         sp.height = (int) (size * 0.65f + ext);
         heroShade.setLayoutParams(sp);
         heroExt.setVisibility(ext > 0 ? View.VISIBLE : View.INVISIBLE);
+        // البلور (الامتداد المموّه) يظهر تدريجياً مع التكبير بدل أن يبرز دفعةً واحدة، ويختفي تدريجياً عند الإغلاق
+        float blurA = clamp((p - 0.05f) / 0.55f);
+        blurA = blurA * blurA * (3f - 2f * blurA);
+        heroExt.setAlpha(blurA);
+        heroExt2.setAlpha(blurA);
 
         radiusPx = (size / 2f) * (1f - p);
         hW = size; hH = heroH;
@@ -715,9 +731,14 @@ public final class ProfileHero implements PullScrollView.Controller {
     private void resetSwipe() {
         heroImg.animate().cancel();
         heroImg2.animate().cancel();
+        heroExt.animate().cancel();
+        heroExt2.animate().cancel();
         heroImg.setTranslationX(0f);
         heroImg2.setTranslationX(0f);
+        heroExt.setTranslationX(0f);
+        heroExt2.setTranslationX(0f);
         heroImg2.setVisibility(View.GONE);
+        heroExt2.setVisibility(View.GONE);
         dragDir = 0;
         swapping = false;
     }
@@ -785,18 +806,23 @@ public final class ProfileHero implements PullScrollView.Controller {
         int ni = pIdx + dir;
         if (ni < 0 || ni >= pIds.size()) {         // آخر/أول صورة: مقاومة مطّاطية فقط
             heroImg2.setVisibility(View.GONE);
+            heroExt2.setVisibility(View.GONE);
             dragDir = 0;
             heroImg.setTranslationX(dx * 0.25f);
+            heroExt.setTranslationX(dx * 0.25f);
             return;
         }
         if (dir != dragDir) {
             Bitmap nb = bitmapAt(ni);
-            if (nb != null) applyBitmapTo(heroImg2, nb);
+            if (nb != null) { applyBitmapTo(heroImg2, nb); setExt(heroExt2, nb); }
             heroImg2.setVisibility(View.VISIBLE);
+            heroExt2.setVisibility(View.VISIBLE);
             dragDir = dir;
         }
         heroImg.setTranslationX(dx);
+        heroExt.setTranslationX(dx);
         heroImg2.setTranslationX(dx + (dir > 0 ? w : -w));
+        heroExt2.setTranslationX(dx + (dir > 0 ? w : -w));
     }
 
     @Override public void onSwipeEnd(float dx, float vx) {
@@ -817,9 +843,11 @@ public final class ProfileHero implements PullScrollView.Controller {
         if (swapping || ni < 0 || ni >= pIds.size()) return;
         float w = Math.max(1f, hero.getWidth());
         Bitmap nb = bitmapAt(ni);
-        if (nb != null) applyBitmapTo(heroImg2, nb);
+        if (nb != null) { applyBitmapTo(heroImg2, nb); setExt(heroExt2, nb); }
         heroImg2.setTranslationX(dir > 0 ? w : -w);
+        heroExt2.setTranslationX(dir > 0 ? w : -w);
         heroImg2.setVisibility(View.VISIBLE);
+        heroExt2.setVisibility(View.VISIBLE);
         dragDir = dir;
         settle(dir);
     }
@@ -833,7 +861,9 @@ public final class ProfileHero implements PullScrollView.Controller {
         if (dragDir != 0) {
             float endNext = dir == 0 ? (dragDir > 0 ? w : -w) : 0f;
             heroImg2.animate().translationX(endNext).setDuration(dur).start();
+            heroExt2.animate().translationX(endNext).setDuration(dur).start();
         }
+        heroExt.animate().translationX(endMain).setDuration(dur).start();
         heroImg.animate().translationX(endMain).setDuration(dur).withEndAction(() -> {
             if (dir != 0) {
                 pIdx += dir;
@@ -843,7 +873,10 @@ public final class ProfileHero implements PullScrollView.Controller {
             }
             heroImg.setTranslationX(0f);
             heroImg2.setTranslationX(0f);
+            heroExt.setTranslationX(0f);
+            heroExt2.setTranslationX(0f);
             heroImg2.setVisibility(View.GONE);
+            heroExt2.setVisibility(View.GONE);
             dragDir = 0;
             swapping = false;
         }).start();

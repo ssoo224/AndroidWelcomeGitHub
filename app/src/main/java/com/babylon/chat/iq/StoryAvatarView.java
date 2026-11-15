@@ -229,6 +229,9 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
         if (ring && !seen && (!ringSmall || flySc > 0f)) {          // غير المشاهَدة فقط: فراغ 1dp
             float gap = flySc > 0f ? dp(1) / flySc : dp(1);
             grow = Math.max(0f, ringOffPx() - ringThickPx() - gap) * (1f - morph);
+        } else if (!ring && !ringSmall) {
+            // بلا قصة (قصتي قبل الإضافة): الصورة تملأ حجم الحلقة كاملاً (القطر الخارجي = قطر الحلقة مع القصة: +5dp)
+            grow = (flySc > 0f ? dp(5) * flyP / flySc : dp(5)) * (1f - morph);
         } else if (ring && seen && !ringSmall) {                      // المشاهَدة: الصورة +1dp (الفراغ 2dp) كما كان، حتى أثناء الفتح
             grow = (flySc > 0f ? dp(1) * flyP / flySc : dp(1)) * (1f - morph);   // أثناء الطيران: من 0 (الهيدر) إلى 1dp (الشريط)
         }

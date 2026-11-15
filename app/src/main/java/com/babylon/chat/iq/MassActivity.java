@@ -1035,15 +1035,15 @@ public class MassActivity extends Activity {
                 t.setElevation(0);
                 t.setStateListAnimator(null);
                 // .pf-quick .pf-q : height 56px، padding 8px 6px، gap 5px، أيقونة 19px
-                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(56), 1f);
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(54), 1f);   // أنحف بـ 2dp (56 ← 54)
                 lp.setMargins(dp(4.5f), 0, dp(4.5f), 0);
                 t.setLayoutParams(lp);
-                t.setPadding(dp(6), dp(8), dp(6), dp(8));
+                t.setPadding(dp(6), dp(7), dp(6), dp(7));
                 t.setGravity(Gravity.CENTER);
                 t.setCompoundDrawablePadding(dp(5));
                 t.setTextSize(12);
                 t.setTypeface(null, android.graphics.Typeface.BOLD);
-                t.setBackground(shape(cSf(), 16, cBorder()));
+                t.setBackground(shape(cSf(), 16, 0));   // بلا إطار/حدّ حول الأزرار
                 t.setTextColor(cText());
                 t.setCompoundDrawablesRelative(null, dr(icon(iconName, 16), 19, iconColor), null, null);
             }
@@ -1997,6 +1997,99 @@ public class MassActivity extends Activity {
                 contacts.remove(uid);
                 applyContactNames();
                 db.collection("users").document(myUid).update("chatContacts." + uid, com.google.firebase.firestore.FieldValue.delete());
+            }
+
+            /** منتقي المحافظات: بطاقة منحنية الحواف تنفتح تحت الحقل مع تمييز الخيار الحالي. */
+            void showGovPicker(final Spinner sp) {
+                if (sp == null) return;
+                try {
+                    android.view.inputmethod.InputMethodManager imm = (android.view.inputmethod.InputMethodManager) act.getSystemService(Context.INPUT_METHOD_SERVICE);
+                    if (imm != null) imm.hideSoftInputFromWindow(sp.getWindowToken(), 0);
+                } catch (Throwable ignored) { }
+                final int selected = sp.getSelectedItemPosition();
+                final int gold = cGold();
+                final android.widget.PopupWindow[] pwRef = new android.widget.PopupWindow[1];
+
+                LinearLayout list = new LinearLayout(act);
+                list.setOrientation(LinearLayout.VERTICAL);
+                list.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                list.setPadding(dp(6), dp(6), dp(6), dp(6));
+                View selRow = null;
+                for (int i = 0; i < govs.length; i++) {
+                    final int idx = i;
+                    final boolean on = i == selected;
+                    LinearLayout row = new LinearLayout(act);
+                    row.setOrientation(LinearLayout.HORIZONTAL);
+                    row.setGravity(Gravity.CENTER_VERTICAL);
+                    row.setPadding(dp(14), 0, dp(14), 0);
+                    GradientDrawable base = new GradientDrawable();
+                    base.setCornerRadius(dp(11));
+                    base.setColor(on ? (dark ? 0x26FFFFFF : 0x1AC9A227) : 0x00000000);
+                    GradientDrawable pr = new GradientDrawable();
+                    pr.setCornerRadius(dp(11));
+                    pr.setColor(dark ? 0x1AFFFFFF : 0x120F172A);
+                    android.graphics.drawable.StateListDrawable sl = new android.graphics.drawable.StateListDrawable();
+                    sl.addState(new int[]{android.R.attr.state_pressed}, pr);
+                    sl.addState(new int[]{}, base);
+                    row.setBackground(sl);
+                    row.setClickable(true);
+                    TextView t = new TextView(act);
+                    t.setText(govs[i]);
+                    t.setTextSize(14.5f);
+                    t.setTypeface(null, on ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
+                    t.setTextColor(on ? gold : cText());
+                    t.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+                    t.setTextDirection(View.TEXT_DIRECTION_RTL);
+                    row.addView(t, new LinearLayout.LayoutParams(0, -1, 1f));
+                    if (on) {
+                        ImageView ck = new ImageView(act);
+                        ck.setImageResource(R.drawable.ic_check_16);
+                        ck.setColorFilter(gold);
+                        row.addView(ck, new LinearLayout.LayoutParams(dp(18), dp(18)));
+                        selRow = row;
+                    }
+                    row.setOnClickListener(x -> { sp.setSelection(idx); pwRef[0].dismiss(); });
+                    list.addView(row, new LinearLayout.LayoutParams(-1, dp(44)));
+                }
+                final android.widget.ScrollView sv = new android.widget.ScrollView(act);
+                sv.setVerticalScrollBarEnabled(false);
+                sv.setOverScrollMode(View.OVER_SCROLL_NEVER);
+                sv.addView(list);
+                FrameLayout card = new FrameLayout(act);
+                GradientDrawable bg = new GradientDrawable();
+                bg.setColor(dark ? 0xFF1B2230 : 0xFFFFFFFF);
+                bg.setCornerRadius(dp(18));
+                bg.setStroke(dp(1), dark ? 0xFF2E3848 : 0xFFE1E6EE);
+                card.setBackground(bg);
+                card.setClipToOutline(true);
+                card.setOutlineProvider(new android.view.ViewOutlineProvider() {
+                    @Override public void getOutline(View vw, android.graphics.Outline o) { o.setRoundRect(0, 0, vw.getWidth(), vw.getHeight(), dp(18)); }
+                });
+                card.addView(sv, new FrameLayout.LayoutParams(-1, -1));
+
+                int[] loc = new int[2];
+                sp.getLocationOnScreen(loc);
+                int screenH = act.getResources().getDisplayMetrics().heightPixels;
+                int contentH = govs.length * dp(44) + dp(12);
+                int spaceBelow = screenH - (loc[1] + sp.getHeight()) - dp(24);
+                int spaceAbove = loc[1] - dp(40);
+                boolean below = spaceBelow >= Math.min(contentH, dp(220)) || spaceBelow >= spaceAbove;
+                int h = Math.min(Math.min(contentH, dp(300)), Math.max(dp(120), below ? spaceBelow : spaceAbove));
+                android.widget.PopupWindow pw = new android.widget.PopupWindow(card, sp.getWidth(), h, true);
+                pwRef[0] = pw;
+                pw.setOutsideTouchable(true);
+                pw.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0));
+                pw.setElevation(dp(14));
+                pw.setClippingEnabled(true);
+                card.setAlpha(0f);
+                card.setScaleY(0.92f);
+                card.setPivotY(below ? 0f : h);
+                card.setPivotX(sp.getWidth() / 2f);
+                if (below) pw.showAsDropDown(sp, 0, dp(6));
+                else pw.showAtLocation(sp, Gravity.TOP | Gravity.LEFT, loc[0], loc[1] - h - dp(6));
+                card.animate().alpha(1f).scaleY(1f).setDuration(160).start();
+                final View fsel = selRow;
+                if (fsel != null) sv.post(() -> sv.scrollTo(0, Math.max(0, fsel.getTop() - (h - dp(44)) / 2)));
             }
 
             View menuItem(int iconRes, String label, int color) {
@@ -5721,6 +5814,83 @@ public class MassActivity extends Activity {
                 va.start();
             }
 
+            /** قائمة كل الرسائل المثبتة: بطاقة منحنية تحت الشريط؛ النقر على رسالة ينقلك إليها. */
+            void showPinList(final View anchor) {
+                if (anchor == null || pins.isEmpty()) return;
+                final android.widget.PopupWindow[] pwRef = new android.widget.PopupWindow[1];
+                final int accent = selAcc();
+                LinearLayout col = new LinearLayout(act);
+                col.setOrientation(LinearLayout.VERTICAL);
+                col.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                col.setPadding(dp(6), dp(6), dp(6), dp(6));
+                TextView title = new TextView(act);
+                title.setText("الرسائل المثبتة (" + pins.size() + ")");
+                title.setTextSize(13); title.setTextColor(accent); title.setTypeface(null, android.graphics.Typeface.BOLD);
+                title.setGravity(Gravity.RIGHT);
+                title.setPadding(dp(12), dp(8), dp(12), dp(6));
+                col.addView(title, new LinearLayout.LayoutParams(-1, -2));
+                for (int i = 0; i < pins.size(); i++) {
+                    final Map<String, Object> pm = pins.get(i);
+                    final int idx = i;
+                    LinearLayout row = new LinearLayout(act);
+                    row.setOrientation(LinearLayout.HORIZONTAL);
+                    row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                    row.setGravity(Gravity.CENTER_VERTICAL);
+                    row.setPadding(dp(10), 0, dp(10), 0);
+                    GradientDrawable base = new GradientDrawable();
+                    base.setCornerRadius(dp(11));
+                    base.setColor(i == pinIdx ? selAccA(0x22) : 0x00000000);
+                    GradientDrawable pr = new GradientDrawable();
+                    pr.setCornerRadius(dp(11));
+                    pr.setColor(dark ? 0x1AFFFFFF : 0x120F172A);
+                    android.graphics.drawable.StateListDrawable sl = new android.graphics.drawable.StateListDrawable();
+                    sl.addState(new int[]{android.R.attr.state_pressed}, pr);
+                    sl.addState(new int[]{}, base);
+                    row.setBackground(sl);
+                    row.setClickable(true);
+                    TextView num = new TextView(act);
+                    num.setText("#" + (i + 1));
+                    num.setTextSize(12.5f); num.setTextColor(accent); num.setTypeface(null, android.graphics.Typeface.BOLD);
+                    row.addView(num, new LinearLayout.LayoutParams(dp(30), -2));
+                    TextView t = new TextView(act);
+                    t.setText(String.valueOf(pm.get("text") == null ? "" : pm.get("text")));
+                    t.setTextSize(14); t.setTextColor(cText());
+                    t.setMaxLines(1); t.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                    t.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+                    t.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
+                    row.addView(t, new LinearLayout.LayoutParams(0, -2, 1f));
+                    row.setOnClickListener(x -> {
+                        pwRef[0].dismiss();
+                        pinIdx = idx;
+                        renderPinnedBar();
+                        jumpToMsg(String.valueOf(pm.get("id")));
+                    });
+                    col.addView(row, new LinearLayout.LayoutParams(-1, dp(44)));
+                }
+                android.widget.ScrollView sv = new android.widget.ScrollView(act);
+                sv.setVerticalScrollBarEnabled(false);
+                sv.setOverScrollMode(View.OVER_SCROLL_NEVER);
+                sv.addView(col);
+                FrameLayout card = new FrameLayout(act);
+                GradientDrawable bg = new GradientDrawable();
+                bg.setColor(dark ? 0xFF1B2230 : 0xFFFFFFFF);
+                bg.setCornerRadius(dp(18));
+                bg.setStroke(dp(1), dark ? 0xFF2E3848 : 0xFFE1E6EE);
+                card.setBackground(bg);
+                card.setClipToOutline(true);
+                card.addView(sv, new FrameLayout.LayoutParams(-1, -1));
+                int w = Math.max(anchor.getWidth(), dp(240));
+                int h = Math.min(dp(40) + pins.size() * dp(44) + dp(12), dp(320));
+                android.widget.PopupWindow pw = new android.widget.PopupWindow(card, w, h, true);
+                pwRef[0] = pw;
+                pw.setOutsideTouchable(true);
+                pw.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0));
+                pw.setElevation(dp(14));
+                card.setAlpha(0f); card.setScaleY(0.92f); card.setPivotY(0f);
+                pw.showAsDropDown(anchor, 0, dp(6));
+                card.animate().alpha(1f).scaleY(1f).setDuration(160).start();
+            }
+
             /** شريط الرسالة المثبتة تحت رأس المحادثة: خطوط المؤشر + «رسالة مثبتة #n» + النص + زر إلغاء التثبيت. */
             void renderPinnedBar() {
                 View tb = v("chatTopBar");
@@ -5734,51 +5904,37 @@ public class MassActivity extends Activity {
                 final Map<String, Object> p = pins.get(idx);
                 final int n = pins.size();
 
+                // ترتيب ثابت من اليسار لليمين (LTR صريح لتجنّب أي انعكاس): [≡ قائمة] [إلغاء التثبيت] [النص] [مؤشر الخطوط]
                 LinearLayout bar = new LinearLayout(act);
                 bar.setTag("pinnedBar");
                 bar.setOrientation(LinearLayout.HORIZONTAL);
-                bar.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+                bar.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
                 bar.setGravity(Gravity.CENTER_VERTICAL);
-                bar.setPadding(dp(10), dp(6), dp(6), dp(6));
+                bar.setPadding(dp(6), dp(6), dp(10), dp(6));
                 bar.setBackground(shape(Tk.crCard(cSf()), 18, Tk.crLine(cBorder())));   // .pinned-bar{background:var(--cr-card);border:1px solid var(--cr-line)}
                 LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(-1, -2);
                 blp.setMargins(dp(10), -dp(3), dp(10), 0);   // الهيدر paddingBottom=6dp ← الفاصل الفعلي 3dp
                 bar.setLayoutParams(blp);
 
-                LinearLayout line = new LinearLayout(act);
-                line.setOrientation(LinearLayout.VERTICAL);
-                for (int i = 0; i < n; i++) {
-                    View seg = new View(act);
-                    GradientDrawable sg = new GradientDrawable();
-                    sg.setCornerRadius(dp(14));
-                    sg.setColor(i == idx ? selAcc() : selAccA(0x55));   // مؤشر الرسالة المثبتة بلون الثيم
-                    seg.setBackground(sg);
-                    LinearLayout.LayoutParams sl = new LinearLayout.LayoutParams(-1, 0, 1f);
-                    if (i > 0) sl.topMargin = dp(2);
-                    line.addView(seg, sl);
+                // أكثر من رسالتين مثبتتين: زر «خطان أفقيان» على اليسار يفتح قائمة بكل الرسائل المثبتة
+                if (n > 2) {
+                    final int accent = selAcc();
+                    View listBtn = new View(act) {
+                        @Override protected void onDraw(android.graphics.Canvas c) {
+                            android.graphics.Paint pt = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+                            pt.setColor(accent);
+                            pt.setStrokeCap(android.graphics.Paint.Cap.ROUND);
+                            pt.setStrokeWidth(dp(2));
+                            float cx = getWidth() / 2f, cy = getHeight() / 2f, hw = dp(8);
+                            c.drawLine(cx - hw, cy - dp(3.5f), cx + hw, cy - dp(3.5f), pt);
+                            c.drawLine(cx - hw, cy + dp(3.5f), cx + hw, cy + dp(3.5f), pt);
+                        }
+                    };
+                    listBtn.setContentDescription("قائمة الرسائل المثبتة");
+                    listBtn.setOnClickListener(x -> showPinList(bar));
+                    BabylonFx.press(listBtn, 0.9f);
+                    bar.addView(listBtn, new LinearLayout.LayoutParams(dp(36), dp(36)));
                 }
-                bar.addView(line, new LinearLayout.LayoutParams(dp(3), dp(34)));
-
-                LinearLayout col = new LinearLayout(act);
-                col.setOrientation(LinearLayout.VERTICAL);
-                TextView hd = new TextView(act);
-                hd.setText("رسالة مثبتة" + (n > 1 ? " #" + (idx + 1) : ""));
-                hd.setTextSize(13); hd.setTextColor(selAcc()); hd.setTypeface(null, android.graphics.Typeface.BOLD);
-                col.addView(hd);
-                TextView tx = new TextView(act);
-                tx.setText(String.valueOf(p.get("text") == null ? "" : p.get("text")));
-                tx.setTextSize(13.5f); tx.setTextColor(Tk.crInk(cText())); tx.setAlpha(0.85f);
-                tx.setMaxLines(1); tx.setEllipsize(android.text.TextUtils.TruncateAt.END);
-                tx.setTypeface(null, android.graphics.Typeface.BOLD);
-                tx.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
-                col.addView(tx);
-                LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(0, -2, 1f);
-                cl.setMarginStart(dp(10)); cl.setMarginEnd(dp(4));
-                bar.addView(col, cl);
-                col.setOnClickListener(x -> {
-                    jumpToMsg(String.valueOf(p.get("id")));
-                    if (n > 1) { pinIdx = (idx - 1 + n) % n; renderPinnedBar(); }
-                });
 
                 ImageView xb = new ImageView(act);
                 xb.setImageResource(R.drawable.ic_mm_unpin); xb.setColorFilter(selAcc());
@@ -5793,6 +5949,47 @@ public class MassActivity extends Activity {
                 }));
                 BabylonFx.press(xb, 0.9f);
                 bar.addView(xb, new LinearLayout.LayoutParams(dp(36), dp(36)));
+
+                // نص الرسالة المثبتة: ملاصق لليمين
+                LinearLayout col = new LinearLayout(act);
+                col.setOrientation(LinearLayout.VERTICAL);
+                col.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+                TextView hd = new TextView(act);
+                hd.setText("رسالة مثبتة" + (n > 1 ? " #" + (idx + 1) : ""));
+                hd.setTextSize(13); hd.setTextColor(selAcc()); hd.setTypeface(null, android.graphics.Typeface.BOLD);
+                hd.setGravity(Gravity.RIGHT);
+                hd.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_END);
+                col.addView(hd, new LinearLayout.LayoutParams(-1, -2));
+                TextView tx = new TextView(act);
+                tx.setText(String.valueOf(p.get("text") == null ? "" : p.get("text")));
+                tx.setTextSize(13.5f); tx.setTextColor(Tk.crInk(cText())); tx.setAlpha(0.85f);
+                tx.setMaxLines(1); tx.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                tx.setTypeface(null, android.graphics.Typeface.BOLD);
+                tx.setGravity(Gravity.RIGHT);
+                tx.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_END);
+                col.addView(tx, new LinearLayout.LayoutParams(-1, -2));
+                LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(0, -2, 1f);
+                cl.setMarginStart(dp(4)); cl.setMarginEnd(dp(10));
+                bar.addView(col, cl);
+                col.setOnClickListener(x -> {
+                    jumpToMsg(String.valueOf(p.get("id")));
+                    if (n > 1) { pinIdx = (idx - 1 + n) % n; renderPinnedBar(); }
+                });
+
+                // مؤشر الخطوط عند اليمين
+                LinearLayout line = new LinearLayout(act);
+                line.setOrientation(LinearLayout.VERTICAL);
+                for (int i = 0; i < n; i++) {
+                    View seg = new View(act);
+                    GradientDrawable sg = new GradientDrawable();
+                    sg.setCornerRadius(dp(14));
+                    sg.setColor(i == idx ? selAcc() : selAccA(0x55));   // مؤشر الرسالة المثبتة بلون الثيم
+                    seg.setBackground(sg);
+                    LinearLayout.LayoutParams sl = new LinearLayout.LayoutParams(-1, 0, 1f);
+                    if (i > 0) sl.topMargin = dp(2);
+                    line.addView(seg, sl);
+                }
+                bar.addView(line, new LinearLayout.LayoutParams(dp(3), dp(34)));
                 top.addView(bar);
                 vpPlace();   // شريط الصوتية يبقى تحت الرسالة المثبتة
             }
@@ -8316,6 +8513,12 @@ public class MassActivity extends Activity {
                             t.setBackgroundColor(dark ? 0xFF1D2A38 : 0xFFFFFFFF);
                             return t;
                         }
+                    });
+                    // قائمة المحافظات بتصميم التطبيق (بدل قائمة النظام): تُفتح عند اللمس
+                    final Spinner govSp = (Spinner) govV;
+                    govSp.setOnTouchListener((vv, ev) -> {
+                        if (ev.getActionMasked() == MotionEvent.ACTION_UP) showGovPicker(govSp);
+                        return true;
                     });
                 }
 

@@ -218,6 +218,16 @@ public final class MsgViews {
         @Override public void updateDrawState(android.text.TextPaint ds) {
             ds.setColor(0xFF0EA5E9);
             ds.setUnderlineText(true);
+            // الروابط بوزن عادي دائماً مهما كان نوع الخط (حتى لو كان خط الرسالة «عريض»)
+            ds.setFakeBoldText(false);
+            android.graphics.Typeface tf = ds.getTypeface();
+            if (tf != null && tf.isBold()) {
+                try {
+                    ds.setTypeface(android.os.Build.VERSION.SDK_INT >= 28
+                            ? android.graphics.Typeface.create(tf, 400, false)
+                            : android.graphics.Typeface.create(tf, android.graphics.Typeface.NORMAL));
+                } catch (Throwable ignored) { }
+            }
         }
         @Override public void onClick(View v) {
             try {
@@ -241,11 +251,35 @@ public final class MsgViews {
         android.text.util.Linkify.addLinks(sp, java.util.regex.Pattern.compile("babylon://u/[\\w.]+", java.util.regex.Pattern.CASE_INSENSITIVE), "babylon://");   // رابط داخلي إلى ملف مستخدم
         android.text.style.URLSpan[] us = sp.getSpans(0, sp.length(), android.text.style.URLSpan.class);
         if (us.length == 0) return;
+        final java.util.ArrayList<int[]> linkRanges = new java.util.ArrayList<>();
         for (android.text.style.URLSpan u : us) {
             int st = sp.getSpanStart(u), en = sp.getSpanEnd(u);
             String url = u.getURL();
             sp.removeSpan(u);
             sp.setSpan(new LinkSpan(url), st, en, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            linkRanges.add(new int[]{st, en});
+        }
+        // نزع التعريض (StyleSpan BOLD) عن نطاقات الروابط فقط: يُقسَّم الـSpan العريض حولها ويبقى باقي النص كما هو
+        for (android.text.style.StyleSpan bs : sp.getSpans(0, sp.length(), android.text.style.StyleSpan.class)) {
+            if ((bs.getStyle() & android.graphics.Typeface.BOLD) == 0) continue;
+            int a = sp.getSpanStart(bs), b = sp.getSpanEnd(bs);
+            java.util.ArrayList<int[]> segs = new java.util.ArrayList<>();
+            segs.add(new int[]{a, b});
+            boolean changed = false;
+            for (int[] lr : linkRanges) {
+                java.util.ArrayList<int[]> next = new java.util.ArrayList<>();
+                for (int[] sg : segs) {
+                    if (lr[1] <= sg[0] || lr[0] >= sg[1]) { next.add(sg); continue; }
+                    changed = true;
+                    if (sg[0] < lr[0]) next.add(new int[]{sg[0], lr[0]});
+                    if (lr[1] < sg[1]) next.add(new int[]{lr[1], sg[1]});
+                }
+                segs = next;
+            }
+            if (!changed) continue;
+            int style = bs.getStyle();
+            sp.removeSpan(bs);
+            for (int[] sg : segs) sp.setSpan(new android.text.style.StyleSpan(style), sg[0], sg[1], android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
         t.setOnTouchListener(new View.OnTouchListener() {
             private LinkSpan hit;

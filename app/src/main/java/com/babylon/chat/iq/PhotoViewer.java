@@ -59,7 +59,8 @@ public final class PhotoViewer {
     private boolean barsShown = true;
     private boolean closing = false;
     private int current = 0;
-    private int prevNavColor, prevUiFlags;
+    private int prevNavColor, prevUiFlags, prevStatusColor;
+    private View statusScrim;   // غطاء أسود معتم فوق شريط الإشعارات: الشريط العلوي ينزلق تحته فلا يظهر خلفه
     private boolean navSaved = false;
     private static PhotoViewer open;   // العارض المفتوح حالياً (لزر الرجوع في النشاط)
 
@@ -177,11 +178,10 @@ public final class PhotoViewer {
                     case MotionEvent.ACTION_MOVE: {
                         float prog = Math.min(1f, Math.abs(dy) / (h * 0.45f));
                         pager.setTranslationY(dy);
-                        float sc = 1f - 0.2f * prog;
-                        pager.setScaleX(sc); pager.setScaleY(sc);
                         setBackgroundColor(Color.argb(Math.round(255 * (1f - prog)), 0, 0, 0));
                         float ba = barsShown ? 1f - Math.min(1f, prog * 2f) : 0f;
                         header.setAlpha(ba); stripScroll.setAlpha(ba);
+                        if (statusScrim != null) statusScrim.setAlpha(1f - prog);
                         return true;
                     }
                     case MotionEvent.ACTION_UP:
@@ -301,6 +301,13 @@ public final class PhotoViewer {
         root.addView(stripScroll, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
         rebuildStrip();
 
+        // شريط الإشعارات معتم (أسود) في الصورة المكبّرة؛ الاسم والسهم يختفيان تحته بدل أن يمرّا خلفه
+        if (top > 0) {
+            statusScrim = new View(act);
+            statusScrim.setBackgroundColor(Color.BLACK);
+            root.addView(statusScrim, new FrameLayout.LayoutParams(-1, top, Gravity.TOP));
+        }
+
         // زر الرجوع في النظام
         root.setOnKeyListener((v, code, ev) -> {
             if (code == KeyEvent.KEYCODE_BACK && ev.getAction() == KeyEvent.ACTION_UP) { close(); return true; }
@@ -315,7 +322,9 @@ public final class PhotoViewer {
             prevUiFlags = w.getDecorView().getSystemUiVisibility();
             navSaved = true;
             w.setNavigationBarColor(Color.BLACK);
-            if (Build.VERSION.SDK_INT >= 26) w.getDecorView().setSystemUiVisibility(prevUiFlags & ~View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+            prevStatusColor = w.getStatusBarColor();
+            w.setStatusBarColor(Color.BLACK);
+            if (Build.VERSION.SDK_INT >= 26) w.getDecorView().setSystemUiVisibility(prevUiFlags & ~View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR & ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);   // أيقونات بيضاء على الأسود
         } catch (Throwable ignored) { }
         open = this;
         root.requestFocus();
@@ -385,11 +394,15 @@ public final class PhotoViewer {
         barsShown = !barsShown;
         float a = barsShown ? 1f : 0f;
         // الشريط العلوي يصعد ويختفي، والمصغّرات تهبط وتختفي (والعكس عند النقر ثانيةً)
-        android.view.animation.Interpolator ease = new android.view.animation.PathInterpolator(0.22f, 1f, 0.36f, 1f);
+        // حركة سلسة متماثلة (تسارع ثم تباطؤ ناعم) للشريط العلوي والمصغّرات معاً
+        android.view.animation.Interpolator ease = new android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f);
+        long dur = 340;
+        header.animate().cancel();
+        stripScroll.animate().cancel();
         header.animate().alpha(a).translationY(barsShown ? 0f : -(header.getHeight() + dp(8)))
-                .setStartDelay(0).setInterpolator(ease).setDuration(240).start();
+                .setStartDelay(0).setInterpolator(ease).setDuration(dur).start();
         stripScroll.animate().alpha(a).translationY(barsShown ? 0f : (stripScroll.getHeight() + dp(8)))
-                .setStartDelay(0).setInterpolator(ease).setDuration(240).start();
+                .setStartDelay(0).setInterpolator(ease).setDuration(dur).start();
         header.setClickable(barsShown);
     }
 
@@ -440,7 +453,36 @@ public final class PhotoViewer {
         try {
             android.view.Window w = act.getWindow();
             w.setNavigationBarColor(prevNavColor);
+            w.setStatusBarColor(prevStatusColor);
             if (Build.VERSION.SDK_INT >= 26) w.getDecorView().setSystemUiVisibility(prevUiFlags);
+        } catch (Throwable ignored) { }
+    }
+
+    /** عند الخروج: شريطا الإيماءات والإشعارات يعودان إلى لونهما تدريجياً مع حركة الخروج (بدل التأخر حتى نهايتها). */
+    private void animateSystemBarsBack(long dur) {
+        if (!navSaved) return;
+        navSaved = false;
+        try {
+            final android.view.Window w = act.getWindow();
+            final int navTo = prevNavColor, stTo = prevStatusColor;
+            if (Build.VERSION.SDK_INT >= 26) w.getDecorView().setSystemUiVisibility(prevUiFlags);   // لون الأيقونات يعود فوراً
+            final android.animation.ArgbEvaluator ev = new android.animation.ArgbEvaluator();
+            android.animation.ValueAnimator va = android.animation.ValueAnimator.ofFloat(0f, 1f);
+            va.setDuration(dur);
+            va.setInterpolator(new android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f));
+            va.addUpdateListener(a -> {
+                float f = (Float) a.getAnimatedValue();
+                try {
+                    w.setNavigationBarColor((Integer) ev.evaluate(f, Color.BLACK, navTo));
+                    w.setStatusBarColor((Integer) ev.evaluate(f, Color.BLACK, stTo));
+                } catch (Throwable ignored) { }
+            });
+            va.addListener(new android.animation.AnimatorListenerAdapter() {
+                @Override public void onAnimationEnd(android.animation.Animator an) {
+                    try { w.setNavigationBarColor(navTo); w.setStatusBarColor(stTo); } catch (Throwable ignored) { }
+                }
+            });
+            va.start();
         } catch (Throwable ignored) { }
     }
 
@@ -450,25 +492,40 @@ public final class PhotoViewer {
         restoreNavBar();
     }
 
+    /** الإغلاق (السهم/زر الرجوع): نفس حركة الخروج بالسحب — تصعد الصورة قليلاً وتتلاشى. */
     private void close() {
-        if (closing || root == null) return;
-        closing = true;
-        pager.animate().scaleX(0.7f).scaleY(0.7f).alpha(0f).setDuration(200).start();
-        header.animate().alpha(0f).setStartDelay(0).setDuration(120).start();
-        stripScroll.animate().alpha(0f).setStartDelay(0).setDuration(120).start();
-        root.animate().alpha(0f).setDuration(200).withEndAction(this::removeRoot).start();
+        dismissDrag(-1);
     }
 
-    /** إغلاق بالسحب العمودي: الصورة تكمل خروجها بنفس الاتجاه (dir = -1 للأعلى، 1 للأسفل) والخلفية تتلاشى. */
-    private void dismissDrag(int dir) {
+    /** حركة الخروج: تكمل الصورة انزلاقها بنفس الاتجاه مسافة قصيرة (≈28% من الشاشة) وهي تتلاشى وتعتم،
+     *  والخلفية والأشرطة وغطاء شريط الإشعارات تتلاشى معها بحركة سلسة (dir = -1 للأعلى، 1 للأسفل). */
+    private void dismissDrag(final int dir) {
         if (closing || root == null) return;
         closing = true;
-        float h = Math.max(1f, root.getHeight());
-        pager.animate().translationY(dir * h * 0.6f).alpha(0f).setStartDelay(0).setDuration(220)
-                .setInterpolator(new android.view.animation.AccelerateInterpolator(1.2f)).start();
-        header.animate().alpha(0f).setStartDelay(0).setDuration(100).start();
-        stripScroll.animate().alpha(0f).setStartDelay(0).setDuration(100).start();
-        root.animate().alpha(0f).setDuration(220).withEndAction(this::removeRoot).start();
+        animateSystemBarsBack(340);
+        final float h = Math.max(1f, root.getHeight());
+        final float from = pager.getTranslationY();
+        final float pa0 = pager.getAlpha();
+        final float hdrA = header.getAlpha(), strA = stripScroll.getAlpha();
+        final int bgA0 = root.getBackground() instanceof android.graphics.drawable.ColorDrawable
+                ? Color.alpha(((android.graphics.drawable.ColorDrawable) root.getBackground()).getColor()) : 255;
+        android.animation.ValueAnimator va = android.animation.ValueAnimator.ofFloat(0f, 1f);
+        va.setDuration(340);
+        va.setInterpolator(new android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f));
+        va.addUpdateListener(a -> {
+            float f = (Float) a.getAnimatedValue();
+            pager.setTranslationY(from + dir * h * 0.28f * f);
+            pager.setAlpha(pa0 * (1f - f));
+            root.setBackgroundColor(Color.argb(Math.round(bgA0 * (1f - f)), 0, 0, 0));
+            float fb = Math.min(1f, f * 2.2f);
+            header.setAlpha(hdrA * (1f - fb));
+            stripScroll.setAlpha(strA * (1f - fb));
+            if (statusScrim != null) statusScrim.setAlpha(1f - f);
+        });
+        va.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override public void onAnimationEnd(android.animation.Animator an) { removeRoot(); }
+        });
+        va.start();
     }
 
     /** لم يبلغ السحب الحد: تعود الصورة والخلفية والأشرطة إلى مكانها. */
@@ -476,6 +533,7 @@ public final class PhotoViewer {
         pager.animate().translationY(0f).scaleX(1f).scaleY(1f).setStartDelay(0).setDuration(200)
                 .setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
         float ba = barsShown ? 1f : 0f;
+        if (statusScrim != null) statusScrim.animate().alpha(1f).setDuration(200).start();
         header.animate().alpha(ba).setStartDelay(0).setDuration(200).start();
         stripScroll.animate().alpha(ba).setStartDelay(0).setDuration(200).start();
         final int steps = 1;
@@ -587,6 +645,9 @@ public final class PhotoViewer {
             fit();
         }
 
+        /** ارتفاع الصورة عن منتصف الشاشة (10dp). */
+        private float lift() { return 10f * getResources().getDisplayMetrics().density; }
+
         private void fit() {
             if (getDrawable() == null || getWidth() == 0 || getHeight() == 0) return;
             float dw = getDrawable().getIntrinsicWidth(), dh = getDrawable().getIntrinsicHeight();
@@ -594,7 +655,7 @@ public final class PhotoViewer {
             base = Math.min(getWidth() / dw, getHeight() / dh);
             m.reset();
             m.postScale(base, base);
-            m.postTranslate((getWidth() - dw * base) / 2f, (getHeight() - dh * base) / 2f);
+            m.postTranslate((getWidth() - dw * base) / 2f, (getHeight() - dh * base) / 2f - lift());
             setImageMatrix(m);
         }
 
@@ -607,7 +668,7 @@ public final class PhotoViewer {
             if (r.width() <= getWidth()) dx = (getWidth() - r.width()) / 2f - r.left;
             else if (r.left > 0) dx = -r.left;
             else if (r.right < getWidth()) dx = getWidth() - r.right;
-            if (r.height() <= getHeight()) dy = (getHeight() - r.height()) / 2f - r.top;
+            if (r.height() <= getHeight()) dy = (getHeight() - r.height()) / 2f - lift() - r.top;   // الصورة أعلى من المنتصف بـ 10dp
             else if (r.top > 0) dy = -r.top;
             else if (r.bottom < getHeight()) dy = getHeight() - r.bottom;
             m.postTranslate(dx, dy);
