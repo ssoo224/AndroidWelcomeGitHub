@@ -287,6 +287,7 @@ public class Main2Activity extends Activity {
         Intent i = new Intent(this, MassActivity.class);
         if (welcomeToast != null) i.putExtra("bb_toast", welcomeToast);   // يُعرض في الشاشة التالية لأن هذه تُغلق
         startActivity(i);
+        overridePendingTransition(0, 0);   // بلا أنيميشن دخول لصفحة المحادثات
         finish();
     }
 

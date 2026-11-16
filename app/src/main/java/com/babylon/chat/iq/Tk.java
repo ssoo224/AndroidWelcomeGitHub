@@ -33,6 +33,10 @@ public final class Tk {
         if (chatPal != null) return (chatPal.inner != 0) ? chatPal.inner : chatPal.chatBg;
         return chatSurface(dark) | 0xFF000000;   // بابل نهاري: لون خلفية المحادثة (مثل بقية الثيمات: chatBg داخل الكبسولة)
     }
+    /** لون كبسولة الكتابة الخارجية (السفلية) في الليلي والنهاري، لكل الثيمات. */
+    public static int composerOuter(boolean dark) {
+        return chatPal != null ? chatPal.other : (dark ? 0xFF1C2836 : BAB_CAPSULE);
+    }
     public static boolean chatDark = false;
     /** بابل نهاري (لا ثيم آخر مطبّق ولا ليلي)؟ */
     public static boolean babLight() { return chatPal == null && !chatDark; }
@@ -246,7 +250,8 @@ public final class Tk {
             return true;
         }
         if (tag.equals("rqbM") || tag.equals("rqbO")) { x.setBackgroundColor(rqAccent(tag.equals("rqbM"))); return true; }   // الخط الجانبي لاقتباس الرد
-        if (tag.equals("rqnM") || tag.equals("rqnO")) { if (t != null) t.setTextColor(!dark ? 0xFF000000 : (chatPal != null ? rqAccent(tag.equals("rqnM")) : 0xFFFFFFFF)); return true; }   // اسم/عنوان اقتباس الرد («أنت» / «رد على قصتك»): نهاري (كل الثيمات) أسود #000000؛ ليلي: لون الثيم أو أبيض في بابل
+        if (tag.equals("rqnM")) { if (t != null) { t.setTextColor(0xFFFFFFFF); t.setShadowLayer(0f, 0f, 0f, 0); } return true; }   // أنا من ردّ: اسم الاقتباس («أنت» / اسم الطرف الآخر) أبيض دائماً
+        if (tag.equals("rqnO")) { if (t != null) t.setTextColor(!dark ? 0xFF000000 : (chatPal != null ? rqAccent(false) : 0xFFFFFFFF)); return true; }   // اسم/عنوان اقتباس الرد («أنت» / «رد على قصتك»): نهاري (كل الثيمات) أسود #000000؛ ليلي: لون الثيم أو أبيض في بابل
         if (tag.equals("rqtM")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.textMine : GOLD_INK); return true; }
         if (tag.equals("rqtO")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.accent : 0xFFC29D30); return true; }   // HTML: لون .reply-quote في رسائل الطرف الآخر = ذهبي accent-chat
         // ---- شريط الرد أعلى حقل الكتابة (.reply-preview-bar في الـ HTML)
@@ -346,7 +351,7 @@ public final class Tk {
             return true;
         }
         if (tag.equals("recbar")) {          // .recording-bar : surface + حدّ ، انحناء 18
-            x.setBackground(shape(dark ? 0xFF17212B : (chatPal != null ? chatPal.other : BAB_CAPSULE), dp(x, 18), dark ? 0x3394A3B8 : (chatPal != null ? chatPal.line : BAB_LINE), dp(x, 1)));
+            x.setBackground(shape(composerOuter(dark), dp(x, 18), dark ? 0x3394A3B8 : (chatPal != null ? chatPal.line : BAB_LINE), dp(x, 1)));
             return true;
         }
         if (tag.equals("recbtn")) {          // زر الإيقاف/الإرسال: دائرة 42 بتدرّج ذهبي 145deg وظل ذهبي

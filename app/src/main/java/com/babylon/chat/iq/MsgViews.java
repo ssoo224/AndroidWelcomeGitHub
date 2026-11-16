@@ -700,7 +700,7 @@ public final class MsgViews {
             row.setGravity(Gravity.TOP);
             View q = replyQuote(a, quote, mine, b);
             q.setTag(null);
-            styleEmojiQuote(a, q);   // شفاف بلون الثيم نهاراً، وبلون الرمادي المزرق ليلاً
+            styleEmojiQuote(a, q, mine);   // شفاف بلون الثيم نهاراً، وبلون الرمادي المزرق ليلاً
             LinearLayout.LayoutParams ql = null;
             // الوقت و✓ يكونان أسفل يسار الإيموجي نفسه (لا أسفل الاقتباس): عمود [إيموجي + وقت]، والاقتباس في حامل بارتفاع الإيموجي ومتوسّط عمودياً بالنسبة له
             colRef = new LinearLayout(a);
@@ -729,6 +729,7 @@ public final class MsgViews {
         LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(-2, -2);
         ml.gravity = Gravity.LEFT; ml.topMargin = -dp(a, 2);   // الوقت والعلامة يسار الإيموجي
         meta.setLayoutParams(ml);
+        meta.setTag("emojiMeta");   // التفاعلات تُوضع بجانبه في نفس السطر
         if (colRef != null) colRef.addView(meta); else b.addView(meta);
     }
 
@@ -805,12 +806,13 @@ public final class MsgViews {
         LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(-2, -2);
         ml.gravity = Gravity.RIGHT; ml.topMargin = gapT; ml.rightMargin = dp(a, 2);
         meta.setLayoutParams(ml);
+        meta.setTag("emojiMeta");   // التفاعلات تُوضع على يساره في نفس السطر
 
         if (quote != null) {
             // عمود واحد: [اقتباس] ثم [إيموجيات] ثم [وقت ✓]؛ الاقتباس عند اليسار، والوقت عند اليمين أسفل الإيموجيات
             View q = replyQuote(a, quote, mine, b);
             q.setTag(null);
-            styleEmojiQuote(a, q);
+            styleEmojiQuote(a, q, mine);
             LinearLayout colRef = new LinearLayout(a);
             colRef.setOrientation(LinearLayout.VERTICAL);
             colRef.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
@@ -818,7 +820,7 @@ public final class MsgViews {
             QuoteCap qCap = new QuoteCap(a, emojiPx);   // عرض الاقتباس لا يتجاوز عرض كتلة الإيموجي
             qCap.addView(q, new FrameLayout.LayoutParams(-2, -2));
             LinearLayout.LayoutParams qlp = new LinearLayout.LayoutParams(-2, -2);
-            qlp.gravity = Gravity.LEFT;
+            qlp.gravity = mine ? Gravity.RIGHT : Gravity.LEFT;   // رسائلي: الاقتباس فوق الإيموجيات من جهة اليمين
             colRef.addView(qCap, qlp);
             LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(-2, -2);
             bl.gravity = Gravity.LEFT; bl.leftMargin = indent; bl.topMargin = gapQ;
@@ -850,7 +852,7 @@ public final class MsgViews {
     }
 
     /** اقتباس رسالة الإيموجي (بلا فقاعة): نهاراً خلفية شفافة بلون الثيم (accent) مع حد خفيف ونص داكن مقروء، وليلاً الرمادي المزرق السابق. */
-    private static void styleEmojiQuote(Activity a, View q) {
+    private static void styleEmojiQuote(Activity a, View q, boolean mine) {
         final int r = dp(a, 14);
         if (Tk.chatDark) {
             q.setBackground(rounded(0x598794A8, r));
@@ -867,6 +869,28 @@ public final class MsgViews {
         }
         clipRound(q, r);   // الخط الجانبي يتبع استدارة الحقل
         recolorQuote(q);
+        if (mine && !Tk.chatDark) {   // ردّي نهاراً: حقل بلون الثيم الغامق حتى يظهر الاسم الأبيض (وبقية نص الاقتباس أبيض)
+            int acc = (Tk.chatPal != null ? Tk.chatPal.accent : 0xFF9B7410) | 0xFF000000;
+            float lum = (0.299f * ((acc >> 16) & 255) + 0.587f * ((acc >> 8) & 255) + 0.114f * (acc & 255)) / 255f;
+            if (lum > 0.5f) acc = blendC(acc, 0xFF000000, 0.35f);
+            q.setBackground(rounded(acc, r));
+            whitenQuoteBody(q);
+        }
+    }
+
+    private static void whitenQuoteBody(View v) {
+        if (v instanceof TextView) {
+            TextView t = (TextView) v;
+            if (!(t instanceof QuoteName)) {
+                t.setTextColor(0xF2FFFFFF);
+                for (android.graphics.drawable.Drawable d : t.getCompoundDrawables()) if (d != null) d.setColorFilter(0xFFFFFFFF, android.graphics.PorterDuff.Mode.SRC_IN);
+            }
+        } else if (v instanceof android.view.ViewGroup) {
+            android.view.ViewGroup g = (android.view.ViewGroup) v;
+            for (int i = 0; i < g.getChildCount(); i++) whitenQuoteBody(g.getChildAt(i));
+        } else if (v.getTag() == null && v.getLayoutParams() != null && v.getLayoutParams().width == dp(v.getContext(), 3)) {
+            v.setBackgroundColor(0xFFFFFFFF);   // الخط الجانبي أبيض
+        }
     }
 
     /** يجعل كل أبناء العرض غير قابلين للنقر/التركيز فيذهب النقر والتحديد للرسالة كلها. */
@@ -911,8 +935,10 @@ public final class MsgViews {
                 View c = g.getChildAt(i);
                 Object tg = c.getTag();
                 if (tg != null && String.valueOf(tg).startsWith("rqn") && c instanceof TextView) {
+                    final boolean mineName = "rqnM".equals(String.valueOf(tg));
                     c.setTag(null);
-                    if (!Tk.chatDark) { ((TextView) c).setTextColor(0xFF000000); ((TextView) c).setShadowLayer(0f, 0f, 0f, 0); }   // نهاري (كل الثيمات): اسم الاقتباس («أنت») أسود
+                    if (mineName) { ((TextView) c).setTextColor(0xFFFFFFFF); ((TextView) c).setShadowLayer(0f, 0f, 0f, 0); }   // أنا من ردّ: الاسم أبيض
+                    else if (!Tk.chatDark) { ((TextView) c).setTextColor(0xFF000000); ((TextView) c).setShadowLayer(0f, 0f, 0f, 0); }   // نهاري (كل الثيمات): اسم الاقتباس («أنت») أسود
                     else if (th) { ((TextView) c).setTextColor(Tk.rqAccent(false)); ((TextView) c).setShadowLayer(0f, 0f, 0f, 0); }
                     else { ((TextView) c).setTextColor(0xFFF0D37A); ((TextView) c).setShadowLayer(3f, 0f, 1f, 0x8C000000); }
                 }
@@ -1075,9 +1101,10 @@ public final class MsgViews {
     /** اقتباس الرد داخل الرسالة مطابق لـ .reply-quote: خلفية خفيفة، حواف 10، حشوة 5×9، خط ذهبي 3dp على اليمين، سطر واحد، محاذاة يمين. */
     /** اسم/عنوان اقتباس الرد («أنت» / «رد على قصتك»): في النهاري لا يُرسم أبيض أبداً مهما أُعيد تلوينه (يتحول للأسود). */
     private static final class QuoteName extends TextView {
+        boolean keepWhite;   // ردّي أنا: يبقى أبيض
         QuoteName(Context c) { super(c); }
         @Override protected void onDraw(Canvas c) {
-            if (!Tk.chatDark) {
+            if (!Tk.chatDark && !keepWhite) {
                 int col = getCurrentTextColor();
                 if ((col & 0xFF) > 0xD0 && ((col >> 8) & 0xFF) > 0xD0 && ((col >> 16) & 0xFF) > 0xD0) { setTextColor(0xFF000000); setShadowLayer(0f, 0f, 0f, 0); }
             }
@@ -1107,7 +1134,8 @@ public final class MsgViews {
             if (pr.length > 2) qKind = pr[2];
         }
         if (qName != null && qName.length() > 0) {      // .reply-quote-name: سطر الاسم فوق نص الاقتباس
-            TextView qn = new QuoteName(a);
+            QuoteName qn = new QuoteName(a);
+            qn.keepWhite = mine;
             qn.setText(qName);
             qn.setTextSize(11f);
             qn.setSingleLine(true);
@@ -1115,7 +1143,8 @@ public final class MsgViews {
             qn.setGravity(Gravity.RIGHT);
             qn.setTypeface(null, android.graphics.Typeface.BOLD);
             qn.setTag(mine ? "rqnM" : "rqnO");
-            if (!Tk.chatDark) qn.setTextColor(0xFF000000);   // نهاري: أسود من البداية (لا يظهر أبيض قبل تطبيق الوسم)
+            if (mine) { qn.setTextColor(0xFFFFFFFF); qn.setShadowLayer(0f, 0f, 0f, 0); }   // أنا من ردّ: «أنت» / اسم الطرف الآخر أبيض
+            else if (!Tk.chatDark) qn.setTextColor(0xFF000000);   // نهاري: أسود من البداية (لا يظهر أبيض قبل تطبيق الوسم)
             LinearLayout.LayoutParams nl = new LinearLayout.LayoutParams(-1, -2);
             nl.bottomMargin = dp(a, 2);
             col.addView(qn, nl);

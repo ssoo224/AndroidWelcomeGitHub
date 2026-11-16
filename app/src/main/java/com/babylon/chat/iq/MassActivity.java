@@ -492,6 +492,11 @@ public class MassActivity extends Activity {
                 g.setCornerRadius(dp(composer ? 18 : 15));   // حقل الكتابة الداخلي في الشريط: +3dp
                 // أثناء الكتابة (نهاري، كل الثيمات): الحقل الداخلي أبيض بصبغة خفيفة جداً من لون الثيم
                 final int acc = (Tk.chatPal != null ? Tk.chatPal.accent : 0xFFC29D30) | 0xFF000000;
+                if (composer && focus) {   // أثناء الكتابة (ليلي ونهاري): الحقل الداخلي بنفس لون كبسولة الكتابة الخارجية
+                    g.setColor(Tk.composerOuter(dark));
+                    g.setStroke(dp(1), Tk.chatPal != null ? ((Tk.chatPal.accent & 0x00FFFFFF) | 0x99000000) : (dark ? 0xFF8B94A1 : 0xFFD9CDBB));
+                    return g;
+                }
                 if (Tk.chatPal != null) {   // الطورين الليلي والنهاري: ألوان الثيم (داخل شريط الكتابة --cr-card)
                     g.setColor(focus && !dark ? androidx_blend(0xFFFFFFFF, acc, 0.045f) : Tk.composerInner(dark));   // نهاري: نفس لون الكبسولة قبل التفتيح
                     g.setStroke(dp(1), focus ? ((Tk.chatPal.accent & 0x00FFFFFF) | 0x99000000) : 0x00000000);
@@ -1526,8 +1531,23 @@ public class MassActivity extends Activity {
                 } catch (Throwable ignored) { }
             }
 
+            boolean homeAnimOn = false;   // أنيميشن ظهور صفحة المحادثات جارٍ
+
+            /** يُنهي أنيميشن ظهور المحادثات فوراً (الهيدر + الصفحة + الزر معاً) ويثبّت حالتها النهائية. */
+            void endHomeEntry() {
+                if (!homeAnimOn) return;
+                homeAnimOn = false;
+                for (String id : new String[]{"homeView", "mainHeader", "newGroupFab"}) {
+                    View x = v(id);
+                    if (x == null) continue;
+                    x.animate().cancel();
+                    x.setAlpha(1f); x.setTranslationY(0f);
+                }
+            }
+
             void show(String p) {
                 final String from = curPage;
+                endHomeEntry();
                 BabylonFx.cancelTabSlide();   // تبديل سريع بين التبويبات: لا يبقى انتقال سابق يُظهر صفحته فوق الحالية
                 for (String pg0 : pages) { View pv0 = v(pg0); if (pv0 != null && (pv0.getTranslationX() != 0f)) { pv0.animate().cancel(); pv0.setTranslationX(0f); pv0.setAlpha(1f); } }
                 for (String pg1 : pages) { View pv1 = v(pg1); if (pv1 != null && pv1.getTranslationY() != 0f) pv1.setTranslationY(0f); }
@@ -1556,7 +1576,25 @@ public class MassActivity extends Activity {
                 setNav(p);
                 hideKb();
                 final View to = v(p);
-                if (slide) {
+                if (slide && home && !chatSelMode) {
+                    // الدخول لصفحة المحادثات: الهيدر + القصص + القائمة + الزر يظهرون معاً كقطعة واحدة بنفس الأنيميشن (لا هيدر أولاً ثم الباقي)
+                    final View fv = v(from);
+                    fv.setVisibility(View.GONE);
+                    fv.setTranslationY(0f);
+                    to.setVisibility(View.VISIBLE);
+                    final View[] grp = new View[]{to, v("mainHeader"), v("newGroupFab")};
+                    homeAnimOn = true;
+                    final float dy = -dp(22);   // تنزل من الأعلى
+                    for (View g : grp) {
+                        if (g == null || g.getVisibility() != View.VISIBLE) continue;
+                        g.animate().cancel();
+                        g.setAlpha(0f); g.setTranslationY(dy);
+                        g.animate().alpha(1f).translationY(0f).setDuration(110)
+                                .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f)).start();
+                    }
+                    final int gen = tabGen0;
+                    act.getWindow().getDecorView().postDelayed(() -> { if (homeAnimOn && gen == BabylonFx.tabGenNow()) endHomeEntry(); }, 150);
+                } else if (slide) {
                     final View fv = v(from);
                     // الهيدر وحشوة شريط الحالة يتغيّران فوراً فيدفعان الصفحة الخارجة للأسفل/الأعلى قبل أن تنزلق (فراغ + هيدر باهت فوقها):
                     // نعوّض الفرق بإزاحة عمودية مؤقتة فتبقى في مكانها حتى ينتهي الانزلاق.
@@ -1579,7 +1617,7 @@ public class MassActivity extends Activity {
                     if (secondary) BabylonFx.viewIn(to);
                     BabylonFx.stagger(to);
                 }
-                if (home && !hdrWas) BabylonFx.barDown(v("mainHeader"), 0);
+                if (home && !hdrWas && !homeAnimOn) BabylonFx.barDown(v("mainHeader"), 0);
                 syncBars();
                 vpPlace();   // الشريط العائم يتبع الصفحة (أسفل فوق أزرار التنقل، أو أعلى الصفحة حيث لا أزرار)
                 // شبكة أمان: مهما حصل للأنيميشن (إلغاء/سباق/إطار ضائع) تُثبَّت الصفحة الهدف وحدها بعد انتهاء المدة
@@ -4153,6 +4191,7 @@ public class MassActivity extends Activity {
                 LinearLayout msgArea = (LinearLayout) v("messagesArea");
                 if (msgArea != null) msgArea.removeAllViews();
                 renderedMsgIds.clear(); lastDayKey = ""; daySeps.clear(); msgViewsById.clear(); msgMeta.clear();
+                olderTok++; olderQ.clear();   // دفعات رسائل قديمة معلّقة لمحادثة سابقة
                 playingHandle = null;   // فقاعاتها القديمة أُزيلت؛ التشغيل يستمر ويُعاد ربطه عند رسم رسالتها
                 pins = new ArrayList<>(); pinIdx = -1; renderPinnedBar();
                 cancelReply();
@@ -4240,7 +4279,18 @@ public class MassActivity extends Activity {
                         area0.setOnLongClickListener(x -> { View m = msgAtY((ViewGroup) area0, blankY[0]); return m != null && m.performLongClick(); });
                         area0.setHapticFeedbackEnabled(false);
                         area0.addOnLayoutChangeListener((vv, l, t, r, b, ol, ot, orr, ob) -> {
-                            if (System.currentTimeMillis() < chatStick && !chatUserTouched) {
+                            // أي نموّ في ارتفاع الرسائل (إيموجي يكتمل قياسه، تفاعل جديد، رسالة جديدة) وأنا عند أسفل المحادثة: ابقَ عند الأسفل
+                            // (كان الإيموجي والتفاعلات يكبّران المحتوى بعد النزول فيبقى آخر رسالة تحت شريط الكتابة)
+                            boolean follow = false;
+                            int growth = (b - t) - (ob - ot);
+                            if (growth > 0 && (ob - ot) > 0) {
+                                View cc = ((ScrollView) ms0).getChildAt(0);
+                                if (cc != null) {
+                                    int oldContent = cc.getHeight() - growth;
+                                    follow = ms0.getScrollY() + ms0.getHeight() >= oldContent - dp(60);
+                                }
+                            }
+                            if ((System.currentTimeMillis() < chatStick && !chatUserTouched) || follow) {
                                 View c0 = ((ScrollView) ms0).getChildAt(0);
                                 if (c0 != null) ((ScrollView) ms0).scrollTo(0, Math.max(0, c0.getHeight() + ms0.getPaddingTop() + ms0.getPaddingBottom() - ms0.getHeight()));
                             }
@@ -4271,13 +4321,16 @@ public class MassActivity extends Activity {
                         if (firstSnap[0] && snapshots.isEmpty() && snapshots.getMetadata().isFromCache()) return;
                         final boolean wasFirst = firstSnap[0];
                         firstSnap[0] = false;
-                        final boolean rebuilt = !cacheRenderedIds.isEmpty() && reconcileCachedMsgs(snapshots);
+                        final boolean hadCache = !cacheRenderedIds.isEmpty();
+                        final boolean rebuilt = hadCache && reconcileCachedMsgs(snapshots);
+                        final java.util.ArrayList<DocumentSnapshot> fresh = new java.util.ArrayList<>();   // رسائل اللقطة الأولى الجديدة (تُرسم أحدثها فوراً والباقي على دفعات)
                         final boolean liveBatch = !wasFirst && !rebuilt;
                         // getDocumentChanges() الافتراضي يتجاهل تغيّرات الميتا (انتقال hasPendingWrites من true إلى false عند تأكيد السيرفر)، فتبقى علامة الساعة؛ INCLUDE يُصدرها كـ MODIFIED
                         beginRenderBatch(chatId);
                     try {
 for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firestore.MetadataChanges.INCLUDE)) {
                             if (dc.getType() == DocumentChange.Type.REMOVED) {
+                                olderQ.remove(dc.getDocument().getId());
                                 removeMsgView(dc.getDocument().getId(), null);
                                 continue;
                             }
@@ -4285,6 +4338,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                                 DocumentSnapshot md = dc.getDocument();
                                 View mv = msgViewsById.get(md.getId());
                                 // MetadataChanges.INCLUDE يُصدر MODIFIED لكل الرسائل عند وصول تأكيد السيرفر: أعِد الرسم فقط إن تغيّر المحتوى فعلاً (وإلا ترمش التفاعلات والعلامات)
+                                if (mv == null && olderQ.containsKey(md.getId())) olderQ.put(md.getId(), md);   // رسالة قديمة لم تُرسم بعد: احتفظ بأحدث بياناتها
                                 if (mv != null && !reactSame(md.getId(), md.get("reactions"))) applyReactions(md.getId(), mv, md.get("reactions"));
                                 if (mv != null && myUid.equals(md.getString("sender"))) {
                                     boolean rd = Boolean.TRUE.equals(md.getBoolean("read"));
@@ -4297,9 +4351,21 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                                 if (!doc.exists()) continue;
                                 String id = doc.getId();
                                 if (renderedMsgIds.contains(id)) { if (cacheRenderedIds.contains(id)) syncRenderedMsg(id, doc); continue; }
-                                renderMsgData(chatId, id, doc.getData(), doc.getMetadata().hasPendingWrites(), liveBatch, doc.getReference());
+                                if (wasFirst) fresh.add(doc);
+                                else renderMsgData(chatId, id, doc.getData(), doc.getMetadata().hasPendingWrites(), liveBatch, doc.getReference());
                             }
 
+                        }
+                        if (wasFirst && !fresh.isEmpty()) {
+                            java.util.ArrayList<DocumentSnapshot> older = new java.util.ArrayList<>(), now = new java.util.ArrayList<>();
+                            if (hadCache && !rebuilt) {          // ظهرت رسائل الخزن: الأقدم منها فقط تُضاف فوقها
+                                for (DocumentSnapshot fd : fresh) { Long ft0 = fd.getLong("timestamp"); if (ft0 != null && ft0 > 0 && ft0 < cacheMinTs) older.add(fd); else now.add(fd); }
+                            } else if (fresh.size() > FIRST_RENDER) {   // محادثة كبيرة: آخر FIRST_RENDER فوراً
+                                older.addAll(fresh.subList(0, fresh.size() - FIRST_RENDER));
+                                now.addAll(fresh.subList(fresh.size() - FIRST_RENDER, fresh.size()));
+                            } else now.addAll(fresh);
+                            for (DocumentSnapshot nd : now) renderMsgData(chatId, nd.getId(), nd.getData(), nd.getMetadata().hasPendingWrites(), false, nd.getReference());
+                            if (!older.isEmpty()) { final java.util.ArrayList<DocumentSnapshot> olderF = older; uiH.post(() -> queueOlder(chatId, olderF)); }
                         }
                     } finally { endRenderBatch(); }
                     if (wasFirst && chatId.equals(currentChatId)) renderGhosts(chatId, snapshots);
@@ -4331,9 +4397,83 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 }).start();
             }
 
+            // ================= رسم المحادثات الكبيرة على دفعات =================
+            // رسم مئات الفقاعات دفعة واحدة كان يحجب الخيط الرئيسي (تأخّر الدخول). الآن: آخر FIRST_RENDER رسالة تظهر فوراً،
+            // والأقدم تُضاف فوقها على دفعات صغيرة (دفعة لكل إطار) مع تعويض موضع التمرير فلا يتحرك شيء أمام عينيك.
+            static final int FIRST_RENDER = 40, OLDER_CHUNK = 8;
+            final java.util.LinkedHashMap<String, DocumentSnapshot> olderQ = new java.util.LinkedHashMap<>();   // الرسائل الأقدم المنتظرة (تصاعدياً بالوقت)
+            int olderTok = 0;   // يلغي أي دفعات معلّقة لمحادثة سابقة
+
+            void queueOlder(final String chatId, java.util.List<DocumentSnapshot> older) {
+                if (!chatId.equals(currentChatId)) return;   // المستخدم غادر المحادثة قبل بدء الدفعات
+                olderQ.clear();
+                for (DocumentSnapshot d : older) olderQ.put(d.getId(), d);
+                if (olderQ.isEmpty()) return;
+                olderStep(chatId, ++olderTok);
+            }
+
+            void olderStep(final String chatId, final int tok) {
+                android.view.Choreographer.getInstance().postFrameCallback(ft -> uiH.post(() -> {
+                    if (tok != olderTok || !chatId.equals(currentChatId) || olderQ.isEmpty()) return;
+                    java.util.ArrayList<String> keys = new java.util.ArrayList<>(olderQ.keySet());
+                    int from = Math.max(0, keys.size() - OLDER_CHUNK);   // الأحدث أولاً: كل دفعة تلتصق فوق التي قبلها
+                    java.util.ArrayList<DocumentSnapshot> chunk = new java.util.ArrayList<>();
+                    for (int i = from; i < keys.size(); i++) chunk.add(olderQ.remove(keys.get(i)));
+                    try { prependChunk(chatId, chunk); } catch (Throwable t) { android.util.Log.e("BABYLON_OLDER", "chunk", t); }
+                    if (!olderQ.isEmpty()) olderStep(chatId, tok);
+                }));
+            }
+
+            /** يرسم دفعة رسائل أقدم ثم ينقلها لأعلى القائمة، ويعوّض ارتفاعها في التمرير كي تبقى الرسائل الظاهرة في مكانها. */
+            void prependChunk(String chatId, java.util.List<DocumentSnapshot> chunk) {
+                final View ms = v("messagesScroll");
+                final View ar = v("messagesArea");
+                if (!(ar instanceof LinearLayout) || !(ms instanceof ScrollView)) return;
+                final LinearLayout area = (LinearLayout) ar;
+                final int oldH = area.getHeight();
+                final int n0 = area.getChildCount();
+                final String savedKey = lastDayKey;
+                lastDayKey = "";   // أول رسالة في الدفعة تأخذ فاصل يومها
+                beginRenderBatch(chatId);
+                try {
+                    for (DocumentSnapshot doc : chunk) {
+                        if (doc == null || !doc.exists() || renderedMsgIds.contains(doc.getId())) continue;
+                        renderMsgData(chatId, doc.getId(), doc.getData(), doc.getMetadata().hasPendingWrites(), false, doc.getReference());
+                    }
+                } finally {
+                    batchHid = null; batchClr = -1L; batchOn = false; batchScroll = false;   // بلا نزول للأسفل
+                }
+                final String chunkLastDay = lastDayKey;
+                lastDayKey = savedKey;
+                int cnt = area.getChildCount();
+                if (cnt <= n0) return;
+                java.util.ArrayList<View> moved = new java.util.ArrayList<>();
+                for (int i = n0; i < cnt; i++) moved.add(area.getChildAt(i));
+                area.removeViews(n0, cnt - n0);
+                for (int j = 0; j < moved.size(); j++) area.addView(moved.get(j), j);
+                if (area.getChildCount() > moved.size()) {   // نفس اليوم: فاصل اليوم القديم صار مكرراً
+                    View first = area.getChildAt(moved.size());
+                    String k = daySeps.get(first);
+                    if (k != null && k.equals(chunkLastDay)) { area.removeViewAt(moved.size()); daySeps.remove(first); }
+                }
+                if (oldH > 0) {
+                    final android.view.ViewTreeObserver vto = ms.getViewTreeObserver();
+                    vto.addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
+                        @Override public boolean onPreDraw() {
+                            android.view.ViewTreeObserver o = ms.getViewTreeObserver();
+                            if (o.isAlive()) o.removeOnPreDrawListener(this);
+                            int d = area.getHeight() - oldH;
+                            if (d > 0) ((ScrollView) ms).scrollTo(0, ms.getScrollY() + d);
+                            return true;
+                        }
+                    });
+                }
+                ms.invalidate();
+            }
+
             // ================= خزن محلي لرسائل المحادثة (آخر 50 رسالة نصية فقط) =================
             final java.util.HashSet<String> cacheRenderedIds = new java.util.HashSet<>();   // رسائل رُسمت من الخزن وتنتظر تأكيد السيرفر
-            long cacheMaxTs = 0L;
+            long cacheMaxTs = 0L, cacheMinTs = Long.MAX_VALUE;
             int openGen = 0;   // يلغي تحميلاً معلّقاً لمحادثة سبقتها محادثة أحدث
             boolean cacheShown = false;   // أُظهرت رسائل الخزن المحلي فلا تُعاد حركة الكشف عند وصول السيرفر
             static final int CACHE_MAX_PAYLOAD = 450_000;   // أكبر حجم (محارف) لصورة/صوتية تُحفظ محلياً؛ الأكبر تنتظر السيرفر
@@ -4351,7 +4491,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
 
             /** يرسم رسائل المحادثة المحفوظة محلياً (نصية فقط) فوراً. */
             void renderCachedMessages(String chatId, org.json.JSONArray arr) {   // arr: null إن كان الخزن ناقصاً (يُرسم كل شيء مرة واحدة من لقطة Firestore)
-                cacheRenderedIds.clear(); cacheMaxTs = 0L;
+                cacheRenderedIds.clear(); cacheMaxTs = 0L; cacheMinTs = Long.MAX_VALUE;
                 try {
                     if (arr == null || arr.length() == 0) return;
                     beginRenderBatch(chatId);   // دفعة: المحذوفات تُقرأ مرة واحدة والنزول للأسفل مرة واحدة
@@ -4397,7 +4537,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                         }
                         if (msgClearedMap(d, clr)) continue;
                         renderMsgData(chatId, id, d, false, false, null);
-                        if (msgViewsById.containsKey(id)) { cacheRenderedIds.add(id); if (ts > cacheMaxTs) cacheMaxTs = ts; }
+                        if (msgViewsById.containsKey(id)) { cacheRenderedIds.add(id); if (ts > cacheMaxTs) cacheMaxTs = ts; if (ts > 0 && ts < cacheMinTs) cacheMinTs = ts; }
                     }
                 } catch (Throwable ignored) { } finally { endRenderBatch(); }
             }
@@ -4577,7 +4717,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                         Long t = dd.getLong("timestamp");
                         if (clrR > 0 && t != null && t > 0 && t <= clrR) continue;
                         // رسالة أقدم من آخر رسالة محفوظة (مثل صورة) ليست في الخزن: إضافتها بالنهاية تُفسد الترتيب
-                        if (t != null && t < cacheMaxTs) { needRebuild = true; break; }
+                        if (t != null && t < cacheMaxTs && t >= cacheMinTs) { needRebuild = true; break; }   // الأقدم من كل المحفوظ تُضاف فوقه على دفعات (بلا إعادة بناء)
                     }
                 }
                 if (needRebuild) {
@@ -4776,6 +4916,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 if (pinsListener != null) { pinsListener.remove(); pinsListener = null; }
                 pins = new ArrayList<>(); pinIdx = -1; renderPinnedBar();
                 currentChatId = ""; otherUid = "";
+                olderTok++; olderQ.clear();
                 renderedMsgIds.clear(); lastDayKey = ""; daySeps.clear(); msgViewsById.clear(); msgMeta.clear();
                 playingHandle = null;   // الصوتية الجارية تستمر خارج المحادثة (الفقاعة تُرسم من جديد عند العودة) ويظهر شريطها العائم
             }
@@ -5407,7 +5548,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
             // ===== تحديد متعدد بضغطة مطوّلة واحدة + سحب (الشات يتمرّر تلقائياً عند الوصول لحافة الأعلى/الأسفل) =====
             boolean fingerDown = false, dragSel = false;
             int dragAnchor = -1;
-            float dragY = 0f;
+            float dragY = 0f, dragSelY = 0f;   // dragSelY: موضع الإصبع عند آخر تحديث (التحديد يتبع حركة الإصبع فقط)
             final java.util.LinkedHashSet<String> dragBase = new java.util.LinkedHashSet<>();
 
             void beginDragSel(View b) {
@@ -5420,6 +5561,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 dragAnchor = area.indexOfChild(c);
                 dragBase.clear(); dragBase.addAll(selIds);
                 dragSel = true;
+                dragSelY = dragY;
                 android.view.ViewParent msParent = ms.getParent();
                 if (msParent != null) msParent.requestDisallowInterceptTouchEvent(true);   // لا يسرق الـ ScrollView السحب فيتحوّل لتمرير عادي
                 ms.postOnAnimation(dragScrollRun);
@@ -5428,7 +5570,11 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
             void dragSelTouch(android.view.MotionEvent ev) {
                 switch (ev.getActionMasked()) {
                     case android.view.MotionEvent.ACTION_DOWN: fingerDown = true; dragSel = false; dragY = ev.getRawY(); break;
-                    case android.view.MotionEvent.ACTION_MOVE: dragY = ev.getRawY(); if (dragSel) dragSelUpdate(); break;
+                    case android.view.MotionEvent.ACTION_MOVE:
+                        dragY = ev.getRawY();
+                        // التحديد يتبع حركة إصبعي أنا فقط (أكثر من 3dp)؛ تمرير الصفحة بمفردها أو ارتجاف خفيف لا يحدد رسائل
+                        if (dragSel && Math.abs(dragY - dragSelY) >= dp(3)) { dragSelY = dragY; dragSelUpdate(); }
+                        break;
                     case android.view.MotionEvent.ACTION_UP:
                     case android.view.MotionEvent.ACTION_CANCEL: fingerDown = false; dragSel = false; break;
                     default: break;
@@ -5479,7 +5625,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                     if (dragY < topEdge + zone) dy = -Math.min(1.6f, (topEdge + zone - dragY) / zone) * maxSp;
                     else if (dragY > botEdge - zone) dy = Math.min(1.6f, (dragY - (botEdge - zone)) / zone) * maxSp;
                     if (dy != 0f) { chatUserTouched = true; ms.scrollBy(0, Math.round(dy)); }
-                    dragSelUpdate();   // التمرير يحرّك الرسائل تحت إصبع ثابت فتُحدَّد الرسالة الجديدة
+                    // لا تحديث هنا: تمرير الصفحة بمفردها (إصبع ثابت) لا يحدد رسائل جديدة، يحدد فقط عند تحريك الإصبع
                     ms.postOnAnimation(this);
                 }
             };
@@ -5655,7 +5801,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                         float down = joinDown ? Math.max(0, next.getTop() - mv.getBottom() - 2 * ext) / 2f : 0f;
                         // الحافتان العلوية/السفلية تتلاشيان بلطف جداً «داخل» حدود الرسالة فقط (لا يتعدى التلاشي إلى الفراغ بين الرسالتين)؛
                         // وجهة الالتحام بمجاورة محددة تبقى ممتلئة بلا تلاشٍ كي لا يظهر خط فاصل
-                        float f = Math.min(dp(5), (bottom - top) / 3f) * 0.9f;   // منطقة التلاشي أقل بـ 10%
+                        float f = Math.min(dp(5), (bottom - top) / 3f) * 0.45f;   // منطقة التلاشي أقل بـ 50% عمّا كانت (0.9 ← 0.45)
                         float yT = top - up + (joinUp ? 0f : f), yB = bottom + down - (joinDown ? 0f : f);
                         if (yB > yT) c.drawRect(0, yT, w, yB, pt);
                         if (!joinUp) fadeRect(c, 0, top, w, top + f, true);
@@ -6113,6 +6259,15 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
             }
 
             void jumpToMsg(final String id) {
+                if (msgViewsById.get(id) == null && olderQ.containsKey(id)) {   // الرسالة قديمة وما زالت تنتظر الرسم على الدفعات: ارسم الباقي الآن ثم انتقل
+                    try {
+                        java.util.ArrayList<DocumentSnapshot> all = new java.util.ArrayList<>(olderQ.values());
+                        olderQ.clear(); olderTok++;
+                        prependChunk(currentChatId, all);
+                    } catch (Throwable ignored) { }
+                    uiH.postDelayed(() -> jumpToMsg(id), 80);
+                    return;
+                }
                 final View mv = msgViewsById.get(id);
                 View ms = v("messagesScroll");
                 if (mv == null || !(ms instanceof ScrollView)) { toast("الرسالة غير موجودة في المحادثة"); return; }
@@ -6589,6 +6744,8 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                             lp.gravity = Gravity.BOTTOM | Gravity.LEFT;
                             lp.setMargins(dp(8), 0, 0, dp(8));
                             ((FrameLayout) bubble).addView(rowL, lp);
+                        } else if ("bubEmoji".equals(bubble.getTag()) && placeEmojiReactions(bubble, rowL)) {
+                            // إيموجي: التفاعل في سطر الوقت نفسه، في الجهة المقابلة للوقت (يسار الوقت لرسائلي)
                         } else if (bubble instanceof LinearLayout) {   // نص/صوت: صف أسفل الفقاعة
                             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
                             lp.gravity = "bubEmoji".equals(bubble.getTag()) ? Gravity.CENTER_HORIZONTAL : Gravity.START;   // إيموجي: التفاعل في المنتصف
@@ -6612,6 +6769,40 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                     final int[] left = {gone.size()};
                     for (View gv : gone) reactPopOut(gv, () -> { if (--left[0] == 0) bubble.post(swap); });
                 }
+            }
+
+            /** رسالة إيموجي: يضع التفاعل بجانب كبسولة الوقت في السطر نفسه (الوقت يميناً ← التفاعل يساراً، والعكس). */
+            boolean placeEmojiReactions(View bubble, View rowL) {
+                View meta = bubble.findViewWithTag("emojiMeta");
+                if (meta == null || !(meta.getParent() instanceof ViewGroup)) return false;
+                FrameLayout wrap;
+                if (meta.getParent() instanceof FrameLayout && "emojiMetaRow".equals(((View) meta.getParent()).getTag())) wrap = (FrameLayout) meta.getParent();
+                else {
+                    ViewGroup par = (ViewGroup) meta.getParent();
+                    if (!(par instanceof LinearLayout)) return false;
+                    int idx = par.indexOfChild(meta);
+                    ViewGroup.LayoutParams old = meta.getLayoutParams();
+                    int g = Gravity.LEFT, top = 0, right = 0;
+                    if (old instanceof LinearLayout.LayoutParams) {
+                        LinearLayout.LayoutParams ol = (LinearLayout.LayoutParams) old;
+                        if (ol.gravity != -1) g = ol.gravity;
+                        top = ol.topMargin; right = ol.rightMargin;
+                    }
+                    par.removeView(meta);
+                    wrap = new FrameLayout(act);
+                    wrap.setTag("emojiMetaRow");
+                    wrap.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+                    FrameLayout.LayoutParams mlp = new FrameLayout.LayoutParams(-2, -2, (g & Gravity.HORIZONTAL_GRAVITY_MASK) | Gravity.CENTER_VERTICAL);
+                    mlp.topMargin = top; mlp.rightMargin = right;
+                    wrap.addView(meta, mlp);
+                    par.addView(wrap, idx, new LinearLayout.LayoutParams(-1, -2));
+                }
+                FrameLayout.LayoutParams mp = (FrameLayout.LayoutParams) meta.getLayoutParams();
+                boolean metaRight = (mp.gravity & Gravity.HORIZONTAL_GRAVITY_MASK) == Gravity.RIGHT;
+                FrameLayout.LayoutParams rp = new FrameLayout.LayoutParams(-2, -2, (metaRight ? Gravity.LEFT : Gravity.RIGHT) | Gravity.CENTER_VERTICAL);
+                rp.topMargin = mp.topMargin;
+                wrap.addView(rowL, rp);
+                return true;
             }
 
             /** ظهور تفاعل: الكبسولة تظهر بتلاشٍ هادئ فقط (بلا قفز/دوران)، والحركة للإيموجي نفسه حسب نوعه (ضحك/بكاء/قلب…). */
@@ -6689,7 +6880,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 g.setCornerRadius(dp(20));
                 if (onMineBubble) {
                     g.setColor((androidx_blend(0xFFFFFFFF, acc | 0xFF000000, 0.10f) & 0x00FFFFFF) | 0xBF000000);   // أبيض شفاف (زجاجي) + قليل من لون الثيم
-                    g.setStroke(dp(1), mine ? ((acc & 0x00FFFFFF) | 0xCC000000) : 0x80FFFFFF);                     // حدّ أبيض ناعم؛ وتفاعلي أنا: حدّ بلون الثيم
+                    // بلا إطار/شريط حول كبسولة التفاعل
                 } else
                 g.setColor(mine ? ((acc & 0x00FFFFFF) | 0xB3000000) : (media ? 0x66000000 : ((acc & 0x00FFFFFF) | 0x33000000)));
                 c.setBackground(g);
