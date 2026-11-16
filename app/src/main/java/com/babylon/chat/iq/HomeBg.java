@@ -220,12 +220,61 @@ final class HomeBg extends Drawable {
                 new float[]{0f, 0.6f, 1f}, Shader.TileMode.CLAMP));
         // الموجة الإضافية: تعبئة حريرية ناعمة تتلاشى تدريجياً + حافة هلالية رفيعة تتلاشى عند طرفيها (نفس طابع بقية الموجات)
         fill5.setShader(new LinearGradient(0, 0, w * 0.7f, 0,
-                new int[]{(dark ? 0x14 : 0x26) << 24 | gold, (dark ? 0x0A : 0x14) << 24 | gold, 0x00000000 | gold},
+                new int[]{(dark ? 0x1C : 0x30) << 24 | gold, (dark ? 0x0E : 0x16) << 24 | gold, 0x00000000 | gold},
                 new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP));
         line5.setStyle(Paint.Style.FILL);
         line5.setShader(new LinearGradient(0, 0, w * 0.7f, 0,
                 new int[]{(dark ? 0x30 : 0x4A) << 24 | goldDeep, (dark ? 0x16 : 0x24) << 24 | goldDeep, 0x00000000 | goldDeep},
                 new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP));
+        buildSoftWave(w, h, gold, goldDeep);
+    }
+
+    // الموجة الإضافية تُرسم مرة واحدة في صورة صغيرة ثم تُطمس (تعبئة: طمس قوي، حواف: طمس خفيف) فتصير حوافها منتشرة وناعمة مثل موجات الرسمة بدل الحدود الحادة
+    private Bitmap softFill, softEdge;
+
+    private void buildSoftWave(int w, int h, int gold, int goldDeep) {
+        try {
+            int fw = Math.max(1, w / 4), fh = Math.max(1, h / 4);
+            Bitmap f = Bitmap.createBitmap(fw, fh, Bitmap.Config.ARGB_8888);
+            Canvas cf = new Canvas(f);
+            cf.scale(fw / (float) w, fh / (float) h);
+            cf.drawPath(band5, fill5);
+            softFill = blurAlpha(f, gold, 6, 2);
+            int ew = Math.max(1, w / 2), eh = Math.max(1, h / 2);
+            Bitmap e = Bitmap.createBitmap(ew, eh, Bitmap.Config.ARGB_8888);
+            Canvas ce = new Canvas(e);
+            ce.scale(ew / (float) w, eh / (float) h);
+            ce.drawPath(e5, line5);
+            ce.drawPath(e6, line5);
+            softEdge = blurAlpha(e, goldDeep, 1, 2);
+        } catch (Throwable t) { softFill = null; softEdge = null; }
+    }
+
+    private static Bitmap blurAlpha(Bitmap src, int rgb, int r, int passes) {
+        int w = src.getWidth(), h = src.getHeight();
+        int[] px = new int[w * h];
+        src.getPixels(px, 0, w, 0, 0, w, h);
+        float[] a = new float[w * h], t = new float[w * h];
+        for (int i = 0; i < px.length; i++) a[i] = (px[i] >>> 24);
+        for (int k = 0; k < passes; k++) { boxPass(a, t, w, h, r, true); boxPass(t, a, w, h, r, false); }
+        for (int i = 0; i < px.length; i++) px[i] = (Math.min(255, Math.round(a[i])) << 24) | (rgb & 0xFFFFFF);
+        Bitmap out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+        out.setPixels(px, 0, w, 0, 0, w, h);
+        return out;
+    }
+
+    private static void boxPass(float[] src, float[] dst, int w, int h, int r, boolean horiz) {
+        int outer = horiz ? h : w, len = horiz ? w : h, step = horiz ? 1 : w;
+        float inv = 1f / (2 * r + 1);
+        for (int o = 0; o < outer; o++) {
+            int base = horiz ? o * w : o;
+            float sum = 0;
+            for (int i = -r; i <= r; i++) sum += src[base + Math.max(0, Math.min(len - 1, i)) * step];
+            for (int i = 0; i < len; i++) {
+                dst[base + i * step] = sum * inv;
+                sum += src[base + Math.min(len - 1, i + r + 1) * step] - src[base + Math.max(0, i - r) * step];
+            }
+        }
     }
 
     private static void crescent(Path p, float x0, float y0, float c1x, float c1y, float c2x, float c2y, float x1, float y1, float t) {
@@ -264,24 +313,16 @@ final class HomeBg extends Drawable {
         c.restore();
     }
 
-    /** الموجة الإضافية: انحناءة ناعمة بحواف مطموسة (بلا خطوط ذهبية رفيعة) مثل بقية الانحناءات؛ تُرسم مرة واحدة في Bitmap بنصف الدقة. */
-    private Bitmap waveBmp; private int waveW = -1, waveH = -1;
     private void drawExtraWave(Canvas c) {
-        if (waveBmp == null || waveW != bw || waveH != bh) {
-            try {
-                float k = 0.5f;
-                Bitmap bm = Bitmap.createBitmap(Math.max(1, (int) (bw * k)), Math.max(1, (int) (bh * k)), Bitmap.Config.ARGB_8888);
-                Canvas bc = new Canvas(bm);
-                bc.scale(k, k);
-                Paint soft = new Paint(Paint.ANTI_ALIAS_FLAG);
-                soft.setShader(fill5.getShader());
-                soft.setMaskFilter(new android.graphics.BlurMaskFilter(16f * d, android.graphics.BlurMaskFilter.Blur.NORMAL));
-                bc.drawPath(band5, soft);
-                waveBmp = bm; waveW = bw; waveH = bh;
-            } catch (Throwable t) { waveBmp = null; }
+        if (softFill != null) {
+            RectF dst = new RectF(0, 0, bw, bh);
+            c.drawBitmap(softFill, null, dst, artPaint);
+            if (softEdge != null) c.drawBitmap(softEdge, null, dst, artPaint);
+            return;
         }
-        if (waveBmp != null) c.drawBitmap(waveBmp, null, new RectF(0, 0, bw, bh), artPaint);
-        else c.drawPath(band5, fill5);
+        c.drawPath(band5, fill5);
+        c.drawPath(e5, line5);
+        c.drawPath(e6, line5);
     }
 
     @Override public void setAlpha(int a) { }

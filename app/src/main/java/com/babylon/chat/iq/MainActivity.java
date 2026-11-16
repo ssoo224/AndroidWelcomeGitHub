@@ -24,7 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /** شاشة البداية (Splash): تحدد هل المستخدم مسجّل دخوله أم لا ثم تنتقل للشاشة المناسبة. */
-public class MainActivity extends ScaledActivity {
+public class MainActivity extends Activity {
 
     private static final long SPLASH_MS = 1800;
 

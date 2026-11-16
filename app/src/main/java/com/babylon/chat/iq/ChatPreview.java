@@ -144,9 +144,8 @@ public final class ChatPreview {
     public void apply(String themeId, boolean dark, int fontSp, int radiusDp) {
         ChatThemes.Spec sp = ChatThemes.byId(themeId);
         ChatThemes.Pal p = ChatThemes.previewPal(sp.id, dark);
-        boolean babylon = ChatThemes.isBabylon(sp.id);
         host.setBackgroundColor(p.chatBg);
-        int pageBg = (babylon && !dark) ? p.chatBg : Tk.pageBg(dark);   // بابل نهاري: التلاشي بلون الخلفية الكريمية الجديدة
+        int pageBg = Tk.pageBg(dark);
         fadeTop.setBackground(fade(pageBg, true));
         fadeBottom.setBackground(fade(pageBg, false));
         pattern.style(sp.symbols, p.pattern, p.patternOp);
@@ -167,15 +166,8 @@ public final class ChatPreview {
 
         mineText.setTextSize(fontSp);
         mineText.setTextColor(p.textMine);
-        int mineMeta;
-        int tickColor;
-        if (babylon) {
-            mineMeta = dark ? 0xB8FFFFFF : p.textMine;      // rgba(255,255,255,.72) ليلي / #292216 نهاري
-            tickColor = dark ? p.tick : p.textMine;         // .check-mark.read → --tick-read ، وفي النهاري يرثها #292216
-        } else {
-            mineMeta = p.textMine;
-            tickColor = p.tick;
-        }
+        int mineMeta = p.textMine;
+        int tickColor = p.tick;
         mineTime.setTextColor(mineMeta);
         tick.setImageDrawable(new MsgViews.TickDrawable(act, MsgViews.READ, 0, tickColor));
     }

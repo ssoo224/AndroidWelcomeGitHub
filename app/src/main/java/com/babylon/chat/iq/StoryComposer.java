@@ -345,7 +345,7 @@ public final class StoryComposer {
     }
     /** px من قيمة CSS (px) مع مقياس --bb-s */
     private int px(float css) { return Math.round(css * dens * bbScale()); }
-    private void tsz(TextView t, float css) { t.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, css * dens * bbScale()); }   // scale-ok: dens من resources الشاشة (مُحجَّمة)
+    private void tsz(TextView t, float css) { t.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, css * dens * bbScale()); }
 
     private GradientDrawable goldGrad(float rCss) {
         GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{G1, G2});

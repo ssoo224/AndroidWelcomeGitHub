@@ -102,8 +102,9 @@ public final class ChatThemes {
     public static final Spec[] ALL = {
         new Spec("babylon", "بابل", "gate", new String[]{"gate", "star8", "bull", "tablet", "crescent", "jar"},
             pal("#0d1626", "linear-gradient(145deg,#e8c85d,#cba843)", "#263345", "#ffffff", "#f3f4f6", "#c29d30", "#ffe08a", "#94a3b8", "rgba(255,255,255,0.06)", "#c29d30", 0.16f),
-            null,
-            null),
+            // ليلي/نهاري بنفس صيغة بقية الثيمات تماماً (خلفية بصبغة الثيم، مستلمة فاتحة بصبغته، حدّ rgba، نقش بلون الثيم)
+            pal("#0d1626", "linear-gradient(145deg,#e8c85d,#cba843)", "#182533", "#ffffff", "#f3f4f6", "#c29d30", "#ffffff", "#94a3b8", "rgba(255,255,255,0.06)", "#c29d30", 0.16f),
+            pal("#f5eddc", "linear-gradient(145deg,#e8c85d,#cba843)", "#fdfaf2", "#292216", "#3a2c10", "#9a6b00", "#7a5a00", "#7b6a45", "rgba(0,0,0,0.07)", "#c29d30", 0.1f)),
         new Spec("ashur", "آشور", "bull", new String[]{"bull", "arch", "sun", "gate", "star8", "tablet"},
             pal("#1f1710", "linear-gradient(135deg,#8a5a2b,#c48b47)", "#3a2c1d", "#fff8ec", "#f1e4cc", "#e0b36a", "#ffe6b0", "#b89f7a", "rgba(255,255,255,0.05)", "#c9a064", 0.11f),
             pal("#241d33", "#6b5a9e", "#352c4a", "#ffffff", "#ece7f6", "#b7a6e0", "#d9cff2", "#a89cc4", "rgba(255,255,255,0.07)", "#b7a6e0", 0.09f),
@@ -158,7 +159,7 @@ public final class ChatThemes {
 
     /** لوحة المعاينة الفعلية: بابل لها لوحتها الخاصة، وغيرها themeFor. */
     public static Pal previewPal(String id, boolean dark) {
-        return isBabylon(id) ? babylonPreview(dark) : themeFor(id, dark);
+        return themeFor(id, dark);   // كل الثيمات (ومنها بابل) بنفس المسار والصيغة
     }
 
     /** تطبيق .filter:grayscale(1) على لون النقش (CSS: 0.2126 / 0.7152 / 0.0722) */

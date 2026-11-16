@@ -30,7 +30,7 @@ import java.util.*;
 import java.util.regex.*;
 import org.json.*;
 
-public class PartProfileActivity extends ScaledActivity {
+public class PartProfileActivity extends Activity {
 	
 	private PartProfileBinding binding;
 	

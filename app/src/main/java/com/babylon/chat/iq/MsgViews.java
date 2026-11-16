@@ -693,9 +693,9 @@ public final class MsgViews {
             row.setGravity(Gravity.TOP);
             View q = replyQuote(a, quote, mine, b);
             q.setTag(null);
-            q.setBackground(quoteBg(a));
+            q.setBackground(rounded(0x598794A8, dp(a, 14)));
             clipRound(q, dp(a, 14));   // الخط الجانبي يتبع استدارة الحقل بدل أن يبرز بزوايا حادة
-            q.setAlpha(Tk.chatPal == null && Tk.chatDark ? 0.8f : 1f);
+            q.setAlpha(0.8f);
             recolorQuote(q);
             LinearLayout.LayoutParams ql = null;
             // الوقت و✓ يكونان أسفل يسار الإيموجي نفسه (لا أسفل الاقتباس): عمود [إيموجي + وقت]، والاقتباس في حامل بارتفاع الإيموجي ومتوسّط عمودياً بالنسبة له
@@ -786,29 +786,15 @@ public final class MsgViews {
             row.setGravity(Gravity.CENTER_VERTICAL);
             View q = replyQuote(a, quote, mine, b);
             q.setTag(null);
-            q.setBackground(quoteBg(a));
+            q.setBackground(rounded(0x598794A8, dp(a, 14)));
             clipRound(q, dp(a, 14));   // الخط الجانبي يتبع استدارة الحقل بدل أن يبرز بزوايا حادة
-            q.setAlpha(Tk.chatPal == null && Tk.chatDark ? 0.8f : 1f);
+            q.setAlpha(0.8f);
             recolorQuote(q);
-            // العرض المتاح داخل الفقاعة (80% من الشاشة) — إن لم يتسع الاقتباس بجانب الإيموجيات يُوضع فوقها بدل أن تُقصّ
-            float availDp = wdp * 0.8f - 16f;
-            float emojiW = Math.min(n, perRowMax) * sz;
-            if (emojiW + 140f + 16f <= availDp) {
-                LinearLayout.LayoutParams ql = new LinearLayout.LayoutParams(dp(a, 140), -2);
-                ql.setMargins(dp(a, 8), 0, dp(a, 8), 0);
-                if (mine) { row.addView(q, ql); row.addView(box, boxLp); }
-                else { row.addView(box, boxLp); row.addView(q, ql); }
-                b.addView(row, new LinearLayout.LayoutParams(-2, -2));
-            } else {
-                int qw = (int) Math.max(120f, Math.min(220f, availDp));
-                LinearLayout.LayoutParams ql = new LinearLayout.LayoutParams(dp(a, qw), -2);
-                ql.gravity = mine ? Gravity.RIGHT : Gravity.LEFT;
-                ql.bottomMargin = dp(a, 4);
-                b.addView(q, ql);
-                LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(-2, -2);
-                bl.gravity = mine ? Gravity.RIGHT : Gravity.LEFT;
-                b.addView(box, bl);
-            }
+            LinearLayout.LayoutParams ql = new LinearLayout.LayoutParams(dp(a, 140), -2);
+            ql.setMargins(dp(a, 8), 0, dp(a, 8), 0);
+            if (mine) { row.addView(q, ql); row.addView(box, boxLp); }
+            else { row.addView(box, boxLp); row.addView(q, ql); }
+            b.addView(row, new LinearLayout.LayoutParams(-2, -2));
         } else b.addView(box, boxLp);
 
         LinearLayout meta = metaRow(a, mine, time, state);
@@ -848,18 +834,8 @@ public final class MsgViews {
     }
 
     /** ألوان اقتباس الرد فوق خلفية الشات: بابل = نص أبيض بظل واسم/خط ذهبي؛ بقية الثيمات = لون الثيم (accent للاسم والخط والأيقونة، وlون نص الطرف الآخر للنص). */
-    /** خلفية حقل اقتباس الرد خارج الفقاعة: ثيم = لون فقاعة الطرف الآخر بحدّه، بابل نهاري = كريمي كالهيدر، بابل ليلي = الرمادي الشفاف القديم. */
-    private static android.graphics.drawable.GradientDrawable quoteBg(Activity a) {
-        android.graphics.drawable.GradientDrawable g;
-        if (Tk.chatPal != null) { g = rounded(Tk.chatPal.other | 0xFF000000, dp(a, 14)); g.setStroke(dp(a, 1), Tk.chatPal.line); }
-        else if (!Tk.chatDark) { g = rounded(Tk.BAB_HEADER, dp(a, 14)); g.setStroke(dp(a, 1), Tk.BAB_LINE); }
-        else g = rounded(0x598794A8, dp(a, 14));
-        return g;
-    }
-
     private static void recolorQuote(View q) {
         final boolean th = Tk.chatPal != null;
-        final boolean lt = !th && !Tk.chatDark;   // بابل نهاري: نص داكن واسم/خط ذهبي غامق
         if (q instanceof TextView) {
             TextView t = (TextView) q;
             t.setTag(null);
@@ -868,8 +844,7 @@ public final class MsgViews {
                 t.setShadowLayer(0f, 0f, 0f, 0);
                 for (android.graphics.drawable.Drawable d : t.getCompoundDrawables())
                     if (d != null) d.setColorFilter(Tk.rqAccent(false), android.graphics.PorterDuff.Mode.SRC_IN);
-            } else if (lt) { t.setTextColor(0xFF17212B); t.setShadowLayer(0f, 0f, 0f, 0); }
-            else { t.setTextColor(0xFFFFFFFF); t.setShadowLayer(3f, 0f, 1f, 0x8C000000); }
+            } else { t.setTextColor(0xFFFFFFFF); t.setShadowLayer(3f, 0f, 1f, 0x8C000000); }
         } else if (q instanceof android.view.ViewGroup) {
             android.view.ViewGroup g = (android.view.ViewGroup) q;
             for (int i = 0; i < g.getChildCount(); i++) {
@@ -878,10 +853,9 @@ public final class MsgViews {
                 if (tg != null && String.valueOf(tg).startsWith("rqn") && c instanceof TextView) {
                     c.setTag(null);
                     if (th) { ((TextView) c).setTextColor(Tk.rqAccent(false)); ((TextView) c).setShadowLayer(0f, 0f, 0f, 0); }
-                    else if (lt) { ((TextView) c).setTextColor(0xFF8A6818); ((TextView) c).setShadowLayer(0f, 0f, 0f, 0); }
                     else { ((TextView) c).setTextColor(0xFFF0D37A); ((TextView) c).setShadowLayer(3f, 0f, 1f, 0x8C000000); }
                 }
-                else if (tg != null && String.valueOf(tg).startsWith("rqb")) { c.setTag(null); c.setBackgroundColor(th ? Tk.rqAccent(false) : (lt ? 0xFFC29D30 : 0xFFF0D37A)); }
+                else if (tg != null && String.valueOf(tg).startsWith("rqb")) { c.setTag(null); c.setBackgroundColor(th ? Tk.rqAccent(false) : 0xFFF0D37A); }
                 else recolorQuote(c);
             }
         }

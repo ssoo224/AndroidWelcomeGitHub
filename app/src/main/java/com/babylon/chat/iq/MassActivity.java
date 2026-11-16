@@ -71,7 +71,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-public class MassActivity extends ScaledActivity {
+public class MassActivity extends Activity {
 
     private MassBinding binding;
     private FirebaseAuth mAuth;
@@ -845,7 +845,7 @@ public class MassActivity extends ScaledActivity {
                 GradientDrawable bd = new GradientDrawable();
                 bd.setCornerRadius(rad);
                 bd.setColor(Color.TRANSPARENT);
-                bd.setStroke(bw, t.id.equals(coverId) ? (dark ? 0xFFE2E8F0 : 0xFFCBD2DB) : Color.TRANSPARENT);   // إطار الغلاف المحدد: أبيض رمادي
+                bd.setStroke(bw, t.id.equals(coverId) ? cGold() : Color.TRANSPARENT);
                 border.setBackground(bd);
                 cell.addView(border, new FrameLayout.LayoutParams(-1, -1));
 
@@ -7750,7 +7750,7 @@ public class MassActivity extends ScaledActivity {
                 row.setGravity(Gravity.CENTER_VERTICAL);
                 row.setMinimumHeight(dp(54));
                 row.setPadding(dp(10), dp(8), dp(10), dp(8));
-                final int mAcc = Tk.chatPal != null ? Tk.chatPal.accent : (dark ? 0xFFE4C45B : 0xFFC29D30);   // قائمة ⋮ تتبع ثيم المحادثة
+                final int mAcc = Tk.chatPal != null ? Tk.chatPal.accent : cGold();   // قائمة ⋮ تتبع ثيم المحادثة
                 GradientDrawable pr = new GradientDrawable(); pr.setColor((mAcc & 0x00FFFFFF) | (0x26 << 24)); pr.setCornerRadius(dp(15));
                 android.graphics.drawable.StateListDrawable sl = new android.graphics.drawable.StateListDrawable();
                 sl.addState(new int[]{android.R.attr.state_pressed}, pr);
@@ -7759,7 +7759,7 @@ public class MassActivity extends ScaledActivity {
 
                 ImageView chev = new ImageView(act);
                 chev.setImageResource(R.drawable.ic_menu_chevron_left);
-                chev.setColorFilter(Tk.crInk(cText()));
+                chev.setColorFilter(cText());
                 chev.setAlpha(0.32f);
                 row.addView(chev, new LinearLayout.LayoutParams(dp(16), dp(16)));
 
@@ -7767,7 +7767,7 @@ public class MassActivity extends ScaledActivity {
                 t.setText(label);
                 t.setTextSize(15);
                 t.setTypeface(null, android.graphics.Typeface.BOLD);
-                t.setTextColor(Tk.crInk(cText()));
+                t.setTextColor(cText());
                 t.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
                 LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(0, -2, 1f);
                 tl.setMargins(dp(8), 0, dp(12), 0);
@@ -7801,9 +7801,9 @@ public class MassActivity extends ScaledActivity {
                 card.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
                 card.setPadding(dp(8), dp(4), dp(8), dp(4));
                 GradientDrawable bg = new GradientDrawable();
-                bg.setColor(Tk.menuCard(dark));   // نفس لون هيدر المحادثة في ثيم بابل
+                bg.setColor(dark ? 0xFF17212B : 0xFFFFFFFF);
                 bg.setCornerRadius(dp(22));
-                if (!Tk.babLight()) bg.setStroke(dp(1), Tk.menuLine(dark));
+                bg.setStroke(dp(1), dark ? 0xFF2B3A4C : 0xFFDCE4EE);
                 card.setBackground(bg);
                 final android.widget.PopupWindow pw = new android.widget.PopupWindow(card, popW,
                         ViewGroup.LayoutParams.WRAP_CONTENT, true);
@@ -8320,7 +8320,7 @@ public class MassActivity extends ScaledActivity {
                 s.setPadding(dp(4), dp(4), dp(4), dp(12));
                 s.setClipChildren(false); s.setClipToPadding(false);
                 for (final ChatThemes.Spec spc : ChatThemes.ALL) {
-                    final ChatThemes.Pal p = (ChatThemes.isBabylon(spc.id) && !dark) ? ChatThemes.babylonPreview(false) : spc.pal(dark);   // بابل نهاري: بطاقة فاتحة لا سوداء
+                    final ChatThemes.Pal p = spc.pal(dark);
                     boolean sel = spc.id.equals(chatTheme);
                     LinearLayout card = new LinearLayout(act);
                     card.setOrientation(LinearLayout.VERTICAL);
