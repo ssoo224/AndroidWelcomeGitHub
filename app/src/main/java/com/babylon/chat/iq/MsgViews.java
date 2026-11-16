@@ -693,10 +693,7 @@ public final class MsgViews {
             row.setGravity(Gravity.TOP);
             View q = replyQuote(a, quote, mine, b);
             q.setTag(null);
-            q.setBackground(rounded(0x598794A8, dp(a, 14)));
-            clipRound(q, dp(a, 14));   // الخط الجانبي يتبع استدارة الحقل بدل أن يبرز بزوايا حادة
-            q.setAlpha(0.8f);
-            recolorQuote(q);
+            styleEmojiQuote(a, q);   // شفاف بلون الثيم نهاراً، وبلون الرمادي المزرق ليلاً
             LinearLayout.LayoutParams ql = null;
             // الوقت و✓ يكونان أسفل يسار الإيموجي نفسه (لا أسفل الاقتباس): عمود [إيموجي + وقت]، والاقتباس في حامل بارتفاع الإيموجي ومتوسّط عمودياً بالنسبة له
             colRef = new LinearLayout(a);
@@ -739,7 +736,9 @@ public final class MsgViews {
         int sz = n == 2 ? 62 : n == 3 ? 52 : n <= 5 ? 42 : 34;
         final int perRowMax = 10;                                      // حتى 10 في السطر الواحد (يصغر ليتسع)، وما زاد ينزل لسطر جديد
         int perRow = Math.min(n, perRowMax);
-        sz = clampDp(Math.min(sz, (wdp * 0.8f - 16f) / perRow * 0.95f), 24, sz);
+        final int QMIN = 84, QMAX = 140, QMARG = 16;   // عرض الاقتباس: أدنى/أقصى + هوامشه (8+8)
+        float emojiRoom = wdp * 0.8f - 16f - (quote != null ? (QMIN + QMARG) : 0f);   // العرض المتاح للإيموجيات بعد حجز مكان الاقتباس
+        sz = clampDp(Math.min(sz, emojiRoom / perRow * 0.95f), 24, sz);
         sz = Math.max(20, sz - 8);   // أصغر حجم للإيموجيات الكثيرة 20dp (كان 16)
         // كل إيموجي صورة مستقلة بدقة 512 (حادة) بدل نص يُكبَّر من خط نقطي؛ والنص الأصلي احتياط حتى تُحمَّل الصورة
         LinearLayout box = new LinearLayout(a);
@@ -779,24 +778,6 @@ public final class MsgViews {
         LinearLayout.LayoutParams boxLp = new LinearLayout.LayoutParams(-2, -2);
         noTouch(box);   // كل الإيموجيات وحدة واحدة: لا يلتقط أي إيموجي النقر لوحده
 
-        if (quote != null) {
-            LinearLayout row = new LinearLayout(a);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            View q = replyQuote(a, quote, mine, b);
-            q.setTag(null);
-            q.setBackground(rounded(0x598794A8, dp(a, 14)));
-            clipRound(q, dp(a, 14));   // الخط الجانبي يتبع استدارة الحقل بدل أن يبرز بزوايا حادة
-            q.setAlpha(0.8f);
-            recolorQuote(q);
-            LinearLayout.LayoutParams ql = new LinearLayout.LayoutParams(dp(a, 140), -2);
-            ql.setMargins(dp(a, 8), 0, dp(a, 8), 0);
-            if (mine) { row.addView(q, ql); row.addView(box, boxLp); }
-            else { row.addView(box, boxLp); row.addView(q, ql); }
-            b.addView(row, new LinearLayout.LayoutParams(-2, -2));
-        } else b.addView(box, boxLp);
-
         LinearLayout meta = metaRow(a, mine, time, state);
         meta.setBackground(rounded(0x33000000, dp(a, 10)));
         meta.setPadding(dp(a, 8), dp(a, 1), dp(a, 8), dp(a, 1));
@@ -807,7 +788,53 @@ public final class MsgViews {
         LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(-2, -2);
         ml.gravity = Gravity.LEFT; ml.topMargin = -dp(a, 2);   // الوقت والعلامة يسار الإيموجي
         meta.setLayoutParams(ml);
-        b.addView(meta);
+
+        if (quote != null) {
+            // الوقت أسفل الإيموجيات نفسها (لا أسفل الاقتباس): عمود [إيموجيات + وقت]، والاقتباس بجانبها متوسّط عمودياً بالنسبة للإيموجيات فقط
+            LinearLayout row = new LinearLayout(a);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+            row.setGravity(Gravity.TOP);
+            View q = replyQuote(a, quote, mine, b);
+            q.setTag(null);
+            styleEmojiQuote(a, q);
+            LinearLayout colRef = new LinearLayout(a);
+            colRef.setOrientation(LinearLayout.VERTICAL);
+            colRef.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+            colRef.addView(box, boxLp);
+            colRef.addView(meta);
+            int emojiW = Math.min(n, perRow) * sz;
+            int rowsN = (n + perRow - 1) / perRow;
+            int qW = (int) Math.max(QMIN, Math.min(QMAX, wdp * 0.8f - 16f - emojiW - QMARG));   // يتقلّص بدل أن يقصّ الإيموجي
+            FrameLayout qHold = new FrameLayout(a);
+            FrameLayout.LayoutParams qfl = new FrameLayout.LayoutParams(-1, -2, Gravity.CENTER_VERTICAL);
+            qfl.setMargins(dp(a, 8), 0, dp(a, 8), 0);
+            qHold.addView(q, qfl);
+            LinearLayout.LayoutParams hl = new LinearLayout.LayoutParams(dp(a, qW + QMARG), dp(a, rowsN * sz));
+            if (mine) { row.addView(qHold, hl); row.addView(colRef, new LinearLayout.LayoutParams(-2, -2)); }
+            else { row.addView(colRef, new LinearLayout.LayoutParams(-2, -2)); row.addView(qHold, hl); }
+            b.addView(row, new LinearLayout.LayoutParams(-2, -2));
+        } else {
+            b.addView(box, boxLp);
+            b.addView(meta);
+        }
+    }
+
+    /** اقتباس رسالة الإيموجي (بلا فقاعة): نهاراً خلفية شفافة بلون الثيم (accent) مع حد خفيف ونص داكن مقروء، وليلاً الرمادي المزرق السابق. */
+    private static void styleEmojiQuote(Activity a, View q) {
+        final int r = dp(a, 14);
+        if (Tk.chatDark) {
+            q.setBackground(rounded(0x598794A8, r));
+            q.setAlpha(0.8f);
+        } else {
+            int accent = Tk.chatPal != null ? Tk.chatPal.accent : 0xFF9B7410;
+            android.graphics.drawable.GradientDrawable g = rounded((accent & 0x00FFFFFF) | 0x24000000, r);   // ≈14% شفافية
+            g.setStroke(dp(a, 1), (accent & 0x00FFFFFF) | 0x40000000);
+            q.setBackground(g);
+            q.setAlpha(1f);
+        }
+        clipRound(q, r);   // الخط الجانبي يتبع استدارة الحقل
+        recolorQuote(q);
     }
 
     /** يجعل كل أبناء العرض غير قابلين للنقر/التركيز فيذهب النقر والتحديد للرسالة كلها. */
@@ -844,7 +871,8 @@ public final class MsgViews {
                 t.setShadowLayer(0f, 0f, 0f, 0);
                 for (android.graphics.drawable.Drawable d : t.getCompoundDrawables())
                     if (d != null) d.setColorFilter(Tk.rqAccent(false), android.graphics.PorterDuff.Mode.SRC_IN);
-            } else { t.setTextColor(0xFFFFFFFF); t.setShadowLayer(3f, 0f, 1f, 0x8C000000); }
+            } else if (!Tk.chatDark) { t.setTextColor(0xFF4A3B12); t.setShadowLayer(0f, 0f, 0f, 0); }   // بابل نهاري: نص بني داكن
+            else { t.setTextColor(0xFFFFFFFF); t.setShadowLayer(3f, 0f, 1f, 0x8C000000); }
         } else if (q instanceof android.view.ViewGroup) {
             android.view.ViewGroup g = (android.view.ViewGroup) q;
             for (int i = 0; i < g.getChildCount(); i++) {
@@ -853,9 +881,10 @@ public final class MsgViews {
                 if (tg != null && String.valueOf(tg).startsWith("rqn") && c instanceof TextView) {
                     c.setTag(null);
                     if (th) { ((TextView) c).setTextColor(Tk.rqAccent(false)); ((TextView) c).setShadowLayer(0f, 0f, 0f, 0); }
+                    else if (!Tk.chatDark) { ((TextView) c).setTextColor(0xFF9B7410); ((TextView) c).setShadowLayer(0f, 0f, 0f, 0); }
                     else { ((TextView) c).setTextColor(0xFFF0D37A); ((TextView) c).setShadowLayer(3f, 0f, 1f, 0x8C000000); }
                 }
-                else if (tg != null && String.valueOf(tg).startsWith("rqb")) { c.setTag(null); c.setBackgroundColor(th ? Tk.rqAccent(false) : 0xFFF0D37A); }
+                else if (tg != null && String.valueOf(tg).startsWith("rqb")) { c.setTag(null); c.setBackgroundColor(th ? Tk.rqAccent(false) : (Tk.chatDark ? 0xFFF0D37A : 0xFF9B7410)); }
                 else recolorQuote(c);
             }
         }

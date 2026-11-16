@@ -4670,15 +4670,26 @@ public class MassActivity extends Activity {
                 if (chatPresenceReg != null) { chatPresenceReg.remove(); chatPresenceReg = null; }
                 hideKb();
                 clearSel();
-                BabylonFx.chatLeave(v("chatView"), () -> { vis("chatView", false); syncBars(); vpPlace(); });   // حركة خروج ثم إخفاء الصفحة (والشريط العائم ينتقل لأسفل الصفحة)
+                // إعادة بناء قائمة المحادثات والقصص ثقيلة (حفظ + إعادة إنشاء الصفوف): كانت تُنفَّذ هنا على الخيط الرئيسي فتجمّد تلاشي المحادثة
+                // وتظهر الصفحتان متداخلتين لجزء من الثانية. تُؤجَّل الآن إلى ما بعد انتهاء الحركة (مرة واحدة فقط) دون أي تغيير في الحركة نفسها.
+                final boolean[] rebuilt = { false };
+                final Runnable rebuild = () -> {
+                    if (rebuilt[0]) return;
+                    rebuilt[0] = true;
+                    try { buildChats(); } catch (Throwable ignored) { }
+                    try { buildStories(); } catch (Throwable ignored) { }
+                };
+                BabylonFx.chatLeave(v("chatView"), () -> {
+                    vis("chatView", false); syncBars(); vpPlace();
+                    android.view.Choreographer.getInstance().postFrameCallback(ft -> uiH.post(rebuild));   // بعد رسم إطار الصفحة الرئيسية نظيفةً
+                });   // حركة خروج ثم إخفاء الصفحة (والشريط العائم ينتقل لأسفل الصفحة)
+                uiH.postDelayed(rebuild, 600);   // احتياط: إن أُلغيت الحركة (دخول محادثة أخرى بسرعة) لا تبقى القائمة بلا تحديث
                 if (messagesListener != null) { messagesListener.remove(); messagesListener = null; }
                 if (pinsListener != null) { pinsListener.remove(); pinsListener = null; }
                 pins = new ArrayList<>(); pinIdx = -1; renderPinnedBar();
                 currentChatId = ""; otherUid = "";
                 renderedMsgIds.clear(); lastDayKey = ""; daySeps.clear(); msgViewsById.clear(); msgMeta.clear();
                 playingHandle = null;   // الصوتية الجارية تستمر خارج المحادثة (الفقاعة تُرسم من جديد عند العودة) ويظهر شريطها العائم
-                try { buildChats(); } catch (Throwable ignored) { }
-                try { buildStories(); } catch (Throwable ignored) { }
             }
 
             String timeLabel(long ts) {

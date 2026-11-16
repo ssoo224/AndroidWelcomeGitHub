@@ -47,7 +47,7 @@ final class HomeBg extends Drawable {
     // نسبة المنطقة المرسومة من ارتفاع الشاشة في اللقطة (الهيدر أعلاها ≈ 0.11 والشريط السفلي ≈ 0.12)
     private static final float TOP = 0.11f, SPAN = 0.77f;
 
-    // الوضع النهاري (والليلي بنسخة مشتقة منها): الخلفية الفعلية مأخوذة بكسلاً ببكسل من اللقطة المرجعية (res/drawable-nodpi/home_bg_light.webp)،
+    // الوضع النهاري (والليلي بنسخة مشتقة منها): الخلفية الفعلية مأخوذة من اللقطة المرجعية بعد إزالة عناصر الواجهة منها (res/drawable-nodpi/home_bg_light.webp)،
     // بعرض الشاشة ومحاذاة للأسفل؛ ما فوقها لون الصفحة نفسه.
     private static Bitmap art;
     private final Paint artPaint = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
@@ -71,38 +71,15 @@ final class HomeBg extends Drawable {
     private static Bitmap artDark;
 
     /**
-     * الوضع الليلي: نفس رسمة النهار (نفس الخطوط والنقوش والمواضع) لكن بالذهبي فوق أرضية الليل؛
-     * شفافية كل بكسل مأخوذة من «ذهبيّته» (R−B) في الرسمة النهارية، وما سواها يبقى لون الصفحة.
+     * الوضع الليلي: نفس رسمة النهار (الجسّامة المجنّحة، الزقورة، الإطارات اليونانية، الموجات) بنفس المواضع والتفاصيل،
+     * لكن بخطوط ذهبية شفافة فوق أرضية الليل (res/drawable-nodpi/home_bg_dark.webp، مولَّدة من نفس الرسمة النهارية).
      */
     private static synchronized Bitmap loadArtDark(Context ctx) {
         if (artDark == null) {
-            Bitmap src = loadArt(ctx);
-            if (src == null) return null;
             try {
-                int w = src.getWidth(), h = src.getHeight();
-                int[] px = new int[w * h];
-                src.getPixels(px, 0, w, 0, 0, w, h);
-                final int gold = 0xE4C45B;
-                float[] al = new float[w * h];
-                for (int i = 0; i < px.length; i++) {
-                    int p = px[i];
-                    int g = ((p >> 16) & 0xFF) - (p & 0xFF);          // R − B
-                    float t = Math.max(0f, Math.min(1f, (g + 2f) / 52f));
-                    al[i] = (float) Math.pow(t, 1.15);
-                }
-                // تنعيم: طمس الشفافية لإزالة التحبّب والحواف الحادة (الوضع الليلي فقط)
-                float[] tmp = new float[w * h];
-                for (int k = 0; k < 2; k++) {
-                    boxBlur(al, tmp, w, h, 5, true);
-                    boxBlur(tmp, al, w, h, 5, false);
-                }
-                for (int i = 0; i < px.length; i++) {
-                    int a = (int) (al[i] * 0.40f * 255f);
-                    px[i] = (a << 24) | gold;
-                }
-                Bitmap out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
-                out.setPixels(px, 0, w, 0, 0, w, h);
-                artDark = out;
+                BitmapFactory.Options o = new BitmapFactory.Options();
+                o.inScaled = false;
+                artDark = BitmapFactory.decodeResource(ctx.getResources(), R.drawable.home_bg_dark, o);
             } catch (Throwable ignored) { }
         }
         return artDark;
@@ -298,7 +275,6 @@ final class HomeBg extends Drawable {
         if (photo != null) {
             float sc = bw / (float) photo.getWidth(), ph = photo.getHeight() * sc;
             c.drawBitmap(photo, null, new RectF(0, bh - ph, bw, bh), artPaint);
-            drawExtraWave(c);
             c.restore();
             return;
         }
