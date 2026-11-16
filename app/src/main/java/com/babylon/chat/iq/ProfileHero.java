@@ -150,10 +150,18 @@ public final class ProfileHero implements PullScrollView.Controller {
     }
 
     /** امتداد مموّه (تصغير شديد) يلتصق بأسفل الصورة. */
+    /**
+     * الامتداد المموّه أسفل الصورة: شريط من أسفل المربع الذي تعرضه الصورة فعلاً (نفس قصّ CENTER_CROP) مصغّراً جداً ثم ممدوداً.
+     * (كان يُبنى من الصورة كاملة فيختلف توزيع الألوان عن المربع المعروض ويظهر لون برتقالي/جلدي في منتصف الصورة حيث تتلاشى.)
+     */
     private void setExt(ImageView ext, Bitmap bm) {
         try {
-            int h = Math.max(1, 24 * bm.getHeight() / Math.max(1, bm.getWidth()));
-            ext.setImageBitmap(Bitmap.createScaledBitmap(bm, 24, h, true));
+            int bw = bm.getWidth(), bh = bm.getHeight(), s = Math.min(bw, bh);
+            int x0 = (bw - s) / 2, y0 = (bh - s) / 2;
+            int sh = Math.max(1, (int) (s * 0.30f));
+            Bitmap strip = Bitmap.createBitmap(bm, x0, y0 + s - sh, s, sh);
+            ext.setScaleType(ImageView.ScaleType.FIT_XY);
+            ext.setImageBitmap(Bitmap.createScaledBitmap(strip, 24, 8, true));
         } catch (Throwable t) { ext.setImageBitmap(null); }
     }
 
@@ -480,10 +488,7 @@ public final class ProfileHero implements PullScrollView.Controller {
             heroImg.setVisibility(View.VISIBLE);
             heroLetter.setVisibility(View.GONE);
             hero.setBackgroundColor(Color.TRANSPARENT);   // كان كحلياً فيظهر أسفل الصورة كلون أسود/أزرق أثناء السحب
-            try {
-                int h = Math.max(1, 24 * bm.getHeight() / Math.max(1, bm.getWidth()));
-                heroExt.setImageBitmap(Bitmap.createScaledBitmap(bm, 24, h, true));
-            } catch (Throwable t) { heroExt.setImageBitmap(null); }
+            setExt(heroExt, bm);
         } else {
             heroImg.setVisibility(View.GONE);
             heroLetter.setVisibility(View.VISIBLE);
@@ -712,6 +717,17 @@ public final class ProfileHero implements PullScrollView.Controller {
         float shA = clamp((p - 0.3f) / 0.5f);
         heroShade.setAlpha(shA * shA * (3f - 2f * shA));
         heroExt.setVisibility(ext > 0 ? View.VISIBLE : View.INVISIBLE);
+        {   // الامتداد يبدأ من حيث يبدأ تلاشي الصورة (لا من أعلى الهيرو) فيتّصل بها بلا خط فاصل
+            float fz = Math.min(ext > 0 ? ext * 1.15f : 0f, size);
+            int et = (int) (size - fz);
+            for (ImageView ev : new ImageView[]{heroExt, heroExt2}) {
+                FrameLayout.LayoutParams elp = (FrameLayout.LayoutParams) ev.getLayoutParams();
+                if (elp.topMargin != et || elp.height != (int) (heroH - et)) {
+                    elp.topMargin = et; elp.height = Math.max(1, (int) (heroH - et));
+                    ev.setLayoutParams(elp);
+                }
+            }
+        }
         // البلور (الامتداد المموّه) يظهر تدريجياً مع التكبير بدل أن يبرز دفعةً واحدة، ويختفي تدريجياً عند الإغلاق
         // الامتداد المموّه يظهر كاملاً من أول السحب: الحافة السفلية للصورة تذوب فيه (كان يبدأ شفافاً فيظهر خلفه ضباب أبيض)
         float blurA = 1f;

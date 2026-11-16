@@ -28,6 +28,8 @@ final class HomeBg extends Drawable {
     private final Paint line2 = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path band1 = new Path(), arc = new Path(), band3 = new Path();
     private final Path l1 = new Path(), l2 = new Path(), l3 = new Path(), l4 = new Path();
+    private final Path l5 = new Path(), l6 = new Path(), band5 = new Path();   // موجة خفيفة إضافية في الجهة اليسرى من منتصف الصفحة
+    private final Paint fill5 = new Paint(Paint.ANTI_ALIAS_FLAG), line5 = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint fill1 = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint fill3 = new Paint(Paint.ANTI_ALIAS_FLAG);
     private int bw = -1, bh = -1;
@@ -35,14 +37,14 @@ final class HomeBg extends Drawable {
     // نسبة المنطقة المرسومة من ارتفاع الشاشة في اللقطة (الهيدر أعلاها ≈ 0.11 والشريط السفلي ≈ 0.12)
     private static final float TOP = 0.11f, SPAN = 0.77f;
 
-    // الوضع النهاري: الخلفية الفعلية مأخوذة بكسلاً ببكسل من اللقطة المرجعية (res/drawable-nodpi/home_bg_light.webp)،
+    // الوضع النهاري (والليلي بنسخة مشتقة منها): الخلفية الفعلية مأخوذة بكسلاً ببكسل من اللقطة المرجعية (res/drawable-nodpi/home_bg_light.webp)،
     // بعرض الشاشة ومحاذاة للأسفل؛ ما فوقها لون الصفحة نفسه.
     private static Bitmap art;
     private final Paint artPaint = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
     private final Bitmap photo;
 
     HomeBg(Context ctx, boolean dark, float density) {
-        this(dark, density, dark ? null : loadArt(ctx));
+        this(dark, density, dark ? loadArtDark(ctx) : loadArt(ctx));
     }
 
     private static synchronized Bitmap loadArt(Context ctx) {
@@ -56,6 +58,36 @@ final class HomeBg extends Drawable {
         return art;
     }
 
+    private static Bitmap artDark;
+
+    /**
+     * الوضع الليلي: نفس رسمة النهار (نفس الخطوط والنقوش والمواضع) لكن بالذهبي فوق أرضية الليل؛
+     * شفافية كل بكسل مأخوذة من «ذهبيّته» (R−B) في الرسمة النهارية، وما سواها يبقى لون الصفحة.
+     */
+    private static synchronized Bitmap loadArtDark(Context ctx) {
+        if (artDark == null) {
+            Bitmap src = loadArt(ctx);
+            if (src == null) return null;
+            try {
+                int w = src.getWidth(), h = src.getHeight();
+                int[] px = new int[w * h];
+                src.getPixels(px, 0, w, 0, 0, w, h);
+                final int gold = 0xE4C45B;
+                for (int i = 0; i < px.length; i++) {
+                    int p = px[i];
+                    int g = ((p >> 16) & 0xFF) - (p & 0xFF);          // R − B
+                    float t = Math.max(0f, Math.min(1f, (g + 2f) / 42f));
+                    int a = (int) (Math.pow(t, 0.9) * 0.62f * 255f);
+                    px[i] = (a << 24) | gold;
+                }
+                Bitmap out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+                out.setPixels(px, 0, w, 0, 0, w, h);
+                artDark = out;
+            } catch (Throwable ignored) { }
+        }
+        return artDark;
+    }
+
     private HomeBg(boolean dark, float density, Bitmap photo) {
         this.photo = photo;
         this.dark = dark;
@@ -65,6 +97,7 @@ final class HomeBg extends Drawable {
     }
 
     private static float yy(float f, int h) { return (f - TOP) / SPAN * h; }
+    private static float yw(float f, int h) { return (f - TOP) / (1f - TOP) * h; }   // الصفحة تمتد من الهيدر حتى أسفل الشاشة
 
     @Override protected void onBoundsChange(Rect b) { build(b.width(), b.height()); }
 
@@ -109,6 +142,21 @@ final class HomeBg extends Drawable {
         band3.cubicTo(w * 0.84f, yy(0.845f, h), w * 0.92f, yy(0.815f, h), w, yy(0.785f, h));
         band3.close();
 
+        // موجة خفيفة إضافية: تدخل من الحافة اليسرى وترتفع نحو الوسط ثم تتلاشى (شريط كريمي شفاف + خطّان ذهبيان رفيعان).
+        // الصفحة تمتد الآن حتى أسفل الشاشة، فنحوّل نسب الشاشة بـ (f−TOP)/(1−TOP) لتبقى الموجة في مكانها المقصود.
+        l5.reset();
+        l5.moveTo(0, yw(0.520f, h));
+        l5.cubicTo(w * 0.22f, yw(0.508f, h), w * 0.46f, yw(0.470f, h), w * 0.70f, yw(0.395f, h));
+        l6.reset();
+        l6.moveTo(0, yw(0.575f, h));
+        l6.cubicTo(w * 0.20f, yw(0.562f, h), w * 0.40f, yw(0.520f, h), w * 0.56f, yw(0.470f, h));
+        band5.reset();
+        band5.moveTo(0, yw(0.520f, h));
+        band5.cubicTo(w * 0.22f, yw(0.508f, h), w * 0.46f, yw(0.470f, h), w * 0.70f, yw(0.395f, h));
+        band5.lineTo(w * 0.56f, yw(0.470f, h));
+        band5.cubicTo(w * 0.40f, yw(0.520f, h), w * 0.20f, yw(0.562f, h), 0, yw(0.575f, h));
+        band5.close();
+
         // ألوان التعبئة والخطوط (ذهبي كريمي بشفافية منخفضة)
         final int gold = dark ? 0xE4C45B : 0xD9B25E, goldDeep = dark ? 0xB98B23 : 0xD0A533;
         fill1.setShader(new LinearGradient(0, 0, w, 0,
@@ -130,6 +178,15 @@ final class HomeBg extends Drawable {
         line.setShader(new LinearGradient(w, 0, 0, 0,
                 new int[]{(dark ? 0x48 : 0x62) << 24 | goldDeep, (dark ? 0x24 : 0x34) << 24 | goldDeep, 0x00000000 | goldDeep},
                 new float[]{0f, 0.6f, 1f}, Shader.TileMode.CLAMP));
+        fill5.setShader(new LinearGradient(0, 0, w * 0.7f, 0,
+                new int[]{(dark ? 0x14 : 0x1A) << 24 | gold, (dark ? 0x08 : 0x0A) << 24 | gold, 0x00000000 | gold},
+                new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP));
+        line5.setStyle(Paint.Style.STROKE);
+        line5.setStrokeCap(Paint.Cap.ROUND);
+        line5.setStrokeWidth(1.1f * d);
+        line5.setShader(new LinearGradient(0, 0, w * 0.7f, 0,
+                new int[]{(dark ? 0x34 : 0x42) << 24 | goldDeep, (dark ? 0x18 : 0x20) << 24 | goldDeep, 0x00000000 | goldDeep},
+                new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP));
     }
 
     @Override public void draw(Canvas c) {
@@ -142,6 +199,7 @@ final class HomeBg extends Drawable {
         if (photo != null) {
             float sc = bw / (float) photo.getWidth(), ph = photo.getHeight() * sc;
             c.drawBitmap(photo, null, new RectF(0, bh - ph, bw, bh), artPaint);
+            drawExtraWave(c);
             c.restore();
             return;
         }
@@ -152,7 +210,14 @@ final class HomeBg extends Drawable {
         c.drawPath(l2, line);
         c.drawPath(l3, line2);
         c.drawPath(l4, line2);
+        drawExtraWave(c);
         c.restore();
+    }
+
+    private void drawExtraWave(Canvas c) {
+        c.drawPath(band5, fill5);
+        c.drawPath(l5, line5);
+        c.drawPath(l6, line5);
     }
 
     @Override public void setAlpha(int a) { }

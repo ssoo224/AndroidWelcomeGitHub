@@ -366,7 +366,9 @@ public final class Tk {
             return true;
         }
         if (tag.equals("navdiv")) {          // فاصل رأسي رفيع بين تبويبات الشريط
-            x.setBackgroundColor(dark ? 0x33FFFFFF : 0xFFE3DFDA);
+            x.setBackgroundColor(dark ? 0x40FFFFFF : 0xFFDDD7CA);
+            x.setTranslationZ(1f);              // يُرسم فوق خلفية التبويب المحدد وتوهّجها فيبقى ظاهراً دائماً
+            x.setOutlineProvider(null);         // بلا ظل
             return true;
         }
         if (tag.equals("navline")) {         // الحدّ العلوي 1px + خط ذهبي متدرّج (::before في الـ HTML)

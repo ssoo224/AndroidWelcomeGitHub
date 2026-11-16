@@ -16,10 +16,10 @@ import android.graphics.drawable.Drawable;
 /**
  * شريط التنقل السفلي العائم: كبسولة بيضاء (ليلي: #17212B) بظل ناعم، وفي منتصفها فقط انحناء خفيف يرتفع عن حافتها العلوية.
  * الانحناء ثابت في المنتصف مهما كان التبويب المحدد. يُرسم على حاوية الشريط (bottomNav) التي حشواتها
- * تترك مكان الظل والانحناء: يمين/يسار 22dp، أعلى 7dp، أسفل 10dp.
+ * تترك مكان الظل والانحناء: يمين/يسار 22dp، أعلى 7dp، أسفل 5dp.
  */
 final class NavBarBg extends Drawable {
-    static final float PAD_L = 22f, PAD_R = 22f, PAD_T = 7f, PAD_B = 10f;   // dp — تطابق حشوات bottomNav في mass.xml
+    static final float PAD_L = 22f, PAD_R = 22f, PAD_T = 7f, PAD_B = 5f;   // dp — تطابق حشوات bottomNav في mass.xml
     private static final float BUMP_H = 6.5f, BUMP_HALF_W = 52f;               // dp — ارتفاع الانحناء ونصف عرضه
 
     /** ارتفاع شريط الإيماءات (px) الذي تضيفه الحاوية أسفل الكبسولة؛ تضبطه MassActivity.navGlassSync(). */
@@ -65,7 +65,7 @@ final class NavBarBg extends Drawable {
 
         Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
         fill.setStyle(Paint.Style.FILL);
-        fill.setColor(dark ? 0xFF17212B : 0xFFFFFFFF);
+        fill.setColor(dark ? 0xFF1E2A36 : 0xFFFFFFFF);   // الليلي: أفتح بدرجة من #17212B
         fill.setShadowLayer(10f * d, 0f, 3f * d, dark ? 0x66000000 : 0x265A6A8A);   // الظل داخل الصورة (برمجي) فلا يتأثر بالتسريع
         c.drawPath(p, fill);
 
@@ -104,37 +104,93 @@ final class NavBarBg extends Drawable {
     @Override public void setColorFilter(ColorFilter cf) { }
     @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
 
-    /** خلفية التبويب المحدد: حبّة بيضاوية ذهبية كريمية بتدرّج عمودي (#FFF3D3 ← #FEEAC2 ← #FBE4BE) وحواف ناعمة وتوهّج خفيف. */
+    /**
+     * خلفية التبويب المحدد: مربع بحواف منحنية بتدرّج ذهبي كريمي عمودي (#FFF3D3 ← #FEEAC2 ← #FBE4BE) وحواف ناعمة وتوهّج خفيف.
+     * التبويب الأوسط (middle) تتبع حافته العلوية منحنى الشريط نفسه فيشغل حتى المساحة المنحنية في الأعلى.
+     */
     static final class Sel extends Drawable {
-        private static final float GLOW = 12f;                 // dp
-        private static final float INSET_X = 5.5f;             // dp — تضييق الحبّة أفقياً عن عرض التبويب
-        private static final float OUT_T = 5f, OUT_B = 2f;     // dp — تمتد فوق/تحت حدود التبويب لتملأ ارتفاع الشريط
-        private final boolean dark;
+        private static final float GLOW = 12f;        // dp
+        private static final float EXT_X = 0f;        // dp — الحبّة داخل حدود التبويب فلا تلمس الفواصل العمودية
+        private static final float INSET_Y = 4.5f;    // dp — مساحة فاصلة بين الحبّة وحافتي الكبسولة العليا والسفلى
+        private static final float RADIUS = 18f;      // dp — استدارة الزوايا
+        private static final float BAR_PAD = 3f;      // dp — حشوة صف الأزرار (حافة التبويب عن حافة الكبسولة)
+        private static final float INSIDE = 3.5f;     // dp — مساحة فاصلة بين حافة الحبّة العلوية (المحادثات) ومنحنى الكبسولة
+        private static final int N = 48;              // عدد عيّنات منحنى الانحناء
+
+        private final boolean dark, middle;
         private final float d;
         private final Paint body = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint sheen = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final RectF r = new RectF();
+        private final Path path = new Path();
+        private final RectF pb = new RectF();
+        private final float[] bx = new float[N + 1], bhh = new float[N + 1];   // نفس منحنى NavBarBg.shape (من الحافة إلى القمة)
         private Bitmap glow;
 
-        Sel(boolean dark, float density) {
+        Sel(boolean dark, float density, boolean middle) {
             this.dark = dark;
             this.d = density;
+            this.middle = middle;
+            float bw = BUMP_HALF_W * d, bh = BUMP_H * d;
+            for (int i = 0; i <= N; i++) {
+                float u = i / (float) N, v = 1f - u;
+                bx[i] = bw * (v * v * v + 3f * v * v * u * 0.55f + 3f * v * u * u * 0.45f);
+                bhh[i] = bh * (3f * v * u * u + u * u * u);
+            }
         }
 
-        private void pillRect(Rect b, RectF out) {
-            out.set(b.left + INSET_X * d, b.top - OUT_T * d, b.right - INSET_X * d, b.bottom + OUT_B * d);
+        /** ارتفاع الانحناء (px) فوق حافة الكبسولة على بُعد rel من المنتصف. */
+        private float bumpH(float rel) {
+            if (rel >= bx[0]) return 0f;
+            for (int i = 0; i < N; i++) {
+                if (rel <= bx[i] && rel >= bx[i + 1]) {
+                    float span = bx[i] - bx[i + 1];
+                    float f = span <= 0f ? 0f : (bx[i] - rel) / span;
+                    return bhh[i] + (bhh[i + 1] - bhh[i]) * f;
+                }
+            }
+            return bhh[N];
+        }
+
+        private void build(Rect b) {
+            float L = b.left - EXT_X * d, R = b.right + EXT_X * d;
+            float barTop = b.top - BAR_PAD * d, barBot = b.bottom + BAR_PAD * d;
+            float top = barTop + INSET_Y * d, bot = barBot - INSET_Y * d;
+            float rad = Math.min(RADIUS * d, (bot - top) / 2f), k = 0.5523f, cx = (L + R) / 2f;
+            path.reset();
+            path.moveTo(L, bot - rad);
+            if (!middle) {
+                path.lineTo(L, top + rad);
+                path.cubicTo(L, top + rad * (1 - k), L + rad * (1 - k), top, L + rad, top);
+                path.lineTo(R - rad, top);
+                path.cubicTo(R - rad * (1 - k), top, R, top + rad * (1 - k), R, top + rad);
+            } else {
+                float xj = cx - (L + rad);                                   // مكان التقاء الزاوية بمنحنى الشريط
+                float yj = barTop - bumpH(xj) + INSIDE * d;
+                path.lineTo(L, yj + rad);
+                path.cubicTo(L, yj + rad * (1 - k), L + rad * (1 - k), yj, L + rad, yj);
+                for (int i = 0; i <= N; i++) if (bx[i] < xj) path.lineTo(cx - bx[i], barTop - bhh[i] + INSIDE * d);
+                for (int i = N; i >= 0; i--) if (bx[i] < xj) path.lineTo(cx + bx[i], barTop - bhh[i] + INSIDE * d);
+                path.lineTo(R - rad, yj);
+                path.cubicTo(R - rad * (1 - k), yj, R, yj + rad * (1 - k), R, yj + rad);
+            }
+            path.lineTo(R, bot - rad);
+            path.cubicTo(R, bot - rad * (1 - k), R - rad * (1 - k), bot, R - rad, bot);
+            path.lineTo(L + rad, bot);
+            path.cubicTo(L + rad * (1 - k), bot, L, bot - rad * (1 - k), L, bot - rad);
+            path.close();
         }
 
         @Override protected void onBoundsChange(Rect b) {
             if (glow != null) { glow.recycle(); glow = null; }
             if (b.isEmpty()) return;
-            pillRect(b, r);
-            float w = r.width(), h = r.height();
-            body.setShader(new LinearGradient(0f, r.top, 0f, r.bottom,
+            build(b);
+            path.computeBounds(pb, true);
+            float w = pb.width(), h = pb.height();
+            body.setShader(new LinearGradient(0f, pb.top, 0f, pb.bottom,
                     dark ? new int[]{0x4DF0D27A, 0x40E4C45B, 0x33D9B24A} : new int[]{0xFFFFF3D3, 0xFFFEEAC2, 0xFFFBE4BE},
                     new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP));
             // لمعة ناعمة في الأعلى كما في المرجع
-            sheen.setShader(new RadialGradient(r.centerX(), r.top + h * 0.22f, w * 0.55f,
+            sheen.setShader(new RadialGradient(pb.centerX(), pb.top + h * 0.22f, w * 0.55f,
                     dark ? 0x18FFFFFF : 0x66FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));
             float g = GLOW * d;
             glow = Bitmap.createBitmap((int) (w + 2 * g), (int) (h + 2 * g), Bitmap.Config.ARGB_8888);
@@ -142,20 +198,19 @@ final class NavBarBg extends Drawable {
             Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
             p.setColor(dark ? 0x33E4C45B : 0xFFFEEAC4);
             p.setShadowLayer(8f * d, 0f, 1.5f * d, dark ? 0x40E4C45B : 0x55EBCB8A);
-            c.drawRoundRect(new RectF(g, g, g + w, g + h), w * 0.42f, h * 0.5f, p);
+            Path gp = new Path(path);
+            gp.offset(g - pb.left, g - pb.top);
+            c.drawPath(gp, p);
         }
 
         @Override public void draw(Canvas c) {
-            Rect b = getBounds();
-            if (b.isEmpty()) return;
-            pillRect(b, r);
+            if (getBounds().isEmpty()) return;
             if (glow != null) {
                 float g = GLOW * d;
-                c.drawBitmap(glow, r.left - g, r.top - g, null);
+                c.drawBitmap(glow, pb.left - g, pb.top - g, null);
             }
-            float rx = r.width() * 0.42f, ry = r.height() * 0.5f;
-            c.drawRoundRect(r, rx, ry, body);
-            c.drawRoundRect(r, rx, ry, sheen);
+            c.drawPath(path, body);
+            c.drawPath(path, sheen);
         }
 
         @Override public void setAlpha(int a) { }

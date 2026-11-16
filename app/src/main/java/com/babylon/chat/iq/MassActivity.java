@@ -1356,10 +1356,10 @@ public class MassActivity extends Activity {
                     if (!(bn instanceof LinearLayout)) return;
                     boolean on = !chatOpen() && bn.getVisibility() == View.VISIBLE;
                     int extra = on ? navBottom : 0;
-                    int h = dp(71) + extra;   // 7 أعلى + 54 الصف + 10 أسفل + شريط الإيماءات
+                    int h = dp(66) + extra;   // 7 أعلى + 54 الصف + 5 أسفل + شريط الإيماءات
                     boolean changed = NavBarBg.EXTRA_BOTTOM != extra;
                     NavBarBg.EXTRA_BOTTOM = extra;
-                    if (bn.getPaddingBottom() != dp(10) + extra) bn.setPadding(bn.getPaddingLeft(), bn.getPaddingTop(), bn.getPaddingRight(), dp(10) + extra);
+                    if (bn.getPaddingBottom() != dp(5) + extra) bn.setPadding(bn.getPaddingLeft(), bn.getPaddingTop(), bn.getPaddingRight(), dp(5) + extra);
                     if (changed && bn.getBackground() instanceof NavBarBg) ((NavBarBg) bn.getBackground()).refresh();
                     int ov = on ? h : 0;   // مقدار تداخل الشريط فوق الصفحة (الصفحة تمتد خلفه)
                     if (bn.getLayoutParams() instanceof LinearLayout.LayoutParams) {
@@ -1576,7 +1576,7 @@ public class MassActivity extends Activity {
                     }
                     View vv = v(id);
                     if (vv != null) {
-                        vv.setBackground(on ? new NavBarBg.Sel(dark, act.getResources().getDisplayMetrics().density) : null);
+                        vv.setBackground(on ? new NavBarBg.Sel(dark, act.getResources().getDisplayMetrics().density, "navChats".equals(id)) : null);
                         vv.setAlpha(1f);
                     }
                 }
