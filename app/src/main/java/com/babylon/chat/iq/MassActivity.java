@@ -4074,6 +4074,7 @@ public class MassActivity extends Activity {
             void openChat(String name, String uid) {
                 if (stories != null) stories.collapseNow();   // دخول محادثة يطوي القصص
                 if (chatSelMode) exitChatSel(false);
+                { View mpv = v("mainPage"); if (mpv != null) { mpv.animate().cancel(); mpv.setAlpha(1f); } }   // إن أُلغي تلاشي الخروج بدخول محادثة أخرى
                 BabylonFx.chatFoldBegin();   // الرسائل تنتظر انتهاء حركة طيّ الصفحة ثم تظهر بتلاشٍ ناعم
                 otherUid = uid; otherName = name; curChat = name;
                 startBlocksListener(); blocked = uid != null && myBlocks.contains(uid); blockedByThem = false; otherOrigName = name == null ? "" : name; muted = isMutedUid(uid);
@@ -4670,8 +4671,8 @@ public class MassActivity extends Activity {
                 if (chatPresenceReg != null) { chatPresenceReg.remove(); chatPresenceReg = null; }
                 hideKb();
                 clearSel();
-                // إعادة بناء قائمة المحادثات والقصص ثقيلة (حفظ + إعادة إنشاء الصفوف): كانت تُنفَّذ هنا على الخيط الرئيسي فتجمّد تلاشي المحادثة
-                // وتظهر الصفحتان متداخلتين لجزء من الثانية. تُؤجَّل الآن إلى ما بعد انتهاء الحركة (مرة واحدة فقط) دون أي تغيير في الحركة نفسها.
+                // إعادة بناء قائمة المحادثات والقصص ثقيلة: تُنفَّذ الآن بين تلاشي المحادثة وظهور الصفحة الرئيسية (الشاشة فارغة بلون الخلفية)
+                // فلا يُرى تقطيع ولا تتداخل الصفحتان، ولا يبقى الخيط الرئيسي مشغولاً عند التنقّل بعد الخروج.
                 final boolean[] rebuilt = { false };
                 final Runnable rebuild = () -> {
                     if (rebuilt[0]) return;
@@ -4679,10 +4680,10 @@ public class MassActivity extends Activity {
                     try { buildChats(); } catch (Throwable ignored) { }
                     try { buildStories(); } catch (Throwable ignored) { }
                 };
-                BabylonFx.chatLeave(v("chatView"), () -> {
+                BabylonFx.chatLeave(v("chatView"), v("mainPage"), () -> {
                     vis("chatView", false); syncBars(); vpPlace();
-                    android.view.Choreographer.getInstance().postFrameCallback(ft -> uiH.post(rebuild));   // بعد رسم إطار الصفحة الرئيسية نظيفةً
-                });   // حركة خروج ثم إخفاء الصفحة (والشريط العائم ينتقل لأسفل الصفحة)
+                    rebuild.run();
+                });   // تلاشي المحادثة ثم إخفاؤها ثم تلاشي ظهور الصفحة الرئيسية (والشريط العائم ينتقل لأسفل الصفحة)
                 uiH.postDelayed(rebuild, 600);   // احتياط: إن أُلغيت الحركة (دخول محادثة أخرى بسرعة) لا تبقى القائمة بلا تحديث
                 if (messagesListener != null) { messagesListener.remove(); messagesListener = null; }
                 if (pinsListener != null) { pinsListener.remove(); pinsListener = null; }
@@ -7812,9 +7813,10 @@ public class MassActivity extends Activity {
                 card.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
                 card.setPadding(dp(8), dp(4), dp(8), dp(4));
                 GradientDrawable bg = new GradientDrawable();
-                bg.setColor(dark ? 0xFF17212B : 0xFFFFFFFF);
+                // نفس لون بطاقات ثيم المحادثة (بابل نهاري: كريمي، ثيم آخر: --cr-card)، لا أبيض/أزرق غريب
+                bg.setColor(Tk.chatPal != null ? (Tk.chatPal.other | 0xFF000000) : (dark ? 0xFF17212B : Tk.BAB_FIELD));
                 bg.setCornerRadius(dp(22));
-                bg.setStroke(dp(1), dark ? 0xFF2B3A4C : 0xFFDCE4EE);
+                bg.setStroke(dp(1), Tk.chatPal != null ? Tk.chatPal.line : (dark ? 0xFF2B3A4C : Tk.BAB_LINE));
                 card.setBackground(bg);
                 final android.widget.PopupWindow pw = new android.widget.PopupWindow(card, popW,
                         ViewGroup.LayoutParams.WRAP_CONTENT, true);

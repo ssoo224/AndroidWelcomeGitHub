@@ -505,8 +505,10 @@ public final class ProfileHero implements PullScrollView.Controller {
 
     /** dir>0: القادمة من اليمين (الحالية تتلاشى يمينها والقادمة يسارها)، dir<0 العكس، 0: إزالة التلاشي. */
     private void seam(int dir) {
-        heroImg.setEdge(dir > 0 ? 1 : (dir < 0 ? -1 : 0));
-        heroImg2.setEdge(dir > 0 ? -1 : (dir < 0 ? 1 : 0));
+        // لا تلاشي لحواف الصور: كان يكشف الغلاف (الأخضر/النقوش) بين الصورتين، ولا يشمل الامتداد السفلي (heroExt) فيظهر خط عمودي حادّ.
+        // الحدّ الآن مستقيم ومتّسق في الصورة والامتداد السفلي معاً.
+        heroImg.setEdge(0);
+        heroImg2.setEdge(0);
     }
 
     private void collectButtons(View v) {

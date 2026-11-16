@@ -634,6 +634,12 @@ public final class MsgViews {
         }).start();
     }
 
+    /** أقصى عرض (dp) متاح لمحتوى فقاعة الإيموجي: 80% من عمود المحادثة (بعد هوامش الشاشة) ناقص حشوة الفقاعة — تحفّظي حتى لا يُقصّ الإيموجي. */
+    private static float emojiBubbleRoomDp(Activity a) {
+        float wdp = a.getResources().getDisplayMetrics().widthPixels / d(a);
+        return (wdp - 44f) * 0.8f - 8f;
+    }
+
     /** يبني فقاعة إيموجي: بلا خلفية، إيموجي كبير (96–150dp)، كبسولة الوقت تحته، والرد بجانبه في الجهة المقابلة. */
     private static void bindEmoji(Activity a, LinearLayout b, String emoji, String quote, boolean mine, String time, int state) {
         b.setTag("bubEmoji");
@@ -704,7 +710,8 @@ public final class MsgViews {
             FrameLayout.LayoutParams qfl = new FrameLayout.LayoutParams(-1, -2, Gravity.CENTER_VERTICAL);
             qfl.setMargins(dp(a, 8), 0, dp(a, 8), 0);
             qHold.addView(q, qfl);
-            LinearLayout.LayoutParams hl = new LinearLayout.LayoutParams(dp(a, 140) + dp(a, 16), dp(a, S));
+            int qW1 = (int) Math.max(84f, Math.min(140f, emojiBubbleRoomDp(a) - S - 16f));   // يتقلّص بدل أن يقصّ الإيموجي
+            LinearLayout.LayoutParams hl = new LinearLayout.LayoutParams(dp(a, qW1) + dp(a, 16), dp(a, S));
             if (mine) { row.addView(qHold, hl); row.addView(colRef, new LinearLayout.LayoutParams(-2, -2)); }   // رسائلي: الإيموجي نحو الخارج (يمين) والاقتباس للداخل
             else { row.addView(colRef, new LinearLayout.LayoutParams(-2, -2)); row.addView(qHold, hl); }
             content = row;
@@ -732,12 +739,12 @@ public final class MsgViews {
         b.setMinimumWidth(0);
         b.setGravity(Gravity.CENTER_HORIZONTAL);
         int n = ems.size();
-        float wdp = a.getResources().getDisplayMetrics().widthPixels / d(a);
+        float wdp = a.getResources().getDisplayMetrics().widthPixels / d(a) - 44f;   // عرض عمود المحادثة الفعلي (بعد هوامش الشاشة)
         int sz = n == 2 ? 62 : n == 3 ? 52 : n <= 5 ? 42 : 34;
         final int perRowMax = 10;                                      // حتى 10 في السطر الواحد (يصغر ليتسع)، وما زاد ينزل لسطر جديد
         int perRow = Math.min(n, perRowMax);
         final int QMIN = 84, QMAX = 140, QMARG = 16;   // عرض الاقتباس: أدنى/أقصى + هوامشه (8+8)
-        float emojiRoom = wdp * 0.8f - 16f - (quote != null ? (QMIN + QMARG) : 0f);   // العرض المتاح للإيموجيات بعد حجز مكان الاقتباس
+        float emojiRoom = wdp * 0.8f - 16f - (quote != null ? (QMIN + QMARG) : 0f) - 4f;   // العرض المتاح للإيموجيات بعد حجز مكان الاقتباس
         sz = clampDp(Math.min(sz, emojiRoom / perRow * 0.95f), 24, sz);
         sz = Math.max(20, sz - 8);   // أصغر حجم للإيموجيات الكثيرة 20dp (كان 16)
         // كل إيموجي صورة مستقلة بدقة 512 (حادة) بدل نص يُكبَّر من خط نقطي؛ والنص الأصلي احتياط حتى تُحمَّل الصورة
@@ -805,7 +812,7 @@ public final class MsgViews {
             colRef.addView(meta);
             int emojiW = Math.min(n, perRow) * sz;
             int rowsN = (n + perRow - 1) / perRow;
-            int qW = (int) Math.max(QMIN, Math.min(QMAX, wdp * 0.8f - 16f - emojiW - QMARG));   // يتقلّص بدل أن يقصّ الإيموجي
+            int qW = (int) Math.max(QMIN, Math.min(QMAX, wdp * 0.8f - 16f - 4f - emojiW - QMARG));   // يتقلّص بدل أن يقصّ الإيموجي
             FrameLayout qHold = new FrameLayout(a);
             FrameLayout.LayoutParams qfl = new FrameLayout.LayoutParams(-1, -2, Gravity.CENTER_VERTICAL);
             qfl.setMargins(dp(a, 8), 0, dp(a, 8), 0);
@@ -820,6 +827,13 @@ public final class MsgViews {
         }
     }
 
+    private static int blendC(int c1, int c2, float t) {
+        int r = (int) (((c1 >> 16) & 255) * (1 - t) + ((c2 >> 16) & 255) * t);
+        int g = (int) (((c1 >> 8) & 255) * (1 - t) + ((c2 >> 8) & 255) * t);
+        int b = (int) ((c1 & 255) * (1 - t) + (c2 & 255) * t);
+        return 0xFF000000 | (r << 16) | (g << 8) | b;
+    }
+
     /** اقتباس رسالة الإيموجي (بلا فقاعة): نهاراً خلفية شفافة بلون الثيم (accent) مع حد خفيف ونص داكن مقروء، وليلاً الرمادي المزرق السابق. */
     private static void styleEmojiQuote(Activity a, View q) {
         final int r = dp(a, 14);
@@ -828,8 +842,11 @@ public final class MsgViews {
             q.setAlpha(0.8f);
         } else {
             int accent = Tk.chatPal != null ? Tk.chatPal.accent : 0xFF9B7410;
-            android.graphics.drawable.GradientDrawable g = rounded((accent & 0x00FFFFFF) | 0x24000000, r);   // ≈14% شفافية
-            g.setStroke(dp(a, 1), (accent & 0x00FFFFFF) | 0x40000000);
+            int base = Tk.chatPal != null ? (Tk.chatPal.chatBg | 0xFF000000) : (Tk.BAB_BG | 0xFF000000);   // خلفية المحادثة النهارية
+            int fill = Tk.chatPal != null ? Tk.chatPal.other : Tk.BAB_FIELD;                                 // حقل فاتح من الثيم نفسه
+            int tint = blendC(fill | 0xFF000000, accent | 0xFF000000, 0.16f);                              // مزيج معتم: لا رمادي ولا شفافية تتداخل مع الخلفية
+            android.graphics.drawable.GradientDrawable g = rounded(tint, r);
+            g.setStroke(dp(a, 1), blendC(base, accent | 0xFF000000, 0.38f));
             q.setBackground(g);
             q.setAlpha(1f);
         }

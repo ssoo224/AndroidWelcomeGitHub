@@ -242,7 +242,8 @@ public final class Tk {
         if (tag.equals("rqtO")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.accent : 0xFFC29D30); return true; }   // HTML: لون .reply-quote في رسائل الطرف الآخر = ذهبي accent-chat
         // ---- شريط الرد أعلى حقل الكتابة (.reply-preview-bar في الـ HTML)
         if (tag.equals("rpBar")) {      // بطاقة عائمة: radius 22، حدّ 1px، خلفية --cr-card، ظل خفيف (reply-bar-rounder)
-            x.setBackground(shape(dark ? 0xFF1E2A38 : 0xFFFFFFFF, dp(x, 22), dark ? 0x14FFFFFF : 0xFFDCE4EE, dp(x, 1)));   // خارج الثيم
+            x.setBackground(shape(chatPal != null ? (chatPal.other | 0xFF000000) : (dark ? 0xFF1E2A38 : BAB_FIELD), dp(x, 22),
+                    chatPal != null ? chatPal.line : (dark ? 0x14FFFFFF : BAB_LINE), dp(x, 1)));   // كبسولة الرد بلون ثيم المحادثة
             x.setElevation(0f);
             return true;
         }
