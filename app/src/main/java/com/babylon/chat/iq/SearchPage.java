@@ -578,7 +578,7 @@ final class SearchPage {
     }
 
     // ------------------------------------------------------------------ «الأخيرة»
-    private SharedPreferences prefs() { return act.getSharedPreferences("babylon_search", Context.MODE_PRIVATE); }
+    private SharedPreferences prefs() { return AppSettings.prefs(act, "babylon_search"); }
 
     private String recentKey() { return "recent_" + host.myUid(); }
 

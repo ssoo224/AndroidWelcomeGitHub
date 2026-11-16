@@ -8,6 +8,10 @@ import android.os.Bundle;
 public class BabylonApp extends Application {
     @Override public void onCreate() {
         super.onCreate();
+        // التخزين المحلي الجديد: إعدادات JSON + مجلدات الوسائط الداخلية (وترحيل/حذف القديم لمرة واحدة)
+        try { AppSettings.init(this); } catch (Throwable ignored) { }
+        try { MediaFiles.init(this); } catch (Throwable ignored) { }
+        try { LegacyStorage.cleanup(this); } catch (Throwable ignored) { }
         // كاش Firestore على الجهاز بلا حد أقصى (الافتراضي 100MB ويُحذف القديم): الرسائل تبقى محلياً وتُقرأ منه بدل إعادة تنزيلها
         try {
             com.google.firebase.firestore.FirebaseFirestore.getInstance().setFirestoreSettings(

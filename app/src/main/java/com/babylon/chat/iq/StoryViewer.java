@@ -140,7 +140,7 @@ public final class StoryViewer {
     /** آخر ما شوهد من قصص مستخدم (expiresAt الأكبر). */
     public static boolean isSeen(Context c, String me, String uid, long storyUntil) {
         if (c == null || me == null || uid == null || storyUntil <= 0) return false;
-        try { return c.getSharedPreferences("story_seen_" + me, Context.MODE_PRIVATE).getLong(uid, 0L) >= storyUntil; }
+        try { return AppSettings.prefs(c, "story_seen_" + me).getLong(uid, 0L) >= storyUntil; }
         catch (Throwable t) { return false; }
     }
 
@@ -279,7 +279,7 @@ public final class StoryViewer {
                     for (int k = 0; k < list.size(); k++) if (startId.equals(list.get(k).id)) { start = k; break; }
                 } else if (!mine) {
                     long seen = 0;
-                    try { seen = act.getSharedPreferences("story_seen_" + me, Context.MODE_PRIVATE).getLong(uid, 0L); } catch (Throwable ignored) { }
+                    try { seen = AppSettings.prefs(act, "story_seen_" + me).getLong(uid, 0L); } catch (Throwable ignored) { }
                     for (int k = 0; k < list.size(); k++) if (list.get(k).expiresAt > seen) { start = k; break; }
                 }
                 idx = start;
@@ -1024,7 +1024,7 @@ public final class StoryViewer {
 
     private void markSeen(Story s) {
         try {
-            SharedPreferences p = act.getSharedPreferences("story_seen_" + me, Context.MODE_PRIVATE);
+            SharedPreferences p = AppSettings.prefs(act, "story_seen_" + me);
             if (p.getLong(uid, 0L) < s.expiresAt) {
                 p.edit().putLong(uid, s.expiresAt).apply();
                 saveSeenToCloud(db, me, uid, s.expiresAt);   // نسخة سحابية لتبقى بعد تسجيل الخروج/إعادة التثبيت
@@ -1049,7 +1049,7 @@ public final class StoryViewer {
         final DocumentReference ref = db.collection("users").document(me).collection("private").document("storySeen");
         ref.get().addOnSuccessListener(d -> {
             try {
-                SharedPreferences p = c.getSharedPreferences("story_seen_" + me, Context.MODE_PRIVATE);
+                SharedPreferences p = AppSettings.prefs(c, "story_seen_" + me);
                 SharedPreferences.Editor ed = p.edit();
                 boolean changed = false;
                 java.util.Map<String, Object> cloud = d != null && d.exists() ? d.getData() : null;
@@ -1337,12 +1337,12 @@ public final class StoryViewer {
     }
 
     private String readCached(String storyId) {
-        try { return act.getSharedPreferences("story_react", Context.MODE_PRIVATE).getString(me + ":" + storyId, null); }
+        try { return AppSettings.prefs(act, "story_react").getString(me + ":" + storyId, null); }
         catch (Throwable ignored) { return null; }
     }
     private void cacheReaction(String storyId, String e) {
         try {
-            SharedPreferences.Editor ed = act.getSharedPreferences("story_react", Context.MODE_PRIVATE).edit();
+            SharedPreferences.Editor ed = AppSettings.prefs(act, "story_react").edit();
             if (e != null) ed.putString(me + ":" + storyId, e); else ed.remove(me + ":" + storyId);
             ed.apply();
         } catch (Throwable ignored) { }
@@ -1507,7 +1507,7 @@ public final class StoryViewer {
 
     /** الطور الحالي للتطبيق (نفس مفتاح MassActivity: babylon_ui / dark). */
     private boolean isDark() {
-        try { return act.getSharedPreferences("babylon_ui", Context.MODE_PRIVATE).getBoolean("dark", false); }
+        try { return AppSettings.prefs(act, "babylon_ui").getBoolean("dark", false); }
         catch (Throwable t) { return false; }
     }
 

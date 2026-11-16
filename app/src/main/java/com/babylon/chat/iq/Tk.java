@@ -57,6 +57,24 @@ public final class Tk {
         return state == MsgViews.READ ? chatPal.tick : chatPal.textMine;
     }
     /** لون هامش/أيقونة اقتباس الرد: بابل ذهبي؛ ثيم آخر: لون نص رسالتي (في فقاعتي) أو لون التمييز accent (في فقاعة الطرف الآخر). */
+    private static int blendRgb(int c1, int c2, float t) {
+        int r = (int) (((c1 >> 16) & 255) * (1 - t) + ((c2 >> 16) & 255) * t);
+        int g = (int) (((c1 >> 8) & 255) * (1 - t) + ((c2 >> 8) & 255) * t);
+        int b = (int) ((c1 & 255) * (1 - t) + (c2 & 255) * t);
+        return 0xFF000000 | (r << 16) | (g << 8) | b;
+    }
+    /** خلفية الاقتباس نهاراً: حقل الثيم ممزوج 16% بلون التمييز (بابل: بيج #ECE4D1). */
+    public static int quoteFillDay() {
+        int accent = (chatPal != null ? chatPal.accent : 0xFF9B7410) | 0xFF000000;
+        int fill = (chatPal != null ? chatPal.other : BAB_FIELD) | 0xFF000000;
+        return blendRgb(fill, accent, 0.16f);
+    }
+    /** حد الاقتباس نهاراً. */
+    public static int quoteStrokeDay() {
+        int accent = (chatPal != null ? chatPal.accent : 0xFF9B7410) | 0xFF000000;
+        int base = (chatPal != null ? chatPal.chatBg : BAB_BG) | 0xFF000000;
+        return blendRgb(base, accent, 0.38f);
+    }
     public static int rqAccent(boolean mine) {
         if (chatPal == null) return 0xFFC29D30;
         return mine ? chatPal.textMine : chatPal.accent;
@@ -242,18 +260,21 @@ public final class Tk {
         if (tag.equals("sct")) { if (t != null) t.setTextColor(dark ? gold(true) : 0xFF17212B); return true; }   // .set-card-title
         if (tag.equals("rqM") || tag.equals("rqO")) {
             final float r = dp(x, 10);
-            x.setBackground(shape(tag.equals("rqM") ? 0x1A000000 : 0x247F8CA0, r, 0, 0));
+            if (!dark) {   // نهاري: اقتباس بيج معتم بحد خفيف (نفس اقتباس رسائل الإيموجي) لكل الرسائل
+                x.setBackground(shape(quoteFillDay(), dp(x, 14), quoteStrokeDay(), dp(x, 1)));
+                x.setAlpha(1f);
+            } else x.setBackground(shape(tag.equals("rqM") ? 0x1A000000 : 0x247F8CA0, r, 0, 0));
             x.setClipToOutline(true);
             x.setOutlineProvider(new android.view.ViewOutlineProvider() {
                 @Override public void getOutline(View v, android.graphics.Outline o) { o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), r); }
             });
             return true;
         }
-        if (tag.equals("rqbM") || tag.equals("rqbO")) { x.setBackgroundColor(rqAccent(tag.equals("rqbM"))); return true; }   // الخط الجانبي لاقتباس الرد
+        if (tag.equals("rqbM") || tag.equals("rqbO")) { x.setBackgroundColor(!dark && chatPal == null ? 0xFF9B7410 : rqAccent(tag.equals("rqbM"))); return true; }   // الخط الجانبي لاقتباس الرد
         if (tag.equals("rqnM")) { if (t != null) { t.setTextColor(0xFFFFFFFF); t.setShadowLayer(0f, 0f, 0f, 0); } return true; }   // أنا من ردّ: اسم الاقتباس («أنت» / اسم الطرف الآخر) أبيض دائماً
         if (tag.equals("rqnO")) { if (t != null) t.setTextColor(!dark ? 0xFF000000 : (chatPal != null ? rqAccent(false) : 0xFFFFFFFF)); return true; }   // اسم/عنوان اقتباس الرد («أنت» / «رد على قصتك»): نهاري (كل الثيمات) أسود #000000؛ ليلي: لون الثيم أو أبيض في بابل
-        if (tag.equals("rqtM")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.textMine : GOLD_INK); return true; }
-        if (tag.equals("rqtO")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.accent : 0xFFC29D30); return true; }   // HTML: لون .reply-quote في رسائل الطرف الآخر = ذهبي accent-chat
+        if (tag.equals("rqtM")) { if (t != null) t.setTextColor(!dark ? (chatPal != null ? chatPal.textOther : 0xFF4A3B12) : (chatPal != null ? chatPal.textMine : GOLD_INK)); return true; }
+        if (tag.equals("rqtO")) { if (t != null) t.setTextColor(!dark ? (chatPal != null ? chatPal.textOther : 0xFF4A3B12) : (chatPal != null ? chatPal.accent : 0xFFC29D30)); return true; }   // HTML: لون .reply-quote في رسائل الطرف الآخر = ذهبي accent-chat
         // ---- شريط الرد أعلى حقل الكتابة (.reply-preview-bar في الـ HTML)
         if (tag.equals("rpBar")) {      // بطاقة عائمة: radius 22، حدّ 1px، خلفية --cr-card، ظل خفيف (reply-bar-rounder)
             x.setBackground(shape(chatPal != null ? (chatPal.other | 0xFF000000) : (dark ? BAB_CAPSULE_DARK : BAB_CAPSULE), dp(x, 22),

@@ -15,7 +15,7 @@ final class AuthTheme {
     static final int GOLD_LABEL = 0xFFE4C45B, TEXT = 0xFFF1F5F9, MUTED = 0xFFA5B2C2, HINT = 0xFF7D8DA0;
 
     static boolean isDark(Context c) {
-        try { return c.getSharedPreferences("babylon_ui", Context.MODE_PRIVATE).getBoolean("dark", false); }
+        try { return AppSettings.prefs(c, "babylon_ui").getBoolean("dark", false); }
         catch (Throwable t) { return false; }
     }
 

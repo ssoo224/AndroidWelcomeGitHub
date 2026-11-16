@@ -545,7 +545,7 @@ public final class MsgViews {
             byte[] data;
             synchronized (EMOJI_BYTES) { data = EMOJI_BYTES.get(key); }
             // تخزين دائم في ذاكرة التطبيق (filesDir): لا يُمسح بمسح الكاش ولا بإغلاق التطبيق
-            final java.io.File cacheFile = new java.io.File(new java.io.File(a.getFilesDir(), "emoji_noto"), key + ".webp");
+            final java.io.File cacheFile = new java.io.File(MediaFiles.emoji(), key + ".webp");
             if (data == null && cacheFile.isFile() && cacheFile.length() > 0) {
                 try {
                     java.io.FileInputStream fi = new java.io.FileInputStream(cacheFile);
@@ -869,13 +869,6 @@ public final class MsgViews {
         }
         clipRound(q, r);   // الخط الجانبي يتبع استدارة الحقل
         recolorQuote(q);
-        if (mine && !Tk.chatDark) {   // ردّي نهاراً: حقل بلون الثيم الغامق حتى يظهر الاسم الأبيض (وبقية نص الاقتباس أبيض)
-            int acc = (Tk.chatPal != null ? Tk.chatPal.accent : 0xFF9B7410) | 0xFF000000;
-            float lum = (0.299f * ((acc >> 16) & 255) + 0.587f * ((acc >> 8) & 255) + 0.114f * (acc & 255)) / 255f;
-            if (lum > 0.5f) acc = blendC(acc, 0xFF000000, 0.35f);
-            q.setBackground(rounded(acc, r));
-            whitenQuoteBody(q);
-        }
     }
 
     private static void whitenQuoteBody(View v) {
@@ -1164,14 +1157,14 @@ public final class MsgViews {
         if (icoRes == 0) { int gr = glyphRes(qText, true); if (gr != 0) { icoRes = gr; qText = stripGlyph(qText); q.setText(richText(qText), TextView.BufferType.SPANNABLE); } }
         if (icoRes != 0) {
             android.graphics.drawable.Drawable ico = a.getResources().getDrawable(icoRes, null).mutate();
-            ico.setColorFilter(Tk.chatPal == null ? (mine ? 0xFFFFFFFF : 0xFFC29D30) : Tk.rqAccent(mine), android.graphics.PorterDuff.Mode.SRC_IN);
+            ico.setColorFilter(Tk.chatPal == null ? (!Tk.chatDark ? 0xFF9B7410 : mine ? 0xFFFFFFFF : 0xFFC29D30) : Tk.rqAccent(mine && Tk.chatDark), android.graphics.PorterDuff.Mode.SRC_IN);
             q.setCompoundDrawablePadding(dp(a, 4));
             q.setCompoundDrawablesWithIntrinsicBounds(null, null, ico, null);
         }
         col.addView(q, new LinearLayout.LayoutParams(-1, -2));
         box.addView(col, new LinearLayout.LayoutParams(0, -2, 1f));
         View bar = new View(a);
-        bar.setBackgroundColor(Tk.rqAccent(mine));      // هامش الرد يتبع الثيم (بابل: ذهبي)
+        bar.setBackgroundColor(!Tk.chatDark && Tk.chatPal == null ? 0xFF9B7410 : Tk.rqAccent(mine && Tk.chatDark));      // هامش الرد يتبع الثيم (بابل: ذهبي)
         bar.setTag(mine ? "rqbM" : "rqbO");
         box.addView(bar, new LinearLayout.LayoutParams(dp(a, 3), -1));
         if (qId.startsWith("story:")) {   // اقتباس رد على قصة: النقر يفتح القصة

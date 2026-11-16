@@ -55,7 +55,7 @@ public final class AppToast {
     public static void show(Activity act, String msg) {
         if (act == null || msg == null || msg.trim().isEmpty()) return;
         boolean dark = false;
-        try { dark = act.getSharedPreferences("babylon_ui", Context.MODE_PRIVATE).getBoolean("dark", false); } catch (Throwable ignored) { }
+        try { dark = AppSettings.prefs(act, "babylon_ui").getBoolean("dark", false); } catch (Throwable ignored) { }
         show(act, msg, dark);
     }
 

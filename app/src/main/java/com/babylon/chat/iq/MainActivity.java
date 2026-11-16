@@ -64,7 +64,7 @@ public class MainActivity extends Activity {
             try { com.google.firebase.firestore.FirebaseFirestore.getInstance(); } catch (Throwable ignored) { }
             String[] cls = {"MassActivity", "Main2Activity", "MsgViews", "MsgMenu", "ChatThemes", "ChatPreview", "ChatPattern",
                     "Tk", "EmojiFx", "BabylonFx", "BabylonBars", "StoriesController", "StoryViewer", "StoryComposer",
-                    "StoryAvatarView", "ProfileRing", "ProfileHero", "SearchPage", "LocalCache", "FontManager", "CoverThemes", "Glass"};
+                    "StoryAvatarView", "ProfileRing", "ProfileHero", "SearchPage", "LocalDb", "FontManager", "CoverThemes", "Glass"};
             for (String c : cls) {
                 try { Class.forName("com.babylon.chat.iq." + c, true, getClassLoader()); } catch (Throwable ignored) { }
             }
@@ -112,7 +112,7 @@ public class MainActivity extends Activity {
 
     private void goNext() {
         if (navigated || isFinishing()) return;
-        android.content.SharedPreferences sp = getSharedPreferences("babylon_boot", MODE_PRIVATE);
+        android.content.SharedPreferences sp = AppSettings.prefs(this, "babylon_boot");
         if (Build.VERSION.SDK_INT >= 23 && !sp.getBoolean("perms_asked", false)) {   // أول دخول فقط
             sp.edit().putBoolean("perms_asked", true).apply();
             String[] need = missingPermissions();

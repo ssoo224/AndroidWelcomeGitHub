@@ -175,6 +175,8 @@ public final class BabylonFx {
             ViewGroup g = (ViewGroup) chat;
             for (int i = 0; i < g.getChildCount(); i++) { g.getChildAt(i).animate().cancel(); g.getChildAt(i).setAlpha(1f); }
         }
+        View ma0 = chat.findViewById(R.id.messagesArea);
+        if (ma0 != null) ma0.animate().cancel();
         final int w = chat.getWidth(), h = chat.getHeight();
         if (w <= 0 || h <= 0) return;
         foldEndUptime = SystemClock.uptimeMillis() + MSG_WAIT_MS;
@@ -189,13 +191,16 @@ public final class BabylonFx {
                 .withEndAction(() -> reset(chat)).start();
     }
 
-    private static final long LEAVE_FADE_OUT_MS = 220;   // تلاشي المحادثة شفافاً فوق الصفحة الرئيسية
+    private static final long LEAVE_MSGS_MS = 60;     // 1) تلاشي الرسائل أولاً
+    private static final long LEAVE_REST_DELAY = 40;   // 2) ثم الهيدر وشريط الكتابة (يبدآن قبل انتهاء الرسائل بقليل)
+    private static final long LEAVE_REST_MS = 80;
+    private static final long LEAVE_BG_DELAY = 60;     // 3) ثم خلفية المحادثة نفسها فتنكشف الصفحة الرئيسية شفافة من خلفها
+    private static final long LEAVE_BG_MS = 80;
 
     /**
-     * الخروج من غرفة المحادثة بتلاشٍ شفاف (cross-fade حقيقي):
-     *   الصفحة الرئيسية (page) تبقى ظاهرة كاملة خلف المحادثة، والمحادثة وحدها تتلاشى تدريجياً فتنكشف الصفحة من خلفها،
-     *   فلا يمرّ بينهما فراغ بلون الخلفية. عند اكتمال التلاشي تُنفَّذ swap (إخفاء المحادثة).
-     *   (الصفحة الرئيسية لا تُلمس شفافيتها فلا تبقى نصف شفافة عند التنقّل بعد الخروج.)
+     * الخروج من غرفة المحادثة بتلاشٍ شفاف سريع جداً (~140ms) على مراحل متداخلة:
+     *   الرسائل أولاً، ثم الهيدر وشريط الكتابة والشريط المثبّت، ثم الخلفية؛ فتنكشف الصفحة الرئيسية (page) من خلفها
+     *   (cross-fade حقيقي: لا فراغ بلون الخلفية بينهما). عند اكتمال التلاشي تُنفَّذ swap (إخفاء المحادثة).
      */
     public static void chatLeave(final View chat, final View page, final Runnable swap) {
         if (page != null) { page.animate().cancel(); page.setAlpha(1f); }
@@ -204,13 +209,48 @@ public final class BabylonFx {
             return;
         }
         reset(chat);
-        chat.animate().alpha(0f)
-                .setDuration(LEAVE_FADE_OUT_MS).setInterpolator(new android.view.animation.DecelerateInterpolator(1.3f))
+        final java.util.ArrayList<View> rest = new java.util.ArrayList<>();
+        final View msgs = chat.findViewById(R.id.messagesArea);
+        if (chat instanceof ViewGroup) {
+            ViewGroup g = (ViewGroup) chat;
+            for (int i = 0; i < g.getChildCount(); i++) {
+                View c = g.getChildAt(i);
+                if (c.getId() == R.id.messagesScroll) continue;   // خلفية/نقوش الرسائل تتلاشى مع الخلفية
+                c.animate().cancel();
+                rest.add(c);
+            }
+        }
+        final android.view.animation.Interpolator lin = new android.view.animation.LinearInterpolator();
+        if (msgs != null) { msgs.animate().cancel(); msgs.animate().alpha(0f).setDuration(LEAVE_MSGS_MS).setInterpolator(lin).withLayer().start(); }
+        for (View c : rest) c.animate().alpha(0f).setStartDelay(LEAVE_REST_DELAY).setDuration(LEAVE_REST_MS).setInterpolator(lin).start();
+        chat.animate().alpha(0f).setStartDelay(LEAVE_BG_DELAY).setDuration(LEAVE_BG_MS).setInterpolator(lin)
                 .withLayer()
                 .withEndAction(() -> {   // لا يُنفَّذ إن أُلغيت الحركة (دخول محادثة جديدة)
                     if (swap != null) swap.run();
                     reset(chat);
+                    for (View c : rest) { c.animate().cancel(); c.setAlpha(1f); }
+                    if (msgs != null) { msgs.animate().cancel(); msgs.setAlpha(1f); }
                 }).start();
+    }
+
+    /** ظهور خفيف مميز لصفوف المحادثات عند دخول قسم المحادثات: كل صف ينزلق من اليمين بتلاشٍ وارتداد ناعم، متتابعاً. */
+    public static void chatRowsIn(final ViewGroup list, final long baseDelay) {
+        if (list == null) return;
+        list.post(() -> {
+            int n = Math.min(list.getChildCount(), 9);
+            Interpolator soft = new android.view.animation.OvershootInterpolator(0.7f);
+            for (int i = 0; i < n; i++) {
+                final View r = list.getChildAt(i);
+                if (r == null || r.getVisibility() != View.VISIBLE) continue;
+                r.animate().cancel();
+                r.setAlpha(0f);
+                r.setTranslationX(dp(r, 24));
+                r.setScaleX(0.97f); r.setScaleY(0.97f);
+                r.animate().alpha(1f).translationX(0f).scaleX(1f).scaleY(1f)
+                        .setStartDelay(baseDelay + i * 34L).setDuration(260).setInterpolator(soft)
+                        .withEndAction(() -> reset(r)).start();
+            }
+        });
     }
 
     /**

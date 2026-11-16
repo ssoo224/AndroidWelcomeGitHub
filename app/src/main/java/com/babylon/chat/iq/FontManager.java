@@ -96,7 +96,7 @@ public final class FontManager {
     public static String current(Context c) {
         init(c);
         if (mode == null) {
-            try { mode = c.getApplicationContext().getSharedPreferences(PREF, Context.MODE_PRIVATE).getString(KEY, "normal"); }
+            try { mode = AppSettings.prefs(c.getApplicationContext(), PREF).getString(KEY, "normal"); }
             catch (Throwable t) { mode = "normal"; }
             if (indexOf(mode) < 0) mode = "normal";
         }
@@ -116,7 +116,7 @@ public final class FontManager {
         if (indexOf(id) < 0) id = "normal";
         mode = id;
         version++;
-        try { a.getApplicationContext().getSharedPreferences(PREF, Context.MODE_PRIVATE).edit().putString(KEY, id).apply(); } catch (Throwable ignored) { }
+        try { AppSettings.prefs(a.getApplicationContext(), PREF).edit().putString(KEY, id).apply(); } catch (Throwable ignored) { }
         applyNow(a);
     }
 
