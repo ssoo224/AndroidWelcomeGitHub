@@ -746,7 +746,12 @@ public final class MsgViews {
         final int QMIN = 84, QMAX = 140, QMARG = 16;   // عرض الاقتباس: أدنى/أقصى + هوامشه (8+8)
         float emojiRoom = wdp * 0.8f - 16f - (quote != null ? (QMIN + QMARG) : 0f) - 4f;   // العرض المتاح للإيموجيات بعد حجز مكان الاقتباس
         sz = clampDp(Math.min(sz, emojiRoom / perRow * 0.95f), 24, sz);
-        sz = Math.max(20, sz - 8);   // أصغر حجم للإيموجيات الكثيرة 20dp (كان 16)
+        // الإيموجيات الكثيرة (6 فأكثر) أكبر بـ 3dp: الحد الأدنى 23dp (كان 20) وتُضاف 3dp لحجمها
+        final int more = n > 5 ? 3 : 0;
+        sz = Math.max(20 + more, sz - 8 + more);
+        // مع اقتباس بجانبها كان الحدّ الأدنى للحجم (24 ثم 20dp) يتجاوز المتاح فيُقصّ آخر إيموجي في السطر:
+        // بدل تصغيرها أكثر، يقلّ عدد الإيموجيات في السطر الواحد وينزل الباقي لسطر جديد حتى يتّسع السطر كله.
+        while (perRow > 1 && perRow * sz > emojiRoom) perRow--;
         // كل إيموجي صورة مستقلة بدقة 512 (حادة) بدل نص يُكبَّر من خط نقطي؛ والنص الأصلي احتياط حتى تُحمَّل الصورة
         LinearLayout box = new LinearLayout(a);
         box.setTag("emojiRowBox");   // بلا حركة ظهور/طفو

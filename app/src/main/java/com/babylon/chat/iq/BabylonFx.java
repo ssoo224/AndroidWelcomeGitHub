@@ -189,39 +189,27 @@ public final class BabylonFx {
                 .withEndAction(() -> reset(chat)).start();
     }
 
-    private static final long LEAVE_FADE_OUT_MS = 100;   // تلاشي المحادثة
-    private static final long LEAVE_FADE_IN_MS = 150;    // ظهور الصفحة الرئيسية بعد اكتمال تلاشي المحادثة
+    private static final long LEAVE_FADE_OUT_MS = 220;   // تلاشي المحادثة شفافاً فوق الصفحة الرئيسية
 
     /**
-     * الخروج من غرفة المحادثة بتلاشٍ متتالٍ لا متزامن (بلا تشابك):
-     *   1) الصفحة الرئيسية (page) تُخفى تماماً (alpha=0) خلف المحادثة المعتمة، فلا يراها المستخدم أثناء التلاشي.
-     *   2) المحادثة وحدها تتلاشى فوق خلفية الجذر الصلبة.
-     *   3) عند اكتمال التلاشي تُنفَّذ swap (إخفاء المحادثة + إعادة بناء القوائم الثقيلة) والشاشة فارغة بلون الخلفية،
-     *      فلا يظهر أي تقطيع، ثم تظهر الصفحة الرئيسية بتلاشٍ ناعم.
-     * بهذا لا تُرى الصفحتان معاً أبداً، ولا تبقى الصفحة الرئيسية معلّقة نصف شفافة عند التنقّل بعد الخروج.
+     * الخروج من غرفة المحادثة بتلاشٍ شفاف (cross-fade حقيقي):
+     *   الصفحة الرئيسية (page) تبقى ظاهرة كاملة خلف المحادثة، والمحادثة وحدها تتلاشى تدريجياً فتنكشف الصفحة من خلفها،
+     *   فلا يمرّ بينهما فراغ بلون الخلفية. عند اكتمال التلاشي تُنفَّذ swap (إخفاء المحادثة).
+     *   (الصفحة الرئيسية لا تُلمس شفافيتها فلا تبقى نصف شفافة عند التنقّل بعد الخروج.)
      */
     public static void chatLeave(final View chat, final View page, final Runnable swap) {
+        if (page != null) { page.animate().cancel(); page.setAlpha(1f); }
         if (chat == null || chat.getVisibility() != View.VISIBLE || chat.getWidth() <= 0 || chat.getHeight() <= 0) {
             if (swap != null) swap.run();
-            if (page != null) { page.animate().cancel(); page.setAlpha(1f); }
             return;
         }
         reset(chat);
-        if (page != null) { page.animate().cancel(); page.setAlpha(0f); }
         chat.animate().alpha(0f)
-                .setDuration(LEAVE_FADE_OUT_MS).setInterpolator(new android.view.animation.AccelerateInterpolator(0.9f))
+                .setDuration(LEAVE_FADE_OUT_MS).setInterpolator(new android.view.animation.DecelerateInterpolator(1.3f))
                 .withLayer()
                 .withEndAction(() -> {   // لا يُنفَّذ إن أُلغيت الحركة (دخول محادثة جديدة)
                     if (swap != null) swap.run();
                     reset(chat);
-                    if (page != null) {
-                        page.animate().cancel();
-                        page.setAlpha(0f);
-                        page.animate().alpha(1f).setDuration(LEAVE_FADE_IN_MS)
-                                .setInterpolator(new android.view.animation.DecelerateInterpolator(1.4f))
-                                .withLayer()
-                                .withEndAction(() -> page.setAlpha(1f)).start();
-                    }
                 }).start();
     }
 

@@ -23,7 +23,9 @@ public final class Tk {
     public static int chatSurface(boolean d) { return chatPal != null ? chatPal.chatBg : (d ? 0xFF17212B : BAB_BG); }
 
     // ثيم بابل النهاري: ألوان كريمية مأخوذة من اللقطة المرجعية (خلفية المحادثة + الحقول «البيضاء»: الهيدر وشريط الكتابة والأزرار الدائرية)
-    public static final int BAB_BG = 0xFFFAF6F3, BAB_FIELD = 0xFFFCF9F6, BAB_LINE = 0xFFEDE5DA, BAB_INPUT = 0xFFF6F0E8, BAB_INPUT_LINE = 0xFFE6DDD1;
+    public static final int BAB_BG = 0xFFFAF6F3, BAB_FIELD = 0xFFFCF9F6, BAB_LINE = 0xFFEDE5DA, BAB_INPUT = 0xFFFBF8F0, BAB_INPUT_LINE = 0xFFE9E2D3;
+    /** ثيم بابل (نهاري): لون كل كبسولات المحادثة — أبيض يميل قليلاً جداً إلى ذهبي الثيم (≈3% من #C29D30). الأشرطة الزجاجية حولها (BAB_BG) لا تتغير. */
+    public static final int BAB_CAPSULE = 0xFFFEFCF7;
     public static boolean chatDark = false;
     /** بابل نهاري (لا ثيم آخر مطبّق ولا ليلي)؟ */
     public static boolean babLight() { return chatPal == null && !chatDark; }
@@ -51,7 +53,7 @@ public final class Tk {
     /** ثيم غير بابل مطبّق؟ (CSS: html[data-chat-theme]:not([data-chat-theme="babylon"]) → --cr-card = --bubble-other ، --cr-line = --bubble-line ، --cr-ink = --text-other ، --cr-muted = --meta-other) */
     public static boolean themed() { return chatPal != null; }
     /** --cr-card داخل المحادثة */
-    public static int crCard(int fallback) { return chatPal != null ? chatPal.other : (babLight() && fallback == 0xFFFFFFFF ? BAB_FIELD : fallback); }
+    public static int crCard(int fallback) { return chatPal != null ? chatPal.other : (babLight() && fallback == 0xFFFFFFFF ? BAB_CAPSULE : fallback); }
     /** --cr-line داخل المحادثة */
     public static int crLine(int fallback) { return chatPal != null ? chatPal.line : (babLight() && (fallback == 0xFFE3E9F1 || fallback == 0xFFE1E8F1) ? BAB_LINE : fallback); }
     /** --cr-ink داخل المحادثة */
@@ -187,7 +189,7 @@ public final class Tk {
         ChatThemes.Spec sp = ChatThemes.byId(chatThemeId);
         if (chatPal != null) return new ChatPattern.Bg(v.getContext(), chatPal.chatBg, sp.symbols, chatPal.pattern, 0.08f);
         ChatThemes.Pal b = sp.pal(dark);
-        return new ChatPattern.Bg(v.getContext(), chatSurface(dark), sp.symbols, b.pattern, dark ? 0.06f : 0.07f);
+        return new ChatPattern.Bg(v.getContext(), chatSurface(dark), sp.symbols, b.pattern, dark ? 0.11f : 0.12f);   // بابل: النقوش أوضح بـ 5% (كانت .06 ليلي / .07 نهاري)
     }
 
     public static android.graphics.drawable.Drawable pattern(View v, boolean dark, int baseColor) {
@@ -242,7 +244,7 @@ public final class Tk {
         if (tag.equals("rqtO")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.accent : 0xFFC29D30); return true; }   // HTML: لون .reply-quote في رسائل الطرف الآخر = ذهبي accent-chat
         // ---- شريط الرد أعلى حقل الكتابة (.reply-preview-bar في الـ HTML)
         if (tag.equals("rpBar")) {      // بطاقة عائمة: radius 22، حدّ 1px، خلفية --cr-card، ظل خفيف (reply-bar-rounder)
-            x.setBackground(shape(chatPal != null ? (chatPal.other | 0xFF000000) : (dark ? 0xFF1E2A38 : BAB_FIELD), dp(x, 22),
+            x.setBackground(shape(chatPal != null ? (chatPal.other | 0xFF000000) : (dark ? 0xFF1E2A38 : BAB_CAPSULE), dp(x, 22),
                     chatPal != null ? chatPal.line : (dark ? 0x14FFFFFF : BAB_LINE), dp(x, 1)));   // كبسولة الرد بلون ثيم المحادثة
             x.setElevation(0f);
             return true;
@@ -333,11 +335,11 @@ public final class Tk {
             // #chatView #textInputBar : --cr-card (#1e2a38 / #fff) ، حدّ --cr-line ، انحناء 19px
             // الشريط الأبيض الحاوي لأزرار الصوتية والوسائط وحدّه يخضعان للثيم في النهاري والليلي (ثيم بابل = chatPal null يبقى كما هو)
             if (chatPal != null) x.setBackground(shape(chatPal.other, dp(x, 19), chatPal.line, dp(x, 1)));
-            else x.setBackground(shape(dark ? 0xFF1C2836 : BAB_FIELD, dp(x, 19), dark ? 0x14FFFFFF : BAB_LINE, dp(x, 1)));
+            else x.setBackground(shape(dark ? 0xFF1C2836 : BAB_CAPSULE, dp(x, 19), dark ? 0x14FFFFFF : BAB_LINE, dp(x, 1)));
             return true;
         }
         if (tag.equals("recbar")) {          // .recording-bar : surface + حدّ ، انحناء 18
-            x.setBackground(shape(dark ? 0xFF17212B : (chatPal != null ? chatPal.other : BAB_FIELD), dp(x, 18), dark ? 0x3394A3B8 : (chatPal != null ? chatPal.line : BAB_LINE), dp(x, 1)));
+            x.setBackground(shape(dark ? 0xFF17212B : (chatPal != null ? chatPal.other : BAB_CAPSULE), dp(x, 18), dark ? 0x3394A3B8 : (chatPal != null ? chatPal.line : BAB_LINE), dp(x, 1)));
             return true;
         }
         if (tag.equals("recbtn")) {          // زر الإيقاف/الإرسال: دائرة 42 بتدرّج ذهبي 145deg وظل ذهبي

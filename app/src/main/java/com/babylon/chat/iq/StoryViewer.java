@@ -936,7 +936,7 @@ public final class StoryViewer {
         dur = SDUR;
         final int token = ++loadToken;
 
-        // شريط التقدم: يظهر فقط عند عرض قصة مثبّتة (بعدد القصص المثبّتة، حدّها 6)
+        // شريط التقدم: يظهر دائماً (مثبّتة: بعدد المثبّتات حدّها 6، وغيرها: شريط لكل قصة في القائمة)
         rebuildBars();
 
         // الوسائط
@@ -1075,6 +1075,8 @@ public final class StoryViewer {
 
     /** حدّ تثبيت القصص. */
     private static final int MAX_PINS = 6;
+    /** أقصى عدد أشرطة تقدّم لقصص غير مثبّتة (نافذة تنتهي عند القصة الحالية). */
+    private static final int MAX_BARS = 10;
     /** فهارس القصص (في list) التي يمثّلها كل شريط بالترتيب. */
     private int[] barMap = new int[0];
 
@@ -1083,10 +1085,15 @@ public final class StoryViewer {
         if (bars == null) return;
         bars.removeAllViews();
         barMap = new int[0];
-        if (idx < 0 || idx >= list.size() || !list.get(idx).pinned) { bars.setVisibility(View.GONE); return; }
+        if (idx < 0 || idx >= list.size()) { bars.setVisibility(View.GONE); return; }
         ArrayList<Integer> pins = new ArrayList<>();
-        for (int k = 0; k < list.size(); k++) if (list.get(k).pinned) pins.add(k);
-        int n = Math.min(MAX_PINS, pins.size());
+        if (list.get(idx).pinned) {
+            for (int k = 0; k < list.size(); k++) if (list.get(k).pinned) pins.add(k);   // قصة مثبّتة: أشرطة المثبّتات (حتى 6)
+        } else {
+            // الشريط يظهر دائماً: حتى لو كانت القصة غير مثبّتة أو مؤرشفة أو غير ظاهرة في البروفايل → شريط لكل قصة في القائمة
+            for (int k = 0; k < list.size(); k++) pins.add(k);
+        }
+        int n = Math.min(list.get(idx).pinned ? MAX_PINS : MAX_BARS, pins.size());
         int pos = pins.indexOf(idx);
         int from = pos >= n ? pos - n + 1 : 0;
         barMap = new int[n];

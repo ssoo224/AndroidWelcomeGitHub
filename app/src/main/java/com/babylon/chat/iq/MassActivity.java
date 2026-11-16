@@ -455,13 +455,6 @@ public class MassActivity extends Activity {
                 return g;
             }
 
-            int babylonCapsuleColor() {
-                int gold = (Tk.chatPal != null ? Tk.chatPal.accent : 0xFFC29D30) | 0xFF000000;
-                return androidx_blend(0xFFFFFFFF, gold, 0.025f);
-            }
-            GradientDrawable babylonCapsule(float radiusDp, int stroke) {
-                return shape(babylonCapsuleColor(), radiusDp, stroke);
-            }
             int cBg() { return Tk.pageBg(dark); }
             int cSf() { return dark ? 0xFF17212B : 0xFFFFFFFF; }
             int cBorder() { return Tk.border(dark); }
@@ -481,20 +474,22 @@ public class MassActivity extends Activity {
             int cChatBg() { return Tk.chatSurface(dark); }
 
             /** حقل الكتابة: #f1f5fa / rgba(127,140,160,.10) ، عند التركيز أبيض / .16 وحدّ #c9cfd8 / #8b94a1 ، انحناء 15 */
-            GradientDrawable msgInpBg(boolean focus) {
+            GradientDrawable msgInpBg(boolean focus) { return msgInpBg(focus, false); }
+
+            /** composer=true: حقل الكتابة داخل شريط الكتابة الرئيسي (ثيم بابل) بنفس لون خلفية المحادثة؛ false: حقل البحث كما كان. */
+            GradientDrawable msgInpBg(boolean focus, boolean composer) {
                 GradientDrawable g = new GradientDrawable();
                 g.setCornerRadius(dp(15));
                 // أثناء الكتابة (نهاري، كل الثيمات): الحقل الداخلي أبيض بصبغة خفيفة جداً من لون الثيم
                 final int acc = (Tk.chatPal != null ? Tk.chatPal.accent : 0xFFC29D30) | 0xFF000000;
-                if (!dark && ChatThemes.isBabylon(Tk.chatThemeId)) {
-                    // كبسولات بابل الفاتحة في الطور النهاري فقط، بلمسة ذهبية تكاد لا تُلاحظ.
-                    g.setColor(androidx_blend(0xFFFFFFFF, acc, 0.025f));
-                    g.setStroke(dp(1), focus ? androidx_blend(0xFFD9D1C1, acc, 0.12f) : 0x00000000);
-                    return g;
-                }
                 if (Tk.chatPal != null) {   // الطورين الليلي والنهاري: ألوان الثيم (داخل شريط الكتابة --cr-card)
                     g.setColor(focus && !dark ? androidx_blend(0xFFFFFFFF, acc, 0.045f) : Tk.chatPal.chatBg);
                     g.setStroke(dp(1), focus ? ((Tk.chatPal.accent & 0x00FFFFFF) | 0x99000000) : 0x00000000);
+                    return g;
+                }
+                if (composer) {   // بابل: نفس لون خلفية المحادثة (مثل بقية الثيمات: chatBg داخل الشريط)
+                    g.setColor(Tk.chatSurface(dark) | 0xFF000000);
+                    g.setStroke(dp(1), focus ? (dark ? 0xFF8B94A1 : 0xFFD9CDBB) : (dark ? 0x00000000 : Tk.BAB_INPUT_LINE));
                     return g;
                 }
                 g.setColor(focus ? (dark ? 0x297F8CA0 : androidx_blend(0xFFFFFFFF, acc, 0.045f)) : (dark ? 0x1A7F8CA0 : Tk.BAB_INPUT));
@@ -533,7 +528,7 @@ public class MassActivity extends Activity {
                 hintLeft(mi);
                 // ملصقات/GIF/صور من لوحة المفاتيح
                 if (mi instanceof RichEditText) ((RichEditText) mi).setOnRichContent((uri, mime, release) -> sendKeyboardContent(uri, mime, release));
-                mi.setOnFocusChangeListener((vw, f) -> { mi.setBackground(msgInpBg(f)); if (f) Tk.selectionTint(mi, selAcc()); });
+                mi.setOnFocusChangeListener((vw, f) -> { mi.setBackground(msgInpBg(f, true)); if (f) Tk.selectionTint(mi, selAcc()); });
                 syncSend();
             }
 
@@ -586,7 +581,7 @@ public class MassActivity extends Activity {
                             if (T != null) { T.setTextColor(cText()); T.setHintTextColor(cMuted()); }
                         }
                         else if (k.equals("msginp")) {
-                            x.setBackground(msgInpBg(x.hasFocus()));
+                            x.setBackground(msgInpBg(x.hasFocus(), true));
                             if (x instanceof EditText) Tk.selectionTint((EditText) x, selAcc());   // تحديد/مقبضا/مؤشر حقل المحادثة بلون ثيم المحادثة (ذهبي في بابل)
                             if (T != null) {
                                 boolean th = Tk.chatPal != null;   // الليلي والنهاري يتبعان الثيم
@@ -675,13 +670,6 @@ public class MassActivity extends Activity {
                             else if (k.equals("green")) T.setTextColor(0xFF4ADE80);
                             else if (k.equals("wh")) T.setTextColor(0xFFFFFFFF);
                         }
-                    }
-                }
-                // كبسولات رأس المحادثة والرد فقط؛ لا نلمس الأشرطة المحيطة بها.
-                if (!dark && ChatThemes.isBabylon(Tk.chatThemeId)) {
-                    if (x == v("chatTitle") || x == v("chatBack") || x == v("chatMore") || x == v("replyPreviewBar")) {
-                        int oldStroke = 0;
-                        x.setBackground(babylonCapsule(x == v("replyPreviewBar") ? 14 : 18, oldStroke));
                     }
                 }
                 if (x instanceof TextView) tintIcons((TextView) x);
@@ -1163,9 +1151,15 @@ public class MassActivity extends Activity {
                         lp.setMarginEnd(dp(15));
                         t.setLayoutParams(lp);
                         t.setGravity(Gravity.CENTER);
-                        t.setBackground(shape(goldA(0x21), 11, 0));
+                        t.setBackground(null);   // أيقونات SVG بلا مربع ذهبي حولها
                         t.setTextSize(17);
                         t.setTextColor(cGold());
+                        android.graphics.drawable.Drawable[] icd = t.getCompoundDrawablesRelative();
+                        if (icd[0] != null) {   // الأيقونة أكبر بـ 3dp (20 ← 23)
+                            android.graphics.drawable.Drawable d0 = icd[0].mutate();
+                            d0.setBounds(0, 0, dp(23), dp(23));
+                            t.setCompoundDrawablesRelative(d0, null, null, null);
+                        }
                     }
                     setTab(v("pTabStoriesBtn"), tabStories);
                 } catch (Throwable ignored) { }
@@ -1526,7 +1520,11 @@ public class MassActivity extends Activity {
                 final String from = curPage;
                 BabylonFx.cancelTabSlide();   // تبديل سريع بين التبويبات: لا يبقى انتقال سابق يُظهر صفحته فوق الحالية
                 for (String pg0 : pages) { View pv0 = v(pg0); if (pv0 != null && (pv0.getTranslationX() != 0f)) { pv0.animate().cancel(); pv0.setTranslationX(0f); pv0.setAlpha(1f); } }
+                for (String pg1 : pages) { View pv1 = v(pg1); if (pv1 != null && pv1.getTranslationY() != 0f) pv1.setTranslationY(0f); }
                 final int tabGen0 = BabylonFx.tabGenNow();
+                // أعلى منطقة الصفحات قبل التبديل: (شريط الحالة إن لم تكن صفحة ملف شخصي) + (الهيدر إن كان ظاهراً)
+                final boolean hdrOld = v("mainHeader") != null && v("mainHeader").getVisibility() == View.VISIBLE;
+                final int topOld = (isProfilePage(curPage) ? 0 : sbTop) + (hdrOld ? dp(62) : 0);
                 prevPage = curPage; curPage = p;
                 if (stories != null && !p.equals("homeView")) stories.collapseNow();   // الانتقال لصفحة/قسم آخر يطوي القصص
                 applyInsets();
@@ -1550,12 +1548,17 @@ public class MassActivity extends Activity {
                 final View to = v(p);
                 if (slide) {
                     final View fv = v(from);
+                    // الهيدر وحشوة شريط الحالة يتغيّران فوراً فيدفعان الصفحة الخارجة للأسفل/الأعلى قبل أن تنزلق (فراغ + هيدر باهت فوقها):
+                    // نعوّض الفرق بإزاحة عمودية مؤقتة فتبقى في مكانها حتى ينتهي الانزلاق.
+                    final int topNew = (isProfilePage(p) ? 0 : sbTop) + ((home && !chatSelMode) ? dp(62) : 0);
+                    fv.setTranslationY(-(topNew - topOld));
                     to.setVisibility(View.INVISIBLE);
                     final String pp = p;
                     to.post(() -> {
                         if (tabGen0 != BabylonFx.tabGenNow()) return;   // حلّ مكانه تبديل أحدث
                         BabylonFx.tabSlide(fv, to, ti > fi ? -1 : 1, cBg(), () -> {
                             fv.setVisibility(View.GONE);
+                            fv.setTranslationY(0f);
                             to.setVisibility(View.VISIBLE);
                         });
                         // العناصر تدخل مع الانزلاق نفسه (كما في الـ HTML) لا بعد انتهائه، فلا تختفي بعد أن تظهر
@@ -4700,9 +4703,9 @@ public class MassActivity extends Activity {
                     try { buildChats(); } catch (Throwable ignored) { }
                     try { buildStories(); } catch (Throwable ignored) { }
                 };
+                rebuild.run();   // القوائم تُحدَّث وهي ما زالت خلف المحادثة (لا تُرى)، كي تنكشف محدَّثة أثناء التلاشي الشفاف
                 BabylonFx.chatLeave(v("chatView"), v("mainPage"), () -> {
                     vis("chatView", false); syncBars(); vpPlace();
-                    rebuild.run();
                 });   // تلاشي المحادثة ثم إخفاؤها ثم تلاشي ظهور الصفحة الرئيسية (والشريط العائم ينتقل لأسفل الصفحة)
                 uiH.postDelayed(rebuild, 600);   // احتياط: إن أُلغيت الحركة (دخول محادثة أخرى بسرعة) لا تبقى القائمة بلا تحديث
                 if (messagesListener != null) { messagesListener.remove(); messagesListener = null; }
@@ -6125,7 +6128,7 @@ public class MassActivity extends Activity {
                     row.addView(num, new LinearLayout.LayoutParams(dp(30), -2));
                     TextView t = new TextView(act);
                     t.setText(String.valueOf(pm.get("text") == null ? "" : pm.get("text")));
-                    t.setTextSize(14); t.setTextColor(cText());
+                    t.setTextSize(14); t.setTextColor(Tk.crInk(cText()));
                     t.setMaxLines(1); t.setEllipsize(android.text.TextUtils.TruncateAt.END);
                     t.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
                     t.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
@@ -6142,16 +6145,41 @@ public class MassActivity extends Activity {
                 sv.setVerticalScrollBarEnabled(false);
                 sv.setOverScrollMode(View.OVER_SCROLL_NEVER);
                 sv.addView(col);
-                FrameLayout card = new FrameLayout(act);
+                // القائمة بنفس ألوان حقول المحادثة (نفس لون وحدّ شريط الرسالة المثبتة وحقل الكتابة)
+                LinearLayout card = new LinearLayout(act);
+                card.setOrientation(LinearLayout.VERTICAL);
                 GradientDrawable bg = new GradientDrawable();
-                bg.setColor(dark ? 0xFF1B2230 : 0xFFFFFFFF);
+                bg.setColor(Tk.crCard(cSf()) | 0xFF000000);
                 bg.setCornerRadius(dp(18));
-                bg.setStroke(dp(1), dark ? 0xFF2E3848 : 0xFFE1E6EE);
+                bg.setStroke(dp(1), Tk.crLine(cBorder()));
                 card.setBackground(bg);
                 card.setClipToOutline(true);
-                card.addView(sv, new FrameLayout.LayoutParams(-1, -1));
+                card.addView(sv, new LinearLayout.LayoutParams(-1, 0, 1f));
+                // زر «إلغاء تحديد الكل»: ثابت أسفل القائمة، يلغي تثبيت كل الرسائل بعد تأكيد
+                View sep = new View(act);
+                sep.setBackgroundColor(Tk.crLine(cBorder()));
+                card.addView(sep, new LinearLayout.LayoutParams(-1, dp(1)));
+                TextView clr = new TextView(act);
+                clr.setText("إلغاء تحديد الكل");
+                clr.setTextSize(14); clr.setTextColor(accent); clr.setTypeface(null, android.graphics.Typeface.BOLD);
+                clr.setGravity(Gravity.CENTER);
+                clr.setClickable(true);
+                GradientDrawable clrPr = new GradientDrawable();
+                clrPr.setColor(selAccA(0x22));
+                android.graphics.drawable.StateListDrawable clrSl = new android.graphics.drawable.StateListDrawable();
+                clrSl.addState(new int[]{android.R.attr.state_pressed}, clrPr);
+                clrSl.addState(new int[]{}, new android.graphics.drawable.ColorDrawable(0));
+                clr.setBackground(clrSl);
+                clr.setOnClickListener(x -> {
+                    pwRef[0].dismiss();
+                    MsgMenu.showMsgConfirm(act, dark, "إلغاء تحديد الكل", "هل تريد إلغاء تثبيت كل الرسائل المثبتة؟", "تأكيد", () -> {
+                        pinIdx = -1;
+                        savePins(new ArrayList<>());
+                    });
+                });
+                card.addView(clr, new LinearLayout.LayoutParams(-1, dp(48)));
                 int w = Math.max(anchor.getWidth(), dp(240));
-                int h = Math.min(dp(40) + pins.size() * dp(44) + dp(12), dp(320));
+                int h = Math.min(dp(40) + pins.size() * dp(44) + dp(12) + dp(49), dp(360));
                 android.widget.PopupWindow pw = new android.widget.PopupWindow(card, w, h, true);
                 pwRef[0] = pw;
                 pw.setOutsideTouchable(true);
@@ -6182,9 +6210,7 @@ public class MassActivity extends Activity {
                 bar.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
                 bar.setGravity(Gravity.CENTER_VERTICAL);
                 bar.setPadding(dp(6), dp(6), dp(10), dp(6));
-                bar.setBackground(!dark && ChatThemes.isBabylon(Tk.chatThemeId)
-                        ? babylonCapsule(18, Tk.crLine(cBorder()))
-                        : shape(Tk.crCard(cSf()), 18, Tk.crLine(cBorder())));   // لون الشريط/حدوده يبقى كما هو
+                bar.setBackground(shape(Tk.crCard(cSf()), 18, Tk.crLine(cBorder())));   // .pinned-bar{background:var(--cr-card);border:1px solid var(--cr-line)}
                 LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(-1, -2);
                 blp.setMargins(dp(10), -dp(3), dp(10), 0);   // الهيدر paddingBottom=6dp ← الفاصل الفعلي 3dp
                 bar.setLayoutParams(blp);
@@ -6209,8 +6235,9 @@ public class MassActivity extends Activity {
                     bar.addView(listBtn, new LinearLayout.LayoutParams(dp(36), dp(36)));
                 }
 
+                if (n <= 2) {   // أكثر من رسالتين: يختفي دبوس إلغاء التثبيت ويبقى زر الخطين (قائمة المثبتات فيها إلغاء الكل)
                 ImageView xb = new ImageView(act);
-                xb.setImageResource(R.drawable.ic_mm_unpin); xb.setColorFilter(selAcc());
+                xb.setImageResource(R.drawable.ic_sel_unpin); xb.setColorFilter(selAcc());   // نفس دبوس إلغاء التثبيت في شريط تحديد الرسالة
                 xb.setPadding(dp(8), dp(8), dp(8), dp(8));
                 xb.setContentDescription("إلغاء التثبيت");
                 xb.setOnClickListener(x -> MsgMenu.showMsgConfirm(act, dark, "إلغاء التثبيت", "هل تريد إلغاء تثبيت هذه الرسالة؟", "تأكيد", () -> {
@@ -6222,6 +6249,7 @@ public class MassActivity extends Activity {
                 }));
                 BabylonFx.press(xb, 0.9f);
                 bar.addView(xb, new LinearLayout.LayoutParams(dp(36), dp(36)));
+                }
 
                 // نص الرسالة المثبتة: ملاصق لليمين
                 LinearLayout col = new LinearLayout(act);
@@ -7836,7 +7864,7 @@ public class MassActivity extends Activity {
                 card.setPadding(dp(8), dp(4), dp(8), dp(4));
                 GradientDrawable bg = new GradientDrawable();
                 // نفس لون بطاقات ثيم المحادثة (بابل نهاري: كريمي، ثيم آخر: --cr-card)، لا أبيض/أزرق غريب
-                bg.setColor(Tk.chatPal != null ? (Tk.chatPal.other | 0xFF000000) : (dark ? 0xFF17212B : Tk.BAB_FIELD));
+                bg.setColor(Tk.chatPal != null ? (Tk.chatPal.other | 0xFF000000) : (dark ? 0xFF17212B : Tk.BAB_CAPSULE));
                 bg.setCornerRadius(dp(22));
                 bg.setStroke(dp(1), Tk.chatPal != null ? Tk.chatPal.line : (dark ? 0xFF2B3A4C : Tk.BAB_LINE));
                 card.setBackground(bg);
@@ -8021,7 +8049,6 @@ public class MassActivity extends Activity {
 
             /** لون لوحة البحث (وشريط الإشعارات خلفها): --cr-card للثيم، وإلا بطاقة بيضاء/#17212B. معتم دائماً. */
             int csPanelBg() {
-                if (!dark && ChatThemes.isBabylon(Tk.chatThemeId)) return babylonCapsuleColor();
                 int c = Tk.crCard(cSf());
                 int a = (c >>> 24) & 0xFF;
                 if (a < 255 && Tk.chatPal != null) return androidx_blend(Tk.chatPal.chatBg | 0xFF000000, c, a / 255f);
@@ -8549,7 +8576,7 @@ public class MassActivity extends Activity {
             void showMediaMenu(final View anchor) {
                 if (anchor == null) return;
                 final boolean th = Tk.chatPal != null;
-                final int baseC = th ? Tk.chatPal.other : (dark ? 0xFF1C2836 : Tk.BAB_FIELD);          // خلفية شريط الكتابة (أقرب خلفية معتمة للحقل)
+                final int baseC = th ? Tk.chatPal.other : (dark ? 0xFF1C2836 : Tk.BAB_CAPSULE);          // خلفية شريط الكتابة (أقرب خلفية معتمة للحقل)
                 final int inpC = th ? Tk.chatPal.chatBg : (dark ? 0x1A7F8CA0 : Tk.BAB_INPUT);          // لون حقل الكتابة فوقها
                 final int ink = th ? Tk.crMuted(cMuted()) : cMuted();                                 // لون أيقونة زر الوسائط
                 final int pad = dp(14);                                                                // هامش النافذة لظهور الظل
