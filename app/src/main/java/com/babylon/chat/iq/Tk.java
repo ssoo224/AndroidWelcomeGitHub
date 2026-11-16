@@ -24,8 +24,15 @@ public final class Tk {
 
     // ثيم بابل النهاري: ألوان كريمية مأخوذة من اللقطة المرجعية (خلفية المحادثة + الحقول «البيضاء»: الهيدر وشريط الكتابة والأزرار الدائرية)
     public static final int BAB_BG = 0xFFFAF6F3, BAB_FIELD = 0xFFFCF9F6, BAB_LINE = 0xFFEDE5DA, BAB_INPUT = 0xFFFBF8F0, BAB_INPUT_LINE = 0xFFE9E2D3;
-    /** ثيم بابل (نهاري): لون كل كبسولات المحادثة — أبيض يميل قليلاً جداً إلى ذهبي الثيم (≈3% من #C29D30). الأشرطة الزجاجية حولها (BAB_BG) لا تتغير. */
-    public static final int BAB_CAPSULE = 0xFFFEFCF7;
+    /** ثيم بابل (نهاري): لون كل كبسولات المحادثة — اللون القديم #FEFCF7 مفتَّح نحو الأبيض بنسبة 50% → #FFFEFB. الأشرطة الزجاجية حولها (BAB_BG) لا تتغير. */
+    public static final int BAB_CAPSULE = 0xFFFFFEFB;
+    /** ثيم بابل (ليلي): لون الكبسولات = لون شريط الكتابة (#1C2836) — يُستعمل لشريطَي التثبيت والرد ليتطابقا مع بقية الكبسولات. */
+    public static final int BAB_CAPSULE_DARK = 0xFF1C2836;
+    /** لون الحقل الداخلي داخل أي كبسولة (الكتابة/البحث): لون خلفية المحادثة، تماماً كبقية الثيمات (chatBg داخل --cr-card). */
+    public static int composerInner(boolean dark) {
+        if (chatPal != null) return (chatPal.inner != 0) ? chatPal.inner : chatPal.chatBg;
+        return chatSurface(dark) | 0xFF000000;   // بابل نهاري: لون خلفية المحادثة (مثل بقية الثيمات: chatBg داخل الكبسولة)
+    }
     public static boolean chatDark = false;
     /** بابل نهاري (لا ثيم آخر مطبّق ولا ليلي)؟ */
     public static boolean babLight() { return chatPal == null && !chatDark; }
@@ -239,12 +246,12 @@ public final class Tk {
             return true;
         }
         if (tag.equals("rqbM") || tag.equals("rqbO")) { x.setBackgroundColor(rqAccent(tag.equals("rqbM"))); return true; }   // الخط الجانبي لاقتباس الرد
-        if (tag.equals("rqnM") || tag.equals("rqnO")) { if (t != null) t.setTextColor(chatPal != null ? rqAccent(tag.equals("rqnM")) : 0xFFFFFFFF); return true; }   // اسم/عنوان اقتباس الرد («رد على القصة»): بابل أبيض، وبقية الثيمات تتبع لون الثيم
+        if (tag.equals("rqnM") || tag.equals("rqnO")) { if (t != null) t.setTextColor(!dark ? 0xFF000000 : (chatPal != null ? rqAccent(tag.equals("rqnM")) : 0xFFFFFFFF)); return true; }   // اسم/عنوان اقتباس الرد («أنت» / «رد على قصتك»): نهاري (كل الثيمات) أسود #000000؛ ليلي: لون الثيم أو أبيض في بابل
         if (tag.equals("rqtM")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.textMine : GOLD_INK); return true; }
         if (tag.equals("rqtO")) { if (t != null) t.setTextColor(chatPal != null ? chatPal.accent : 0xFFC29D30); return true; }   // HTML: لون .reply-quote في رسائل الطرف الآخر = ذهبي accent-chat
         // ---- شريط الرد أعلى حقل الكتابة (.reply-preview-bar في الـ HTML)
         if (tag.equals("rpBar")) {      // بطاقة عائمة: radius 22، حدّ 1px، خلفية --cr-card، ظل خفيف (reply-bar-rounder)
-            x.setBackground(shape(chatPal != null ? (chatPal.other | 0xFF000000) : (dark ? 0xFF1E2A38 : BAB_CAPSULE), dp(x, 22),
+            x.setBackground(shape(chatPal != null ? (chatPal.other | 0xFF000000) : (dark ? BAB_CAPSULE_DARK : BAB_CAPSULE), dp(x, 22),
                     chatPal != null ? chatPal.line : (dark ? 0x14FFFFFF : BAB_LINE), dp(x, 1)));   // كبسولة الرد بلون ثيم المحادثة
             x.setElevation(0f);
             return true;
@@ -332,10 +339,10 @@ public final class Tk {
             return true;
         }
         if (tag.equals("composer")) {        // مدخل الرسائل العائم
-            // #chatView #textInputBar : --cr-card (#1e2a38 / #fff) ، حدّ --cr-line ، انحناء 19px
+            // #chatView #textInputBar : --cr-card (#1e2a38 / #fff) ، حدّ --cr-line ، انحناء 19px (+3dp = 22dp)
             // الشريط الأبيض الحاوي لأزرار الصوتية والوسائط وحدّه يخضعان للثيم في النهاري والليلي (ثيم بابل = chatPal null يبقى كما هو)
-            if (chatPal != null) x.setBackground(shape(chatPal.other, dp(x, 19), chatPal.line, dp(x, 1)));
-            else x.setBackground(shape(dark ? 0xFF1C2836 : BAB_CAPSULE, dp(x, 19), dark ? 0x14FFFFFF : BAB_LINE, dp(x, 1)));
+            if (chatPal != null) x.setBackground(shape(chatPal.other, dp(x, 22), chatPal.line, dp(x, 1)));
+            else x.setBackground(shape(dark ? 0xFF1C2836 : BAB_CAPSULE, dp(x, 22), dark ? 0x14FFFFFF : BAB_LINE, dp(x, 1)));
             return true;
         }
         if (tag.equals("recbar")) {          // .recording-bar : surface + حدّ ، انحناء 18

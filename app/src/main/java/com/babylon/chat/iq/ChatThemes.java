@@ -30,14 +30,31 @@ public final class ChatThemes {
         public final float mineAngle;
         public final int mineFrom, mineTo;
         public final float patternOp;
+        /** لون كبسولة الكتابة الداخلية داخل الكبسولة الأم (نهاري فقط): هو نفس لون الكبسولة قبل التفتيح. 0 = غير مضبوط (يُستعمل chatBg). */
+        public final int inner;
 
         Pal(int chatBg, float mineAngle, int mineFrom, int mineTo, int other, int textMine, int textOther,
             int accent, int tick, int metaOther, int line, int pattern, float patternOp) {
+            this(chatBg, mineAngle, mineFrom, mineTo, other, textMine, textOther, accent, tick, metaOther, line, pattern, patternOp, 0);
+        }
+
+        Pal(int chatBg, float mineAngle, int mineFrom, int mineTo, int other, int textMine, int textOther,
+            int accent, int tick, int metaOther, int line, int pattern, float patternOp, int inner) {
+            this.inner = inner;
             this.chatBg = chatBg; this.mineAngle = mineAngle; this.mineFrom = mineFrom; this.mineTo = mineTo;
             this.other = other; this.textMine = textMine; this.textOther = textOther; this.accent = accent;
             this.tick = tick; this.metaOther = metaOther; this.line = line; this.pattern = pattern; this.patternOp = patternOp;
         }
+
+        /** الطور النهاري: كل كبسولات المحادثة (other) أبيض أكثر بـ 50%، وكبسولة الكتابة الداخلية تأخذ اللون القديم. */
+        Pal whitenedLight() {
+            return new Pal(chatBg, mineAngle, mineFrom, mineTo, mix(other, 0xFFFFFFFF, CAPSULE_WHITEN), textMine, textOther,
+                    accent, tick, metaOther, line, pattern, patternOp, other | 0xFF000000);
+        }
     }
+
+    /** نسبة التبييض (50%) لكبسولات المحادثة في الطور النهاري. */
+    public static final float CAPSULE_WHITEN = 0.5f;
 
     public static final class Spec {
         public final String id, name, hero;
@@ -46,7 +63,8 @@ public final class ChatThemes {
 
         Spec(String id, String name, String hero, String[] symbols, Pal base, Pal dark, Pal light) {
             this.id = id; this.name = name; this.hero = hero; this.symbols = symbols;
-            this.base = base; this.dark = dark; this.light = light;
+            this.base = base; this.dark = dark;
+            this.light = light;   // بقية الثيمات تبقى كما هي (التفتيح لثيم بابل فقط، في Tk.BAB_CAPSULE)
         }
 
         /** themeFor(id) في الـ HTML: base مدموجة مع modes[dark|light] إن وُجدت */

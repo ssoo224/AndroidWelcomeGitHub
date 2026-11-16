@@ -165,7 +165,7 @@ public final class ChatPreview {
         otherTime.setTextColor(p.metaOther);
 
         mineText.setTextSize(fontSp);
-        mineText.setTextColor(p.textMine);
+        mineText.setTextColor(dark ? p.textMine : 0xFFFFFFFF);   // الطور النهاري: نص «صباح النور حياك الله» أبيض
         int mineMeta = p.textMine;
         int tickColor = p.tick;
         mineTime.setTextColor(mineMeta);

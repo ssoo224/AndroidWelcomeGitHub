@@ -73,6 +73,16 @@ import java.util.Map;
 
 public class MassActivity extends Activity {
 
+    // خيوط مشتركة لفتح المحادثة (على مستوى الصنف الخارجي لأن UI صنف محلي لا يقبل حقولاً static)
+    static final java.util.concurrent.ExecutorService CACHE_EXEC = java.util.concurrent.Executors.newSingleThreadExecutor();   // حفظ خزن الرسائل بالترتيب وخارج الخيط الرئيسي
+    static final java.util.concurrent.ThreadPoolExecutor IMG_EXEC = newImgExec();   // فكّ الصور: 3 خيوط فقط (كان خيط لكل صورة)، والأحدث (أسفل المحادثة) أولاً
+    static java.util.concurrent.ThreadPoolExecutor newImgExec() {
+        java.util.concurrent.ThreadPoolExecutor ex = new java.util.concurrent.ThreadPoolExecutor(3, 3, 30, java.util.concurrent.TimeUnit.SECONDS,
+                new java.util.concurrent.LinkedBlockingDeque<Runnable>() { @Override public boolean offer(Runnable r) { return offerFirst(r); } });
+        ex.allowCoreThreadTimeOut(true);
+        return ex;
+    }
+
     private MassBinding binding;
     private FirebaseAuth mAuth;
     private FirebaseUser currentUser;
@@ -479,20 +489,20 @@ public class MassActivity extends Activity {
             /** composer=true: حقل الكتابة داخل شريط الكتابة الرئيسي (ثيم بابل) بنفس لون خلفية المحادثة؛ false: حقل البحث كما كان. */
             GradientDrawable msgInpBg(boolean focus, boolean composer) {
                 GradientDrawable g = new GradientDrawable();
-                g.setCornerRadius(dp(15));
+                g.setCornerRadius(dp(composer ? 18 : 15));   // حقل الكتابة الداخلي في الشريط: +3dp
                 // أثناء الكتابة (نهاري، كل الثيمات): الحقل الداخلي أبيض بصبغة خفيفة جداً من لون الثيم
                 final int acc = (Tk.chatPal != null ? Tk.chatPal.accent : 0xFFC29D30) | 0xFF000000;
                 if (Tk.chatPal != null) {   // الطورين الليلي والنهاري: ألوان الثيم (داخل شريط الكتابة --cr-card)
-                    g.setColor(focus && !dark ? androidx_blend(0xFFFFFFFF, acc, 0.045f) : Tk.chatPal.chatBg);
+                    g.setColor(focus && !dark ? androidx_blend(0xFFFFFFFF, acc, 0.045f) : Tk.composerInner(dark));   // نهاري: نفس لون الكبسولة قبل التفتيح
                     g.setStroke(dp(1), focus ? ((Tk.chatPal.accent & 0x00FFFFFF) | 0x99000000) : 0x00000000);
                     return g;
                 }
                 if (composer) {   // بابل: نفس لون خلفية المحادثة (مثل بقية الثيمات: chatBg داخل الشريط)
-                    g.setColor(Tk.chatSurface(dark) | 0xFF000000);
+                    g.setColor(Tk.composerInner(dark));   // نهاري: نفس لون الكبسولة قبل التفتيح
                     g.setStroke(dp(1), focus ? (dark ? 0xFF8B94A1 : 0xFFD9CDBB) : (dark ? 0x00000000 : Tk.BAB_INPUT_LINE));
                     return g;
                 }
-                g.setColor(focus ? (dark ? 0x297F8CA0 : androidx_blend(0xFFFFFFFF, acc, 0.045f)) : (dark ? 0x1A7F8CA0 : Tk.BAB_INPUT));
+                g.setColor(focus ? (dark ? 0x297F8CA0 : androidx_blend(0xFFFFFFFF, acc, 0.045f)) : (dark ? 0x1A7F8CA0 : (Tk.chatSurface(false) | 0xFF000000)));   // حقل البحث داخل لوحة الكبسولة: لون خلفية المحادثة كبقية الثيمات
                 g.setStroke(dp(1), focus ? (dark ? 0xFF8B94A1 : 0xFFD9CDBB) : (dark ? 0x00000000 : Tk.BAB_INPUT_LINE));
                 return g;
             }
@@ -585,7 +595,7 @@ public class MassActivity extends Activity {
                             if (x instanceof EditText) Tk.selectionTint((EditText) x, selAcc());   // تحديد/مقبضا/مؤشر حقل المحادثة بلون ثيم المحادثة (ذهبي في بابل)
                             if (T != null) {
                                 boolean th = Tk.chatPal != null;   // الليلي والنهاري يتبعان الثيم
-                                T.setTextColor(th ? Tk.crInk(cText()) : cText());
+                                T.setTextColor(dark ? (th ? Tk.crInk(cText()) : cText()) : 0xFF3A404A);   // النهاري (كل الثيمات): نص الكتابة أسود رمادي بدل الأسود؛ الليلي كما كان
                                 T.setHintTextColor(th ? Tk.crMuted(cMuted()) : cMuted());
                             }
                         }
@@ -1555,7 +1565,7 @@ public class MassActivity extends Activity {
                     to.setVisibility(View.INVISIBLE);
                     final String pp = p;
                     to.post(() -> {
-                        if (tabGen0 != BabylonFx.tabGenNow()) return;   // حلّ مكانه تبديل أحدث
+                        if (tabGen0 != BabylonFx.tabGenNow()) { settleTabs(pp); return; }   // حلّ مكانه تبديل أحدث (ونضمن ألا تبقى الصفحة القديمة ظاهرة)
                         BabylonFx.tabSlide(fv, to, ti > fi ? -1 : 1, cBg(), () -> {
                             fv.setVisibility(View.GONE);
                             fv.setTranslationY(0f);
@@ -1572,6 +1582,35 @@ public class MassActivity extends Activity {
                 if (home && !hdrWas) BabylonFx.barDown(v("mainHeader"), 0);
                 syncBars();
                 vpPlace();   // الشريط العائم يتبع الصفحة (أسفل فوق أزرار التنقل، أو أعلى الصفحة حيث لا أزرار)
+                // شبكة أمان: مهما حصل للأنيميشن (إلغاء/سباق/إطار ضائع) تُثبَّت الصفحة الهدف وحدها بعد انتهاء المدة
+                final String settleTarget = p;
+                act.getWindow().getDecorView().postDelayed(() -> settleTabs(settleTarget), 480);
+            }
+
+            /** يفرض الحالة النهائية الصحيحة بعد التنقل: الصفحة الحالية وحدها ظاهرة بلا إزاحة/شفافية عالقة، والباقي مخفي. */
+            void settleTabs(String target) {
+                try {
+                    if (target == null || !target.equals(curPage)) return;   // تبديل أحدث حلّ مكانه
+                    for (String pg : pages) {
+                        View pv = v(pg);
+                        if (pv == null) continue;
+                        boolean on = pg.equals(target);
+                        if (pv.getVisibility() != (on ? View.VISIBLE : View.GONE)) vis(pg, on);
+                        if (on) {
+                            if (pv.getTranslationX() != 0f) pv.setTranslationX(0f);
+                            if (pv.getTranslationY() != 0f) pv.setTranslationY(0f);
+                        } else {
+                            pv.setTranslationX(0f); pv.setTranslationY(0f);
+                        }
+                    }
+                    boolean home = "homeView".equals(target);
+                    View hd = v("mainHeader");
+                    if (hd != null && home && !chatSelMode && hd.getVisibility() == View.VISIBLE) {
+                        if (hd.getAlpha() < 1f) hd.setAlpha(1f);
+                        if (hd.getTranslationY() != 0f) hd.setTranslationY(0f);
+                    }
+                    setNav(target);
+                } catch (Throwable ignored) { }
             }
 
             void setNav(String p) {
@@ -3447,6 +3486,7 @@ public class MassActivity extends Activity {
                     ls.setSingleLine(true); ls.setEllipsize(TextUtils.TruncateAt.END); ls.setIncludeFontPadding(false);
                     ls.setTextAlignment(View.TEXT_ALIGNMENT_GRAVITY); ls.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);   // آخر رسالة (ومنها «رداً على القصة») من اليمين بجانب الصورة
                     ls.setTextColor(hasUnread ? (dark ? cText() : 0xFF000000) : (dark ? 0xFF8798AA : 0xFF6B7A8C));
+                    if (mediaKind == 0) ls.setText(MsgViews.iconize(act, c[1], ls.getCurrentTextColor(), 15));   // 📎 ملف / 🎞 GIF → أيقونة SVG
                     if (hasUnread) {   // آخر رسالة غير مقروءة بخط أسود ثقيل
                         ls.setTag("keepbold");
                         ls.setTypeface(Build.VERSION.SDK_INT >= 28 ? android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, 900, false)
@@ -4234,7 +4274,9 @@ public class MassActivity extends Activity {
                         final boolean rebuilt = !cacheRenderedIds.isEmpty() && reconcileCachedMsgs(snapshots);
                         final boolean liveBatch = !wasFirst && !rebuilt;
                         // getDocumentChanges() الافتراضي يتجاهل تغيّرات الميتا (انتقال hasPendingWrites من true إلى false عند تأكيد السيرفر)، فتبقى علامة الساعة؛ INCLUDE يُصدرها كـ MODIFIED
-                        for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firestore.MetadataChanges.INCLUDE)) {
+                        beginRenderBatch(chatId);
+                    try {
+for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firestore.MetadataChanges.INCLUDE)) {
                             if (dc.getType() == DocumentChange.Type.REMOVED) {
                                 removeMsgView(dc.getDocument().getId(), null);
                                 continue;
@@ -4259,7 +4301,8 @@ public class MassActivity extends Activity {
                             }
 
                         }
-                        if (wasFirst && chatId.equals(currentChatId)) renderGhosts(chatId, snapshots);
+                    } finally { endRenderBatch(); }
+                    if (wasFirst && chatId.equals(currentChatId)) renderGhosts(chatId, snapshots);
                         final com.google.firebase.firestore.QuerySnapshot snapForCache = snapshots;
                         uiH.post(() -> saveMsgCache(chatId, snapForCache));   // بعد رسم الإطار لا قبله (لا يؤخّر ظهور الرسالة)؛ آخر 50 رسالة نصية للمحادثة في الخزن المحلي
                         if (!liveBatch && !(wasFirst && !rebuilt && cacheShown)) revealChatBottom();   // ظهرت من الخزن: لا إعادة إخفاء/وميض
@@ -4311,7 +4354,8 @@ public class MassActivity extends Activity {
                 cacheRenderedIds.clear(); cacheMaxTs = 0L;
                 try {
                     if (arr == null || arr.length() == 0) return;
-                    java.util.Set<String> hid = hiddenSet();
+                    beginRenderBatch(chatId);   // دفعة: المحذوفات تُقرأ مرة واحدة والنزول للأسفل مرة واحدة
+        java.util.Set<String> hid = hiddenSet();
                     long clr = chatClearedAt(chatId);
                     for (int i = 0; i < arr.length(); i++) {
                         org.json.JSONObject o = arr.getJSONObject(i);
@@ -4355,14 +4399,19 @@ public class MassActivity extends Activity {
                         renderMsgData(chatId, id, d, false, false, null);
                         if (msgViewsById.containsKey(id)) { cacheRenderedIds.add(id); if (ts > cacheMaxTs) cacheMaxTs = ts; }
                     }
-                } catch (Throwable ignored) { }
+                } catch (Throwable ignored) { } finally { endRenderBatch(); }
             }
 
             /** يحفظ آخر 50 رسالة (نص/ملف/صورة/صوتية ≤ ~450KB) من لقطة السيرفر، بدون المخفية/المحذوفة. */
-            void saveMsgCache(String chatId, com.google.firebase.firestore.QuerySnapshot sn) {
+                void saveMsgCache(final String chatId, final com.google.firebase.firestore.QuerySnapshot sn) {
+                    final long clr0 = chatClearedAt(chatId);
+                    final java.util.Set<String> hid0 = hiddenSet();
+                    try { CACHE_EXEC.execute(() -> saveMsgCacheWork(chatId, sn, clr0, hid0)); } catch (Throwable ignored) { }
+                }
+
+                void saveMsgCacheWork(String chatId, com.google.firebase.firestore.QuerySnapshot sn, long clr, java.util.Set<String> hid) {
                 try {
-                    long clr = chatClearedAt(chatId);
-                    java.util.Set<String> hid = hiddenSet();
+
                     org.json.JSONArray out = new org.json.JSONArray();
                     java.util.List<DocumentSnapshot> docs = sn.getDocuments();
                     java.util.ArrayList<org.json.JSONObject> rev = new java.util.ArrayList<>();   // من الأحدث للأقدم حتى 50
@@ -4559,13 +4608,27 @@ public class MassActivity extends Activity {
                 }
             }
 
+            // ---- دفعة رسم: المحذوفات/وقت الحذف تُقرأ مرة واحدة للدفعة (كانت تُنسخ من SharedPreferences لكل رسالة)، والنزول للأسفل مرة واحدة في نهايتها
+            java.util.Set<String> batchHid = null;
+            long batchClr = -1L;
+            boolean batchOn = false, batchScroll = false;
+            void beginRenderBatch(String chatId) {
+                try { batchHid = hiddenSet(); batchClr = chatClearedAt(chatId); } catch (Throwable t) { batchHid = null; batchClr = -1L; }
+                batchOn = true; batchScroll = false;
+            }
+            void endRenderBatch() {
+                boolean sc = batchScroll;
+                batchHid = null; batchClr = -1L; batchOn = false; batchScroll = false;
+                if (sc) scrollDown();
+            }
+
             /** رسم رسالة واحدة (من السيرفر أو من الخزن المحلي). ref = null للرسائل المحفوظة. */
             void renderMsgData(final String chatId, final String id, final Map<String, Object> d, final boolean pending,
                                final boolean liveBatch, final com.google.firebase.firestore.DocumentReference ref) {
                 if (d == null) return;
                 renderedMsgIds.add(id);
-                                if (msgClearedMap(d, chatClearedAt(chatId))) return;   // قبل حذف المحادثة
-                                if (hiddenSet().contains(id)) return;   // محذوفة "لدي فقط"
+                                if (msgClearedMap(d, batchClr >= 0 ? batchClr : chatClearedAt(chatId))) return;   // قبل حذف المحادثة
+                                if ((batchHid != null ? batchHid : hiddenSet()).contains(id)) return;   // محذوفة "لدي فقط"
 
                                 String type = gStr(d, "type");
                                 if (type == null) type = "text";
@@ -4593,6 +4656,7 @@ public class MassActivity extends Activity {
                                     boolean sMine = myUid.equals(gStr(d, "sender"));
                                     String sQt = sCap.length() > 0 ? sCap.replace('\n', ' ').replace('\u0002', ' ').replace('\u0001', ' ') : (sVid ? "فيديو" : "صورة");
                                     if (sCap.length() == 0 && !sVid) sKind = "image";
+                                    if (sVid && sCap.length() == 0) sKind = "video";
                                     text = "\u21A9 " + (sMine ? "رد على القصة" : "رد على قصتك") + "\u0001" + sQt + "\u0002" + (sSid.length() > 0 ? "story:" + sSid : "") + "\u0002" + sKind + "\n" + text;
                                 }
                                 mediaQuote = null;
@@ -4646,7 +4710,7 @@ public class MassActivity extends Activity {
                                         if (mine) { MsgViews.setState(last, state); tickState.put(id, state); }
                                         applyReactions(id, last, d.get("reactions"));
                                     }
-                                    scrollDown();
+                                    if (batchOn) batchScroll = true; else scrollDown();   // داخل دفعة: نزول واحد في نهايتها
                                     if (liveBatch) {
                                         LinearLayout ma = (LinearLayout) v("messagesArea");
                                         if (ma != null && ma.getChildCount() > 0) { View nv = ma.getChildAt(ma.getChildCount() - 1); BabylonFx.msgIn(nv); }
@@ -4730,8 +4794,10 @@ public class MassActivity extends Activity {
                 return olderLabel(ts);
             }
 
+            SimpleDateFormat dayKeyFmt = null;   // يُنشأ مرة واحدة (كان يُنشأ لكل رسالة)
             void addDaySep(long ts) {
-                String key = new SimpleDateFormat("yyyyMMdd", Locale.US).format(new Date(ts));
+                if (dayKeyFmt == null) dayKeyFmt = new SimpleDateFormat("yyyyMMdd", Locale.US);
+                String key = dayKeyFmt.format(new Date(ts));
                 if (key.equals(lastDayKey)) return;
                 lastDayKey = key;
                 LinearLayout msgArea = (LinearLayout) v("messagesArea");
@@ -5218,7 +5284,7 @@ public class MassActivity extends Activity {
             }
 
             void loadImageAsync(final ImageView img, final String url) {
-                new Thread(() -> {
+                IMG_EXEC.execute(() -> {
                     try {
                         Bitmap bmp;
                         BitmapFactory.Options opts = new BitmapFactory.Options();
@@ -5252,7 +5318,7 @@ public class MassActivity extends Activity {
                         final Bitmap fb = bmp;
                         if (fb != null) act.runOnUiThread(() -> img.setImageBitmap(fb));
                     } catch (Exception e) { }
-                }).start();
+                });
             }
 
             // ===== قائمة الرسالة (نسخة طبق الأصل من #msgModal و #selEmojiBar في الـ HTML) =====
@@ -5430,7 +5496,7 @@ public class MassActivity extends Activity {
                         setLabel("replyLabel", ownerNm.isEmpty() ? "الرد على الرسالة" : "الرد على " + ownerNm, icon("ic_reply", 16));
                         { TextView rl_ = tv("replyLabel"); if (rl_ != null) { rl_.setCompoundDrawablePadding(dp(5)); rl_.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, icon("ic_reply", 16), 0); style(rl_); } }
                         TextView rp = tv("replyPreviewText");
-                        if (rp != null) rp.setText(replyText);
+                        if (rp != null) rp.setText(MsgViews.iconize(act, replyText, rp.getCurrentTextColor(), 14));
                         vis("replyPreviewBar", true);
                         EditText mi = et("messageInput");
                         if (mi != null) mi.requestFocus();
@@ -6149,7 +6215,7 @@ public class MassActivity extends Activity {
                 LinearLayout card = new LinearLayout(act);
                 card.setOrientation(LinearLayout.VERTICAL);
                 GradientDrawable bg = new GradientDrawable();
-                bg.setColor(Tk.crCard(cSf()) | 0xFF000000);
+                bg.setColor((Tk.chatPal == null && dark ? Tk.BAB_CAPSULE_DARK : Tk.crCard(cSf())) | 0xFF000000);
                 bg.setCornerRadius(dp(18));
                 bg.setStroke(dp(1), Tk.crLine(cBorder()));
                 card.setBackground(bg);
@@ -6210,7 +6276,7 @@ public class MassActivity extends Activity {
                 bar.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
                 bar.setGravity(Gravity.CENTER_VERTICAL);
                 bar.setPadding(dp(6), dp(6), dp(10), dp(6));
-                bar.setBackground(shape(Tk.crCard(cSf()), 18, Tk.crLine(cBorder())));   // .pinned-bar{background:var(--cr-card);border:1px solid var(--cr-line)}
+                bar.setBackground(shape(Tk.chatPal == null && dark ? Tk.BAB_CAPSULE_DARK : Tk.crCard(cSf()), 18, Tk.crLine(cBorder())));   // .pinned-bar{background:var(--cr-card);border:1px solid var(--cr-line)}
                 LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(-1, -2);
                 blp.setMargins(dp(10), -dp(3), dp(10), 0);   // الهيدر paddingBottom=6dp ← الفاصل الفعلي 3dp
                 bar.setLayoutParams(blp);
@@ -6262,8 +6328,8 @@ public class MassActivity extends Activity {
                 hd.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_END);
                 col.addView(hd, new LinearLayout.LayoutParams(-1, -2));
                 TextView tx = new TextView(act);
-                tx.setText(String.valueOf(p.get("text") == null ? "" : p.get("text")));
-                tx.setTextSize(13.5f); tx.setTextColor(Tk.crInk(cText())); tx.setAlpha(0.85f);
+                tx.setTextSize(13.5f); tx.setTextColor(Tk.crInk(cText()));
+                tx.setText(MsgViews.iconize(act, String.valueOf(p.get("text") == null ? "" : p.get("text")), Tk.crInk(cText()), 15)); tx.setAlpha(0.85f);
                 tx.setMaxLines(1); tx.setEllipsize(android.text.TextUtils.TruncateAt.END);
                 tx.setTypeface(null, android.graphics.Typeface.BOLD);
                 tx.setGravity(Gravity.RIGHT);
@@ -6490,10 +6556,11 @@ public class MassActivity extends Activity {
                     rowL.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
                     rowL.setTag("reactRow");
                     int shown = 0;
+                    final boolean ownBubble = bubble.getTag() instanceof String && ((String) bubble.getTag()).contains("bubMine");   // الفقاعة رسالتي (ذهبي/لون الثيم)
                     for (java.util.Map.Entry<String, int[]> en : map.entrySet()) {
                         if (shown == 3) break;
                         final String chipEmoji = en.getKey();
-                        View chip = reactChip(chipEmoji, en.getValue()[0], en.getValue()[1] == 1, who.get(chipEmoji), bubble instanceof FrameLayout);
+                        View chip = reactChip(chipEmoji, en.getValue()[0], en.getValue()[1] == 1, who.get(chipEmoji), bubble instanceof FrameLayout, ownBubble);
                         chip.setTag("rc:" + chipEmoji);
                         // النقر على تفاعل موجود = تفاعلك بنفس الإيموجي (تظهر صورتك بجانبه)، وإعادة النقر تزيله
                         chip.setOnClickListener(x -> { if (selecting) toggleSel(bubble); else reactTo(bubble, chipEmoji); });
@@ -6502,7 +6569,7 @@ public class MassActivity extends Activity {
                         rowL.addView(chip);
                         shown++;
                     }
-                    if (map.size() > shown) rowL.addView(reactChip("+" + (map.size() - shown), 1, false, null, bubble instanceof FrameLayout));
+                    if (map.size() > shown) rowL.addView(reactChip("+" + (map.size() - shown), 1, false, null, bubble instanceof FrameLayout, ownBubble));
                 }
 
                 final Runnable swap = () -> {
@@ -6607,8 +6674,12 @@ public class MassActivity extends Activity {
 
             /** شارة تفاعل بشكل كبسولة: إيموجي + صور المتفاعلين متداخلة (أو العدد إن زادوا عن 3).
              *  تفاعلي أنا = كبسولة بلون الثيم الممتلئ، وتفاعل غيري = كبسولة بلون الثيم الخفيف. */
-            View reactChip(String emoji, int count, boolean mine, java.util.List<String> uids, boolean media) {
+            View reactChip(String emoji, int count, boolean mine, java.util.List<String> uids, boolean media) { return reactChip(emoji, count, mine, uids, media, false); }
+
+            /** ownBubble = الشارة على فقاعة رسالتي: كبسولة بيضاء بصبغة خفيفة من لون الثيم (نهاري وليلي) لتتضح فوق فقاعتي؛ وحدّ بلون الثيم لتفاعلي أنا. */
+            View reactChip(String emoji, int count, boolean mine, java.util.List<String> uids, boolean media, boolean ownBubble) {
                 final int acc = selAcc();
+                final boolean onMineBubble = ownBubble && !media;
                 LinearLayout c = new LinearLayout(act);
                 c.setOrientation(LinearLayout.HORIZONTAL);
                 c.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
@@ -6616,11 +6687,15 @@ public class MassActivity extends Activity {
                 c.setPadding(dp(6), dp(3), dp(3), dp(3));
                 GradientDrawable g = new GradientDrawable();
                 g.setCornerRadius(dp(20));
+                if (onMineBubble) {
+                    g.setColor((androidx_blend(0xFFFFFFFF, acc | 0xFF000000, 0.10f) & 0x00FFFFFF) | 0xBF000000);   // أبيض شفاف (زجاجي) + قليل من لون الثيم
+                    g.setStroke(dp(1), mine ? ((acc & 0x00FFFFFF) | 0xCC000000) : 0x80FFFFFF);                     // حدّ أبيض ناعم؛ وتفاعلي أنا: حدّ بلون الثيم
+                } else
                 g.setColor(mine ? ((acc & 0x00FFFFFF) | 0xB3000000) : (media ? 0x66000000 : ((acc & 0x00FFFFFF) | 0x33000000)));
                 c.setBackground(g);
                 TextView t = new TextView(act);
-                t.setText(emoji); t.setTextSize(emoji.startsWith("+") ? 11 : 15); t.setIncludeFontPadding(false);
-                t.setTextColor(mine || media ? 0xFFFFFFFF : acc);
+                t.setText(emoji); t.setTextSize(emoji.startsWith("+") ? 11 : 17); t.setIncludeFontPadding(false);   // الإيموجي +2dp (كان 15)
+                t.setTextColor(onMineBubble ? acc : (mine || media ? 0xFFFFFFFF : acc));
                 LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(-2, -2);
                 tl.setMarginEnd(dp(5)); tl.setMarginStart(dp(2));
                 c.addView(t, tl);
@@ -6638,7 +6713,7 @@ public class MassActivity extends Activity {
                 } else if (count > 1) {
                     TextView n = new TextView(act);
                     n.setText(String.valueOf(count)); n.setTextSize(11); n.setTypeface(null, android.graphics.Typeface.BOLD);
-                    n.setTextColor(mine || media ? 0xFFFFFFFF : acc); n.setIncludeFontPadding(false);
+                    n.setTextColor(onMineBubble ? acc : (mine || media ? 0xFFFFFFFF : acc)); n.setIncludeFontPadding(false);
                     LinearLayout.LayoutParams nl = new LinearLayout.LayoutParams(-2, -2);
                     nl.setMarginEnd(dp(4));
                     c.addView(n, nl);
@@ -8577,7 +8652,7 @@ public class MassActivity extends Activity {
                 if (anchor == null) return;
                 final boolean th = Tk.chatPal != null;
                 final int baseC = th ? Tk.chatPal.other : (dark ? 0xFF1C2836 : Tk.BAB_CAPSULE);          // خلفية شريط الكتابة (أقرب خلفية معتمة للحقل)
-                final int inpC = th ? Tk.chatPal.chatBg : (dark ? 0x1A7F8CA0 : Tk.BAB_INPUT);          // لون حقل الكتابة فوقها
+                final int inpC = th ? Tk.composerInner(dark) : (dark ? 0x1A7F8CA0 : Tk.composerInner(false));          // لون حقل الكتابة فوقها
                 final int ink = th ? Tk.crMuted(cMuted()) : cMuted();                                 // لون أيقونة زر الوسائط
                 final int pad = dp(14);                                                                // هامش النافذة لظهور الظل
                 final int barW = dp(106), barH = dp(49);

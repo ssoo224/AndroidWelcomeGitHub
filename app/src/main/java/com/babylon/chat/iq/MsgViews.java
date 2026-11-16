@@ -597,8 +597,9 @@ public final class MsgViews {
                 for (int k = 0; k < cnt; k++) {
                     final int sz = all.get(k).sizePx;
                     if (all.get(k).animate) {
-                        ds[k] = android.graphics.ImageDecoder.decodeDrawable(android.graphics.ImageDecoder.createSource(java.nio.ByteBuffer.wrap(bytes)),
-                                (dec, info, src) -> dec.setTargetSize(sz, sz));
+                        // بلا setTargetSize للمتحرك: تصغير إطارات WebP الجزئية (delta) إلى مقاس غير صحيح يترك خطاً أفقياً/شرخاً داخل الإيموجي؛
+                        // يُفك بحجمه الأصلي (512) ويتولى ImageView تصغير الإطار المركّب كاملاً فلا تظهر الدرزة.
+                        ds[k] = android.graphics.ImageDecoder.decodeDrawable(android.graphics.ImageDecoder.createSource(java.nio.ByteBuffer.wrap(bytes)));
                         // إطار ثابت للقطة الرسالة (AnimatedImageDrawable لا يُرسم على Canvas برمجي فتظهر فارغة)
                         try {
                             stills[k] = new android.graphics.drawable.BitmapDrawable(a.getResources(),
@@ -744,7 +745,7 @@ public final class MsgViews {
         final int perRowMax = 10;                                      // حتى 10 في السطر الواحد (يصغر ليتسع)، وما زاد ينزل لسطر جديد
         int perRow = Math.min(n, perRowMax);
         final int QMIN = 84, QMAX = 140, QMARG = 16;   // عرض الاقتباس: أدنى/أقصى + هوامشه (8+8)
-        float emojiRoom = wdp * 0.8f - 16f - (quote != null ? (QMIN + QMARG) : 0f) - 4f;   // العرض المتاح للإيموجيات بعد حجز مكان الاقتباس
+        float emojiRoom = wdp * 0.8f - 16f - 4f;   // العرض المتاح للإيموجيات (الاقتباس صار فوقها فلا يحجز عرضاً)
         sz = clampDp(Math.min(sz, emojiRoom / perRow * 0.95f), 24, sz);
         // الإيموجيات الكثيرة (6 فأكثر) أكبر بـ 3dp: الحد الأدنى 23dp (كان 20) وتُضاف 3dp لحجمها
         final int more = n > 5 ? 3 : 0;
@@ -797,38 +798,47 @@ public final class MsgViews {
             View c = meta.getChildAt(i);
             if (c instanceof TextView) { c.setTag("mmEmoji"); ((TextView) c).setTextColor(0xFFFFFFFF); ((TextView) c).setTextSize(10.5f); }
         }
+        // مثل تيليجرام: الوقت و✓ أسفل الإيموجيات عند حافتها اليمنى، والاقتباس فوقها عند اليسار، بمسافات نسبية لحجم الإيموجي
+        final int gapQ = dp(a, clampDp(sz * 0.55f, 8, 28));       // اقتباس ← إيموجيات
+        final int gapT = dp(a, clampDp(sz * 0.45f, 6, 24));       // إيموجيات ← الوقت
+        final int indent = dp(a, clampDp(sz * 0.40f, 6, 16));     // إزاحة الإيموجيات عن بداية الاقتباس
         LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(-2, -2);
-        ml.gravity = Gravity.LEFT; ml.topMargin = -dp(a, 2);   // الوقت والعلامة يسار الإيموجي
+        ml.gravity = Gravity.RIGHT; ml.topMargin = gapT; ml.rightMargin = dp(a, 2);
         meta.setLayoutParams(ml);
 
         if (quote != null) {
-            // الوقت أسفل الإيموجيات نفسها (لا أسفل الاقتباس): عمود [إيموجيات + وقت]، والاقتباس بجانبها متوسّط عمودياً بالنسبة للإيموجيات فقط
-            LinearLayout row = new LinearLayout(a);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-            row.setGravity(Gravity.TOP);
+            // عمود واحد: [اقتباس] ثم [إيموجيات] ثم [وقت ✓]؛ الاقتباس عند اليسار، والوقت عند اليمين أسفل الإيموجيات
             View q = replyQuote(a, quote, mine, b);
             q.setTag(null);
             styleEmojiQuote(a, q);
             LinearLayout colRef = new LinearLayout(a);
             colRef.setOrientation(LinearLayout.VERTICAL);
             colRef.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-            colRef.addView(box, boxLp);
+            final int emojiPx = Math.min(n, perRow) * dp(a, sz) + indent;
+            QuoteCap qCap = new QuoteCap(a, emojiPx);   // عرض الاقتباس لا يتجاوز عرض كتلة الإيموجي
+            qCap.addView(q, new FrameLayout.LayoutParams(-2, -2));
+            LinearLayout.LayoutParams qlp = new LinearLayout.LayoutParams(-2, -2);
+            qlp.gravity = Gravity.LEFT;
+            colRef.addView(qCap, qlp);
+            LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(-2, -2);
+            bl.gravity = Gravity.LEFT; bl.leftMargin = indent; bl.topMargin = gapQ;
+            colRef.addView(box, bl);
             colRef.addView(meta);
-            int emojiW = Math.min(n, perRow) * sz;
-            int rowsN = (n + perRow - 1) / perRow;
-            int qW = (int) Math.max(QMIN, Math.min(QMAX, wdp * 0.8f - 16f - 4f - emojiW - QMARG));   // يتقلّص بدل أن يقصّ الإيموجي
-            FrameLayout qHold = new FrameLayout(a);
-            FrameLayout.LayoutParams qfl = new FrameLayout.LayoutParams(-1, -2, Gravity.CENTER_VERTICAL);
-            qfl.setMargins(dp(a, 8), 0, dp(a, 8), 0);
-            qHold.addView(q, qfl);
-            LinearLayout.LayoutParams hl = new LinearLayout.LayoutParams(dp(a, qW + QMARG), dp(a, rowsN * sz));
-            if (mine) { row.addView(qHold, hl); row.addView(colRef, new LinearLayout.LayoutParams(-2, -2)); }
-            else { row.addView(colRef, new LinearLayout.LayoutParams(-2, -2)); row.addView(qHold, hl); }
-            b.addView(row, new LinearLayout.LayoutParams(-2, -2));
+            b.addView(colRef, new LinearLayout.LayoutParams(-2, -2));
         } else {
             b.addView(box, boxLp);
             b.addView(meta);
+        }
+    }
+
+    /** حاوية تحدّ عرض الاقتباس بعرض كتلة الإيموجي (يلتفّ النص بدل أن يوسّع الرسالة). */
+    private static final class QuoteCap extends FrameLayout {
+        private final int maxPx;
+        QuoteCap(Activity a, int maxPx) { super(a); this.maxPx = maxPx; }
+        @Override protected void onMeasure(int wSpec, int hSpec) {
+            int w = MeasureSpec.getSize(wSpec);
+            int cap = w > 0 ? Math.min(w, maxPx) : maxPx;
+            super.onMeasure(MeasureSpec.makeMeasureSpec(cap, MeasureSpec.AT_MOST), hSpec);
         }
     }
 
@@ -902,8 +912,8 @@ public final class MsgViews {
                 Object tg = c.getTag();
                 if (tg != null && String.valueOf(tg).startsWith("rqn") && c instanceof TextView) {
                     c.setTag(null);
-                    if (th) { ((TextView) c).setTextColor(Tk.rqAccent(false)); ((TextView) c).setShadowLayer(0f, 0f, 0f, 0); }
-                    else if (!Tk.chatDark) { ((TextView) c).setTextColor(0xFF9B7410); ((TextView) c).setShadowLayer(0f, 0f, 0f, 0); }
+                    if (!Tk.chatDark) { ((TextView) c).setTextColor(0xFF000000); ((TextView) c).setShadowLayer(0f, 0f, 0f, 0); }   // نهاري (كل الثيمات): اسم الاقتباس («أنت») أسود
+                    else if (th) { ((TextView) c).setTextColor(Tk.rqAccent(false)); ((TextView) c).setShadowLayer(0f, 0f, 0f, 0); }
                     else { ((TextView) c).setTextColor(0xFFF0D37A); ((TextView) c).setShadowLayer(3f, 0f, 1f, 0x8C000000); }
                 }
                 else if (tg != null && String.valueOf(tg).startsWith("rqb")) { c.setTag(null); c.setBackgroundColor(th ? Tk.rqAccent(false) : (Tk.chatDark ? 0xFFF0D37A : 0xFF9B7410)); }
@@ -1063,6 +1073,18 @@ public final class MsgViews {
     }
 
     /** اقتباس الرد داخل الرسالة مطابق لـ .reply-quote: خلفية خفيفة، حواف 10، حشوة 5×9، خط ذهبي 3dp على اليمين، سطر واحد، محاذاة يمين. */
+    /** اسم/عنوان اقتباس الرد («أنت» / «رد على قصتك»): في النهاري لا يُرسم أبيض أبداً مهما أُعيد تلوينه (يتحول للأسود). */
+    private static final class QuoteName extends TextView {
+        QuoteName(Context c) { super(c); }
+        @Override protected void onDraw(Canvas c) {
+            if (!Tk.chatDark) {
+                int col = getCurrentTextColor();
+                if ((col & 0xFF) > 0xD0 && ((col >> 8) & 0xFF) > 0xD0 && ((col >> 16) & 0xFF) > 0xD0) { setTextColor(0xFF000000); setShadowLayer(0f, 0f, 0f, 0); }
+            }
+            super.onDraw(c);
+        }
+    }
+
     private static View replyQuote(Activity a, String quote, boolean mine, final View owner) {
         LinearLayout box = new LinearLayout(a);
         box.setOrientation(LinearLayout.HORIZONTAL);
@@ -1085,7 +1107,7 @@ public final class MsgViews {
             if (pr.length > 2) qKind = pr[2];
         }
         if (qName != null && qName.length() > 0) {      // .reply-quote-name: سطر الاسم فوق نص الاقتباس
-            TextView qn = new TextView(a);
+            TextView qn = new QuoteName(a);
             qn.setText(qName);
             qn.setTextSize(11f);
             qn.setSingleLine(true);
@@ -1093,6 +1115,7 @@ public final class MsgViews {
             qn.setGravity(Gravity.RIGHT);
             qn.setTypeface(null, android.graphics.Typeface.BOLD);
             qn.setTag(mine ? "rqnM" : "rqnO");
+            if (!Tk.chatDark) qn.setTextColor(0xFF000000);   // نهاري: أسود من البداية (لا يظهر أبيض قبل تطبيق الوسم)
             LinearLayout.LayoutParams nl = new LinearLayout.LayoutParams(-1, -2);
             nl.bottomMargin = dp(a, 2);
             col.addView(qn, nl);
@@ -1108,6 +1131,8 @@ public final class MsgViews {
         q.setTag(mine ? "rqtM" : "rqtO");
         int icoRes = ("image".equals(qKind) && "صورة".equals(qText)) ? R.drawable.ic_rq_image
                 : ("audio".equals(qKind) && "بصمة صوتية".equals(qText)) ? R.drawable.ic_rq_mic : 0;
+        if (icoRes == 0 && "video".equals(qKind) && "فيديو".equals(qText)) icoRes = R.drawable.ic_rq_video;
+        if (icoRes == 0) { int gr = glyphRes(qText, true); if (gr != 0) { icoRes = gr; qText = stripGlyph(qText); q.setText(richText(qText), TextView.BufferType.SPANNABLE); } }
         if (icoRes != 0) {
             android.graphics.drawable.Drawable ico = a.getResources().getDrawable(icoRes, null).mutate();
             ico.setColorFilter(Tk.chatPal == null ? (mine ? 0xFFFFFFFF : 0xFFC29D30) : Tk.rqAccent(mine), android.graphics.PorterDuff.Mode.SRC_IN);
@@ -1377,6 +1402,61 @@ public final class MsgViews {
 
     // ------------------------------------------------------------------ معاينة آخر رسالة في قائمة المحادثات
     /** 0 = نص عادي، 1 = صورة، 2 = رسالة صوتية، 3 = مقطع مرئي (يتعرّف أيضاً على الصيغ القديمة المخزّنة بإيموجي). */
+    // ------------------------------------------------------------------ رموز الوسائط كأيقونات SVG بدل الرموز النصية
+    private static final String[][] GLYPHS = {
+        {"📷", "i"}, {"🖼", "i"}, {"▧", "i"}, {"▨", "i"}, {"🎞", "i"},
+        {"🎤", "m"}, {"🎙", "m"}, {"♬", "m"},
+        {"🎬", "v"}, {"📹", "v"}, {"🎥", "v"},
+        {"📎", "f"}
+    };
+    /** رقم أيقونة الرمز النصي في بداية النص (0 = لا رمز). small = نسخة 14dp للاقتباس. */
+    public static int glyphRes(String s, boolean small) {
+        if (s == null) return 0;
+        String t = s.trim();
+        for (String[] g : GLYPHS) {
+            if (t.startsWith(g[0])) {
+                switch (g[1]) {
+                    case "i": return small ? R.drawable.ic_rq_image : R.drawable.ic_cl_image;
+                    case "m": return small ? R.drawable.ic_rq_mic : R.drawable.ic_cl_mic;
+                    case "v": return small ? R.drawable.ic_rq_video : R.drawable.ic_cl_video;
+                    default: return small ? R.drawable.ic_rq_file : R.drawable.ic_cl_file;
+                }
+            }
+        }
+        return 0;
+    }
+    /** النص بعد إزالة الرمز النصي الأول (والفراغ بعده). */
+    public static String stripGlyph(String s) {
+        if (s == null) return "";
+        String t = s.trim();
+        for (String[] g : GLYPHS) if (t.startsWith(g[0])) return t.substring(g[0].length()).trim();
+        return s;
+    }
+    private static final class CenterSpan extends android.text.style.ImageSpan {
+        CenterSpan(Drawable dr) { super(dr, ALIGN_BOTTOM); }
+        @Override public void draw(Canvas c, CharSequence t, int st, int en, float x, int top, int y, int bottom, Paint p) {
+            Drawable dr = getDrawable();
+            c.save();
+            c.translate(x, top + ((bottom - top) - dr.getBounds().height()) / 2f);
+            dr.draw(c);
+            c.restore();
+        }
+    }
+    /** يستبدل الرمز النصي في بداية النص بأيقونة SVG ملوّنة (وإلا يعيد النص كما هو). */
+    public static CharSequence iconize(Context c, CharSequence s, int color, float sizeDp) {
+        if (s == null) return "";
+        String str = s.toString();
+        int res = glyphRes(str, false);
+        if (res == 0) return s;
+        Drawable dr = c.getResources().getDrawable(res, null).mutate();
+        dr.setColorFilter(color, android.graphics.PorterDuff.Mode.SRC_IN);
+        int px = dp(c, sizeDp);
+        dr.setBounds(0, 0, px, px);
+        android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder("\uFFFC " + stripGlyph(str));
+        sb.setSpan(new CenterSpan(dr), 0, 1, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        return sb;
+    }
+
     public static int mediaKindOf(String s) {
         if (s == null) return 0;
         String t = s.trim();

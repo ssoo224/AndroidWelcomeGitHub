@@ -72,7 +72,7 @@ public final class MsgMenu {
     // ------------------------------------------------------------------ helpers
     private static int dp(Context c, float v) { return (int) (v * c.getResources().getDisplayMetrics().density + 0.5f); }
 
-    private static int cardBg(boolean d)    { return d ? 0xFF202D3A : 0xFFFFFFFF; }
+    private static int cardBg(boolean d)    { return d ? 0xFF202D3A : (Tk.chatPal == null ? Tk.BAB_CAPSULE : 0xFFFFFFFF); }   // بابل نهاري: لون كبسولات المحادثة
     private static int cardBorder(boolean d){ return d ? 0xFF334155 : 0xFFE1E7EF; }
     private static int textMain(boolean d)  { return d ? 0xFFF1F5F9 : 0xFF17212B; }
     private static int danger(boolean d)    { return d ? 0xFFEF6464 : 0xFFDC2626; }
@@ -569,9 +569,9 @@ public final class MsgMenu {
         cardV.setClickable(true);
         cardV.setPadding(dp(act, 18), dp(act, 18), dp(act, 18), dp(act, 14));
         GradientDrawable bg = new GradientDrawable();
-        bg.setColor(dark ? 0xFF171B24 : 0xFFFFFFFF);
+        bg.setColor(dark ? 0xFF171B24 : (Tk.chatPal == null ? Tk.BAB_CAPSULE : 0xFFFFFFFF));
         bg.setCornerRadius(dp(act, 18));
-        bg.setStroke(dp(act, 1), dark ? 0x59C49B48 : 0xFFDFE5EE);
+        bg.setStroke(dp(act, 1), dark ? 0x59C49B48 : (Tk.chatPal == null ? Tk.BAB_LINE : 0xFFDFE5EE));
         cardV.setBackground(bg);
 
         TextView h = new TextView(act);
@@ -631,7 +631,7 @@ public final class MsgMenu {
     private static void buildDelete(final Activity act, final boolean dark, boolean usePal, String title, CharSequence question,
                                     String checkLabel, String okLabel, int[] okColors, final ChatDelCb cb) {
         final ChatThemes.Pal pal = usePal ? Tk.chatPal : null;
-        final int cardC  = pal != null ? (pal.other | 0xFF000000) : (dark ? 0xFF17212B : 0xFFFFFFFF);
+        final int cardC  = pal != null ? (pal.other | 0xFF000000) : (dark ? 0xFF17212B : (Tk.chatPal == null ? Tk.BAB_CAPSULE : 0xFFFFFFFF));
         final int textC  = pal != null ? (pal.textOther | 0xFF000000) : (dark ? 0xFFF1F5F9 : 0xFF16202B);
         final int subC   = pal != null ? (pal.metaOther | 0xFF000000) : (dark ? 0xFF8798AA : 0xFF6B7A8C);
         final int chipC  = pal != null ? ((pal.accent & 0x00FFFFFF) | 0x1F000000) : (dark ? 0xFF1D2A38 : 0xFFE8EDF4);
