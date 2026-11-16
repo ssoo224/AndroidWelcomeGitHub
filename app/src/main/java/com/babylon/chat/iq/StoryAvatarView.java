@@ -22,7 +22,7 @@ import android.view.animation.LinearInterpolator;
  * .avatar في الـ HTML:
  *  - دائرة بتدرج 145° (ذهبي #f2d268→#b8861b أو أزرق #59cdf8→#1f63d8 حسب نغمة الحساب) + ظل ملوّن 0 3px 10px
  *  - .sring::after : حلقة مخروطية (conic-gradient) بسماكة 3px على بعد 5px مع توهّج ذهبي 7px (أو #4b5a6b للمشاهَدة)
- *  - .sb-plus : علامة + (نهاري: تدرج ذهبي وعلامة بيضاء، ليلي: دائرة بيضاء وعلامة #D4A017)
+ *  - .sb-plus : علامة + (تدرج ذهبي وعلامة بيضاء نهاراً وليلاً)
  *  - .cl-online : نقطة اتصال خضراء بحدّ بلون السطح وهالة 5px
  * العنصر يرسم خارج حدوده (الحلقة والتوهج والظل) لذلك يجب أن تكون الحاويات clipChildren=false.
  */
@@ -343,9 +343,7 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
             p.setColor((surface & 0x00FFFFFF) | (a << 24));
             c.drawCircle(pcx, pcy, pr, p);
             p.reset(); p.setAntiAlias(true);
-            if (dark) {
-                p.setColor((0x00FFFFFF) | (a << 24));
-            } else {
+            {   // نفس الشكل نهاراً وليلاً: دائرة ذهبية متدرّجة وعلامة + بيضاء
                 LinearGradient lg = new LinearGradient(pcx - ir, pcy - ir, pcx + ir, pcy + ir, 0xFFE6BD45, 0xFFB8861B, Shader.TileMode.CLAMP);
                 p.setShader(lg); p.setAlpha(a);
             }
@@ -356,7 +354,7 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
             p.setStyle(Paint.Style.STROKE);
             p.setStrokeCap(Paint.Cap.ROUND);
             p.setStrokeWidth(Math.max(dp(1.6f), ir * 0.24f));
-            int pc = dark ? 0xFFD4A017 : 0xFFFFFFFF;
+            int pc = 0xFFFFFFFF;   // العلامة بيضاء نهاراً وليلاً
             p.setColor((pc & 0x00FFFFFF) | (a << 24));
             plusPath.reset();
             plusPath.moveTo(pcx, pcy - arm); plusPath.lineTo(pcx, pcy + arm);

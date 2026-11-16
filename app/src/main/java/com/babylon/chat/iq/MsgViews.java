@@ -178,7 +178,9 @@ public final class MsgViews {
         t.setPadding(dp(a, 2), 0, dp(a, 2), dp(a, 4));
         t.setLineSpacing(0, 1.12f);
         b.addView(t);
-        b.addView(metaRow(a, mine, time, state));
+        LinearLayout tm = metaRow(a, mine, time, state);
+        tm.setTag("textMeta");   // كبسولة التفاعل تُوضع بجانب الوقت و✓ في نفس السطر
+        b.addView(tm);
     }
 
 
@@ -787,8 +789,9 @@ public final class MsgViews {
             if (!gIv.containsKey(e)) { gIv.put(e, new java.util.ArrayList<ImageView>()); gTv.put(e, new java.util.ArrayList<TextView>()); }
             gIv.get(e).add(iv); gTv.get(e).add(tv);
         }
-        // الإيموجي المتماثل يُحمَّل مرة واحدة ويظهر كله معاً (فوق 60 تبقى نصاً لتفادي مئات الطلبات)
-        if (n <= 60) for (String e : gIv.keySet()) loadAnimatedEmojiGroup(a, e, gIv.get(e), gTv.get(e), (int) (sz * d(a)), false);
+        // الإيموجي المتماثل يُحمَّل ويُفك مرة واحدة ويُشارَك بين كل نسخه (الطلبات = عدد الأنواع لا العدد الكلي)،
+        // لذلك لا داعي لحدّ 60: فوقه كانت تبقى نصاً بخط النظام (شكل باهت ومختلف). الحدّ الآن 500 لحماية الواجهة فقط.
+        if (n <= 500) for (String e : gIv.keySet()) loadAnimatedEmojiGroup(a, e, gIv.get(e), gTv.get(e), (int) (sz * d(a)), false);
         LinearLayout.LayoutParams boxLp = new LinearLayout.LayoutParams(-2, -2);
         noTouch(box);   // كل الإيموجيات وحدة واحدة: لا يلتقط أي إيموجي النقر لوحده
 
@@ -869,6 +872,21 @@ public final class MsgViews {
         }
         clipRound(q, r);   // الخط الجانبي يتبع استدارة الحقل
         recolorQuote(q);
+        if (!Tk.chatDark) blackenQuoteName(q);   // رسالة إيموجي فقط: «أنت» / الاسم أسود (في هذه الحالة فقط)
+    }
+
+    /** اسم الاقتباس (أنت / الاسم) أسود ثابت؛ يُستعمل فقط لاقتباس رسائل الإيموجي (بلا فقاعة). */
+    private static void blackenQuoteName(View v) {
+        if (v instanceof QuoteName) {
+            QuoteName n = (QuoteName) v;
+            n.keepWhite = false;
+            n.setTag("rqnO");   // الوسم يعطي الأسود نهاراً حتى عند إعادة تطبيق الثيم
+            n.setTextColor(0xFF000000);
+            n.setShadowLayer(0f, 0f, 0f, 0);
+        } else if (v instanceof android.view.ViewGroup) {
+            android.view.ViewGroup g = (android.view.ViewGroup) v;
+            for (int i = 0; i < g.getChildCount(); i++) blackenQuoteName(g.getChildAt(i));
+        }
     }
 
     private static void whitenQuoteBody(View v) {

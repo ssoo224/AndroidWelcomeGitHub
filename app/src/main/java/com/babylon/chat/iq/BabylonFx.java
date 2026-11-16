@@ -234,6 +234,26 @@ public final class BabylonFx {
     }
 
     /** ظهور خفيف مميز لصفوف المحادثات عند دخول قسم المحادثات: كل صف ينزلق من اليمين بتلاشٍ وارتداد ناعم، متتابعاً. */
+    /** ظهور سريع جداً لصفوف المحادثات عند الانتقال لصفحة المحادثات: تُخفى فوراً (قبل أول إطار) ثم تظهر بلا تأخير. */
+    public static void chatRowsInFast(final ViewGroup list) {
+        if (list == null) return;
+        final int n0 = Math.min(list.getChildCount(), 9);
+        for (int i = 0; i < n0; i++) { View r = list.getChildAt(i); if (r != null) { r.animate().cancel(); r.setAlpha(0f); } }   // بلا إطار يظهر فيه الصف قبل الحركة
+        list.post(() -> {
+            int n = Math.min(list.getChildCount(), 9);
+            for (int i = 0; i < n; i++) {
+                final View r = list.getChildAt(i);
+                if (r == null || r.getVisibility() != View.VISIBLE) continue;
+                r.animate().cancel();
+                r.setAlpha(0f);
+                r.setTranslationX(dp(r, 10));
+                r.animate().alpha(1f).translationX(0f).setStartDelay(i * 14L).setDuration(130)
+                        .setInterpolator(new android.view.animation.DecelerateInterpolator(1.5f))
+                        .withEndAction(() -> reset(r)).start();
+            }
+        });
+    }
+
     public static void chatRowsIn(final ViewGroup list, final long baseDelay) {
         if (list == null) return;
         list.post(() -> {

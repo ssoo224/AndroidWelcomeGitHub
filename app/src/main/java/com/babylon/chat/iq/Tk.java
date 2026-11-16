@@ -261,7 +261,9 @@ public final class Tk {
         if (tag.equals("rqM") || tag.equals("rqO")) {
             final float r = dp(x, 10);
             if (!dark) {   // نهاري: اقتباس بيج معتم بحد خفيف (نفس اقتباس رسائل الإيموجي) لكل الرسائل
-                x.setBackground(shape(quoteFillDay(), dp(x, 14), quoteStrokeDay(), dp(x, 1)));
+                // شفاف حسب الرسالة (لا أبيض/بيج معتم): فوق فقاعتي = تظليل داكن خفيف، وفوق فقاعة الطرف الآخر = صبغة خفيفة من لون الثيم
+                int acc = (chatPal != null ? chatPal.accent : 0xFF9B7410) & 0x00FFFFFF;
+                x.setBackground(shape(tag.equals("rqM") ? 0x1F000000 : (0x1F000000 | acc), dp(x, 14), 0, 0));
                 x.setAlpha(1f);
             } else x.setBackground(shape(tag.equals("rqM") ? 0x1A000000 : 0x247F8CA0, r, 0, 0));
             x.setClipToOutline(true);

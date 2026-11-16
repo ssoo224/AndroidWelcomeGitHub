@@ -393,8 +393,7 @@ final class LocalDb {
                     }
                     int total = 0;
                     try (Cursor c = d.rawQuery("SELECT COUNT(*) FROM messages WHERE chat_id=? AND ghost=0", new String[]{chatId})) { if (c.moveToFirst()) total = c.getInt(0); }
-                    if (total > MAX_MSGS) {
-                        complete = false;
+                    if (total > MAX_MSGS) {   // يُقصّ الأقدم فقط: يبقى الخزن «آخر MAX_MSGS رسالة» صالحاً للعرض الفوري
                         try (Cursor c = d.rawQuery("SELECT id,media_path FROM messages WHERE chat_id=? AND ghost=0 ORDER BY ts, rowid LIMIT " + (total - MAX_MSGS),
                                 new String[]{chatId})) {
                             while (c.moveToNext()) {

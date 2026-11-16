@@ -1394,7 +1394,8 @@ public class MassActivity extends Activity {
                     }
                     if (vpBar != null && vpBar.getParent() == v("mainPage") && vpBar.getLayoutParams() instanceof LinearLayout.LayoutParams && "bottom".equals(vpMode)) {
                         LinearLayout.LayoutParams vl = (LinearLayout.LayoutParams) vpBar.getLayoutParams();
-                        if (vl.bottomMargin != ov) { vl.bottomMargin = ov; vpBar.setLayoutParams(vl); }
+                        int want = ov + dp(10);   // 10dp فوق أعلى شريط التنقل (يتجاوز بروز انحناء التبويب المحدد)
+                        if (vl.bottomMargin != want) { vl.bottomMargin = want; vpBar.setLayoutParams(vl); }
                     }
                     View cl = v("chatList");
                     if (cl != null && cl.getPaddingBottom() != dp(88) + ov) cl.setPadding(cl.getPaddingLeft(), cl.getPaddingTop(), cl.getPaddingRight(), dp(88) + ov);
@@ -1588,6 +1589,8 @@ public class MassActivity extends Activity {
                     fv.animate().cancel();
                     fv.setAlpha(1f);
                     fv.setTranslationY(-(topNew - topOld));
+                    final boolean toChats = home && !chatSelMode;
+                    if (toChats) { fv.setVisibility(View.GONE); fv.setTranslationY(0f); }   // الانتقال للمحادثات: الصفحة السابقة تختفي فوراً فلا تظهر أي واجهة حتى تبدأ المحادثات بالظهور
                     to.animate().cancel();
                     to.setVisibility(View.VISIBLE);
                     final View[] grp = (home && !chatSelMode) ? new View[]{to, v("mainHeader"), v("newGroupFab")} : new View[]{to};
@@ -1597,14 +1600,15 @@ public class MassActivity extends Activity {
                         if (g == null || g.getVisibility() != View.VISIBLE) continue;
                         g.animate().cancel();
                         g.setAlpha(0f); g.setTranslationY(dy);
-                        g.animate().alpha(1f).translationY(0f).setStartDelay(50).setDuration(150)
+                        g.animate().alpha(1f).translationY(0f).setStartDelay(toChats ? 0 : 50).setDuration(toChats ? 120 : 150)
                                 .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f)).start();
                     }
-                    fv.animate().alpha(0f).setDuration(90).setInterpolator(new android.view.animation.LinearInterpolator())
+                    if (!toChats) fv.animate().alpha(0f).setDuration(90).setInterpolator(new android.view.animation.LinearInterpolator())
                             .withEndAction(() -> { fv.setVisibility(View.GONE); fv.setAlpha(1f); fv.setTranslationY(0f); }).start();
-                    if (home && !chatSelMode) BabylonFx.chatRowsIn((ViewGroup) v("chatList"), 90);   // ظهور خفيف مميز لصفوف المحادثات
+                    if (toChats) BabylonFx.chatRowsInFast((ViewGroup) v("chatList"));   // ظهور سريع جداً لصفوف المحادثات
+                    else if (home && !chatSelMode) BabylonFx.chatRowsIn((ViewGroup) v("chatList"), 90);
                     final int gen = tabGen0;
-                    act.getWindow().getDecorView().postDelayed(() -> { if (homeAnimOn && gen == BabylonFx.tabGenNow()) endHomeEntry(); }, 300);
+                    act.getWindow().getDecorView().postDelayed(() -> { if (homeAnimOn && gen == BabylonFx.tabGenNow()) endHomeEntry(); }, toChats ? 220 : 300);
                 } else if (to != null) {
                     boolean secondary = ti < 0;
                     if (secondary) BabylonFx.viewIn(to);
@@ -4472,7 +4476,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
             long cacheMaxTs = 0L, cacheMinTs = Long.MAX_VALUE;
             int openGen = 0;   // يلغي تحميلاً معلّقاً لمحادثة سبقتها محادثة أحدث
             boolean cacheShown = false;   // أُظهرت رسائل الخزن المحلي فلا تُعاد حركة الكشف عند وصول السيرفر
-            static final int CACHE_MAX_PAYLOAD = 450_000;   // أكبر حجم (محارف) لصورة/صوتية تُحفظ محلياً؛ الأكبر تنتظر السيرفر
+            static final int CACHE_MAX_PAYLOAD = 1_000_000;   // أكبر حجم (محارف) لصورة/صوتية تُحفظ محلياً؛ الأكبر تنتظر السيرفر
 
             String gStr(Map<String, Object> d, String k) { Object o = d == null ? null : d.get(k); return o instanceof String ? (String) o : null; }
             Long gLong(Map<String, Object> d, String k) { Object o = d == null ? null : d.get(k); return o instanceof Number ? Long.valueOf(((Number) o).longValue()) : null; }
@@ -4551,24 +4555,25 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                     org.json.JSONArray out = new org.json.JSONArray();
                     java.util.List<DocumentSnapshot> docs = sn.getDocuments();
                     java.util.ArrayList<org.json.JSONObject> rev = new java.util.ArrayList<>();   // من الأحدث للأقدم حتى 50
-                    long budget = 8_000_000L;   // سقف إجمالي لحجم الوسائط المحفوظة (محارف) كي لا يثقل فتح المحادثة؛ ما زاد ينتظر السيرفر
+                    boolean holes = false;   // رسالة ظاهرة داخل نافذة الخزن لم تُحفظ (كبيرة/نوع غير مدعوم): الخزن ناقص فيُعاد بناؤه من السيرفر
+                    long budget = 16_000_000L;   // سقف إجمالي لحجم الوسائط المحفوظة (محارف) كي لا يثقل فتح المحادثة؛ ما زاد ينتظر السيرفر
                     for (int di = docs.size() - 1; di >= 0 && rev.size() < LocalDb.MAX_MSGS; di--) {
                         DocumentSnapshot dd = docs.get(di);
                         String ty = dd.getString("type");
                         if (ty == null) ty = "text";
                         Map<String, Object> m = dd.getData();
+                        if (hid.contains(dd.getId()) || msgClearedMap(m, clr)) continue;   // المخفية/المحذوفة ليست ثغرة في الخزن
                         String text = gStr(m, "text");
                         String pay = gStr(m, "data"); if (pay == null) pay = gStr(m, "url");
                         String fUrl = gStr(m, "fileUrl");
                         boolean fileMsg = "file".equals(ty) || (fUrl != null && fUrl.length() > 0);
-                        if (fileMsg && fUrl == null) continue;
+                        if (fileMsg && fUrl == null) { holes = true; continue; }
                         boolean media = !fileMsg && ("image".equals(ty) || "audio".equals(ty)) && pay != null;
-                        if (!fileMsg && !media && !"text".equals(ty)) continue;
-                        if (!fileMsg && !media && text == null) continue;
-                        if (media && pay.length() > CACHE_MAX_PAYLOAD) continue;
-                        if (media && pay.length() > budget) continue;
+                        if (!fileMsg && !media && !"text".equals(ty)) { holes = true; continue; }
+                        if (!fileMsg && !media && text == null) { holes = true; continue; }
+                        if (media && pay.length() > CACHE_MAX_PAYLOAD) { holes = true; continue; }
+                        if (media && pay.length() > budget) { holes = true; continue; }
                         if (media) budget -= pay.length();
-                        if (hid.contains(dd.getId()) || msgClearedMap(m, clr)) continue;
                         org.json.JSONObject o = new org.json.JSONObject();
                         o.put("id", dd.getId());
                         o.put("type", ty);
@@ -4613,13 +4618,8 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                     for (int ri = rev.size() - 1; ri >= 0; ri--) out.put(rev.get(ri));   // ترتيب تصاعدي
                     // الخزن «كامل» فقط إن احتوى كل رسائل المحادثة الظاهرة: عندها لا يجد السيرفر رسالة ناقصة فلا إعادة بناء.
                     // المحادثات الأطول من 50 رسالة أو التي فيها ملفات/وسائط كبيرة لا تُعرض من الخزن (كانت تُمسح وتُعاد كلها عند وصول السيرفر = «إعادة تحميل» ظاهرة).
-                    int visible = 0;
-                    for (DocumentSnapshot dd : docs) {
-                        Long dts = dd.getLong("timestamp");
-                        boolean gone = hid.contains(dd.getId()) || (clr > 0 && dts != null && dts > 0 && dts <= clr);
-                        if (!gone) visible++;
-                    }
-                    LocalDb.putMessages(chatId, out, rev.size() == visible);
+                    // «كامل» = آخر رسائل المحادثة متصلة بلا ثغرات (حتى 50): تظهر فوراً من الجهاز، والأقدم منها تُضاف فوقها لاحقاً بلا إعادة بناء
+                    LocalDb.putMessages(chatId, out, !holes);
                 } catch (Throwable ignored) { }
             }
 
@@ -4643,11 +4643,21 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                         String ty = gStr(m, "type"); if (ty == null) ty = "text";
                         String text = gStr(m, "text");
                         String fUrl = gStr(m, "fileUrl");
-                        if (!"text".equals(ty) || text == null || (fUrl != null && fUrl.length() > 0)) { others.add(dd.getId()); continue; }
+                        String pay = gStr(m, "data"); if (pay == null) pay = gStr(m, "url");
+                        boolean fileMsg = "file".equals(ty) || (fUrl != null && fUrl.length() > 0);
+                        boolean media = !fileMsg && ("image".equals(ty) || "audio".equals(ty)) && pay != null && pay.length() <= CACHE_MAX_PAYLOAD;
+                        boolean plain = !fileMsg && !media && "text".equals(ty) && text != null;
+                        if ((fileMsg && fUrl == null) || (!fileMsg && !media && !plain)) { others.add(dd.getId()); continue; }   // غير مدعوم/كبير: يُحفظ عند فتح المحادثة
                         org.json.JSONObject o = new org.json.JSONObject();
                         o.put("id", dd.getId());
-                        o.put("type", "text");
-                        o.put("text", text);
+                        o.put("type", ty);
+                        if (text != null) o.put("text", text);
+                        if (media) { o.put("data", pay); Long du = gLong(m, "duration"); if (du != null) o.put("duration", du.longValue()); }
+                        if (fileMsg) {
+                            o.put("fileUrl", fUrl);
+                            String fnm = gStr(m, "fileName"); if (fnm != null) o.put("fileName", fnm);
+                            Long fsz = gLong(m, "fileSize"); if (fsz != null) o.put("fileSize", fsz.longValue());
+                        }
                         o.put("sender", sender == null ? "" : sender);
                         Long ts = gLong(m, "timestamp");
                         if (ts == null) ts = gLong(m, "createdAt");
@@ -4903,12 +4913,15 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 };
                 rebuild.run();   // القوائم تُحدَّث وهي ما زالت خلف المحادثة (لا تُرى)، كي تنكشف محدَّثة أثناء التلاشي الشفاف
                 BabylonFx.chatLeave(v("chatView"), v("mainPage"), () -> {
-                    vis("chatView", false); syncBars(); vpPlace();
+                    vis("chatView", false);
+                    if (currentChatId.isEmpty()) { try { renderPinnedBar(); } catch (Throwable ignored) { } }   // كبسولة التثبيت تُزال بعد انتهاء التلاشي لا قبله
+                    syncBars(); vpPlace();
                 });   // تلاشي المحادثة ثم إخفاؤها ثم تلاشي ظهور الصفحة الرئيسية (والشريط العائم ينتقل لأسفل الصفحة)
                 uiH.postDelayed(rebuild, 600);   // احتياط: إن أُلغيت الحركة (دخول محادثة أخرى بسرعة) لا تبقى القائمة بلا تحديث
                 if (messagesListener != null) { messagesListener.remove(); messagesListener = null; }
                 if (pinsListener != null) { pinsListener.remove(); pinsListener = null; }
-                pins = new ArrayList<>(); pinIdx = -1; renderPinnedBar();
+                pins = new ArrayList<>(); pinIdx = -1;   // الكبسولة تبقى ظاهرة وتتلاشى مع باقي أجزاء المحادثة (تُحذف عند نهاية الحركة)
+                uiH.postDelayed(() -> { if (currentChatId.isEmpty()) { try { renderPinnedBar(); } catch (Throwable ignored) { } } }, 700);   // احتياط إن أُلغيت الحركة
                 currentChatId = ""; otherUid = "";
                 olderTok++; olderQ.clear();
                 renderedMsgIds.clear(); lastDayKey = ""; daySeps.clear(); msgViewsById.clear(); msgMeta.clear();
@@ -5198,8 +5211,8 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 vpPauseBtn.addView(vpPauseIc, new FrameLayout.LayoutParams(dp(20), dp(20), Gravity.CENTER));
                 vpPauseBtn.setOnClickListener(x -> vpTogglePause());
                 BabylonFx.press(vpPauseBtn, 0.9f);
-                LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(dp(24), dp(24));
-                pl.setMarginStart(dp(8));
+                LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(dp(30), dp(30));
+                pl.setMarginStart(dp(4));
                 row.addView(vpPauseBtn, pl);
                 FrameLayout stop = new FrameLayout(act);
                 stop.setContentDescription("إيقاف الصوتية");
@@ -5208,8 +5221,8 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 stop.addView(vpStopDot, new FrameLayout.LayoutParams(dp(10), dp(10), Gravity.CENTER));
                 stop.setOnClickListener(x -> vpStop());
                 BabylonFx.press(stop, 0.9f);
-                LinearLayout.LayoutParams sl = new LinearLayout.LayoutParams(dp(24), dp(24));
-                sl.setMarginStart(dp(10));
+                LinearLayout.LayoutParams sl = new LinearLayout.LayoutParams(dp(30), dp(30));
+                sl.setMarginStart(dp(2));
                 row.addView(stop, sl);
                 vpBar.addView(row, new FrameLayout.LayoutParams(-1, -1));
                 vpProg = new View(act);
@@ -5229,24 +5242,26 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 final int accent = inChat ? selAcc() : (dark ? 0xFFE4C45B : 0xFFB98710);
                 final int accentSoft = inChat ? selAccA(0x2E) : 0x2EE4C45B;
                 float r14 = dp(14), r16 = dp(16);
+                float r17 = dp(17);
                 float[] rad = "chat".equals(mode) ? new float[]{r16, r16, r16, r16, r16, r16, r16, r16}
-                        : "bottom".equals(mode) ? new float[]{r14, r14, r14, r14, 0, 0, 0, 0} : new float[]{0, 0, 0, 0, r14, r14, r14, r14};
+                        : "bottom".equals(mode) ? new float[]{r17, r17, r17, r17, r17, r17, r17, r17} : new float[]{0, 0, 0, 0, r14, r14, r14, r14};   // الأسفل: كبسولة قصيرة عائمة مستقلة عن انحناء شريط التنقل
                 GradientDrawable g = new GradientDrawable();
                 g.setColor(bg); g.setCornerRadii(rad);
                 if ("chat".equals(mode)) g.setStroke(Math.max(1, dp(1)), bd);   // الإطار الذهبي محذوف (خارج المحادثة)؛ يبقى الحدّ الرمادي داخل المحادثة
+                else if ("bottom".equals(mode)) g.setStroke(Math.max(1, dp(1)), dark ? 0x40E4C45B : 0x40C29D30);   // حدّ خفيف يفصلها عن الخلفية
                 vpBar.setBackground(g);
+                if (vpProg != null) vpProg.setVisibility("bottom".equals(mode) ? View.GONE : View.VISIBLE);   // لا شريط تقدّم يسير من اليمين لليسار في الكبسولة القصيرة
                 vpTxt.setTextColor(fg); vpTime.setTextColor(fg);
                 int gold = accent;
-                GradientDrawable sg = new GradientDrawable(); sg.setShape(GradientDrawable.OVAL); sg.setColor(accentSoft);
-                vpStopBg.setBackground(sg);
-                if (vpPauseIc != null) { vpPauseIc.setColorFilter(gold); GradientDrawable pg = new GradientDrawable(); pg.setShape(GradientDrawable.OVAL); pg.setColor(accentSoft); vpPauseBtn.setBackground(pg); }
+                vpStopBg.setBackground(null);   // أزرار بلا دائرة: الرمز فقط
+                if (vpPauseIc != null) { vpPauseIc.setColorFilter(gold); vpPauseBtn.setBackground(null); }
                 GradientDrawable dot = new GradientDrawable(); dot.setColor(gold); dot.setCornerRadius(dp(2.5f));
                 vpStopDot.setBackground(dot);
                 try {   // أعمدة الموجة وشريط التقدم يتبعان نفس لون التمييز
                     for (int i = 0; i < 3; i++) if (vpEq[i] != null) { GradientDrawable eg = new GradientDrawable(); eg.setColor(accent); eg.setCornerRadius(dp(2)); vpEq[i].setBackground(eg); }
                     if (vpProg != null) vpProg.setBackgroundColor(inChat ? accent : 0xFFE4C45B);
                 } catch (Throwable ignored) { }
-                if (Build.VERSION.SDK_INT >= 21) vpBar.setElevation("chat".equals(mode) ? dp(4) : 0);
+                if (Build.VERSION.SDK_INT >= 21) vpBar.setElevation("chat".equals(mode) ? dp(4) : "bottom".equals(mode) ? dp(3) : 0);
             }
 
             void vpEqStart() {
@@ -5270,7 +5285,8 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 try {
                     int pos = mediaPlayer.getCurrentPosition(), dur = mediaPlayer.getDuration();
                     if (dur <= 0) dur = (int) vpDur;
-                    vpTime.setText(formatDuration(pos) + (dur > 0 ? " / " + formatDuration(dur) : ""));
+                    boolean shortPill = "bottom".equals(vpMode);
+                    vpTime.setText(shortPill ? formatDuration(pos) : formatDuration(pos) + (dur > 0 ? " / " + formatDuration(dur) : ""));
                     vpProg.setScaleX(dur > 0 ? Math.min(1f, pos / (float) dur) : 0f);
                 } catch (Throwable ignored) { }
             }
@@ -5329,7 +5345,12 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                         if (vpBar.getParent() instanceof ViewGroup) ((ViewGroup) vpBar.getParent()).removeView(vpBar);
                         LinearLayout.LayoutParams lp;
                         if (chat) { lp = new LinearLayout.LayoutParams(-1, dp(34)); lp.setMargins(dp(10), vpChatTop(target), dp(10), dp(6)); }   // تحت الاسم/الصورة وتحت المثبتة: left/right 10، ارتفاع 34
-                        else if ("bottom".equals(mode)) { lp = new LinearLayout.LayoutParams(-1, dp(30)); lp.setMargins(dp(12), 0, dp(12), 0); }   // فوق أزرار التنقل: margin 0 12 وارتفاع 30
+                        else if ("bottom".equals(mode)) {   // كبسولة قصيرة في المنتصف فوق شريط التنقل (لا تلامس انحناءه)
+                            int sw = act.getResources().getDisplayMetrics().widthPixels;
+                            lp = new LinearLayout.LayoutParams(Math.max(dp(224), (int) (sw * 0.62f)), dp(34));
+                            lp.gravity = Gravity.CENTER_HORIZONTAL;
+                            lp.setMargins(0, 0, 0, dp(10));
+                        }
                         else { lp = new LinearLayout.LayoutParams(-1, dp(32)); lp.topMargin = isProfilePage(curPage) ? sbTop : 0; }   // أعلى الصفحة حيث لا أزرار تنقل
                         int idx = chat ? -1 : "bottom".equals(mode) ? target.indexOfChild(nav) : 0;
                         target.addView(vpBar, idx, lp);
@@ -5341,7 +5362,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                         vpShown = true;
                         final boolean fChat = chat, fBottom = "bottom".equals(mode);
                         vpBar.setAlpha(fChat || fBottom ? 0f : 1f);
-                        vpBar.setTranslationY(fChat ? -dp(6) : fBottom ? dp(30) : -dp(32));
+                        vpBar.setTranslationY(fChat ? -dp(6) : fBottom ? dp(24) : -dp(32));
                         vpBar.animate().alpha(1f).translationY(0f).setDuration(220).setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
                     }
                     if (vpPlaying()) vpEqStart(); else vpEqStop();
@@ -6740,6 +6761,8 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                             ((FrameLayout) bubble).addView(rowL, lp);
                         } else if ("bubEmoji".equals(bubble.getTag()) && placeEmojiReactions(bubble, rowL)) {
                             // إيموجي: التفاعل في سطر الوقت نفسه، في الجهة المقابلة للوقت (يسار الوقت لرسائلي)
+                        } else if (bubble instanceof LinearLayout && placeTextReactions(bubble, rowL)) {
+                            // نص: كبسولة التفاعل في نفس سطر الوقت و✓
                         } else if (bubble instanceof LinearLayout) {   // نص/صوت: صف أسفل الفقاعة
                             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
                             lp.gravity = "bubEmoji".equals(bubble.getTag()) ? Gravity.CENTER_HORIZONTAL : Gravity.START;   // إيموجي: التفاعل في المنتصف
@@ -6763,6 +6786,44 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                     final int[] left = {gone.size()};
                     for (View gv : gone) reactPopOut(gv, () -> { if (--left[0] == 0) bubble.post(swap); });
                 }
+            }
+
+            /** رسالة نصية: يضع كبسولة التفاعل بجانب الوقت و✓ في السطر نفسه وبنفس المستوى. */
+            boolean placeTextReactions(View bubble, View rowL) {
+                View meta = bubble.findViewWithTag("textMeta");
+                if (meta == null || !(meta.getParent() instanceof ViewGroup)) return false;
+                LinearLayout wrap;
+                if (meta.getParent() instanceof LinearLayout && "textMetaRow".equals(((View) meta.getParent()).getTag())) wrap = (LinearLayout) meta.getParent();
+                else {
+                    ViewGroup par = (ViewGroup) meta.getParent();
+                    if (!(par instanceof LinearLayout)) return false;
+                    int idx = par.indexOfChild(meta);
+                    par.removeView(meta);
+                    wrap = new LinearLayout(act);
+                    wrap.setTag("textMetaRow");
+                    wrap.setOrientation(LinearLayout.HORIZONTAL);
+                    wrap.setGravity(Gravity.CENTER_VERTICAL);
+                    wrap.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+                    wrap.addView(meta, new LinearLayout.LayoutParams(-2, -2));
+                    LinearLayout.LayoutParams wl = new LinearLayout.LayoutParams(-2, -2);
+                    wl.gravity = Gravity.START;
+                    par.addView(wrap, idx, wl);
+                }
+                LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-2, -2);
+                rp.setMarginStart(dp(8));
+                rp.gravity = Gravity.CENTER_VERTICAL;
+                // الكبسولة أطول من سطر الوقت: نلغي الفرق بهوامش سالبة فيبقى ارتفاع السطر كما هو وتتوسّط الكبسولة الوقت و✓ على نفس المستوى
+                int spec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED);
+                rowL.measure(spec, spec); meta.measure(spec, spec);
+                int extra = rowL.getMeasuredHeight() - meta.getMeasuredHeight();
+                if (extra > 0) { rp.topMargin = -(extra / 2); rp.bottomMargin = -(extra - extra / 2); }
+                wrap.addView(rowL, rp);
+                wrap.setClipChildren(false); wrap.setClipToPadding(false);
+                for (View pv = wrap; pv != null; pv = pv.getParent() instanceof View ? (View) pv.getParent() : null) {
+                    if (pv instanceof ViewGroup) { ((ViewGroup) pv).setClipChildren(false); ((ViewGroup) pv).setClipToPadding(false); }
+                    if (pv == bubble) break;
+                }
+                return true;
             }
 
             /** رسالة إيموجي: يضع التفاعل بجانب كبسولة الوقت في السطر نفسه (الوقت يميناً ← التفاعل يساراً، والعكس). */
@@ -6986,6 +7047,13 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                     return;
                 }
 
+                // أكثر من 500 إيموجي (رسالة إيموجي فقط): تُقسَّم إلى رسائل، كل واحدة 500 إيموجي كحدّ أقصى، والباقي في رسالة تالية
+                java.util.ArrayList<String> emAll = MsgViews.emojiClusters(fullText);
+                if (emAll != null && emAll.size() > EMOJI_CHUNK) {
+                    sendEmojiChunks(emAll);
+                    return;
+                }
+
                 Map<String, Object> msg = new HashMap<>();
                 msg.put("type", "text");
                 msg.put("text", fullText);
@@ -7018,6 +7086,50 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 chatDoc.put("lastStoryReply", false);
                 com.google.firebase.firestore.WriteBatch wb = db.batch();
                 wb.set(msgRef, msg);
+                wb.set(db.collection("chats").document(currentChatId), chatDoc, com.google.firebase.firestore.SetOptions.merge());
+                wb.commit();
+            }
+
+            static final int EMOJI_CHUNK = 500;   // أقصى عدد إيموجي في رسالة واحدة
+
+            /** يقسّم رسالة إيموجي طويلة إلى رسائل (500 + الباقي...) ويرسلها بالترتيب؛ الرد (إن وُجد) يُرفق بالأولى فقط. */
+            void sendEmojiChunks(java.util.ArrayList<String> all) {
+                EditText mi = et("messageInput");
+                if (mi != null) mi.setText("");
+                final java.util.ArrayList<String> parts = new java.util.ArrayList<>();
+                for (int i = 0; i < all.size(); i += EMOJI_CHUNK) {
+                    StringBuilder sb = new StringBuilder();
+                    for (int k = i; k < Math.min(all.size(), i + EMOJI_CHUNK); k++) sb.append(all.get(k));
+                    parts.add(sb.toString());
+                }
+                final long base = System.currentTimeMillis();
+                com.google.firebase.firestore.WriteBatch wb = blockedByThem ? null : db.batch();
+                String last = "";
+                for (int i = 0; i < parts.size(); i++) {
+                    Map<String, Object> msg = new HashMap<>();
+                    msg.put("type", "text");
+                    msg.put("text", parts.get(i));
+                    msg.put("sender", myUid);
+                    msg.put("timestamp", base + i);   // ترتيب ثابت للأجزاء
+                    msg.put("read", false);
+                    if (i == 0 && replyText != null) {
+                        msg.put("replyTo", replyText);
+                        msg.put("replyToId", replyId == null ? "" : replyId);
+                        msg.put("replyToSenderId", replyMine ? myUid : otherUid);
+                        msg.put("replyToType", replyKind);
+                    }
+                    last = parts.get(i);
+                    if (blockedByThem) sendGhost(msg);
+                    else wb.set(db.collection("chats").document(currentChatId).collection("messages").document(), msg);
+                }
+                cancelReply();
+                if (blockedByThem) return;
+                Map<String, Object> chatDoc = new HashMap<>();
+                chatDoc.put("participants", Arrays.asList(myUid, otherUid));
+                chatDoc.put("lastMessage", last);
+                chatDoc.put("lastMessageAt", base + parts.size() - 1);
+                chatDoc.put("lastSender", myUid);
+                chatDoc.put("lastStoryReply", false);
                 wb.set(db.collection("chats").document(currentChatId), chatDoc, com.google.firebase.firestore.SetOptions.merge());
                 wb.commit();
             }
