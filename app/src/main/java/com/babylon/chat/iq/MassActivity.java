@@ -455,6 +455,13 @@ public class MassActivity extends Activity {
                 return g;
             }
 
+            int babylonCapsuleColor() {
+                int gold = (Tk.chatPal != null ? Tk.chatPal.accent : 0xFFC29D30) | 0xFF000000;
+                return androidx_blend(0xFFFFFFFF, gold, 0.025f);
+            }
+            GradientDrawable babylonCapsule(float radiusDp, int stroke) {
+                return shape(babylonCapsuleColor(), radiusDp, stroke);
+            }
             int cBg() { return Tk.pageBg(dark); }
             int cSf() { return dark ? 0xFF17212B : 0xFFFFFFFF; }
             int cBorder() { return Tk.border(dark); }
@@ -479,6 +486,12 @@ public class MassActivity extends Activity {
                 g.setCornerRadius(dp(15));
                 // أثناء الكتابة (نهاري، كل الثيمات): الحقل الداخلي أبيض بصبغة خفيفة جداً من لون الثيم
                 final int acc = (Tk.chatPal != null ? Tk.chatPal.accent : 0xFFC29D30) | 0xFF000000;
+                if (!dark && ChatThemes.isBabylon(Tk.chatThemeId)) {
+                    // كبسولات بابل الفاتحة في الطور النهاري فقط، بلمسة ذهبية تكاد لا تُلاحظ.
+                    g.setColor(androidx_blend(0xFFFFFFFF, acc, 0.025f));
+                    g.setStroke(dp(1), focus ? androidx_blend(0xFFD9D1C1, acc, 0.12f) : 0x00000000);
+                    return g;
+                }
                 if (Tk.chatPal != null) {   // الطورين الليلي والنهاري: ألوان الثيم (داخل شريط الكتابة --cr-card)
                     g.setColor(focus && !dark ? androidx_blend(0xFFFFFFFF, acc, 0.045f) : Tk.chatPal.chatBg);
                     g.setStroke(dp(1), focus ? ((Tk.chatPal.accent & 0x00FFFFFF) | 0x99000000) : 0x00000000);
@@ -662,6 +675,13 @@ public class MassActivity extends Activity {
                             else if (k.equals("green")) T.setTextColor(0xFF4ADE80);
                             else if (k.equals("wh")) T.setTextColor(0xFFFFFFFF);
                         }
+                    }
+                }
+                // كبسولات رأس المحادثة والرد فقط؛ لا نلمس الأشرطة المحيطة بها.
+                if (!dark && ChatThemes.isBabylon(Tk.chatThemeId)) {
+                    if (x == v("chatTitle") || x == v("chatBack") || x == v("chatMore") || x == v("replyPreviewBar")) {
+                        int oldStroke = 0;
+                        x.setBackground(babylonCapsule(x == v("replyPreviewBar") ? 14 : 18, oldStroke));
                     }
                 }
                 if (x instanceof TextView) tintIcons((TextView) x);
@@ -6162,7 +6182,9 @@ public class MassActivity extends Activity {
                 bar.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
                 bar.setGravity(Gravity.CENTER_VERTICAL);
                 bar.setPadding(dp(6), dp(6), dp(10), dp(6));
-                bar.setBackground(shape(Tk.crCard(cSf()), 18, Tk.crLine(cBorder())));   // .pinned-bar{background:var(--cr-card);border:1px solid var(--cr-line)}
+                bar.setBackground(!dark && ChatThemes.isBabylon(Tk.chatThemeId)
+                        ? babylonCapsule(18, Tk.crLine(cBorder()))
+                        : shape(Tk.crCard(cSf()), 18, Tk.crLine(cBorder())));   // لون الشريط/حدوده يبقى كما هو
                 LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(-1, -2);
                 blp.setMargins(dp(10), -dp(3), dp(10), 0);   // الهيدر paddingBottom=6dp ← الفاصل الفعلي 3dp
                 bar.setLayoutParams(blp);
@@ -7999,6 +8021,7 @@ public class MassActivity extends Activity {
 
             /** لون لوحة البحث (وشريط الإشعارات خلفها): --cr-card للثيم، وإلا بطاقة بيضاء/#17212B. معتم دائماً. */
             int csPanelBg() {
+                if (!dark && ChatThemes.isBabylon(Tk.chatThemeId)) return babylonCapsuleColor();
                 int c = Tk.crCard(cSf());
                 int a = (c >>> 24) & 0xFF;
                 if (a < 255 && Tk.chatPal != null) return androidx_blend(Tk.chatPal.chatBg | 0xFF000000, c, a / 255f);
