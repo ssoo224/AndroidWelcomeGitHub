@@ -151,8 +151,9 @@ public final class ChatThemes {
         // ليلي: مرسلتي بتدرّج ذهبي كما في المحادثة الفعلية (bubMine) وبطاقة ثيم بابل، لا أزرق
         if (dark) return new Pal(0xFF0D1626, 145f, 0xFFE8C85D, 0xFFCBA843, 0xFF182533, 0xFFFFFFFF, 0xFFF3F4F6,
                 0xFFC29D30, 0xFFFFFFFF, 0xFF94A3B8, 0x0FFFFFFF, 0xFFC29D30, 0.16f);
-        return new Pal(0xFFEAF0F5, 145f, 0xFFE8C85D, 0xFFCBA843, 0xFFFFFFFF, 0xFFFFFFFF, 0xFF202A35,
-                0xFF9A6B00, 0xFFFFE08A, 0xFF7C8B9C, 0xFFDCE4EE, 0xFF9A6B00, 0.15f);
+        // نهاري: نفس تصميم المحادثة الجديد — خلفية كريمية #FAF6F3 (Tk.BAB_BG) وحدّ كريمي، والنقوش الصغيرة باقية
+        return new Pal(0xFFFAF6F3, 145f, 0xFFE8C85D, 0xFFCBA843, 0xFFFFFFFF, 0xFFFFFFFF, 0xFF202A35,
+                0xFF9A6B00, 0xFFFFE08A, 0xFF7C8B9C, 0xFFEDE5DA, 0xFF9A6B00, 0.15f);
     }
 
     /** لوحة المعاينة الفعلية: بابل لها لوحتها الخاصة، وغيرها themeFor. */

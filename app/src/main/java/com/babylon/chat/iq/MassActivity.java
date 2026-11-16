@@ -476,14 +476,15 @@ public class MassActivity extends Activity {
             /** حقل الكتابة: #f1f5fa / rgba(127,140,160,.10) ، عند التركيز أبيض / .16 وحدّ #c9cfd8 / #8b94a1 ، انحناء 15 */
             GradientDrawable msgInpBg(boolean focus) {
                 GradientDrawable g = new GradientDrawable();
+                g.setCornerRadius(dp(15));
+                // أثناء الكتابة (نهاري، كل الثيمات): الحقل الداخلي أبيض بصبغة خفيفة جداً من لون الثيم
+                final int acc = (Tk.chatPal != null ? Tk.chatPal.accent : 0xFFC29D30) | 0xFF000000;
                 if (Tk.chatPal != null) {   // الطورين الليلي والنهاري: ألوان الثيم (داخل شريط الكتابة --cr-card)
-                    g.setColor(Tk.chatPal.chatBg);
-                    g.setCornerRadius(dp(15));
+                    g.setColor(focus && !dark ? androidx_blend(0xFFFFFFFF, acc, 0.045f) : Tk.chatPal.chatBg);
                     g.setStroke(dp(1), focus ? ((Tk.chatPal.accent & 0x00FFFFFF) | 0x99000000) : 0x00000000);
                     return g;
                 }
-                g.setColor(focus ? (dark ? 0x297F8CA0 : Tk.BAB_FIELD) : (dark ? 0x1A7F8CA0 : Tk.BAB_INPUT));
-                g.setCornerRadius(dp(15));
+                g.setColor(focus ? (dark ? 0x297F8CA0 : androidx_blend(0xFFFFFFFF, acc, 0.045f)) : (dark ? 0x1A7F8CA0 : Tk.BAB_INPUT));
                 g.setStroke(dp(1), focus ? (dark ? 0xFF8B94A1 : 0xFFD9CDBB) : (dark ? 0x00000000 : Tk.BAB_INPUT_LINE));
                 return g;
             }

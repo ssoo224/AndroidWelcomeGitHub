@@ -146,7 +146,7 @@ public final class ChatPreview {
         ChatThemes.Pal p = ChatThemes.previewPal(sp.id, dark);
         boolean babylon = ChatThemes.isBabylon(sp.id);
         host.setBackgroundColor(p.chatBg);
-        int pageBg = Tk.pageBg(dark);
+        int pageBg = (babylon && !dark) ? p.chatBg : Tk.pageBg(dark);   // بابل نهاري: التلاشي بلون الخلفية الكريمية الجديدة
         fadeTop.setBackground(fade(pageBg, true));
         fadeBottom.setBackground(fade(pageBg, false));
         pattern.style(sp.symbols, p.pattern, p.patternOp);

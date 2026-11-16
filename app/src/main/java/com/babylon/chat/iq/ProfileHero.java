@@ -736,6 +736,35 @@ public final class ProfileHero implements PullScrollView.Controller {
         lastPv = -1f;
     }
 
+    // ---- ظهور الاسم/العدّاد/⋮: تلاشٍ زمني خفيف
+    private boolean infoOn = false;
+    private float infoA = 0f;
+    private ValueAnimator infoAnim;
+
+    private void setInfoAlpha(float a) {
+        infoA = a;
+        infoHolder.setAlpha(a);
+        topCtl.setAlpha(a);
+        topCtl.setVisibility(a > 0.01f ? View.VISIBLE : View.GONE);
+    }
+
+    private void updateInfo(boolean on) {
+        if (on == infoOn) return;
+        infoOn = on;
+        if (infoAnim != null) infoAnim.cancel();
+        infoAnim = ValueAnimator.ofFloat(infoA, on ? 1f : 0f);
+        infoAnim.setDuration(on ? 260 : 120);
+        infoAnim.setInterpolator(new android.view.animation.DecelerateInterpolator(1.4f));
+        infoAnim.addUpdateListener(a -> setInfoAlpha((Float) a.getAnimatedValue()));
+        infoAnim.start();
+    }
+
+    private void resetInfo() {
+        if (infoAnim != null) { infoAnim.cancel(); infoAnim = null; }
+        infoOn = false;
+        setInfoAlpha(0f);
+    }
+
     private void apply(float v) {
         p = clamp(v);
         if (p <= 0.001f) { hideHero(); return; }
@@ -802,11 +831,10 @@ public final class ProfileHero implements PullScrollView.Controller {
         hW = size; hH = heroH;
         hero.invalidateOutline();
 
-        float info = clamp((p - 0.55f) / 0.4f);
-        infoHolder.setAlpha(info);
-        topCtl.setVisibility(info > 0.01f ? View.VISIBLE : View.GONE);
-        topCtl.setAlpha(info);
+        updateInfo(p >= 0.8f);   // الاسم يظهر بتلاشٍ زمني ناعم بدل أن يتبع نسبة السحب إطاراً بإطار
         FrameLayout.LayoutParams ilp = (FrameLayout.LayoutParams) infoHolder.getLayoutParams();
+        int iw = (int) Math.max(0f, W - 36 * d);   // عرض ثابت = العرض النهائي: لا يُعاد تقسيم الاسم على سطرين أثناء التكبير (الهيرو يقصّ الزائد)
+        if (ilp.width != iw) ilp.width = iw;
         ilp.bottomMargin = (int) (16 * d + ext);
         infoHolder.setLayoutParams(ilp);
 
@@ -830,6 +858,7 @@ public final class ProfileHero implements PullScrollView.Controller {
     }
 
     private void hideHero() {
+        resetInfo();
         boolean was = covered || hero.getVisibility() == View.VISIBLE;
         hero.setVisibility(View.GONE);
         topCtl.setVisibility(View.GONE);

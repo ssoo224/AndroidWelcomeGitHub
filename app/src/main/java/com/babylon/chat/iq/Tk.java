@@ -24,6 +24,7 @@ public final class Tk {
 
     // ثيم بابل النهاري: ألوان كريمية مأخوذة من اللقطة المرجعية (خلفية المحادثة + الحقول «البيضاء»: الهيدر وشريط الكتابة والأزرار الدائرية)
     public static final int BAB_BG = 0xFFFAF6F3, BAB_FIELD = 0xFFFCF9F6, BAB_LINE = 0xFFEDE5DA, BAB_INPUT = 0xFFF6F0E8, BAB_INPUT_LINE = 0xFFE6DDD1;
+    public static final int BAB_HEADER = 0xFFFEFCFA;   // كبسولة الاسم والصورة + زرّا الرجوع و⋮: أبيض بدرجة واحدة أكثر من BAB_FIELD
     public static boolean chatDark = false;
     /** بابل نهاري (لا ثيم آخر مطبّق ولا ليلي)؟ */
     public static boolean babLight() { return chatPal == null && !chatDark; }
@@ -185,9 +186,9 @@ public final class Tk {
     /** خلفية غرفة المحادثة بحسب الثيم: نقوش الثيم (#chatPattern) بنفس شفافية الـ HTML تماماً: .06 ليلي / .07 نهاري (بابل) و .08 لغير بابل (#chatView .pattern-layer{opacity:…!important}). */
     public static android.graphics.drawable.Drawable chatRoomBg(View v, boolean dark) {
         ChatThemes.Spec sp = ChatThemes.byId(chatThemeId);
-        if (chatPal != null) return new ChatPattern.Bg(v.getContext(), chatPal.chatBg, sp.symbols, chatPal.pattern, 0.08f, chatPal.pattern, chatDark);
+        if (chatPal != null) return new ChatPattern.Bg(v.getContext(), chatPal.chatBg, sp.symbols, chatPal.pattern, 0.08f);
         ChatThemes.Pal b = sp.pal(dark);
-        return new ChatPattern.Bg(v.getContext(), chatSurface(dark), sp.symbols, b.pattern, dark ? 0.06f : 0.07f, b.pattern, dark);
+        return new ChatPattern.Bg(v.getContext(), chatSurface(dark), sp.symbols, b.pattern, dark ? 0.06f : 0.07f);
     }
 
     public static android.graphics.drawable.Drawable pattern(View v, boolean dark, int baseColor) {
@@ -319,24 +320,24 @@ public final class Tk {
         if (tag.equals("rbtn")) {            // زر دائري أبيض بظل (.icon-btn في الهيدر)
             GradientDrawable g = new GradientDrawable();
             g.setShape(GradientDrawable.OVAL);
-            g.setColor(crCard(dark ? 0xFF1E2A38 : 0xFFFFFFFF));
+            g.setColor(chatPal != null ? chatPal.other : (dark ? 0xFF1E2A38 : BAB_HEADER));
             if (chatPal != null) g.setStroke(Math.max(1, (int) dp(x, 1)), chatPal.line);
             x.setBackground(g);
             return false;                    // يكمل t لتلوين النص/الأيقونة
         }
         if (tag.equals("pill")) {            // كبسولة الهيدر
-            x.setBackground(shape(crCard(dark ? 0xFF1E2A38 : 0xFFFFFFFF), dp(x, 24), crLine(dark ? 0x14FFFFFF : 0xFFE3E9F1), dp(x, 1)));
+            x.setBackground(shape(chatPal != null ? chatPal.other : (dark ? 0xFF1E2A38 : BAB_HEADER), dp(x, 24), crLine(dark ? 0x14FFFFFF : 0xFFE3E9F1), babLight() ? 0 : dp(x, 1)));   // بابل نهاري: بلا إطار يحيط بالكبسولة
             return true;
         }
         if (tag.equals("composer")) {        // مدخل الرسائل العائم
             // #chatView #textInputBar : --cr-card (#1e2a38 / #fff) ، حدّ --cr-line ، انحناء 19px
             // الشريط الأبيض الحاوي لأزرار الصوتية والوسائط وحدّه يخضعان للثيم في النهاري والليلي (ثيم بابل = chatPal null يبقى كما هو)
             if (chatPal != null) x.setBackground(shape(chatPal.other, dp(x, 19), chatPal.line, dp(x, 1)));
-            else x.setBackground(shape(dark ? 0xFF1C2836 : BAB_FIELD, dp(x, 19), dark ? 0x14FFFFFF : BAB_LINE, dp(x, 1)));
+            else x.setBackground(shape(dark ? 0xFF1C2836 : BAB_FIELD, dp(x, 19), dark ? 0x14FFFFFF : BAB_LINE, dark ? dp(x, 1) : 0));   // نهاري: بلا إطار
             return true;
         }
         if (tag.equals("recbar")) {          // .recording-bar : surface + حدّ ، انحناء 18
-            x.setBackground(shape(dark ? 0xFF17212B : (chatPal != null ? chatPal.other : BAB_FIELD), dp(x, 18), dark ? 0x3394A3B8 : (chatPal != null ? chatPal.line : BAB_LINE), dp(x, 1)));
+            x.setBackground(shape(dark ? 0xFF17212B : (chatPal != null ? chatPal.other : BAB_FIELD), dp(x, 18), dark ? 0x3394A3B8 : (chatPal != null ? chatPal.line : BAB_LINE), babLight() ? 0 : dp(x, 1)));
             return true;
         }
         if (tag.equals("recbtn")) {          // زر الإيقاف/الإرسال: دائرة 42 بتدرّج ذهبي 145deg وظل ذهبي

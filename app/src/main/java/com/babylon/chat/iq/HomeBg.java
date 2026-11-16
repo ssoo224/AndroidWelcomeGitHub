@@ -35,6 +35,15 @@ final class HomeBg extends Drawable {
     private final Paint fill3 = new Paint(Paint.ANTI_ALIAS_FLAG);
     private int bw = -1, bh = -1;
 
+    // ارتفاع مرجعي ثابت: أكبر ارتفاع رُسمت به الخلفية بهذا العرض. عند فتح محادثة (أو الكيبورد) يصغر مضيف الصفحة الرئيسية من الأسفل
+    // (حشوة شريط الإيماءات/الكيبورد)، وكانت الموجات تُحاذى للأسفل ونسبها من الارتفاع فتصعد وتنضغط. الآن تُرسم بالارتفاع المرجعي وتُقصّ فقط.
+    private static int sRefW = -1, sRefH = -1;
+    private static synchronized int refHeight(int w, int h) {
+        if (w != sRefW) { sRefW = w; sRefH = h; }      // عرض جديد (تدوير الشاشة): ابدأ من جديد
+        else if (h > sRefH) sRefH = h;
+        return sRefH;
+    }
+
     // نسبة المنطقة المرسومة من ارتفاع الشاشة في اللقطة (الهيدر أعلاها ≈ 0.11 والشريط السفلي ≈ 0.12)
     private static final float TOP = 0.11f, SPAN = 0.77f;
 
@@ -127,7 +136,7 @@ final class HomeBg extends Drawable {
     private static float yy(float f, int h) { return (f - TOP) / SPAN * h; }
     private static float yw(float f, int h) { return (f - TOP) / (1f - TOP) * h; }   // الصفحة تمتد من الهيدر حتى أسفل الشاشة
 
-    @Override protected void onBoundsChange(Rect b) { build(b.width(), b.height()); }
+    @Override protected void onBoundsChange(Rect b) { if (b.width() > 0 && b.height() > 0) build(b.width(), refHeight(b.width(), b.height())); }
 
     private void build(int w, int h) {
         if (w <= 0 || h <= 0) return;
@@ -229,11 +238,14 @@ final class HomeBg extends Drawable {
 
     @Override public void draw(Canvas c) {
         Rect b = getBounds();
-        if (b.width() != bw || b.height() != bh) build(b.width(), b.height());
+        if (b.width() <= 0 || b.height() <= 0) return;
+        int rh = refHeight(b.width(), b.height());
+        if (b.width() != bw || rh != bh) build(b.width(), rh);
         if (bw <= 0) return;
         c.save();
         c.translate(b.left, b.top);
-        c.drawRect(0, 0, bw, bh, base);
+        c.clipRect(0, 0, b.width(), b.height());
+        c.drawRect(0, 0, b.width(), b.height(), base);
         if (photo != null) {
             float sc = bw / (float) photo.getWidth(), ph = photo.getHeight() * sc;
             c.drawBitmap(photo, null, new RectF(0, bh - ph, bw, bh), artPaint);
