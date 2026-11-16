@@ -37,6 +37,10 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if (getIntent() != null && getIntent().getData() != null) {
+            getSharedPreferences("babylon_boot", MODE_PRIVATE).edit()
+                    .putString("pending_link", getIntent().getData().toString()).apply();
+        }
         binding = MainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 

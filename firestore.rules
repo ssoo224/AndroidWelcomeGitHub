@@ -1,0 +1,232 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function chatPath(chatId) {
+      return /databases/$(database)/documents/chats/$(chatId);
+    }
+
+    function invitePath(code) {
+      return /databases/$(database)/documents/groupInvites/$(code);
+    }
+
+    function isMember(chatId) {
+      return signedIn()
+        && exists(chatPath(chatId))
+        && request.auth.uid in get(chatPath(chatId)).data.participants;
+    }
+
+    function isGroup(chatId) {
+      return exists(chatPath(chatId))
+        && get(chatPath(chatId)).data.type == 'group';
+    }
+
+    function isOwner(chatId) {
+      return isMember(chatId)
+        && get(chatPath(chatId)).data.ownerId == request.auth.uid;
+    }
+
+    function isAdmin(chatId) {
+      return isMember(chatId)
+        && (isOwner(chatId) || request.auth.uid in get(chatPath(chatId)).data.admins);
+    }
+
+    function hasActiveInvite(chatId) {
+      let group = get(chatPath(chatId)).data;
+      let code = group.inviteCode;
+      return group.type == 'group'
+        && code is string
+        && exists(invitePath(code))
+        && get(invitePath(code)).data.active == true
+        && get(invitePath(code)).data.groupId == chatId;
+    }
+
+    function activeInviteAfter(chatId) {
+      let code = request.resource.data.inviteCode;
+      return code is string
+        && getAfter(invitePath(code)).data.active == true
+        && getAfter(invitePath(code)).data.groupId == chatId;
+    }
+
+    function validGroupCreate(chatId) {
+      return signedIn()
+        && request.resource.data.type == 'group'
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.admins == [request.auth.uid]
+        && request.resource.data.participants is list
+        && request.resource.data.participants.size() >= 2
+        && request.resource.data.participants.size() <= 100
+        && request.auth.uid in request.resource.data.participants
+        && request.resource.data.memberLimit == 100
+        && activeInviteAfter(chatId);
+    }
+
+    function validGroupMemberUpdate(chatId) {
+      let changed = resource.data.diff(request.resource.data).affectedKeys();
+      let oldMembers = resource.data.participants.toSet();
+      let newMembers = request.resource.data.participants.toSet();
+      let addedSelf = request.auth.uid in request.resource.data.participants
+        && request.resource.data.participants.size() == resource.data.participants.size() + 1
+        && newMembers.hasAll(oldMembers);
+      let removedSelf = request.auth.uid in resource.data.participants
+        && !(request.auth.uid in request.resource.data.participants)
+        && request.resource.data.participants.size() == resource.data.participants.size() - 1
+        && oldMembers.hasAll(newMembers)
+        && resource.data.ownerId != request.auth.uid
+        && resource.data.admins.toSet().hasAll(request.resource.data.admins.toSet())
+        && (!(request.auth.uid in resource.data.admins)
+          || !(request.auth.uid in request.resource.data.admins));
+      let allowedChatFields = [
+        'lastMessage', 'lastMessageAt', 'lastSender', 'lastStoryReply',
+        'updatedAt', 'unreadCounts', 'pins'
+      ];
+      return isMember(chatId)
+        && (
+          (changed.hasOnly(allowedChatFields)
+            && request.resource.data.participants == resource.data.participants
+            && request.resource.data.admins == resource.data.admins
+            && request.resource.data.ownerId == resource.data.ownerId)
+          || (isOwner(chatId)
+            && changed.hasOnly([
+              'name', 'description', 'photoData', 'updatedAt',
+              'participants', 'admins', 'ownerId', 'inviteCode',
+              'unreadCounts', 'lastMessage', 'lastMessageAt', 'lastSender'
+            ])
+            && request.resource.data.participants.size() <= 100
+            && resource.data.ownerId in request.resource.data.participants
+            && (request.resource.data.inviteCode == resource.data.inviteCode
+              || activeInviteAfter(chatId)))
+          || (isAdmin(chatId)
+            && request.auth.uid != resource.data.ownerId
+            && changed.hasOnly([
+              'name', 'description', 'photoData', 'updatedAt',
+              'participants', 'inviteCode', 'unreadCounts', 'lastMessage',
+              'lastMessageAt', 'lastSender'
+            ])
+            && request.resource.data.ownerId == resource.data.ownerId
+            && request.resource.data.admins == resource.data.admins
+            && request.resource.data.participants.size() <= 100
+            && request.resource.data.participants.toSet().hasAll(resource.data.admins.toSet())
+            && (request.resource.data.inviteCode == resource.data.inviteCode
+              || activeInviteAfter(chatId)))
+          || (hasActiveInvite(chatId)
+            && addedSelf
+            && changed.hasOnly(['participants', 'unreadCounts', 'updatedAt']))
+          || (removedSelf
+            && changed.hasOnly(['participants', 'admins', 'unreadCounts', 'updatedAt']))
+        );
+    }
+
+    match /chats/{chatId} {
+      allow get, list: if signedIn()
+        && (request.auth.uid in resource.data.participants
+          || hasActiveInvite(chatId));
+      allow create: if validGroupCreate(chatId)
+        || (signedIn()
+          && request.resource.data.type != 'group'
+          && request.resource.data.participants is list
+          && request.resource.data.participants.size() == 2
+          && request.auth.uid in request.resource.data.participants);
+      allow update: if resource.data.type == 'group'
+        ? validGroupMemberUpdate(chatId)
+        : (isMember(chatId)
+          && request.resource.data.participants.toSet() == resource.data.participants.toSet());
+      allow delete: if resource.data.type == 'group'
+        ? isOwner(chatId)
+        : isMember(chatId);
+
+      match /messages/{messageId} {
+        function parentIsGroup() {
+          return get(chatPath(chatId)).data.type == 'group';
+        }
+
+        allow read: if isMember(chatId);
+        allow create: if isMember(chatId)
+          && (request.resource.data.sender == request.auth.uid
+            || request.resource.data.senderId == request.auth.uid)
+          && (!parentIsGroup()
+            || (request.resource.data.readBy is list
+              && request.auth.uid in request.resource.data.readBy));
+        allow update: if isMember(chatId)
+          && (parentIsGroup()
+            ? (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy'])
+              && request.auth.uid in request.resource.data.readBy
+              && request.resource.data.readBy.toSet().hasAll(resource.data.readBy.toSet()))
+            : true);
+        allow delete: if isMember(chatId)
+          && (!parentIsGroup()
+            || isOwner(chatId)
+            || resource.data.sender == request.auth.uid
+            || resource.data.senderId == request.auth.uid);
+      }
+    }
+
+    match /groupInvites/{code} {
+      allow get: if signedIn()
+        && (resource.data.active == true
+          || (resource.data.groupId is string && isAdmin(resource.data.groupId)));
+      allow list: if signedIn()
+        && resource.data.groupId is string
+        && isAdmin(resource.data.groupId);
+      allow create: if signedIn()
+        && request.resource.data.groupId is string
+        && getAfter(chatPath(request.resource.data.groupId)).data.type == 'group'
+        && getAfter(chatPath(request.resource.data.groupId)).data.inviteCode == code
+        && request.resource.data.active == true
+        && (getAfter(chatPath(request.resource.data.groupId)).data.ownerId == request.auth.uid
+          || request.auth.uid in getAfter(chatPath(request.resource.data.groupId)).data.admins);
+      allow update: if signedIn()
+        && resource.data.groupId is string
+        && isAdmin(resource.data.groupId)
+        && request.resource.data.groupId == resource.data.groupId
+        && request.resource.data.active == false;
+      allow delete: if signedIn()
+        && resource.data.groupId is string
+        && isOwner(resource.data.groupId);
+    }
+
+    match /stories/{storyId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if signedIn()
+        && resource.data.userId == request.auth.uid;
+
+      match /views/{viewerId} {
+        function storyOwner() {
+          return get(/databases/$(database)/documents/stories/$(storyId)).data.userId;
+        }
+
+        allow read: if signedIn()
+          && (request.auth.uid == viewerId || request.auth.uid == storyOwner());
+        allow create, update: if signedIn()
+          && request.auth.uid == viewerId
+          && request.resource.data.uid == request.auth.uid;
+        allow delete: if signedIn()
+          && (request.auth.uid == viewerId || request.auth.uid == storyOwner());
+      }
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn();
+      allow create, update, delete: if signedIn() && request.auth.uid == userId;
+
+      match /photos/{photoId} {
+        allow read: if signedIn();
+        allow create, update, delete: if signedIn() && request.auth.uid == userId;
+      }
+
+      match /blocks/{blockedUserId} {
+        allow read: if signedIn();
+        allow create, update, delete: if signedIn() && request.auth.uid == userId;
+      }
+
+      match /private/{documentId} {
+        allow read, write: if signedIn() && request.auth.uid == userId;
+      }
+    }
+  }
+}

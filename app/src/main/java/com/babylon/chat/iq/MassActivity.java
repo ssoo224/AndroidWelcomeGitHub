@@ -96,15 +96,26 @@ public class MassActivity extends Activity {
     private interface DeepCb { void open(String username); }
     private DeepCb deepOpener;
     private String pendingDeepUser;
+    private interface GroupJoinCb { void open(String code); }
+    private GroupJoinCb groupJoinOpener;
+    private String pendingGroupInvite;
+
+    private static final int REQ_GROUP_SCREEN = 1704;
 
     /** يفتح ملف المستخدم من رابط داخلي babylon://u/username؛ يُرجع true إن كان الرابط من هذا النوع. */
     public boolean handleDeepLink(android.net.Uri u) {
         try {
             if (u == null || u.getHost() == null) return false;
             String h = u.getHost().toLowerCase();
-            boolean scheme = "babylon".equalsIgnoreCase(u.getScheme()) && h.equals("u");   // رابط داخلي فقط: babylon://u/username
-            if (!scheme) return false;
+            if (!"babylon".equalsIgnoreCase(u.getScheme())) return false;
             java.util.List<String> seg = u.getPathSegments();
+            if ("join".equals(h)) {
+                String code = seg == null || seg.isEmpty() ? "" : seg.get(0).trim();
+                if (code.isEmpty()) return true;
+                if (groupJoinOpener != null) groupJoinOpener.open(code); else pendingGroupInvite = code;
+                return true;
+            }
+            if (!h.equals("u")) return false;
             String name = seg == null || seg.isEmpty() ? "" : seg.get(0);
             if (name.startsWith("@")) name = name.substring(1);
             name = name.trim().toLowerCase();
@@ -296,6 +307,11 @@ public class MassActivity extends Activity {
         super.onActivityResult(requestCode, resultCode, data);
         try { if (StoryViewer.onActivityResult(requestCode, resultCode, data)) return; } catch (Throwable ignored) { }
         try { if (storyComposer != null && storyComposer.onActivityResult(requestCode, resultCode, data)) return; } catch (Throwable ignored) { }
+        if (requestCode == REQ_GROUP_SCREEN && resultCode == RESULT_OK && data != null) {
+            String createdGroupId = data.getStringExtra("group_id");
+            if (createdGroupId != null) openGroupChat(createdGroupId);
+            return;
+        }
         if (requestCode == REQ_PICK_FILE) {
             java.util.function.Consumer<Uri> fcb = pendingFileCallback;
             pendingFileCallback = null;
@@ -307,6 +323,20 @@ public class MassActivity extends Activity {
             pendingImageCallback = null;
             if (cb != null) cb.accept(data.getData());
         }
+    }
+
+    private void openGroupChat(String groupId) {
+        if (groupId == null || groupId.isEmpty()) return;
+        Intent intent = new Intent(this, GroupChatActivity.class);
+        intent.putExtra("group_id", groupId);
+        startActivity(intent);
+    }
+
+    private void openGroupInvite(String code) {
+        if (code == null || code.isEmpty()) return;
+        Intent intent = new Intent(this, GroupChatActivity.class);
+        intent.putExtra("join_code", code);
+        startActivity(intent);
     }
 
     @Override
@@ -2806,6 +2836,23 @@ public class MassActivity extends Activity {
                         final List<String[]> fresh = new ArrayList<>();
                         final List<Runnable> fetches = new ArrayList<>();
                         for (Map<String, Object> m : temp) {
+                            if ("group".equals(String.valueOf(m.get("type")))) {
+                                String groupId = String.valueOf(m.get("__id"));
+                                String rowKey = "group:" + groupId;
+                                String groupName = m.get("name") instanceof String ? (String) m.get("name") : "مجموعة";
+                                String lastMessage = m.get("lastMessage") instanceof String ? (String) m.get("lastMessage") : "";
+                                long lastAt = chatTs(m);
+                                Object unreadMap = m.get("unreadCounts");
+                                Object unreadValue = unreadMap instanceof Map ? ((Map<?, ?>) unreadMap).get(myUid) : null;
+                                String unread = unreadValue instanceof Number && ((Number) unreadValue).intValue() > 0
+                                        ? String.valueOf(((Number) unreadValue).intValue()) : "0";
+                                chatTsMap.put(rowKey, lastAt);
+                                chatIdByUid.put(rowKey, groupId);
+                                lastMineByUid.put(rowKey, myUid.equals(String.valueOf(m.get("lastSender"))));
+                                lastSeenByUid.put(rowKey, false);
+                                fresh.add(new String[]{groupName, lastMessage, lastAt > 0 ? listTime(lastAt) : "", unread, rowKey});
+                                continue;
+                            }
                             Object po = m.get("participants");
                             if (!(po instanceof List)) continue;
                             List<Object> parts = (List<Object>) po;
@@ -3335,9 +3382,10 @@ public class MassActivity extends Activity {
                     if (unreadOnly && c[3].equals("0")) continue;
                     final boolean hasUnread = !c[3].equals("0");
                     final String rowUid = c.length > 4 ? c[4] : "";
+                    final boolean groupRow = rowUid.startsWith("group:");
                     final boolean rowSel = chatSelMode && chatSel.contains(rowUid);
                     final boolean rowPinned = c.length > 4 && pinsNow.contains(chatIdOf(rowUid));
-                    final String dn = c.length > 4 ? dispName(c[4], c[0]) : c[0];
+                    final String dn = c.length > 4 && !groupRow ? dispName(c[4], c[0]) : c[0];
                     LinearLayout row = new LinearLayout(act);
                     row.setOrientation(LinearLayout.HORIZONTAL);
                     row.setGravity(Gravity.CENTER_VERTICAL);
@@ -3353,11 +3401,12 @@ public class MassActivity extends Activity {
                     // المسافة ثابتة 3dp للمحددة وغير المحددة: تغيّرها (2dp) كان يزيح القائمة 1dp مع كل تحديد فتبدو ترتجّ
                     row.setLayoutParams(rp);
                     StoryAvatarView av = new StoryAvatarView(act);
-                    boolean ringOn = c.length > 4 && storyUntil.get(c[4]) != null && storyUntil.get(c[4]) > System.currentTimeMillis();
-                    final Bitmap rowPhoto = c.length > 4 ? peerPhotos.get(c[4]) : null;
-                    if (c.length > 4) ensurePeerPhoto(c[4]);
-                    av.set(dn.length() > 0 ? dn.substring(0, 1).toUpperCase() : "?", rowPhoto, c.length > 4 && StoryAvatarView.toneBlue(c[4]))
-                      .ring(ringOn, false).online(c.length > 4 && Boolean.TRUE.equals(onlineMap.get(c[4])))
+                    boolean ringOn = !groupRow && c.length > 4 && storyUntil.get(c[4]) != null && storyUntil.get(c[4]) > System.currentTimeMillis();
+                    final Bitmap rowPhoto = c.length > 4 && !groupRow ? peerPhotos.get(c[4]) : null;
+                    if (c.length > 4 && !groupRow) ensurePeerPhoto(c[4]);
+                    av.set(dn.length() > 0 ? dn.substring(0, 1).toUpperCase() : "?", rowPhoto,
+                              !groupRow && c.length > 4 && StoryAvatarView.toneBlue(c[4]))
+                      .ring(ringOn, false).online(!groupRow && c.length > 4 && Boolean.TRUE.equals(onlineMap.get(c[4])))
                       .theme(dark, cSf()).textSp(17f).pad(ringOn ? 5f : 0f);   // الصورة تصغر فقط عند وجود قصة (الحلقة داخل حدود الـ View فلا تُقصّ)
                     if (ringOn) {   // chatAvatarStory: الضغط على أفاتار فيه حلقة يفتح القصة
                         final StoryAvatarView fav = av; final String fUid = rowUid, fName = dn;
@@ -3396,7 +3445,7 @@ public class MassActivity extends Activity {
                     tm.setTypeface(null, hasUnread ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
                     tm.setTextColor(hasUnread ? cGold() : (dark ? 0xFF8798AA : 0xFF6B7A8C)); tm.setIncludeFontPadding(false);
                     r1.addView(tm, new LinearLayout.LayoutParams(-2, -2));   // الوقت في أقصى اليسار
-                    if (Boolean.TRUE.equals(lastMineByUid.get(rowUid))) {   // آخر رسالة مني: ✓ مرسلة، ✓✓ مقروءة (على يمين الوقت)
+                    if (!groupRow && Boolean.TRUE.equals(lastMineByUid.get(rowUid))) {   // لا تُعرض علامة قراءة فردية على المجموعة
                         // ✓✓ فقط إن أكّد السيرفر أن آخر رسالة في المحادثة (وهي مني) read==true؛ قبل وصول البيانات تبقى ✓
                         boolean seen = Boolean.TRUE.equals(lastSeenByUid.get(rowUid));
                         ImageView tk = new ImageView(act);
@@ -3504,8 +3553,17 @@ public class MassActivity extends Activity {
                     row.addView(mid);
                     row.addView(av, ap);
                     final String fName = c[0], fUid = c[4];
-                    row.setOnClickListener(x -> { if (chatSelMode) toggleChatSel(fUid); else openChat(fName, fUid); });
+                    row.setOnClickListener(x -> {
+                        if (chatSelMode && groupRow) toast("افتح المجموعة لإدارتها أو مغادرتها");
+                        else if (chatSelMode) toggleChatSel(fUid);
+                        else if (groupRow) openGroupChat(fUid.substring("group:".length()));
+                        else openChat(fName, fUid);
+                    });
                     row.setOnLongClickListener(x -> {
+                        if (groupRow) {
+                            toast("إدارة المجموعة متاحة من داخل المحادثة");
+                            return true;
+                        }
                         // لا نستدعي performHapticFeedback هنا: View يهتز تلقائياً عند إرجاع true من الضغط المطوّل (استدعاؤه يدوياً كان يسبّب اهتزازاً مزدوجاً)
                         if (!chatSelMode) enterChatSel(fUid); else toggleChatSel(fUid);
                         return true;
@@ -3932,7 +3990,7 @@ public class MassActivity extends Activity {
 
             // ---- الحذف (selDelete / openDeleteChatsDialog / deleteChats) ----
             String chatNameOfUid(String uid) {
-                for (String[] c : chatData) if (c.length > 4 && c[4].equals(uid)) return dispName(uid, c[0]);
+                for (String[] c : chatData) if (c.length > 4 && c[4].equals(uid)) return uid.startsWith("group:") ? c[0] : dispName(uid, c[0]);
                 return "المستخدم";
             }
 
@@ -8602,11 +8660,7 @@ public class MassActivity extends Activity {
                 else if (id.equals("fltAll")) setFilter(false);
                 else if (id.equals("fltUnread")) setFilter(true);
                 else if (id.equals("newGroupFab")) {
-                    final EditText e = new EditText(act);
-                    e.setHint("اسم المجموعة");
-                    new AlertDialog.Builder(act).setTitle("مجموعة جديدة").setView(e)
-                        .setPositiveButton("إنشاء", (d, w) -> toast("إنشاء المجموعات قيد التطوير"))
-                        .setNegativeButton("إلغاء", null).show();
+                    act.startActivityForResult(new Intent(act, GroupActivity.class), REQ_GROUP_SCREEN);
                 }
                 else if (id.equals("pEdit") || id.equals("pBioRow")) openEdit();
                 else if (id.equals("pPhoto")) pickProfilePhoto();
@@ -8921,6 +8975,12 @@ public class MassActivity extends Activity {
         } catch (Throwable ignored) { }
         deepOpener = ui::openProfileByUsername;
         if (pendingDeepUser != null) { final String pu = pendingDeepUser; pendingDeepUser = null; getWindow().getDecorView().post(() -> uiRef.openProfileByUsername(pu)); }
+        groupJoinOpener = this::openGroupInvite;
+        if (pendingGroupInvite != null) {
+            final String inviteCode = pendingGroupInvite;
+            pendingGroupInvite = null;
+            getWindow().getDecorView().postDelayed(() -> openGroupInvite(inviteCode), 500);
+        }
         backHook = ui::onBack;
         touchHook = ev -> { ui.globalTap(ev); ui.dragSelTouch(ev); };
         vpStopHook = ui::vpStop;

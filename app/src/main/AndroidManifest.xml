@@ -45,6 +45,12 @@
 				<action android:name="android.intent.action.MAIN" />
 				<category android:name="android.intent.category.LAUNCHER" />
 			</intent-filter>
+			<intent-filter>
+				<action android:name="android.intent.action.VIEW" />
+				<category android:name="android.intent.category.DEFAULT" />
+				<category android:name="android.intent.category.BROWSABLE" />
+				<data android:scheme="babylon" android:host="join" />
+			</intent-filter>
 		</activity>
 
 		<activity
@@ -61,6 +67,16 @@
 			android:hardwareAccelerated="true"
 			android:supportsPictureInPicture="true"
 			android:theme="@style/NoActionBar" />
+
+		<activity
+			android:name=".GroupActivity"
+			android:theme="@style/NoActionBar"
+			android:exported="false" />
+
+		<activity
+			android:name=".GroupChatActivity"
+			android:theme="@style/NoActionBar"
+			android:exported="false" />
 
 		<activity
 			android:name=".PartProfileActivity"
