@@ -24,7 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /** شاشة البداية (Splash): تحدد هل المستخدم مسجّل دخوله أم لا ثم تنتقل للشاشة المناسبة. */
-public class MainActivity extends Activity {
+public class MainActivity extends ScaledActivity {
 
     private static final long SPLASH_MS = 1800;
 
@@ -37,10 +37,6 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        if (getIntent() != null && getIntent().getData() != null) {
-            getSharedPreferences("babylon_boot", MODE_PRIVATE).edit()
-                    .putString("pending_link", getIntent().getData().toString()).apply();
-        }
         binding = MainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 

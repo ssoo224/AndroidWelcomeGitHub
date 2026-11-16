@@ -6,6 +6,9 @@ import android.os.Bundle;
 
 /** يطبّق خط التطبيق المختار على كل شاشة تُفتح. */
 public class BabylonApp extends Application {
+    /** سياق التطبيق نفسه مُحجَّم أيضاً: أي Toast/Service/عنصر يُبنى بسياق التطبيق يتبع نفس التحجيم الديناميكي. */
+    @Override protected void attachBaseContext(android.content.Context base) { super.attachBaseContext(ScreenScale.wrap(base)); }
+
     @Override public void onCreate() {
         super.onCreate();
         // كاش Firestore على الجهاز بلا حد أقصى (الافتراضي 100MB ويُحذف القديم): الرسائل تبقى محلياً وتُقرأ منه بدل إعادة تنزيلها

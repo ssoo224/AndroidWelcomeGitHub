@@ -220,7 +220,7 @@ final class HomeBg extends Drawable {
                 new float[]{0f, 0.6f, 1f}, Shader.TileMode.CLAMP));
         // الموجة الإضافية: تعبئة حريرية ناعمة تتلاشى تدريجياً + حافة هلالية رفيعة تتلاشى عند طرفيها (نفس طابع بقية الموجات)
         fill5.setShader(new LinearGradient(0, 0, w * 0.7f, 0,
-                new int[]{(dark ? 0x0E : 0x16) << 24 | gold, (dark ? 0x06 : 0x08) << 24 | gold, 0x00000000 | gold},
+                new int[]{(dark ? 0x14 : 0x26) << 24 | gold, (dark ? 0x0A : 0x14) << 24 | gold, 0x00000000 | gold},
                 new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP));
         line5.setStyle(Paint.Style.FILL);
         line5.setShader(new LinearGradient(0, 0, w * 0.7f, 0,
@@ -264,10 +264,24 @@ final class HomeBg extends Drawable {
         c.restore();
     }
 
+    /** الموجة الإضافية: انحناءة ناعمة بحواف مطموسة (بلا خطوط ذهبية رفيعة) مثل بقية الانحناءات؛ تُرسم مرة واحدة في Bitmap بنصف الدقة. */
+    private Bitmap waveBmp; private int waveW = -1, waveH = -1;
     private void drawExtraWave(Canvas c) {
-        c.drawPath(band5, fill5);
-        c.drawPath(e5, line5);
-        c.drawPath(e6, line5);
+        if (waveBmp == null || waveW != bw || waveH != bh) {
+            try {
+                float k = 0.5f;
+                Bitmap bm = Bitmap.createBitmap(Math.max(1, (int) (bw * k)), Math.max(1, (int) (bh * k)), Bitmap.Config.ARGB_8888);
+                Canvas bc = new Canvas(bm);
+                bc.scale(k, k);
+                Paint soft = new Paint(Paint.ANTI_ALIAS_FLAG);
+                soft.setShader(fill5.getShader());
+                soft.setMaskFilter(new android.graphics.BlurMaskFilter(16f * d, android.graphics.BlurMaskFilter.Blur.NORMAL));
+                bc.drawPath(band5, soft);
+                waveBmp = bm; waveW = bw; waveH = bh;
+            } catch (Throwable t) { waveBmp = null; }
+        }
+        if (waveBmp != null) c.drawBitmap(waveBmp, null, new RectF(0, 0, bw, bh), artPaint);
+        else c.drawPath(band5, fill5);
     }
 
     @Override public void setAlpha(int a) { }

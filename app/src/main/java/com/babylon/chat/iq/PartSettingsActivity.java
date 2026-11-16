@@ -28,7 +28,7 @@ import java.util.*;
 import java.util.regex.*;
 import org.json.*;
 
-public class PartSettingsActivity extends Activity {
+public class PartSettingsActivity extends ScaledActivity {
 	
 	private PartSettingsBinding binding;
 	
@@ -85,4 +85,4 @@ public class PartSettingsActivity extends Activity {
 		rootView.requestApplyInsets();
 	}
 	
-}
+}

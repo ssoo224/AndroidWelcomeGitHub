@@ -26,7 +26,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /** شاشة تسجيل الدخول / إنشاء حساب (Firebase Auth + Firestore). */
-public class Main2Activity extends Activity {
+public class Main2Activity extends ScaledActivity {
 
     private Main2Binding binding;
     private FirebaseAuth auth;

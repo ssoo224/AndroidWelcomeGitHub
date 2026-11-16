@@ -63,6 +63,16 @@ final class ProfileTags {
 
     static boolean apply(String tag, View x, TextView t, boolean dark) {
         // ==== PROFILE TAGS (أضف الفروع هنا) ====
+        if (tag.equals("pfic")) {                        // رمز صف الملف الشخصي: بلا مربع ملوّن، رمز خطي ذهبي أكبر
+            x.setBackground(null);
+            int c = Tk.gold(dark);
+            if (t != null) {
+                t.setTextColor(c);
+                for (android.graphics.drawable.Drawable d : t.getCompoundDrawablesRelative())
+                    if (d != null) d.mutate().setColorFilter(c, android.graphics.PorterDuff.Mode.SRC_IN);
+            }
+            return true;
+        }
         if (tag.equals("epbg")) { x.setBackgroundColor(epPage(dark)); return true; }
 
         if (tag.equals("ephdr")) {                       // .edit-profile-header

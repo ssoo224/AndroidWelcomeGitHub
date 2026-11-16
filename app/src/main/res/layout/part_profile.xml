@@ -151,12 +151,12 @@
 					android:orientation="horizontal">
 					<TextView
 						android:id="@+id/textview648"
-						android:layout_width="36dp"
-						android:layout_height="36dp"
+						android:layout_width="40dp"
+						android:layout_height="40dp"
 						android:text=""
-						android:drawableStart="@drawable/ic_menu_20"
+						android:drawableStart="@drawable/ic_pf_bio"
 						android:textSize="17sp"
-						android:tag="g"
+						android:tag="pfic"
 						android:gravity="center_horizontal|center_vertical"
 						android:layout_marginEnd="15dp" />
 					<LinearLayout
@@ -199,14 +199,14 @@
 					android:orientation="horizontal">
 					<TextView
 						android:id="@+id/textview650"
-						android:layout_width="36dp"
-						android:layout_height="36dp"
-						android:text="@"
+						android:layout_width="40dp"
+						android:layout_height="40dp"
+						android:text=""
+						android:drawableStart="@drawable/ic_pf_at"
 						android:textSize="17sp"
-						android:tag="g"
+						android:tag="pfic"
 						android:gravity="center_horizontal|center_vertical"
-						android:layout_marginEnd="15dp"
-						android:textStyle="bold" />
+						android:layout_marginEnd="15dp" />
 					<LinearLayout
 						android:id="@+id/linear648"
 						android:layout_width="0dp"
@@ -246,12 +246,12 @@
 					android:orientation="horizontal">
 					<TextView
 						android:id="@+id/textview652"
-						android:layout_width="36dp"
-						android:layout_height="36dp"
+						android:layout_width="40dp"
+						android:layout_height="40dp"
 						android:text=""
-						android:drawableStart="@drawable/ic_pin_20"
+						android:drawableStart="@drawable/ic_pf_pin"
 						android:textSize="17sp"
-						android:tag="g"
+						android:tag="pfic"
 						android:gravity="center_horizontal|center_vertical"
 						android:layout_marginEnd="15dp" />
 					<LinearLayout
@@ -293,12 +293,12 @@
 					android:orientation="horizontal">
 					<TextView
 						android:id="@+id/textview654"
-						android:layout_width="36dp"
-						android:layout_height="36dp"
+						android:layout_width="40dp"
+						android:layout_height="40dp"
 						android:text=""
-						android:drawableStart="@drawable/ic_calendar_20"
+						android:drawableStart="@drawable/ic_pf_cal"
 						android:textSize="17sp"
-						android:tag="g"
+						android:tag="pfic"
 						android:gravity="center_horizontal|center_vertical"
 						android:layout_marginEnd="15dp" />
 					<LinearLayout
@@ -340,12 +340,12 @@
 					android:orientation="horizontal">
 					<TextView
 						android:id="@+id/textview656"
-						android:layout_width="36dp"
-						android:layout_height="36dp"
+						android:layout_width="40dp"
+						android:layout_height="40dp"
 						android:text=""
-						android:drawableStart="@drawable/ic_mail_20"
+						android:drawableStart="@drawable/ic_pf_mail"
 						android:textSize="17sp"
-						android:tag="g"
+						android:tag="pfic"
 						android:gravity="center_horizontal|center_vertical"
 						android:layout_marginEnd="15dp" />
 					<LinearLayout
@@ -570,12 +570,12 @@
 					android:orientation="horizontal">
 					<TextView
 						android:id="@+id/textview658"
-						android:layout_width="36dp"
-						android:layout_height="36dp"
+						android:layout_width="40dp"
+						android:layout_height="40dp"
 						android:text=""
-						android:drawableStart="@drawable/ic_menu_20"
+						android:drawableStart="@drawable/ic_pf_bio"
 						android:textSize="17sp"
-						android:tag="g"
+						android:tag="pfic"
 						android:gravity="center_horizontal|center_vertical"
 						android:layout_marginEnd="15dp" />
 					<LinearLayout
@@ -617,14 +617,14 @@
 					android:orientation="horizontal">
 					<TextView
 						android:id="@+id/textview660"
-						android:layout_width="36dp"
-						android:layout_height="36dp"
-						android:text="@"
+						android:layout_width="40dp"
+						android:layout_height="40dp"
+						android:text=""
+						android:drawableStart="@drawable/ic_pf_at"
 						android:textSize="17sp"
-						android:tag="g"
+						android:tag="pfic"
 						android:gravity="center_horizontal|center_vertical"
-						android:layout_marginEnd="15dp"
-						android:textStyle="bold" />
+						android:layout_marginEnd="15dp" />
 					<LinearLayout
 						android:id="@+id/linear663"
 						android:layout_width="0dp"
@@ -664,12 +664,12 @@
 					android:orientation="horizontal">
 					<TextView
 						android:id="@+id/textview662"
-						android:layout_width="36dp"
-						android:layout_height="36dp"
+						android:layout_width="40dp"
+						android:layout_height="40dp"
 						android:text=""
-						android:drawableStart="@drawable/ic_pin_20"
+						android:drawableStart="@drawable/ic_pf_pin"
 						android:textSize="17sp"
-						android:tag="g"
+						android:tag="pfic"
 						android:gravity="center_horizontal|center_vertical"
 						android:layout_marginEnd="15dp" />
 					<LinearLayout
@@ -711,12 +711,12 @@
 					android:orientation="horizontal">
 					<TextView
 						android:id="@+id/textview664"
-						android:layout_width="36dp"
-						android:layout_height="36dp"
+						android:layout_width="40dp"
+						android:layout_height="40dp"
 						android:text=""
-						android:drawableStart="@drawable/ic_calendar_20"
+						android:drawableStart="@drawable/ic_pf_cal"
 						android:textSize="17sp"
-						android:tag="g"
+						android:tag="pfic"
 						android:gravity="center_horizontal|center_vertical"
 						android:layout_marginEnd="15dp" />
 					<LinearLayout

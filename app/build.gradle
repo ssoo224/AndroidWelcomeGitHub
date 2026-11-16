@@ -54,3 +54,24 @@ dependencies {
     implementation 'com.google.firebase:firebase-firestore'
     // ✅ تم حذف: firebase-database (لم يعد مستخدماً)
 }
+
+// ---- حارس التحجيم الديناميكي (220dp–711dp): يرفض البناء إن أُضيف كود يتجاوزه (انظر DYNAMIC_SCALE.md)
+tasks.register('checkDynamicScale') {
+    doLast {
+        def bad = []
+        fileTree(dir: 'src/main/java', include: '**/*.java').each { f ->
+            if (f.name == 'ScaledActivity.java' || f.name == 'ScreenScale.java') return
+            f.readLines('UTF-8').eachWithIndex { line, i ->
+                if (line.contains('scale-ok')) return
+                def t = line.trim()
+                if (t.startsWith('//') || t.startsWith('*')) return
+                if (line =~ /extends\s+(android\.app\.)?(Activity|AppCompatActivity|FragmentActivity)\b/)
+                    bad << "${f.name}:${i + 1} الشاشة يجب أن تمتد من ScaledActivity"
+                if (line.contains('COMPLEX_UNIT_PX') || line.contains('Resources.getSystem()') || line.contains('getDefaultDisplay()'))
+                    bad << "${f.name}:${i + 1} مقاس/كثافة تتجاوز التحجيم (استعمل dp/sp من resources السياق أو ScreenScale.dp)"
+            }
+        }
+        if (!bad.isEmpty()) throw new GradleException('Dynamic scale violations:\n' + bad.join('\n'))
+    }
+}
+tasks.matching { it.name == 'preBuild' }.configureEach { dependsOn 'checkDynamicScale' }
