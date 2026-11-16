@@ -159,10 +159,65 @@ public final class ProfileHero implements PullScrollView.Controller {
             int bw = bm.getWidth(), bh = bm.getHeight(), s = Math.min(bw, bh);
             int x0 = (bw - s) / 2, y0 = (bh - s) / 2;
             int sh = Math.max(1, (int) (s * 0.30f));
-            Bitmap strip = Bitmap.createBitmap(bm, x0, y0 + s - sh, s, sh);
+            Bitmap cur = Bitmap.createBitmap(bm, x0, y0 + s - sh, s, sh);
+            // تصغير على مراحل (نصف في كل مرة) ثم بلور حقيقي: صورة 24×8 الممدودة كانت تُظهر خطوطاً أفقية/عمودية عند حدود الصفوف
+            while (cur.getWidth() / 2 >= 96 && cur.getHeight() / 2 >= 32) {
+                cur = Bitmap.createScaledBitmap(cur, cur.getWidth() / 2, cur.getHeight() / 2, true);
+            }
+            Bitmap sm = Bitmap.createScaledBitmap(cur, 96, 32, true);
+            int[] px = new int[96 * 32];
+            sm.getPixels(px, 0, 96, 0, 0, 96, 32);
+            blurPixels(px, 96, 32, 4, 3);
+            Bitmap out = Bitmap.createBitmap(96, 32, Bitmap.Config.ARGB_8888);
+            out.setPixels(px, 0, 96, 0, 0, 96, 32);
             ext.setScaleType(ImageView.ScaleType.FIT_XY);
-            ext.setImageBitmap(Bitmap.createScaledBitmap(strip, 24, 8, true));
+            ext.setImageBitmap(out);
         } catch (Throwable t) { ext.setImageBitmap(null); }
+    }
+
+    /** بلور صندوقي متكرر (≈ غاوسي) على قنوات RGB. */
+    private static void blurPixels(int[] px, int w, int h, int r, int passes) {
+        float[][] ch = new float[3][w * h];
+        for (int i = 0; i < px.length; i++) {
+            ch[0][i] = (px[i] >> 16) & 0xFF; ch[1][i] = (px[i] >> 8) & 0xFF; ch[2][i] = px[i] & 0xFF;
+        }
+        float[] tmp = new float[w * h];
+        for (int c = 0; c < 3; c++) {
+            for (int k = 0; k < passes; k++) {
+                box(ch[c], tmp, w, h, r, true);
+                box(tmp, ch[c], w, h, r, false);
+            }
+        }
+        for (int i = 0; i < px.length; i++) {
+            px[i] = 0xFF000000 | (Math.round(ch[0][i]) << 16) | (Math.round(ch[1][i]) << 8) | Math.round(ch[2][i]);
+        }
+    }
+
+    private static void box(float[] src, float[] dst, int w, int h, int r, boolean horiz) {
+        int outer = horiz ? h : w, len = horiz ? w : h, step = horiz ? 1 : w;
+        float inv = 1f / (2 * r + 1);
+        for (int o = 0; o < outer; o++) {
+            int base = horiz ? o * w : o;
+            float sum = 0;
+            for (int i = -r; i <= r; i++) sum += src[base + Math.max(0, Math.min(len - 1, i)) * step];
+            for (int i = 0; i < len; i++) {
+                dst[base + i * step] = sum * inv;
+                sum += src[base + Math.min(len - 1, i + r + 1) * step] - src[base + Math.max(0, i - r) * step];
+            }
+        }
+    }
+
+    /** تدرّج ناعم (smoothstep) من ألفا a0 إلى a1 بلون rgb: لا انكسار في المشتقة عند البداية والنهاية فلا تظهر خطوط ماخ. */
+    private static int[] smoothAlphas(int rgb, float a0, float a1, float[] pos) {
+        int n = pos.length;
+        int[] cols = new int[n];
+        for (int i = 0; i < n; i++) {
+            float t = i / (float) (n - 1);
+            pos[i] = t;
+            float e = t * t * (3f - 2f * t);
+            cols[i] = (Math.round((a0 + (a1 - a0) * e) * 255f) << 24) | (rgb & 0xFFFFFF);
+        }
+        return cols;
     }
 
     private void applyBitmapTo(FadeImageView iv, Bitmap bm) {
@@ -297,8 +352,14 @@ public final class ProfileHero implements PullScrollView.Controller {
 
         // .pf-hero-shade : rgba(0,0,0,0) -> rgba(0,0,0,.55)
         heroShade = new View(act);
-        GradientDrawable sh = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[]{0x00000000, 0x8C000000});
+        final float[] shPos = new float[12];
+        final int[] shCols = smoothAlphas(0x000000, 0f, 0x8C / 255f, shPos);
+        android.graphics.drawable.ShapeDrawable sh = new android.graphics.drawable.ShapeDrawable(new android.graphics.drawable.shapes.RectShape());
+        sh.setShaderFactory(new android.graphics.drawable.ShapeDrawable.ShaderFactory() {
+            @Override public Shader resize(int w, int h) {
+                return new LinearGradient(0, 0, 0, h, shCols, shPos, Shader.TileMode.CLAMP);
+            }
+        });
         heroShade.setBackground(sh);
         hero.addView(heroShade, new FrameLayout.LayoutParams(-1, 0));
 
@@ -393,6 +454,7 @@ public final class ProfileHero implements PullScrollView.Controller {
      * (mask-image: linear-gradient(to bottom, #000 calc(100% - ext*1.15px), transparent)).
      */
     private static final class FadeImageView extends ImageView {
+        private static int[] smoothAlphas(int rgb, float a0, float a1, float[] pos) { return ProfileHero.smoothAlphas(rgb, a0, a1, pos); }
         private final Paint mask = new Paint(Paint.ANTI_ALIAS_FLAG);
         private float fade = 0f;
         private int edgeSide = 0;          // -1: الحافة اليسرى تتلاشى، +1: اليمنى، 0: بلا تلاشٍ
@@ -421,7 +483,9 @@ public final class ProfileHero implements PullScrollView.Controller {
             super.onDraw(c);
             if (bot) {
                 float f = Math.min(fade, h);
-                mask.setShader(new LinearGradient(0, h - f, 0, h, 0xFF000000, 0x00000000, Shader.TileMode.CLAMP));
+                float[] pos = new float[12];
+                int[] cols = smoothAlphas(0x000000, 1f, 0f, pos);
+                mask.setShader(new LinearGradient(0, h - f, 0, h, cols, pos, Shader.TileMode.CLAMP));
                 c.drawRect(0, h - f, w, h, mask);
             }
             if (edge) {

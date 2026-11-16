@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- أيقونة القصص: حلقة مقسّمة إلى ثلاثة أقواس + نقطة في الوسط -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="18dp"
+    android:height="18dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M13.563,3.136A9,9 0 0 1 20.457,15.078"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M18.894,17.785A9,9 0 0 1 5.106,17.785"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M3.543,15.078A9,9 0 0 1 10.437,3.137"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M12,8.8a3.2,3.2 0 1 0 0,6.4a3.2,3.2 0 1 0 0,-6.4z"
+        android:fillColor="#FFFFFF" />
+</vector>

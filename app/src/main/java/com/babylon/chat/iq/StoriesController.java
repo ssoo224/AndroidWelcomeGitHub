@@ -494,6 +494,21 @@ public final class StoriesController {
         }
     }
 
+    /** ترتيب الخلية من اليمين (0 = الأقصى يميناً) حسب موضعها الفعلي، فلا يهم اتجاه التخطيط. */
+    private int rightRank(int idx) {
+        int left = bar.getChildAt(idx).getLeft(), r = 0;
+        for (int k = 0; k < bar.getChildCount(); k++) if (bar.getChildAt(k).getLeft() > left) r++;
+        return Math.min(r, 5);
+    }
+
+    /** شفافية الاسم: تبدأ عند p=0.70 وتكتمل عند 1.0؛ كل خلية تتأخر قليلاً عن التي على يمينها (smoothstep). */
+    private static float nameAlpha(float p, int rank) {
+        final float start = 0.70f, span = 0.30f, len = 0.14f;
+        float off = rank * (span - len) / 5f;
+        float a = clamp((p - start - off) / len);
+        return a * a * (3f - 2f * a);
+    }
+
     // ============================================================ التطبيق الفعلي لنسبة التقدم p (0..1)
     private void apply(float p) {
         p = clamp(p);
@@ -507,8 +522,8 @@ public final class StoriesController {
             View c = bar.getChildAt(i);
             c.setPivotX(px(ITEM_W) / 2f); c.setPivotY(0f);
             c.setScaleX(p); c.setScaleY(p);
-            // الأسماء (ومنها «قصتي») تظهر في آخر إطار فقط، أي حين يكتمل فتح الشريط
-            if (c instanceof ViewGroup && ((ViewGroup) c).getChildCount() > 1) ((ViewGroup) c).getChildAt(1).setAlpha(p >= 0.999f ? 1f : 0f);
+            // الأسماء (ومنها «قصتي») تظهر في آخر إطارين/ثلاثة من الفتح بتلاشٍ متدرّج من اليمين إلى اليسار
+            if (c instanceof ViewGroup && ((ViewGroup) c).getChildCount() > 1) ((ViewGroup) c).getChildAt(1).setAlpha(nameAlpha(p, rightRank(i)));
         }
         scroll.setAlpha(Math.min(1f, p * 1.5f));
         top.setPadding(0, 0, 0, Math.round(px(TOP_PB) * p));

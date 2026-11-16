@@ -30,6 +30,7 @@ final class HomeBg extends Drawable {
     private final Path l1 = new Path(), l2 = new Path(), l3 = new Path(), l4 = new Path();
     private final Path l5 = new Path(), l6 = new Path(), band5 = new Path();   // موجة خفيفة إضافية في الجهة اليسرى من منتصف الصفحة
     private final Paint fill5 = new Paint(Paint.ANTI_ALIAS_FLAG), line5 = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Path e5 = new Path(), e6 = new Path();   // حافتان هلاليتان رفيعتان تتلاشيان من الطرفين (مثل حواف الموجات في الرسمة)
     private final Paint fill1 = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint fill3 = new Paint(Paint.ANTI_ALIAS_FLAG);
     private int bw = -1, bh = -1;
@@ -73,11 +74,21 @@ final class HomeBg extends Drawable {
                 int[] px = new int[w * h];
                 src.getPixels(px, 0, w, 0, 0, w, h);
                 final int gold = 0xE4C45B;
+                float[] al = new float[w * h];
                 for (int i = 0; i < px.length; i++) {
                     int p = px[i];
                     int g = ((p >> 16) & 0xFF) - (p & 0xFF);          // R − B
-                    float t = Math.max(0f, Math.min(1f, (g + 2f) / 42f));
-                    int a = (int) (Math.pow(t, 0.9) * 0.62f * 255f);
+                    float t = Math.max(0f, Math.min(1f, (g + 2f) / 52f));
+                    al[i] = (float) Math.pow(t, 1.15);
+                }
+                // تنعيم: طمس الشفافية لإزالة التحبّب والحواف الحادة (الوضع الليلي فقط)
+                float[] tmp = new float[w * h];
+                for (int k = 0; k < 2; k++) {
+                    boxBlur(al, tmp, w, h, 5, true);
+                    boxBlur(tmp, al, w, h, 5, false);
+                }
+                for (int i = 0; i < px.length; i++) {
+                    int a = (int) (al[i] * 0.40f * 255f);
                     px[i] = (a << 24) | gold;
                 }
                 Bitmap out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
@@ -86,6 +97,23 @@ final class HomeBg extends Drawable {
             } catch (Throwable ignored) { }
         }
         return artDark;
+    }
+
+    /** طمس صندوقي بسيط (أفقي أو عمودي) بنصف قطر r باستخدام مجموع متحرك. */
+    private static void boxBlur(float[] src, float[] dst, int w, int h, int r, boolean horiz) {
+        int outer = horiz ? h : w, len = horiz ? w : h;
+        int stepIn = horiz ? 1 : w;
+        float inv = 1f / (2 * r + 1);
+        for (int o = 0; o < outer; o++) {
+            int base = horiz ? o * w : o;
+            float sum = 0;
+            for (int i = -r; i <= r; i++) sum += src[base + Math.max(0, Math.min(len - 1, i)) * stepIn];
+            for (int i = 0; i < len; i++) {
+                dst[base + i * stepIn] = sum * inv;
+                int add = Math.min(len - 1, i + r + 1), sub = Math.max(0, i - r);
+                sum += src[base + add * stepIn] - src[base + sub * stepIn];
+            }
+        }
     }
 
     private HomeBg(boolean dark, float density, Bitmap photo) {
@@ -156,6 +184,9 @@ final class HomeBg extends Drawable {
         band5.lineTo(w * 0.56f, yw(0.470f, h));
         band5.cubicTo(w * 0.40f, yw(0.520f, h), w * 0.20f, yw(0.562f, h), 0, yw(0.575f, h));
         band5.close();
+        // الحافة الذهبية بدل الخط ذي السماكة الثابتة: هلال يبدأ وينتهي بسماكة صفر فيبدو كحافة حرير ناعمة
+        crescent(e5, 0, yw(0.520f, h), w * 0.22f, yw(0.508f, h), w * 0.46f, yw(0.470f, h), w * 0.70f, yw(0.395f, h), 2.6f * d);
+        crescent(e6, 0, yw(0.575f, h), w * 0.20f, yw(0.562f, h), w * 0.40f, yw(0.520f, h), w * 0.56f, yw(0.470f, h), 1.8f * d);
 
         // ألوان التعبئة والخطوط (ذهبي كريمي بشفافية منخفضة)
         final int gold = dark ? 0xE4C45B : 0xD9B25E, goldDeep = dark ? 0xB98B23 : 0xD0A533;
@@ -178,15 +209,22 @@ final class HomeBg extends Drawable {
         line.setShader(new LinearGradient(w, 0, 0, 0,
                 new int[]{(dark ? 0x48 : 0x62) << 24 | goldDeep, (dark ? 0x24 : 0x34) << 24 | goldDeep, 0x00000000 | goldDeep},
                 new float[]{0f, 0.6f, 1f}, Shader.TileMode.CLAMP));
+        // الموجة الإضافية: تعبئة حريرية ناعمة تتلاشى تدريجياً + حافة هلالية رفيعة تتلاشى عند طرفيها (نفس طابع بقية الموجات)
         fill5.setShader(new LinearGradient(0, 0, w * 0.7f, 0,
-                new int[]{(dark ? 0x14 : 0x1A) << 24 | gold, (dark ? 0x08 : 0x0A) << 24 | gold, 0x00000000 | gold},
-                new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP));
-        line5.setStyle(Paint.Style.STROKE);
-        line5.setStrokeCap(Paint.Cap.ROUND);
-        line5.setStrokeWidth(1.1f * d);
+                new int[]{(dark ? 0x0E : 0x16) << 24 | gold, (dark ? 0x06 : 0x08) << 24 | gold, 0x00000000 | gold},
+                new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP));
+        line5.setStyle(Paint.Style.FILL);
         line5.setShader(new LinearGradient(0, 0, w * 0.7f, 0,
-                new int[]{(dark ? 0x34 : 0x42) << 24 | goldDeep, (dark ? 0x18 : 0x20) << 24 | goldDeep, 0x00000000 | goldDeep},
-                new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP));
+                new int[]{(dark ? 0x30 : 0x4A) << 24 | goldDeep, (dark ? 0x16 : 0x24) << 24 | goldDeep, 0x00000000 | goldDeep},
+                new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP));
+    }
+
+    private static void crescent(Path p, float x0, float y0, float c1x, float c1y, float c2x, float c2y, float x1, float y1, float t) {
+        p.reset();
+        p.moveTo(x0, y0);
+        p.cubicTo(c1x, c1y, c2x, c2y, x1, y1);
+        p.cubicTo(c2x, c2y + t * 1.3f, c1x, c1y + t * 1.3f, x0, y0);
+        p.close();
     }
 
     @Override public void draw(Canvas c) {
@@ -216,8 +254,8 @@ final class HomeBg extends Drawable {
 
     private void drawExtraWave(Canvas c) {
         c.drawPath(band5, fill5);
-        c.drawPath(l5, line5);
-        c.drawPath(l6, line5);
+        c.drawPath(e5, line5);
+        c.drawPath(e6, line5);
     }
 
     @Override public void setAlpha(int a) { }

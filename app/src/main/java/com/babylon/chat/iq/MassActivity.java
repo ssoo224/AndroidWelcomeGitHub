@@ -482,9 +482,9 @@ public class MassActivity extends Activity {
                     g.setStroke(dp(1), focus ? ((Tk.chatPal.accent & 0x00FFFFFF) | 0x99000000) : 0x00000000);
                     return g;
                 }
-                g.setColor(focus ? (dark ? 0x297F8CA0 : 0xFFFFFFFF) : (dark ? 0x1A7F8CA0 : 0xFFF1F5FA));
+                g.setColor(focus ? (dark ? 0x297F8CA0 : Tk.BAB_FIELD) : (dark ? 0x1A7F8CA0 : Tk.BAB_INPUT));
                 g.setCornerRadius(dp(15));
-                g.setStroke(dp(1), focus ? (dark ? 0xFF8B94A1 : 0xFFC9CFD8) : 0x00000000);
+                g.setStroke(dp(1), focus ? (dark ? 0xFF8B94A1 : 0xFFD9CDBB) : (dark ? 0x00000000 : Tk.BAB_INPUT_LINE));
                 return g;
             }
 
@@ -703,11 +703,7 @@ public class MassActivity extends Activity {
                 t.setTextColor(on ? cGold() : cMuted());
                 t.setTypeface(null, android.graphics.Typeface.BOLD);
                 if (t.getLayoutParams() != null) t.getLayoutParams().height = dp(46);
-                if (on) {
-                    android.graphics.drawable.LayerDrawable ld = new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[]{shape(cGold(), 2, 0)});
-                    ld.setLayerInset(0, dp(26), dp(43), dp(26), 0);
-                    t.setBackground(ld);
-                } else t.setBackground(null);
+                t.setBackground(null);   // بلا خط ذهبي تحت «قصصي»
                 tintIcons(t);
                 centerIconWithText(t);
                 t.requestLayout();
@@ -3042,7 +3038,7 @@ public class MassActivity extends Activity {
                         final long expires = (Long) it[6];
                         FrameLayout card = new FrameLayout(act);
                         card.setBackgroundColor(0xFF17212B);
-                        final float cardR = dp(3);   // حواف منحنية 3dp (تقصّ الصورة والشارات معاً)
+                        final float cardR = dp(8);   // حواف منحنية 8dp (كانت 3dp) (تقصّ الصورة والشارات معاً)
                         card.setOutlineProvider(new android.view.ViewOutlineProvider() {
                             @Override public void getOutline(View vw0, android.graphics.Outline o) { o.setRoundRect(0, 0, vw0.getWidth(), vw0.getHeight(), cardR); }
                         });
@@ -8516,8 +8512,8 @@ public class MassActivity extends Activity {
             void showMediaMenu(final View anchor) {
                 if (anchor == null) return;
                 final boolean th = Tk.chatPal != null;
-                final int baseC = th ? Tk.chatPal.other : (dark ? 0xFF1C2836 : 0xFFFFFFFF);          // خلفية شريط الكتابة (أقرب خلفية معتمة للحقل)
-                final int inpC = th ? Tk.chatPal.chatBg : (dark ? 0x1A7F8CA0 : 0xFFF1F5FA);          // لون حقل الكتابة فوقها
+                final int baseC = th ? Tk.chatPal.other : (dark ? 0xFF1C2836 : Tk.BAB_FIELD);          // خلفية شريط الكتابة (أقرب خلفية معتمة للحقل)
+                final int inpC = th ? Tk.chatPal.chatBg : (dark ? 0x1A7F8CA0 : Tk.BAB_INPUT);          // لون حقل الكتابة فوقها
                 final int ink = th ? Tk.crMuted(cMuted()) : cMuted();                                 // لون أيقونة زر الوسائط
                 final int pad = dp(14);                                                                // هامش النافذة لظهور الظل
                 final int barW = dp(106), barH = dp(49);

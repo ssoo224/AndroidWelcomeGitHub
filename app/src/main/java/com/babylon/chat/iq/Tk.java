@@ -20,7 +20,13 @@ public final class Tk {
     public static int surface(boolean d) { return d ? 0xFF17212B : 0xFFFFFFFF; }
     public static int navBg(boolean d)   { return d ? 0xFF17212B : 0xFFFFFFFF; }   // شريط التنقل: ليلي #17212B / نهاري أبيض
     /** HTML: --cr-surface داخل المحادثة (خلفية الغرفة + لون الطبقة الزجاجية + لون شريط الإيماءات) */
-    public static int chatSurface(boolean d) { return chatPal != null ? chatPal.chatBg : (d ? 0xFF17212B : 0xFFEEF2F8); }
+    public static int chatSurface(boolean d) { return chatPal != null ? chatPal.chatBg : (d ? 0xFF17212B : BAB_BG); }
+
+    // ثيم بابل النهاري: ألوان كريمية مأخوذة من اللقطة المرجعية (خلفية المحادثة + الحقول «البيضاء»: الهيدر وشريط الكتابة والأزرار الدائرية)
+    public static final int BAB_BG = 0xFFFAF6F3, BAB_FIELD = 0xFFFCF9F6, BAB_LINE = 0xFFEDE5DA, BAB_INPUT = 0xFFF6F0E8, BAB_INPUT_LINE = 0xFFE6DDD1;
+    public static boolean chatDark = false;
+    /** بابل نهاري (لا ثيم آخر مطبّق ولا ليلي)؟ */
+    public static boolean babLight() { return chatPal == null && !chatDark; }
 
     // ----- ثيم المحادثة الحالي (ChatThemes): chatPal = لوحة الثيم المطبّقة، وnull لثيم بابل (يبقى مظهره الأصلي)
     public static String chatThemeId = ChatThemes.DEFAULT_ID;
@@ -29,6 +35,7 @@ public final class Tk {
         ChatThemes.Spec sp = ChatThemes.byId(id);
         chatThemeId = sp.id;
         CoverThemes.dark = dark;
+        chatDark = dark;
         chatPal = ChatThemes.isBabylon(sp.id) ? null : sp.pal(dark);
     }
     /** لون علامتَي القراءة: ثيم غير بابل → --tick-read للمقروءة وإلا لون نص رسالتي؛ بابل: أبيض كما كان. */
@@ -44,9 +51,9 @@ public final class Tk {
     /** ثيم غير بابل مطبّق؟ (CSS: html[data-chat-theme]:not([data-chat-theme="babylon"]) → --cr-card = --bubble-other ، --cr-line = --bubble-line ، --cr-ink = --text-other ، --cr-muted = --meta-other) */
     public static boolean themed() { return chatPal != null; }
     /** --cr-card داخل المحادثة */
-    public static int crCard(int fallback) { return chatPal != null ? chatPal.other : fallback; }
+    public static int crCard(int fallback) { return chatPal != null ? chatPal.other : (babLight() && fallback == 0xFFFFFFFF ? BAB_FIELD : fallback); }
     /** --cr-line داخل المحادثة */
-    public static int crLine(int fallback) { return chatPal != null ? chatPal.line : fallback; }
+    public static int crLine(int fallback) { return chatPal != null ? chatPal.line : (babLight() && (fallback == 0xFFE3E9F1 || fallback == 0xFFE1E8F1) ? BAB_LINE : fallback); }
     /** --cr-ink داخل المحادثة */
     public static int crInk(int fallback) { return chatPal != null ? chatPal.textOther : fallback; }
     /** --cr-muted داخل المحادثة */
@@ -178,9 +185,9 @@ public final class Tk {
     /** خلفية غرفة المحادثة بحسب الثيم: نقوش الثيم (#chatPattern) بنفس شفافية الـ HTML تماماً: .06 ليلي / .07 نهاري (بابل) و .08 لغير بابل (#chatView .pattern-layer{opacity:…!important}). */
     public static android.graphics.drawable.Drawable chatRoomBg(View v, boolean dark) {
         ChatThemes.Spec sp = ChatThemes.byId(chatThemeId);
-        if (chatPal != null) return new ChatPattern.Bg(v.getContext(), chatPal.chatBg, sp.symbols, chatPal.pattern, 0.08f);
+        if (chatPal != null) return new ChatPattern.Bg(v.getContext(), chatPal.chatBg, sp.symbols, chatPal.pattern, 0.08f, chatPal.pattern, chatDark);
         ChatThemes.Pal b = sp.pal(dark);
-        return new ChatPattern.Bg(v.getContext(), chatSurface(dark), sp.symbols, b.pattern, dark ? 0.06f : 0.07f);
+        return new ChatPattern.Bg(v.getContext(), chatSurface(dark), sp.symbols, b.pattern, dark ? 0.06f : 0.07f, b.pattern, dark);
     }
 
     public static android.graphics.drawable.Drawable pattern(View v, boolean dark, int baseColor) {
@@ -325,11 +332,11 @@ public final class Tk {
             // #chatView #textInputBar : --cr-card (#1e2a38 / #fff) ، حدّ --cr-line ، انحناء 19px
             // الشريط الأبيض الحاوي لأزرار الصوتية والوسائط وحدّه يخضعان للثيم في النهاري والليلي (ثيم بابل = chatPal null يبقى كما هو)
             if (chatPal != null) x.setBackground(shape(chatPal.other, dp(x, 19), chatPal.line, dp(x, 1)));
-            else x.setBackground(shape(dark ? 0xFF1C2836 : 0xFFFFFFFF, dp(x, 19), dark ? 0x14FFFFFF : 0xFFE1E8F1, dp(x, 1)));
+            else x.setBackground(shape(dark ? 0xFF1C2836 : BAB_FIELD, dp(x, 19), dark ? 0x14FFFFFF : BAB_LINE, dp(x, 1)));
             return true;
         }
         if (tag.equals("recbar")) {          // .recording-bar : surface + حدّ ، انحناء 18
-            x.setBackground(shape(dark ? 0xFF17212B : 0xFFFFFFFF, dp(x, 18), dark ? 0x3394A3B8 : 0xFFE5EAF1, dp(x, 1)));
+            x.setBackground(shape(dark ? 0xFF17212B : (chatPal != null ? chatPal.other : BAB_FIELD), dp(x, 18), dark ? 0x3394A3B8 : (chatPal != null ? chatPal.line : BAB_LINE), dp(x, 1)));
             return true;
         }
         if (tag.equals("recbtn")) {          // زر الإيقاف/الإرسال: دائرة 42 بتدرّج ذهبي 145deg وظل ذهبي
