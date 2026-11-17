@@ -103,7 +103,9 @@ public final class BabylonFx {
     }
 
     /** دخول صفحة رئيسية (محادثات/إعدادات/ملف شخصي): نفس bbViewIn لكن بتأخير يبدأ بعد انتهاء خروج الصفحة السابقة فلا تتداخل. */
-    public static void pageIn(final View v, long delay) {
+    public static void pageIn(final View v, long delay) { pageIn(v, delay, 140L); }
+
+    public static void pageIn(final View v, long delay, long durMs) {
         if (v == null) return;
         reset(v);
         v.setAlpha(0f);
@@ -111,7 +113,17 @@ public final class BabylonFx {
         v.setScaleX(0.985f);
         v.setScaleY(0.985f);
         v.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f)
-                .setStartDelay(delay).setDuration(140).setInterpolator(easeOut())
+                .setStartDelay(delay).setDuration(durMs).setInterpolator(easeOut())
+                .withEndAction(() -> reset(v)).start();
+    }
+
+    /** دخول بتلاشٍ فقط (بلا إزاحة ولا تصغير): للصفحات التي تمتد حتى حافة الشاشة (الملف الشخصي) كي لا تنكشف الخلفية كخط أبيض/أسود. */
+    public static void pageFade(final View v, long delay, long durMs) {
+        if (v == null) return;
+        reset(v);
+        v.setAlpha(0f);
+        v.animate().alpha(1f)
+                .setStartDelay(delay).setDuration(durMs).setInterpolator(easeOut())
                 .withEndAction(() -> reset(v)).start();
     }
 
@@ -276,7 +288,9 @@ public final class BabylonFx {
     public static void chatRowsIn(final ViewGroup list, final long baseDelay) { chatRowsIn(list, baseDelay, 16L); }
 
     /** stepMs = الفاصل بين صف وآخر؛ 0 = كل الصفوف تبدأ وتنتهي معاً (يتزامن ظهورها مع الهيدر وحقل القصص). */
-    public static void chatRowsIn(final ViewGroup list, final long baseDelay, final long stepMs) {
+    public static void chatRowsIn(final ViewGroup list, final long baseDelay, final long stepMs) { chatRowsIn(list, baseDelay, stepMs, 140L); }
+
+    public static void chatRowsIn(final ViewGroup list, final long baseDelay, final long stepMs, final long durMs) {
         if (list == null) return;
         final int n0 = Math.min(list.getChildCount(), 9);
         for (int i = 0; i < n0; i++) { View r = list.getChildAt(i); if (r != null) { r.animate().cancel(); r.setAlpha(0f); } }   // بلا إطار تظهر فيه الصفوف قبل الحركة
@@ -291,7 +305,7 @@ public final class BabylonFx {
                 r.setTranslationX(dp(r, 14));
                 r.setScaleX(0.985f); r.setScaleY(0.985f);
                 r.animate().alpha(1f).translationX(0f).scaleX(1f).scaleY(1f)
-                        .setStartDelay(baseDelay + i * stepMs).setDuration(140).setInterpolator(soft)
+                        .setStartDelay(baseDelay + i * stepMs).setDuration(durMs).setInterpolator(soft)
                         .withEndAction(() -> reset(r)).start();
             }
         });

@@ -26,8 +26,8 @@
 		<!-- القرص الذهبي + الشعار: كلاهما يُرسم خطياً ثم يتلوّن (الحركة في MainActivity) -->
 		<FrameLayout
 			android:id="@+id/logo_circle"
-			android:layout_width="128dp"
-			android:layout_height="128dp"
+			android:layout_width="120dp"
+			android:layout_height="120dp"
 			android:layout_gravity="center_horizontal|center_vertical">
 			<com.babylon.chat.iq.DiscDrawView
 				android:id="@+id/logo_disc"
@@ -35,10 +35,10 @@
 				android:layout_height="match_parent" />
 			<com.babylon.chat.iq.LogoDrawView
 				android:id="@+id/logo_img"
-				android:layout_width="58dp"
-				android:layout_height="64dp"
+				android:layout_width="54dp"
+				android:layout_height="60dp"
 				android:layout_gravity="center_horizontal|center_vertical"
-				android:translationX="2.4dp" />
+				android:translationX="2.25dp" />
 		</FrameLayout>
 	</FrameLayout>
 	<TextView
@@ -50,5 +50,5 @@
 		android:textStyle="bold"
 		android:textColor="#A97F1C"
 		android:alpha="0"
-		android:layout_marginTop="-6dp" />
+		android:layout_marginTop="-22.5dp" />
 </LinearLayout>

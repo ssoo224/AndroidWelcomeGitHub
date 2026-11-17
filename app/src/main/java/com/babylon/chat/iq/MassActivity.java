@@ -1598,7 +1598,7 @@ public class MassActivity extends Activity {
                     final int topNew = (isProfilePage(p) ? 0 : sbTop) + ((home && !chatSelMode) ? dp(62) : 0);
                     final boolean toChats = home && !chatSelMode;
                     final int gen = tabGen0;
-                    final long outMs = 20;   // 1) تلاشي الصفحة الخارجة 20ms
+                    final long outMs = toChats ? 10 : 20;   // 1) تلاشي الصفحة الخارجة (10ms للمحادثات: أسرع بنسبة 50%)
                     final View hdr = toChats ? v("mainHeader") : null;
                     final View fab = toChats ? v("newGroupFab") : null;
                     fv.animate().cancel();
@@ -1625,13 +1625,15 @@ public class MassActivity extends Activity {
                                 syncBars(); vpPlace();
                                 for (View h2 : new View[]{hdr, fab}) { if (h2 != null && h2.getVisibility() == View.VISIBLE) { h2.animate().cancel(); h2.setAlpha(0f); } }
                                 final View[] grp = toChats ? new View[]{to, hdr, fab} : new View[]{to};
+                                final boolean prof = isProfilePage(p);   // الملف الشخصي يبدأ من حافة الشاشة: تلاشٍ فقط (الإزاحة/التصغير كانت تكشف خطاً أبيض/أسود فوق الغلاف)
+                                final long pageMs = toChats ? 70L : 140L;   // المحادثات: نصف المدة السابقة
                                 for (View g : grp) {
                                     if (g == null || g.getVisibility() != View.VISIBLE) continue;
-                                    BabylonFx.pageIn(g, 0);
+                                    if (prof) BabylonFx.pageFade(g, 0, pageMs); else BabylonFx.pageIn(g, 0, pageMs);
                                 }
-                                if (toChats) BabylonFx.chatRowsIn((ViewGroup) v("chatList"), 0, 0L);   // الصفوف تبدأ مع الهيدر (الصورة/القصص) والصفحة في اللحظة نفسها، بلا تتابع يؤخّرها عنهما
+                                if (toChats) BabylonFx.chatRowsIn((ViewGroup) v("chatList"), 0, 0L, 70L);   // الصفوف تبدأ مع الهيدر (الصورة/القصص) والصفحة في اللحظة نفسها، بلا تتابع يؤخّرها عنهما
                                 else BabylonFx.stagger(to);                                        // بطاقات/أزرار الإعدادات والملف الشخصي تظهر متتابعة
-                                act.getWindow().getDecorView().postDelayed(() -> { if (homeAnimOn && gen == BabylonFx.tabGenNow()) endHomeEntry(); }, 300);
+                                act.getWindow().getDecorView().postDelayed(() -> { if (homeAnimOn && gen == BabylonFx.tabGenNow()) endHomeEntry(); }, toChats ? 160 : 300);
                             }).start();
                 } else if (to != null) {
                     boolean secondary = ti < 0;
@@ -1643,7 +1645,7 @@ public class MassActivity extends Activity {
                 // الشريط العائم يتبع الصفحة (أسفل فوق أزرار التنقل، أو أعلى الصفحة حيث لا أزرار)
                 // شبكة أمان: مهما حصل للأنيميشن (إلغاء/سباق/إطار ضائع) تُثبَّت الصفحة الهدف وحدها بعد انتهاء المدة
                 final String settleTarget = p;
-                act.getWindow().getDecorView().postDelayed(() -> settleTabs(settleTarget), 450);
+                act.getWindow().getDecorView().postDelayed(() -> settleTabs(settleTarget), "homeView".equals(settleTarget) ? 260 : 450);
             }
 
             /** يفرض الحالة النهائية الصحيحة بعد التنقل: الصفحة الحالية وحدها ظاهرة بلا إزاحة/شفافية عالقة، والباقي مخفي. */

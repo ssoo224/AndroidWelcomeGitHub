@@ -26,15 +26,15 @@ import java.util.List;
 /** شاشة البداية (Splash): تحدد هل المستخدم مسجّل دخوله أم لا ثم تنتقل للشاشة المناسبة. */
 public class MainActivity extends Activity {
 
-    private static final long SPLASH_MS = 3000;   // الرسم والتلوين والاستقرار (2.65ث) ثم وقفة قصيرة قبل الدخول
+    private static final long SPLASH_MS = 2740;   // الرسم والتلوين والاستقرار (2.65ث) ثم وقفة قصيرة قبل الدخول
 
     // ===== توقيت حركة الشعار (ms) =====
     private static final float T_CIRCLE_A = 0f,    T_CIRCLE_B = 800f;    // رسم محيط الدائرة الذهبية أولاً
     private static final float T_LOGO_A = 650f,    T_LOGO_B = 1550f;     // ثم رسم محيط الشعار
     private static final float T_COLOR_A = 1550f,  T_COLOR_B = 1950f;    // تلوين القرص والشعار
     private static final float T_SETTLE_A = 1950f, T_SETTLE_B = 2650f;   // رجوع للحجم الطبيعي + ارتفاع + ظهور العنوان
-    private static final float DISC_DP = 128f;    // قطر القرص النهائي بعد الاكتمال
-    private static final float DRAW_DP = 150f;    // قطر القرص أثناء التخطيط (الرسم) ثم يعود إلى 128dp
+    private static final float DISC_DP = 120f;    // قطر القرص النهائي بعد الاكتمال
+    private static final float DRAW_DP = 150f;    // قطر القرص أثناء التخطيط (الرسم) ثم يعود إلى 120dp
 
     private MainBinding binding;
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -142,8 +142,8 @@ public class MainActivity extends Activity {
         if (logoAnim != null) { logoAnim.cancel(); logoAnim = null; }
         applyLogo(T_SETTLE_B);   // الشعار والعنوان بحالتهما النهائية (حجم طبيعي) قبل الانتقال لشاشة الدخول
         android.view.animation.DecelerateInterpolator di = new android.view.animation.DecelerateInterpolator();
-        binding.logoGlow.animate().alpha(0f).setDuration(200).setInterpolator(di).start();
-        handler.postDelayed(next, 215);
+        binding.logoGlow.animate().alpha(0f).setDuration(50).setInterpolator(di).start();
+        handler.postDelayed(next, 54);
     }
 
     private void proceed() {
@@ -230,7 +230,7 @@ public class MainActivity extends Activity {
             public boolean onPreDraw() {
                 root.getViewTreeObserver().removeOnPreDrawListener(this);
                 final float d = getResources().getDisplayMetrics().density;
-                startTy = (binding.title.getHeight() - 6f * d) / 2f;   // نصف (ارتفاع العنوان + هامشه السالب) لوضع الشعار في مركز الشاشة
+                startTy = (binding.title.getHeight() - 22.5f * d) / 2f;   // نصف (ارتفاع العنوان + هامشه السالب) لوضع الشعار في مركز الشاشة
                 applyLogo(0f);   // الحالة الأولى قبل أول إطار (بلا وميض)
                 logoAnim = ValueAnimator.ofFloat(0f, T_SETTLE_B);
                 logoAnim.setDuration((long) T_SETTLE_B);
