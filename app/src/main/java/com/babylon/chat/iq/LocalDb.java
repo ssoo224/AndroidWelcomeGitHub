@@ -353,15 +353,24 @@ final class LocalDb {
         boolean more;      // هل يوجد أقدم منه؟
     }
 
-    /** قراءة خفيفة (بلا وسائط) لآخر رسائل المحادثة لرسم هيكل التحميل بنفس جهات وأحجام الرسائل: صفوف {sender, type, طول النص} تصاعدياً. */
-    static ArrayList<Object[]> skeletonRows(String chatId, int limit) {
+    /**
+     * قراءة خفيفة (بلا وسائط) لآخر رسائل المحادثة لرسم هيكل التحميل بنفس جهات وأحجام وأنواع الرسائل:
+     * صفوف {sender, type, طول النص, عدد الإيموجي (0 = ليست إيموجي فقط), mime} تصاعدياً بالوقت.
+     */
+    static ArrayList<Object[]> skeletonRows(String chatId, int limit) { return skeletonRowsBefore(chatId, Long.MAX_VALUE, limit); }
+
+    /** نفس skeletonRows لكن للرسائل الأقدم من beforeTs فقط (هيكل «الرسائل الأقدم» بأنواعها الحقيقية). */
+    static ArrayList<Object[]> skeletonRowsBefore(String chatId, long beforeTs, int limit) {
         ArrayList<Object[]> out = new ArrayList<>();
         SQLiteDatabase d = db;
         if (d == null || chatId == null) return out;
-        try (Cursor c = d.rawQuery("SELECT sender,type,text FROM messages WHERE chat_id=? AND ghost=0 ORDER BY ts DESC, id DESC LIMIT " + limit, new String[]{chatId})) {
+        try (Cursor c = d.rawQuery("SELECT sender,type,substr(text,1,400),mime FROM messages WHERE chat_id=? AND ghost=0 AND ts<? ORDER BY ts DESC, id DESC LIMIT " + limit,
+                new String[]{chatId, String.valueOf(beforeTs)})) {
             while (c.moveToNext()) {
                 String tx = c.isNull(2) ? "" : c.getString(2);
-                out.add(0, new Object[]{c.isNull(0) ? "" : c.getString(0), c.isNull(1) ? "text" : c.getString(1), Integer.valueOf(tx.length())});
+                int emo = 0;
+                try { java.util.ArrayList<String> cl = MsgViews.emojiClusters(tx); if (cl != null) emo = cl.size(); } catch (Throwable ignored) { }
+                out.add(0, new Object[]{c.isNull(0) ? "" : c.getString(0), c.isNull(1) ? "text" : c.getString(1), Integer.valueOf(tx.length()), Integer.valueOf(emo), c.isNull(3) ? "" : c.getString(3)});
             }
         } catch (Throwable ignored) { }
         return out;

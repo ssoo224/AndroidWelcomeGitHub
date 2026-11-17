@@ -170,6 +170,10 @@ public final class StoriesController {
     private static float clamp(float p) { return p < 0f ? 0f : p > 1f ? 1f : p; }
 
     // ============================================================ البيانات
+    private boolean loading;
+    /** هيكل لامع لدائرة «قصتي» (الهيدر وأول خانة في الشريط) حتى تجهز بيانات الحساب. */
+    public void setLoading(boolean on) { loading = on; }
+
     public void setItems(List<Item> list, boolean dark) {
         this.items = list != null ? list : new ArrayList<Item>();
         this.dark = dark;
@@ -200,6 +204,7 @@ public final class StoriesController {
             av.set(it.letter, it.photo, it.blue).ring(it.ring, it.seen).plus(it.me && !it.ring)
               .theme(dark, cSurface()).textSp(18f).shadow(true).pad(RP);
             it.av = av;
+            if (loading && i == 0) av.skeleton(true);
             cell.addView(av, new LinearLayout.LayoutParams(px(AV + 2 * RP), px(AV + 2 * RP)));
             TextView nm = new TextView(act);
             nm.setText(it.name);
@@ -225,6 +230,7 @@ public final class StoriesController {
         hdrPad = (me != null && me.ring) ? RP : (HDR_AV + 2 * RP - THUMB) / 2f;
         hdrAv.pad(hdrPad);
         hdrAv.plus(false).theme(dark, cSurface());
+        hdrAv.skeleton(loading);
         // القصة المجاورة أصغر من قصتي بـ 1dp: القطر الظاهر لقصتي = الحلقة (جسم + سماكتين) أو الجسم نفسه بلا قصة
         final float myOuter = (me != null && me.ring) ? HDR_AV + 2f * (me.seen ? 2f : 3f) : THUMB;
         final float thumbDp = myOuter - 1f;

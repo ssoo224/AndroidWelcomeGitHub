@@ -29,6 +29,10 @@
 		<item name="android:colorControlNormal">@color/colorControlNormal</item>
 		<item name="android:buttonStyle">@style/FlatButton</item>
 	</style>
+	<!-- شاشة المحادثات: نافذة شفافة كي تُبنى خلف السبلاش (تبقى ظاهرة تحتها) ثم تُكشف عند اكتمال اللوگو -->
+	<style name="MassTranslucent" parent="NoActionBar">
+		<item name="android:windowIsTranslucent">true</item>
+	</style>
 	<style name="NoStatusBar" parent="AppTheme">
 		<item name="android:windowFullscreen">true</item>
 	</style>

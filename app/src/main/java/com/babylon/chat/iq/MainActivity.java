@@ -57,7 +57,39 @@ public class MainActivity extends Activity {
         startAnimations();
         warmUp();   // تجهيز الشاشة التالية في الخلفية أثناء عرض السبلاش
 
+        // التحقق من تسجيل الدخول وبناء صفحة المحادثات يجريان الآن في الخلفية أثناء رسم اللوگو: MassActivity تُطلق مبكراً مخفية
+        // خلف السبلاش، وعند اكتمال اللوگو تُكشف فوراً دون انتظار. (أول تشغيل بطلب الأذونات، وغير المسجّل: المسار القديم)
+        final boolean loggedIn0 = FirebaseAuth.getInstance().getCurrentUser() != null;
+        boolean needPerms = Build.VERSION.SDK_INT >= 23 && !AppSettings.prefs(this, "babylon_boot").getBoolean("perms_asked", false) && missingPermissions().length > 0;
+        if (loggedIn0 && !needPerms) handler.postDelayed(this::startMassEarly, EARLY_START_MS);
+
         handler.postDelayed(this::goNext, SPLASH_MS);
+    }
+
+    private static final long EARLY_START_MS = 60;   // بعد أول إطار؛ التجمّد القصير أثناء البناء يقع في بداية رسم الدائرة لا في نهايته
+    private boolean earlyStarted = false;
+
+    private void startMassEarly() {
+        if (isFinishing() || navigated || earlyStarted) return;
+        earlyStarted = true;
+        Handoff.begin();
+        Intent i = new Intent(this, MassActivity.class);
+        i.putExtra(Handoff.EXTRA, true);
+        startActivity(i);
+        overridePendingTransition(0, 0);
+    }
+
+    /** اكتمل اللوگو: تُكشف الصفحة المبنية مسبقاً فوراً بتلاشٍ ثم تُغلق السبلاش. */
+    private void revealEarly() {
+        navigated = true;
+        settleThen(() -> {
+            if (isFinishing()) return;
+            Handoff.whenReady(() -> {
+                MassActivity m = Handoff.mass();
+                if (m == null) { finish(); return; }
+                m.revealFromSplash(() -> { Handoff.begin(); finish(); overridePendingTransition(0, 0); });   // begin() يفرّغ المرجع الساكن لـMassActivity
+            }, () -> finish());   // فشلت MassActivity وتولّت هي المسار البديل بنفسها
+        });
     }
 
     /**
@@ -157,6 +189,7 @@ public class MainActivity extends Activity {
 
     private void goNext() {
         if (navigated || isFinishing()) return;
+        if (earlyStarted) { revealEarly(); return; }
         android.content.SharedPreferences sp = AppSettings.prefs(this, "babylon_boot");
         if (Build.VERSION.SDK_INT >= 23 && !sp.getBoolean("perms_asked", false)) {   // أول دخول فقط
             sp.edit().putBoolean("perms_asked", true).apply();

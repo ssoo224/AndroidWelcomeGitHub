@@ -81,6 +81,18 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
         invalidate();
         return this;
     }
+    /** هيكل تحميل: دائرة لامعة بدل الحرف/الصورة/الحلقة إلى أن تصل بيانات صاحب القصة. */
+    private boolean skel;
+    private android.graphics.drawable.Drawable skelD;
+    public StoryAvatarView skeleton(boolean on) {
+        if (on == skel) return this;
+        skel = on;
+        if (on) { skelD = Skeleton.shimmer(dark, 4000f); skelD.setCallback(this); }
+        else { if (skelD != null) skelD.setCallback(null); skelD = null; }
+        invalidate();
+        return this;
+    }
+    @Override protected boolean verifyDrawable(android.graphics.drawable.Drawable d) { return (skelD != null && d == skelD) || super.verifyDrawable(d); }
     public StoryAvatarView ring(boolean on, boolean seen) { this.ring = on; this.seen = seen; invalidate(); return this; }
     public StoryAvatarView plus(boolean on) { this.plus = on; invalidate(); return this; }
     public StoryAvatarView online(boolean on) { this.online = on; invalidate(); return this; }
@@ -222,6 +234,11 @@ public class StoryAvatarView extends View implements StoryViewer.Spin {
         float w = getWidth(), h = getHeight();
         float d = Math.min(w, h) - 2f * padPx;
         float R = d / 2f, cx = w / 2f, cy = h / 2f;
+        if (skel && skelD != null) {   // هيكل لامع: لا حلقة ولا علامة +
+            skelD.setBounds(Math.round(cx - R), Math.round(cy - R), Math.round(cx + R), Math.round(cy + R));
+            skelD.draw(c);
+            return;
+        }
         float thumbB = morphK * dp(2);                 // سماكة حدّ المصغّرة بوحدات غير مصغّرة
         // قصة مشاهَدة: الحلقة (2dp) تبقى مكانها، والصورة تكبر 1dp فيصبح الفراغ بينهما 2dp بدل 3dp
         // الفراغ بين الحلقة والصورة: 1dp للقصة غير المشاهَدة فقط؛ الحلقة المصغّرة ملاصقة كما هي

@@ -60,7 +60,7 @@
 			android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout"
 			android:hardwareAccelerated="true"
 			android:supportsPictureInPicture="true"
-			android:theme="@style/NoActionBar" />
+			android:theme="@style/MassTranslucent" />
 
 		<activity
 			android:name=".PartProfileActivity"

@@ -216,16 +216,14 @@ public final class BabylonFx {
                 .withEndAction(() -> reset(chat)).start();
     }
 
-    private static final long LEAVE_MSGS_MS = 170;    // 1) تلاشي الرسائل أولاً (وحدها)
-    private static final long LEAVE_REST_DELAY = 150; // 2) ثم الهيدر وشريط الكتابة والشريط المثبّت: يبدآن عند انتهاء الرسائل تقريباً
-    private static final long LEAVE_REST_MS = 170;
-    private static final long LEAVE_BG_DELAY = 300;   // 3) ثم خلفية المحادثة نفسها فتنكشف الصفحة الرئيسية شفافة من خلفها
-    private static final long LEAVE_BG_MS = 180;
+    /** مدة تلاشي الخروج من المحادثة (ms): واحدة لكل أجزاء المحادثة (الرسائل، الهيدر، شريط الكتابة، الشريط المثبّت، الخلفية) فتتلاشى معاً وبنفس اللحظة. كانت 480ms على مراحل؛ الآن النصف. */
+    private static final long LEAVE_ALL_MS = 240;
 
     /**
-     * الخروج من غرفة المحادثة بتلاشٍ شفاف ناعم (~480ms) على مراحل متتابعة:
-     *   الرسائل أولاً، ثم الهيدر وشريط الكتابة والشريط المثبّت، ثم الخلفية؛ فتنكشف الصفحة الرئيسية (page) من خلفها
-     *   (cross-fade حقيقي: لا فراغ بلون الخلفية بينهما). عند اكتمال التلاشي تُنفَّذ swap (إخفاء المحادثة).
+     * الخروج من غرفة المحادثة بتلاشٍ شفاف واحد متزامن (240ms):
+     *   كل دواخل المحادثة تتلاشى كوحدة واحدة بنفس المدة والمنحنى ونفس لحظة البداية (بلا مراحل متتابعة)،
+     *   فلا يحصل تشابك أو خربطة بين الأجزاء، وتنكشف الصفحة الرئيسية (page) من خلفها.
+     *   عند اكتمال التلاشي تُنفَّذ swap (إخفاء المحادثة).
      */
     public static void chatLeave(final View chat, final View page, final Runnable swap) {
         if (page != null) { page.animate().cancel(); page.setAlpha(1f); }
@@ -234,32 +232,31 @@ public final class BabylonFx {
             return;
         }
         reset(chat);
-        if (page != null) {   // أنيميشن ظهور الصفحة الرئيسية خلف تلاشي المحادثة: صعود + تكبير خفيف خلال 320ms
+        if (page != null) {   // ظهور الصفحة الرئيسية خلف المحادثة بنفس مدة التلاشي وبنفس اللحظة
             page.setTranslationY(dp(page, 10));
             page.setScaleX(0.985f); page.setScaleY(0.985f);
-            page.animate().translationY(0f).scaleX(1f).scaleY(1f).setStartDelay(200).setDuration(280)   // تظهر مع تلاشي الخلفية لا قبله
+            page.animate().translationY(0f).scaleX(1f).scaleY(1f).setStartDelay(0).setDuration(LEAVE_ALL_MS)
                     .setInterpolator(easeOut()).withEndAction(() -> { reset(page); page.animate().setStartDelay(0); }).start();
         }
-        final java.util.ArrayList<View> rest = new java.util.ArrayList<>();
+        // أي تلاشٍ فردي سابق للأبناء يُلغى ويُعاد كاملاً: التلاشي كله يأتي من الجذر وحده كي لا يتضاعف أو يتفاوت بين الأجزاء
+        final java.util.ArrayList<View> kids = new java.util.ArrayList<>();
         final View msgs = chat.findViewById(R.id.messagesArea);
         if (chat instanceof ViewGroup) {
             ViewGroup g = (ViewGroup) chat;
             for (int i = 0; i < g.getChildCount(); i++) {
                 View c = g.getChildAt(i);
-                if (c.getId() == R.id.messagesScroll) continue;   // خلفية/نقوش الرسائل تتلاشى مع الخلفية
-                c.animate().cancel();
-                rest.add(c);
+                c.animate().cancel(); c.animate().setStartDelay(0); c.setAlpha(1f);
+                kids.add(c);
             }
         }
-        final android.view.animation.Interpolator lin = new android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f);   // تلاشٍ ناعم (سرعة هادئة في البداية والنهاية)
-        if (msgs != null) { msgs.animate().cancel(); msgs.animate().alpha(0f).setDuration(LEAVE_MSGS_MS).setInterpolator(lin).withLayer().start(); }
-        for (View c : rest) c.animate().alpha(0f).setStartDelay(LEAVE_REST_DELAY).setDuration(LEAVE_REST_MS).setInterpolator(lin).start();
-        chat.animate().alpha(0f).setStartDelay(LEAVE_BG_DELAY).setDuration(LEAVE_BG_MS).setInterpolator(lin)
-                .withLayer()
+        if (msgs != null) { msgs.animate().cancel(); msgs.setAlpha(1f); }
+        final android.view.animation.Interpolator lin = new android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f);
+        chat.animate().alpha(0f).setStartDelay(0).setDuration(LEAVE_ALL_MS).setInterpolator(lin)
+                .withLayer()   // الجذر بأكمله (كل أبنائه) يُرسم كطبقة واحدة فيتلاشى بتساوٍ تام
                 .withEndAction(() -> {   // لا يُنفَّذ إن أُلغيت الحركة (دخول محادثة جديدة)
                     if (swap != null) swap.run();
                     reset(chat); chat.animate().setStartDelay(0);
-                    for (View c : rest) { c.animate().cancel(); c.animate().setStartDelay(0); c.setAlpha(1f); }
+                    for (View c : kids) { c.animate().cancel(); c.animate().setStartDelay(0); c.setAlpha(1f); }
                     if (msgs != null) { msgs.animate().cancel(); msgs.setAlpha(1f); }
                 }).start();
     }
@@ -396,7 +393,7 @@ public final class BabylonFx {
         v.setAlpha(0f);
         v.setTranslationX(fromX);
         v.animate().alpha(1f).translationX(0f)
-                .setStartDelay(0).setDuration(durMs).setInterpolator(tabEase())
+                .setStartDelay(0).setDuration(durMs).setInterpolator(tabEase()).withLayer()
                 .withEndAction(() -> reset(v)).start();
     }
 

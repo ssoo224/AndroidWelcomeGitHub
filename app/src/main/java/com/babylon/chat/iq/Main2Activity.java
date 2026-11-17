@@ -418,6 +418,18 @@ public class Main2Activity extends Activity {
         binding.tabLogin.setOnTouchListener(pressAnim);
         binding.tabRegister.setOnTouchListener(pressAnim);
         binding.btnForgot.setOnTouchListener(pressAnim);
+        // ارتداد الضغط يكبّر الزر لحظياً فوق حجمه (Overshoot) فكانت حدوده تُقصّ عند حافة الحاوية: لا قصّ في أي أب
+        for (View b : new View[]{binding.btnLogin, binding.btnRegister, binding.tabLogin, binding.tabRegister, binding.btnForgot}) noClipParents(b);
+    }
+
+    private static void noClipParents(View v) {
+        android.view.ViewParent p = v.getParent();
+        while (p instanceof android.view.ViewGroup) {
+            android.view.ViewGroup g = (android.view.ViewGroup) p;
+            g.setClipChildren(false);
+            g.setClipToPadding(false);
+            p = g.getParent();
+        }
     }
 
     private void setupSystemBars() {
