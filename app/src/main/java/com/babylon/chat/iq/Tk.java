@@ -263,7 +263,11 @@ public final class Tk {
             if (!dark) {   // نهاري: اقتباس بيج معتم بحد خفيف (نفس اقتباس رسائل الإيموجي) لكل الرسائل
                 // شفاف حسب الرسالة (لا أبيض/بيج معتم): فوق فقاعتي = تظليل داكن خفيف، وفوق فقاعة الطرف الآخر = صبغة خفيفة من لون الثيم
                 int acc = (chatPal != null ? chatPal.accent : 0xFF9B7410) & 0x00FFFFFF;
-                x.setBackground(shape(tag.equals("rqM") ? 0x1F000000 : (0x1F000000 | acc), dp(x, 14), 0, 0));
+                if (tag.equals("rqM")) {   // فقاعتي: نفس التظليل الداكن الأصلي (0x1F) + طبقة بيضاء 5% فوقه ليتميّز الاقتباس عن لون الرسالة
+                    android.graphics.drawable.LayerDrawable ld = new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[]{
+                            shape(0x1F000000, dp(x, 14), 0, 0), shape(0x0DFFFFFF, dp(x, 14), 0, 0)});
+                    x.setBackground(ld);
+                } else x.setBackground(shape(0x1F000000 | acc, dp(x, 14), 0, 0));
                 x.setAlpha(1f);
             } else x.setBackground(shape(tag.equals("rqM") ? 0x1A000000 : 0x247F8CA0, r, 0, 0));
             x.setClipToOutline(true);
@@ -275,7 +279,7 @@ public final class Tk {
         if (tag.equals("rqbM") || tag.equals("rqbO")) { x.setBackgroundColor(!dark && chatPal == null ? 0xFF9B7410 : rqAccent(tag.equals("rqbM"))); return true; }   // الخط الجانبي لاقتباس الرد
         if (tag.equals("rqnM")) { if (t != null) { t.setTextColor(0xFFFFFFFF); t.setShadowLayer(0f, 0f, 0f, 0); } return true; }   // أنا من ردّ: اسم الاقتباس («أنت» / اسم الطرف الآخر) أبيض دائماً
         if (tag.equals("rqnO")) { if (t != null) t.setTextColor(!dark ? 0xFF000000 : (chatPal != null ? rqAccent(false) : 0xFFFFFFFF)); return true; }   // اسم/عنوان اقتباس الرد («أنت» / «رد على قصتك»): نهاري (كل الثيمات) أسود #000000؛ ليلي: لون الثيم أو أبيض في بابل
-        if (tag.equals("rqtM")) { if (t != null) t.setTextColor(!dark ? (chatPal != null ? chatPal.textOther : 0xFF4A3B12) : (chatPal != null ? chatPal.textMine : GOLD_INK)); return true; }
+        if (tag.equals("rqtM")) { if (t != null) t.setTextColor(!dark ? (chatPal != null ? chatPal.textOther : 0xFFFFFFFF) : (chatPal != null ? chatPal.textMine : GOLD_INK)); return true; }
         if (tag.equals("rqtO")) { if (t != null) t.setTextColor(!dark ? (chatPal != null ? chatPal.textOther : 0xFF4A3B12) : (chatPal != null ? chatPal.accent : 0xFFC29D30)); return true; }   // HTML: لون .reply-quote في رسائل الطرف الآخر = ذهبي accent-chat
         // ---- شريط الرد أعلى حقل الكتابة (.reply-preview-bar في الـ HTML)
         if (tag.equals("rpBar")) {      // بطاقة عائمة: radius 22، حدّ 1px، خلفية --cr-card، ظل خفيف (reply-bar-rounder)

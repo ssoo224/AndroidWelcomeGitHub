@@ -1544,7 +1544,7 @@ public class MassActivity extends Activity {
                     View x = v(id);
                     if (x == null) continue;
                     x.animate().cancel();
-                    x.setAlpha(1f); x.setTranslationY(0f);
+                    x.setAlpha(1f); x.setTranslationY(0f); x.setScaleX(1f); x.setScaleY(1f);
                 }
             }
 
@@ -1555,6 +1555,7 @@ public class MassActivity extends Activity {
                 for (String pg0 : pages) { View pv0 = v(pg0); if (pv0 != null && (pv0.getTranslationX() != 0f)) { pv0.animate().cancel(); pv0.setTranslationX(0f); pv0.setAlpha(1f); } }
                 for (String pg1 : pages) { View pv1 = v(pg1); if (pv1 != null && pv1.getTranslationY() != 0f) pv1.setTranslationY(0f); }
                 for (String pg2 : pages) { View pv2 = v(pg2); if (pv2 != null && pv2.getAlpha() != 1f) { pv2.animate().cancel(); pv2.setAlpha(1f); } }
+                for (String pg3 : pages) { View pv3 = v(pg3); if (pv3 != null && (pv3.getScaleX() != 1f || pv3.getScaleY() != 1f)) { pv3.animate().cancel(); pv3.setScaleX(1f); pv3.setScaleY(1f); pv3.setAlpha(1f); } }
                 final int tabGen0 = BabylonFx.tabGenNow();
                 // أعلى منطقة الصفحات قبل التبديل: (شريط الحالة إن لم تكن صفحة ملف شخصي) + (الهيدر إن كان ظاهراً)
                 final boolean hdrOld = v("mainHeader") != null && v("mainHeader").getVisibility() == View.VISIBLE;
@@ -1581,34 +1582,33 @@ public class MassActivity extends Activity {
                 hideKb();
                 final View to = v(p);
                 if (slide) {
-                    // انتقال موحّد بين المحادثات / الإعدادات / الملف الشخصي (بنفس الطريقة دائماً):
-                    // الصفحة الخارجة تتلاشى بسرعة، والداخلة (مع الهيدر والزر في المحادثات) تتلاشى صاعدة بخفة.
+                    // انتقال موحّد بين المحادثات / الإعدادات / الملف الشخصي (نفس أسلوب دخول قسم المظهر):
+                    // 1) الصفحة الخارجة تتلاشى أولاً (20ms) وتُخفى  2) ثم تدخل الصفحة الجديدة (صعود + تكبير خفيف + تتابع عناصرها).
+                    // الخروج والدخول متتاليان لا متزامنان، فلا تظهر صفحتان معاً ولا تتداخل الحركتان؛ وكل إنهاء مؤجَّل محمي برقم الجيل.
                     final View fv = v(from);
-                    // الهيدر وحشوة شريط الحالة يتغيّران فوراً فيدفعان الصفحة الخارجة؛ نعوّض الفرق بإزاحة عمودية مؤقتة فتبقى في مكانها أثناء تلاشيها
                     final int topNew = (isProfilePage(p) ? 0 : sbTop) + ((home && !chatSelMode) ? dp(62) : 0);
+                    final boolean toChats = home && !chatSelMode;
+                    final int gen = tabGen0;
+                    final long outMs = 20;   // تلاشي الصفحة الخارجة 20ms ثم تبدأ الداخلة
                     fv.animate().cancel();
                     fv.setAlpha(1f);
-                    fv.setTranslationY(-(topNew - topOld));
-                    final boolean toChats = home && !chatSelMode;
-                    if (toChats) { fv.setVisibility(View.GONE); fv.setTranslationY(0f); }   // الانتقال للمحادثات: الصفحة السابقة تختفي فوراً فلا تظهر أي واجهة حتى تبدأ المحادثات بالظهور
+                    fv.setTranslationY(-(topNew - topOld));   // يعوّض تغيّر الهيدر/شريط الحالة فتبقى الصفحة الخارجة في مكانها أثناء تلاشيها
+                    fv.animate().alpha(0f).setDuration(outMs).setInterpolator(new android.view.animation.LinearInterpolator())
+                            .withEndAction(() -> {
+                                if (gen != BabylonFx.tabGenNow() || fv.getVisibility() != View.VISIBLE) return;   // حلّ مكانه تبديل أحدث: لا تُخفِ الصفحة الهدف
+                                fv.setVisibility(View.GONE); fv.setAlpha(1f); fv.setTranslationY(0f);
+                            }).start();
                     to.animate().cancel();
                     to.setVisibility(View.VISIBLE);
-                    final View[] grp = (home && !chatSelMode) ? new View[]{to, v("mainHeader"), v("newGroupFab")} : new View[]{to};
+                    final View[] grp = toChats ? new View[]{to, v("mainHeader"), v("newGroupFab")} : new View[]{to};
                     homeAnimOn = true;
-                    final float dy = dp(12);
                     for (View g : grp) {
                         if (g == null || g.getVisibility() != View.VISIBLE) continue;
-                        g.animate().cancel();
-                        g.setAlpha(0f); g.setTranslationY(dy);
-                        g.animate().alpha(1f).translationY(0f).setStartDelay(toChats ? 0 : 50).setDuration(toChats ? 120 : 150)
-                                .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f)).start();
+                        BabylonFx.pageIn(g, outMs);   // نفس حركة bbViewIn لقسم المظهر، بعد انتهاء خروج الصفحة السابقة
                     }
-                    if (!toChats) fv.animate().alpha(0f).setDuration(90).setInterpolator(new android.view.animation.LinearInterpolator())
-                            .withEndAction(() -> { fv.setVisibility(View.GONE); fv.setAlpha(1f); fv.setTranslationY(0f); }).start();
-                    if (toChats) BabylonFx.chatRowsInFast((ViewGroup) v("chatList"));   // ظهور سريع جداً لصفوف المحادثات
-                    else if (home && !chatSelMode) BabylonFx.chatRowsIn((ViewGroup) v("chatList"), 90);
-                    final int gen = tabGen0;
-                    act.getWindow().getDecorView().postDelayed(() -> { if (homeAnimOn && gen == BabylonFx.tabGenNow()) endHomeEntry(); }, toChats ? 220 : 300);
+                    if (toChats) BabylonFx.chatRowsIn((ViewGroup) v("chatList"), 60);   // صفوف المحادثات تنزلق متتابعة
+                    else BabylonFx.stagger(to);                                         // بطاقات/أزرار الإعدادات والملف الشخصي تظهر متتابعة
+                    act.getWindow().getDecorView().postDelayed(() -> { if (homeAnimOn && gen == BabylonFx.tabGenNow()) endHomeEntry(); }, 460);
                 } else if (to != null) {
                     boolean secondary = ti < 0;
                     if (secondary) BabylonFx.viewIn(to);
@@ -1634,6 +1634,8 @@ public class MassActivity extends Activity {
                         if (on) {
                             if (pv.getTranslationX() != 0f) pv.setTranslationX(0f);
                             if (pv.getTranslationY() != 0f) pv.setTranslationY(0f);
+                            if (pv.getScaleX() != 1f || pv.getScaleY() != 1f) { pv.setScaleX(1f); pv.setScaleY(1f); }
+                            if (pv.getAlpha() != 1f) pv.setAlpha(1f);
                         } else {
                             pv.setTranslationX(0f); pv.setTranslationY(0f);
                         }
@@ -6761,9 +6763,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                             ((FrameLayout) bubble).addView(rowL, lp);
                         } else if ("bubEmoji".equals(bubble.getTag()) && placeEmojiReactions(bubble, rowL)) {
                             // إيموجي: التفاعل في سطر الوقت نفسه، في الجهة المقابلة للوقت (يسار الوقت لرسائلي)
-                        } else if (bubble instanceof LinearLayout && placeTextReactions(bubble, rowL)) {
-                            // نص: كبسولة التفاعل في نفس سطر الوقت و✓
-                        } else if (bubble instanceof LinearLayout) {   // نص/صوت: صف أسفل الفقاعة
+                        } else if (bubble instanceof LinearLayout) {   // نص/صوت: صف أسفل الفقاعة (تحت الوقت و✓) كما في التصميم الأصلي
                             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
                             lp.gravity = "bubEmoji".equals(bubble.getTag()) ? Gravity.CENTER_HORIZONTAL : Gravity.START;   // إيموجي: التفاعل في المنتصف
                             lp.topMargin = dp(4);

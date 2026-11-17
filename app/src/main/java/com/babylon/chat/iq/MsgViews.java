@@ -173,7 +173,13 @@ public final class MsgViews {
         t.setTypeface(null, android.graphics.Typeface.NORMAL);   // العريض عبر StyleSpan للحروف فقط
         t.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG);
         t.setText(richText(body), TextView.BufferType.SPANNABLE);   // نص + إيموجي معاً بلا فقدان
-        linkify(t);   // الروابط: أزرق سمائي + خط سفلي، والنقر يفتحها
+        if (body.length() > 1500) {   // نص طويل جداً: تقسيم أسطر بسيط بلا تهجئة (أسرع بكثير) وبدون regex للروابط إلا إن وُجد ما يدل عليها
+            if (android.os.Build.VERSION.SDK_INT >= 23) {
+                t.setBreakStrategy(android.text.Layout.BREAK_STRATEGY_SIMPLE);
+                t.setHyphenationFrequency(android.text.Layout.HYPHENATION_FREQUENCY_NONE);
+            }
+            if (body.contains("http") || body.contains("www.") || body.contains("@") || body.contains("babylon://")) linkify(t);
+        } else linkify(t);   // الروابط: أزرق سمائي + خط سفلي، والنقر يفتحها
         t.setTag(mine ? "mtM" : "mtO");
         t.setPadding(dp(a, 2), 0, dp(a, 2), dp(a, 4));
         t.setLineSpacing(0, 1.12f);
@@ -336,6 +342,13 @@ public final class MsgViews {
         if (raw == null || raw.isEmpty()) return "";
         int[] cp = cps(raw);
         int n = cp.length;
+        boolean anyEmoji = false;
+        for (int q = 0; q < n; q++) { int c0 = cp[q]; if (c0 == 0x20E3 || isPict(c0) || (c0 >= 0x1F1E6 && c0 <= 0x1F1FF)) { anyEmoji = true; break; } }
+        if (!anyEmoji) {   // نص بلا إيموجي: بلا تفكيك حرف بحرف
+            android.text.SpannableStringBuilder fs = new android.text.SpannableStringBuilder(raw);
+            if (FontManager.isBoldMode() && fs.length() > 0) fs.setSpan(new android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0, fs.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            return fs;
+        }
         final boolean boldMsgs = FontManager.isBoldMode();   // الرسائل عريضة فقط عند اختيار نوع الخط «عريض»؛ عادي/نسخ/غيرهما بوزن عادي
         android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder();
         int i = 0;
@@ -756,42 +769,9 @@ public final class MsgViews {
         // مع اقتباس بجانبها كان الحدّ الأدنى للحجم (24 ثم 20dp) يتجاوز المتاح فيُقصّ آخر إيموجي في السطر:
         // بدل تصغيرها أكثر، يقلّ عدد الإيموجيات في السطر الواحد وينزل الباقي لسطر جديد حتى يتّسع السطر كله.
         while (perRow > 1 && perRow * sz > emojiRoom) perRow--;
-        // كل إيموجي صورة مستقلة بدقة 512 (حادة) بدل نص يُكبَّر من خط نقطي؛ والنص الأصلي احتياط حتى تُحمَّل الصورة
-        LinearLayout box = new LinearLayout(a);
+        // كل الإيموجيات (10 أو 10000) = عنصر واجهة واحد يرسمها بنفسه على Canvas؛ الصورة تُحمَّل مرة لكل نوع إيموجي وتُشارَك
+        final EmojiGrid box = new EmojiGrid(a, ems, dp(a, sz), perRow);
         box.setTag("emojiRowBox");   // بلا حركة ظهور/طفو
-        box.setOrientation(LinearLayout.VERTICAL);
-        box.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-        LinearLayout rowL = null;
-        final java.util.LinkedHashMap<String, java.util.ArrayList<ImageView>> gIv = new java.util.LinkedHashMap<>();
-        final java.util.LinkedHashMap<String, java.util.ArrayList<TextView>> gTv = new java.util.LinkedHashMap<>();
-        for (int k = 0; k < n; k++) {
-            if (k % perRow == 0) {
-                rowL = new LinearLayout(a);
-                rowL.setOrientation(LinearLayout.HORIZONTAL);
-                rowL.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-                LinearLayout.LayoutParams rl = new LinearLayout.LayoutParams(-2, -2);
-                rl.gravity = Gravity.LEFT;                              // السطر الجديد يبدأ من اليسار
-                box.addView(rowL, rl);
-            }
-            String e = ems.get(k);
-            FrameLayout cell = new FrameLayout(a);
-            TextView tv = new TextView(a);
-            tv.setText(e);
-            tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, sz * 0.75f);
-            tv.setIncludeFontPadding(false);
-            tv.setGravity(Gravity.CENTER);
-            cell.addView(tv, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
-            ImageView iv = new ImageView(a);
-            iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            iv.setVisibility(View.GONE);
-            cell.addView(iv, new FrameLayout.LayoutParams(-1, -1));
-            rowL.addView(cell, new LinearLayout.LayoutParams(dp(a, sz), dp(a, sz)));
-            if (!gIv.containsKey(e)) { gIv.put(e, new java.util.ArrayList<ImageView>()); gTv.put(e, new java.util.ArrayList<TextView>()); }
-            gIv.get(e).add(iv); gTv.get(e).add(tv);
-        }
-        // الإيموجي المتماثل يُحمَّل ويُفك مرة واحدة ويُشارَك بين كل نسخه (الطلبات = عدد الأنواع لا العدد الكلي)،
-        // لذلك لا داعي لحدّ 60: فوقه كانت تبقى نصاً بخط النظام (شكل باهت ومختلف). الحدّ الآن 500 لحماية الواجهة فقط.
-        if (n <= 500) for (String e : gIv.keySet()) loadAnimatedEmojiGroup(a, e, gIv.get(e), gTv.get(e), (int) (sz * d(a)), false);
         LinearLayout.LayoutParams boxLp = new LinearLayout.LayoutParams(-2, -2);
         noTouch(box);   // كل الإيموجيات وحدة واحدة: لا يلتقط أي إيموجي النقر لوحده
 
@@ -834,6 +814,150 @@ public final class MsgViews {
             b.addView(box, boxLp);
             b.addView(meta);
         }
+    }
+
+    /** كل إيموجيات الرسالة في View واحد: يرسم الصفوف مباشرة (بدون View لكل إيموجي) ويشارك صورة واحدة لكل نوع. */
+    private static final class EmojiGrid extends View {
+        private final java.util.ArrayList<String> ems;
+        private final int sz, perRow, rows;
+        private final java.util.HashMap<String, android.graphics.Bitmap> bmps = new java.util.HashMap<>();
+        private final java.util.HashSet<String> failed = new java.util.HashSet<>();
+        private final Paint bp = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
+        private final Paint tp = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint ph = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Rect dst = new Rect();
+
+        EmojiGrid(Activity a, java.util.ArrayList<String> ems, int sizePx, int perRow) {
+            super(a);
+            this.ems = ems; this.sz = sizePx; this.perRow = Math.max(1, perRow);
+            this.rows = (ems.size() + this.perRow - 1) / this.perRow;
+            tp.setTextSize(sizePx * 0.75f); tp.setTextAlign(Paint.Align.CENTER);
+            ph.setColor(0x4D8794A8);
+            for (final String e : new java.util.LinkedHashSet<>(ems)) {
+                loadEmojiBitmap(a, e, sizePx, bm -> {
+                    if (bm == null) failed.add(e); else bmps.put(e, bm);
+                    invalidate();
+                });
+            }
+        }
+
+        @Override protected void onMeasure(int w, int h) {
+            setMeasuredDimension(Math.min(ems.size(), perRow) * sz, rows * sz);
+        }
+
+        @Override protected void onDraw(Canvas c) {
+            Rect clip = c.getClipBounds();
+            int first = Math.max(0, clip.top / sz), last = Math.min(rows - 1, clip.bottom / sz);
+            for (int r = first; r <= last; r++) {
+                for (int col = 0; col < perRow; col++) {
+                    int k = r * perRow + col;
+                    if (k >= ems.size()) break;
+                    String e = ems.get(k);
+                    int x = col * sz, y = r * sz;
+                    android.graphics.Bitmap bm = bmps.get(e);
+                    if (bm != null) { dst.set(x, y, x + sz, y + sz); c.drawBitmap(bm, null, dst, bp); }
+                    else if (failed.contains(e)) {
+                        Paint.FontMetrics fm = tp.getFontMetrics();
+                        c.drawText(e, x + sz / 2f, y + sz / 2f - (fm.ascent + fm.descent) / 2f, tp);
+                    } else {
+                        float in = sz * 0.14f;
+                        c.drawOval(x + in, y + in, x + sz - in, y + sz - in, ph);
+                    }
+                }
+            }
+        }
+    }
+
+    interface BmpCb { void done(android.graphics.Bitmap bm); }
+    private static final java.util.LinkedHashMap<String, android.graphics.Bitmap> GRID_BMPS = new java.util.LinkedHashMap<String, android.graphics.Bitmap>(32, 0.75f, true) {
+        @Override protected boolean removeEldestEntry(java.util.Map.Entry<String, android.graphics.Bitmap> eldest) { return size() > 64; }
+    };
+    private static final java.util.HashMap<String, java.util.ArrayList<BmpCb>> GRID_PENDING = new java.util.HashMap<>();
+
+    /** يعيد صورة الإيموجي بحجم sizePx عبر callback على الخيط الرئيسي (null عند الفشل). مرة واحدة لكل نوع وحجم. */
+    private static void loadEmojiBitmap(final Activity a, final String emoji, final int sizePx, final BmpCb cb) {
+        if (android.os.Build.VERSION.SDK_INT < 28) { cb.done(null); return; }
+        final String ck = emoji + "@" + sizePx;
+        android.graphics.Bitmap hit;
+        boolean start = false;
+        synchronized (GRID_BMPS) {
+            hit = GRID_BMPS.get(ck);
+            if (hit == null) {
+                java.util.ArrayList<BmpCb> l = GRID_PENDING.get(ck);
+                if (l == null) { l = new java.util.ArrayList<>(); GRID_PENDING.put(ck, l); start = true; }
+                l.add(cb);
+            }
+        }
+        if (hit != null) { cb.done(hit); return; }
+        if (!start) return;
+        new Thread(() -> {
+            android.graphics.Bitmap bm = null;
+            try {
+                byte[] data = emojiBytes(emoji);
+                if (data != null) bm = android.graphics.ImageDecoder.decodeBitmap(android.graphics.ImageDecoder.createSource(java.nio.ByteBuffer.wrap(data)),
+                        (dec, info, src) -> { dec.setTargetSize(sizePx, sizePx); dec.setAllocator(android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE); });
+            } catch (Throwable ignored) { }
+            final android.graphics.Bitmap fbm = bm;
+            final java.util.ArrayList<BmpCb> cbs;
+            synchronized (GRID_BMPS) { if (fbm != null) GRID_BMPS.put(ck, fbm); cbs = GRID_PENDING.remove(ck); }
+            if (cbs == null) return;
+            a.runOnUiThread(() -> { for (BmpCb c : cbs) c.done(fbm); });
+        }).start();
+    }
+
+    /** بايتات صورة الإيموجي: ذاكرة ← قرص ← شبكة (نفس مصدر وكاش الإيموجي المفرد). */
+    private static byte[] emojiBytes(String emoji) {
+        StringBuilder sb = new StringBuilder(), noVs = new StringBuilder();
+        for (int c : cps(emoji)) {
+            if (sb.length() > 0) sb.append('_');
+            sb.append(Integer.toHexString(c));
+            if (c != 0xFE0F) { if (noVs.length() > 0) noVs.append('_'); noVs.append(Integer.toHexString(c)); }
+        }
+        java.util.ArrayList<String> tries = new java.util.ArrayList<>();
+        tries.add(sb.toString());
+        if (noVs.length() > 0 && !noVs.toString().equals(sb.toString())) tries.add(noVs.toString());
+        final String key = tries.get(0);
+        byte[] data;
+        synchronized (EMOJI_BYTES) { if (EMOJI_FAILED.contains(key)) return null; data = EMOJI_BYTES.get(key); }
+        if (data != null) return data;
+        java.io.File cacheFile = new java.io.File(MediaFiles.emoji(), key + ".webp");
+        if (cacheFile.isFile() && cacheFile.length() > 0) {
+            try {
+                java.io.FileInputStream fi = new java.io.FileInputStream(cacheFile);
+                java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+                byte[] buf = new byte[8192]; int r;
+                while ((r = fi.read(buf)) > 0) bo.write(buf, 0, r);
+                fi.close();
+                data = bo.toByteArray();
+            } catch (Throwable ignored) { data = null; }
+        }
+        if (data == null) {
+            for (String code : tries) {
+                try {
+                    java.net.HttpURLConnection cn = (java.net.HttpURLConnection) new java.net.URL("https://fonts.gstatic.com/s/e/notoemoji/latest/" + code + "/512.webp").openConnection();
+                    cn.setConnectTimeout(6000); cn.setReadTimeout(8000);
+                    if (cn.getResponseCode() != 200) continue;
+                    java.io.InputStream is = cn.getInputStream();
+                    java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+                    byte[] buf = new byte[8192]; int r;
+                    while ((r = is.read(buf)) > 0) bo.write(buf, 0, r);
+                    is.close();
+                    data = bo.toByteArray();
+                    break;
+                } catch (Throwable ignored) { }
+            }
+            if (data != null) {
+                try {
+                    cacheFile.getParentFile().mkdirs();
+                    java.io.File tmp = new java.io.File(cacheFile.getPath() + ".tmp");
+                    java.io.FileOutputStream fo = new java.io.FileOutputStream(tmp);
+                    fo.write(data); fo.close();
+                    if (!tmp.renameTo(cacheFile)) tmp.delete();
+                } catch (Throwable ignored) { }
+            }
+        }
+        synchronized (EMOJI_BYTES) { if (data == null) EMOJI_FAILED.add(key); else EMOJI_BYTES.put(key, data); }
+        return data;
     }
 
     /** حاوية تحدّ عرض الاقتباس بعرض كتلة الإيموجي (يلتفّ النص بدل أن يوسّع الرسالة). */

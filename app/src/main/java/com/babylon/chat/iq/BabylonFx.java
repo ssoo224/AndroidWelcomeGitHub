@@ -102,6 +102,19 @@ public final class BabylonFx {
                 .withEndAction(() -> reset(v)).start();
     }
 
+    /** دخول صفحة رئيسية (محادثات/إعدادات/ملف شخصي): نفس bbViewIn لكن بتأخير يبدأ بعد انتهاء خروج الصفحة السابقة فلا تتداخل. */
+    public static void pageIn(final View v, long delay) {
+        if (v == null) return;
+        reset(v);
+        v.setAlpha(0f);
+        v.setTranslationY(dp(v, 10));
+        v.setScaleX(0.985f);
+        v.setScaleY(0.985f);
+        v.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f)
+                .setStartDelay(delay).setDuration(320).setInterpolator(easeOut())
+                .withEndAction(() -> reset(v)).start();
+    }
+
     /** bbBarDown: الهيدر. */
     public static void barDown(final View v, long delay) {
         if (v == null) return;
@@ -256,6 +269,8 @@ public final class BabylonFx {
 
     public static void chatRowsIn(final ViewGroup list, final long baseDelay) {
         if (list == null) return;
+        final int n0 = Math.min(list.getChildCount(), 9);
+        for (int i = 0; i < n0; i++) { View r = list.getChildAt(i); if (r != null) { r.animate().cancel(); r.setAlpha(0f); } }   // بلا إطار تظهر فيه الصفوف قبل الحركة
         list.post(() -> {
             int n = Math.min(list.getChildCount(), 9);
             Interpolator soft = new android.view.animation.OvershootInterpolator(0.7f);
