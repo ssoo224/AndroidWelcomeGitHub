@@ -179,6 +179,14 @@ public class MassActivity extends Activity {
             binding = MassBinding.inflate(getLayoutInflater());
             setContentView(binding.getRoot());
             if (heldBySplash) binding.getRoot().setAlpha(0f);
+            if (heldBySplash) {   // أشرطة النظام تبقى كما ضبطها السبلاش (شفافة + نفس لون الأيقونات) وإلا ظهر لون الثيم الافتراضي (برتقالي/أبيض)
+                android.view.Window hw = getWindow();
+                hw.clearFlags(android.view.WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS | android.view.WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
+                hw.addFlags(android.view.WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+                hw.setStatusBarColor(0); hw.setNavigationBarColor(0);
+                if (android.os.Build.VERSION.SDK_INT >= 29) { hw.setNavigationBarContrastEnforced(false); hw.setStatusBarContrastEnforced(false); }
+                AuthTheme.systemBars(hw, AuthTheme.isDark(this));
+            }
         } catch (Throwable e) {
             if (heldBySplash) Handoff.failed();
             saveAndDie(e, "inflate_layout");
@@ -1962,7 +1970,7 @@ public class MassActivity extends Activity {
                     final int topNew = (isProfilePage(p) ? 0 : sbTop) + ((home && !chatSelMode) ? dp(62) : 0);
                     final boolean toChats = home && !chatSelMode;
                     final int gen = tabGen0;
-                    final long outMs = 50L;   // 1) انزلاق جانبي سريع للصفحة الخارجة ثم اختفاؤها
+                    final long outMs = toChats ? 25L : 50L;   // الذهاب إلى المحادثات: خروج الصفحة الخارجة أسرع بالضعف   // 1) انزلاق جانبي سريع للصفحة الخارجة ثم اختفاؤها
                     final float slideDx = act.getResources().getDisplayMetrics().widthPixels * 0.2f;
                     final float exitDx = (ti > fi ? 1f : -1f) * slideDx;   // الخروج في اتجاه، والدخول من الاتجاه المعاكس
                     final View hdr = toChats ? v("mainHeader") : null;
@@ -1987,7 +1995,7 @@ public class MassActivity extends Activity {
                                 syncBars(); vpPlace();
                                 // صفحة المحادثات: كل تفاصيلها (الهيدر + القصص + الصفوف + الزر) تدخل دفعة واحدة كوحدة واحدة بنفس الحركة والمدة،
                                 // بلا تتابع عناصر (staggerDown) فلا تظهر على أجزاء، ويُتجنَّب جمع/ترتيب العناصر على الخيط الرئيسي في لحظة التبديل.
-                                final long pageMs = toChats ? 150L : 170L;
+                                final long pageMs = toChats ? 75L : 170L;   // ودخول صفحة المحادثات أسرع بالضعف (كان 150ms)
                                 final View[] grp = toChats ? new View[]{to, hdr, fab} : new View[]{to};
                                 if (!toChats) for (View h2 : new View[]{hdr, fab}) {   // (غير المحادثات: لا هيدر/زر أصلاً)
                                     if (h2 == null) continue;

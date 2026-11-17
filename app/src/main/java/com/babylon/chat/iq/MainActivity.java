@@ -27,7 +27,7 @@ import java.util.List;
 public class MainActivity extends Activity {
 
     private static final long LOGO_DONE_MS = 2650;   // اكتمال رسم اللوگو وتلوينه واستقراره
-    private static final long HOLD_AFTER_LOGO_MS = 500;   // يثبت اللوگو نصف ثانية ثم تظهر صفحة المحادثات مباشرة
+    private static final long HOLD_AFTER_LOGO_MS = 0;   // بعد اكتمال السبلاش تدخل صفحة المحادثات مباشرة (التلاشي 300ms في MassActivity.revealFromSplash)
     private static final long SPLASH_MS = LOGO_DONE_MS + HOLD_AFTER_LOGO_MS;   // 3150ms
 
     // ===== توقيت حركة الشعار (ms) =====
@@ -59,20 +59,22 @@ public class MainActivity extends Activity {
         startAnimations();
         warmUp();   // تجهيز الشاشة التالية في الخلفية أثناء عرض السبلاش
 
-        // التحقق من تسجيل الدخول وبناء صفحة المحادثات يجريان الآن في الخلفية أثناء رسم اللوگو: MassActivity تُطلق مبكراً مخفية
-        // خلف السبلاش، وعند اكتمال اللوگو تُكشف فوراً دون انتظار. (أول تشغيل بطلب الأذونات، وغير المسجّل: المسار القديم)
-        final boolean loggedIn0 = FirebaseAuth.getInstance().getCurrentUser() != null;
-        boolean needPerms = Build.VERSION.SDK_INT >= 23 && !AppSettings.prefs(this, "babylon_boot").getBoolean("perms_asked", false) && missingPermissions().length > 0;
-        if (loggedIn0 && !needPerms) handler.postDelayed(this::startMassEarly, EARLY_START_MS);
+        // فحص تسجيل الدخول (وفحص الأذونات) يجري كله في خيط خلفي خاص (داخل warmUp) كي لا يمسّ خيط الرسم؛ نتيجته في earlyOk.
+        // بعد اكتمال الرسم والتلوين تُطلق MassActivity مخفية خلف السبلاش لتُبنى أثناء الاستقرار، وعند اكتمال السبلاش تدخل مباشرة.
+        handler.postDelayed(this::startMassEarly, EARLY_START_MS);
 
         handler.postDelayed(this::goNext, SPLASH_MS);
     }
 
-    private static final long EARLY_START_MS = LOGO_DONE_MS;   // بناء الصفحة يبدأ بعد اكتمال الرسم (فترة الثبات)، فلا يُقطّع حركة الرسم نفسها
+    private static final long EARLY_START_MS = (long) T_COLOR_B;   // بناء الصفحة يبدأ بعد اكتمال الرسم والتلوين (مرحلة الاستقرار الهادئة)، فتكون جاهزة عند اكتمال السبلاش بلا تأخير
     private boolean earlyStarted = false;
+    private volatile Boolean earlyOk = null;   // null = الفحص الخلفي جارٍ؛ true = مسجّل ولا أذونات معلّقة
 
     private void startMassEarly() {
         if (isFinishing() || navigated || earlyStarted) return;
+        Boolean ok = earlyOk;
+        if (ok == null) { handler.postDelayed(this::startMassEarly, 25); return; }   // الفحص الخلفي لم ينتهِ بعد
+        if (!ok) return;   // غير مسجّل أو أول تشغيل بالأذونات: المسار القديم عند goNext
         earlyStarted = true;
         Handoff.begin();
         Intent i = new Intent(this, MassActivity.class);
@@ -101,12 +103,21 @@ public class MainActivity extends Activity {
      */
     private void warmUp() {
         final android.content.Context app = getApplicationContext();
-        final boolean loggedIn = FirebaseAuth.getInstance().getCurrentUser() != null;
-        final com.google.firebase.auth.FirebaseUser fu = FirebaseAuth.getInstance().getCurrentUser();
-        final String uid = fu != null ? fu.getUid() : null;
         android.os.HandlerThread ht = new android.os.HandlerThread("bb-warm", android.os.Process.THREAD_PRIORITY_BACKGROUND);   // له Looper لأن بعض الـViews تنشئ Handler؛ أولوية خلفية كي لا يتقطع السبلاش
         ht.start();
         new Handler(ht.getLooper()).post(() -> {
+            // الفحص أولاً وبأسبقية: تسجيل الدخول + الأذونات (بعيداً عن خيط الرسم)
+            boolean loggedIn = false; String uid = null;
+            try {
+                com.google.firebase.auth.FirebaseUser fu = FirebaseAuth.getInstance().getCurrentUser();
+                loggedIn = fu != null; uid = fu != null ? fu.getUid() : null;
+            } catch (Throwable ignored) { }
+            boolean needPerms = false;
+            try {
+                AppSettings.init(app);
+                needPerms = Build.VERSION.SDK_INT >= 23 && !AppSettings.prefs(app, "babylon_boot").getBoolean("perms_asked", false) && missingPermissions().length > 0;
+            } catch (Throwable ignored) { }
+            earlyOk = loggedIn && !needPerms;
             try { com.google.firebase.firestore.FirebaseFirestore.getInstance(); } catch (Throwable ignored) { }
             warmData(app, uid);
             String[] cls = {"MassActivity", "Main2Activity", "MsgViews", "MsgMenu", "ChatThemes", "ChatPreview", "ChatPattern",
