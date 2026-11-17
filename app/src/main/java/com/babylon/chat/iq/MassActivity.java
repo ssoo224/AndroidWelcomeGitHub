@@ -923,6 +923,7 @@ public class MassActivity extends Activity {
                 final Runnable storyMine = () -> {
                     android.graphics.drawable.Drawable bg = mineAv.getBackground();
                     CharSequence lt = mineAv.getText();
+                    storySrc = mineAv;   // القصة تنطلق من دائرة صورتي وتكبر
                     openStory(myUid, "قصتي", lt != null && lt.length() > 0 ? lt.toString().substring(0, 1) : "?", photoBmp, false,
                             bg instanceof ProfileRing ? (StoryViewer.Spin) bg : null);
                 };
@@ -930,6 +931,7 @@ public class MassActivity extends Activity {
                     if (otherUid == null || otherUid.isEmpty() || !hasStoryFor(false)) return;
                     android.graphics.drawable.Drawable bg = otherAv.getBackground();
                     String nm = dispName(otherUid, "");
+                    storySrc = otherAv;   // القصة تنطلق من دائرة صورته وتكبر
                     openStory(otherUid, nm, nm.length() > 0 ? nm.substring(0, 1).toUpperCase() : "?", otherPhotoBmp, StoryAvatarView.toneBlue(otherUid),
                             bg instanceof ProfileRing ? (StoryViewer.Spin) bg : null);
                 };
@@ -1404,7 +1406,7 @@ public class MassActivity extends Activity {
                     }
                     if (vpBar != null && vpBar.getParent() == v("mainPage") && vpBar.getLayoutParams() instanceof LinearLayout.LayoutParams && "bottom".equals(vpMode)) {
                         LinearLayout.LayoutParams vl = (LinearLayout.LayoutParams) vpBar.getLayoutParams();
-                        int want = ov + dp(10);   // 10dp فوق أعلى شريط التنقل (يتجاوز بروز انحناء التبويب المحدد)
+                        int want = ov + dp(7);   // 7dp فوق أعلى شريط التنقل (أقرب بـ3dp)
                         if (vl.bottomMargin != want) { vl.bottomMargin = want; vpBar.setLayoutParams(vl); }
                     }
                     View cl = v("chatList");
@@ -1412,7 +1414,9 @@ public class MassActivity extends Activity {
                     View fab = v("newGroupFab");
                     if (fab != null && fab.getLayoutParams() instanceof FrameLayout.LayoutParams) {
                         FrameLayout.LayoutParams fl = (FrameLayout.LayoutParams) fab.getLayoutParams();
-                        if (fl.bottomMargin != dp(16) + ov) { fl.bottomMargin = dp(16) + ov; fab.setLayoutParams(fl); }
+                        boolean vpBottom = vpBar != null && vpBar.getParent() == v("mainPage") && "bottom".equals(vpMode);   // الصفحة تنتهي أصلاً فوق الشريط الصوتي: لا نضيف تداخل شريط التنقل مرة ثانية
+                        int fabBottom = dp(16) + (vpBottom ? 0 : ov);
+                        if (fl.bottomMargin != fabBottom) { fl.bottomMargin = fabBottom; fab.setLayoutParams(fl); }
                     }
                     View sv = v("settingsView"), pv = v("profileView");
                     if (sv instanceof ViewGroup && ((ViewGroup) sv).getChildCount() > 0) {
@@ -1558,8 +1562,30 @@ public class MassActivity extends Activity {
                 }
             }
 
+            // ---- الانتقال إلى المحادثات: الصفحة تظهر فوراً بأول صفوف فقط (قياس/تخطيط خفيف)، والباقي يُعاد في لحظات بعد بدء الحركة
+            final java.util.ArrayList<View> trimmedRows = new java.util.ArrayList<>();
+            static final int CHAT_ROWS_FIRST = 10;
+
+            void trimChatList() {
+                restoreChatList();
+                View cl0 = v("chatList");
+                if (!(cl0 instanceof ViewGroup)) return;
+                ViewGroup cl = (ViewGroup) cl0;
+                for (int i = CHAT_ROWS_FIRST; i < cl.getChildCount(); i++) {   // ما تحت الشاشة: لا يراه أحد أثناء الانتقال
+                    View c = cl.getChildAt(i);
+                    if (c.getVisibility() == View.VISIBLE) { c.setVisibility(View.GONE); trimmedRows.add(c); }
+                }
+            }
+
+            void restoreChatList() {
+                if (trimmedRows.isEmpty()) return;
+                for (View c : trimmedRows) if (c.getParent() != null && c.getVisibility() == View.GONE) c.setVisibility(View.VISIBLE);
+                trimmedRows.clear();
+            }
+
             void show(String p) {
                 final String from = curPage;
+                restoreChatList();
                 endHomeEntry();
                 BabylonFx.cancelTabSlide();   // تبديل سريع بين التبويبات: لا يبقى انتقال سابق يُظهر صفحته فوق الحالية
                 for (String pg0 : pages) { View pv0 = v(pg0); if (pv0 != null && (pv0.getTranslationX() != 0f)) { pv0.animate().cancel(); pv0.setTranslationX(0f); pv0.setAlpha(1f); } }
@@ -1607,14 +1633,10 @@ public class MassActivity extends Activity {
                     fv.setAlpha(1f);
                     fv.setTranslationY(0f);   // التخطيط لا يتغيّر أثناء التلاشي، فتبقى الصفحة الخارجة في مكانها بلا حاجة لتعويض
                     // الصفحة الجديدة والهيدر والزر يبقون مخفيّين (شفافية 0) طوال تلاشي الصفحة الخارجة، ولا يبدأ أي منهم إلا بعد انتهائه
+                    if (toChats) trimChatList();   // أول صفوف فقط الآن: الانتقال يبدأ فوراً بلا تخطيط ثقيل
                     to.animate().cancel();
                     to.setVisibility(View.VISIBLE);
                     to.setAlpha(0f);
-                    for (View h : new View[]{hdr, fab}) {
-                        if (h == null || h.getVisibility() != View.VISIBLE) continue;
-                        h.animate().cancel();
-                        h.setAlpha(0f);
-                    }
                     homeAnimOn = true;
                     fv.animate().alpha(0f).translationX(exitDx).setDuration(outMs).setInterpolator(new android.view.animation.AccelerateInterpolator())
                             .withEndAction(() -> {
@@ -1625,8 +1647,12 @@ public class MassActivity extends Activity {
                                 // 2) الآن فقط (بعد اختفاء الصفحة الخارجة تماماً) يُطبَّق تغيّر الهيدر/شريط الحالة (ظهور الحقل الأبيض) ثم تدخل الصفحة الجديدة
                                 vis("mainHeader", toChats); vis("newGroupFab", home);
                                 syncBars(); vpPlace();
-                                for (View h2 : new View[]{hdr, fab}) { if (h2 != null && h2.getVisibility() == View.VISIBLE) { h2.animate().cancel(); h2.setAlpha(0f); } }
-                                final View[] grp = toChats ? new View[]{to, hdr, fab} : new View[]{to};
+                                for (View h2 : new View[]{hdr, fab}) {   // الهيدر وزر المجموعة يظهران فوراً بلا أي أنيميشن
+                                    if (h2 == null) continue;
+                                    h2.animate().cancel();
+                                    h2.setAlpha(1f); h2.setTranslationX(0f); h2.setTranslationY(0f); h2.setScaleX(1f); h2.setScaleY(1f);
+                                }
+                                final View[] grp = new View[]{to};   // الأنيميشن للصفحة ومحادثاتها فقط
                                 final long pageMs = 170L;
                                 for (View g : grp) {
                                     if (g == null || g.getVisibility() != View.VISIBLE) continue;
@@ -1634,7 +1660,8 @@ public class MassActivity extends Activity {
                                     //    تماماً كالانتقال بين الملف الشخصي والإعدادات، فتبدو كل الأجزاء متلاصقة.
                                     BabylonFx.tabIn(g, -exitDx, pageMs);
                                 }
-                                BabylonFx.staggerDown(to, 0L);   // 3) نفس تتابع العناصر لكل الصفحات (محادثات / إعدادات / ملف شخصي)
+                                BabylonFx.staggerDown(to, 0L);   // 3) نفس تتابع العناصر الواضح لكل الصفحات (محادثات / إعدادات / ملف شخصي)
+                                if (toChats) act.getWindow().getDecorView().postDelayed(() -> { if (gen == BabylonFx.tabGenNow()) restoreChatList(); }, pageMs + 30);   // بقية الصفوف بعد انتهاء الحركة
                                 act.getWindow().getDecorView().postDelayed(() -> { if (homeAnimOn && gen == BabylonFx.tabGenNow()) endHomeEntry(); }, 600);
                             }).start();
                 } else if (to != null) {
@@ -1642,7 +1669,7 @@ public class MassActivity extends Activity {
                     if (secondary) BabylonFx.viewIn(to);
                     BabylonFx.stagger(to);
                 }
-                if (home && !hdrWas && !homeAnimOn) BabylonFx.barDown(v("mainHeader"), 0);
+                // الهيدر يظهر بلا أنيميشن
                 if (!slide) { syncBars(); vpPlace(); }   // في انتقال التبويبات يتم هذا بعد التلاشي (في withEndAction)
                 // الشريط العائم يتبع الصفحة (أسفل فوق أزرار التنقل، أو أعلى الصفحة حيث لا أزرار)
                 // شبكة أمان: مهما حصل للأنيميشن (إلغاء/سباق/إطار ضائع) تُثبَّت الصفحة الهدف وحدها بعد انتهاء المدة
@@ -1654,6 +1681,7 @@ public class MassActivity extends Activity {
             void settleTabs(String target) {
                 try {
                     if (target == null || !target.equals(curPage)) return;   // تبديل أحدث حلّ مكانه
+                    restoreChatList();
                     for (String pg : pages) {
                         View pv = v(pg);
                         if (pv == null) continue;
@@ -3053,6 +3081,7 @@ public class MassActivity extends Activity {
             }
 
             /** فتح عارض القصص: قوس ذهبي دوّار على الحلقة ثم نافذة منبثقة (launchStoryWithGlow + startViewer في الـ HTML). */
+            View storySrc;   // العنصر الذي ضُغط لفتح القصة (مربع الملف): منه تنطلق القصة وتكبر
             void openStory(final String uid, final String name, final String letter, final Bitmap photo, final boolean blue, final StoryViewer.Spin av) {
                 openStory(uid, name, letter, photo, blue, av, null, null);
             }
@@ -3061,13 +3090,19 @@ public class MassActivity extends Activity {
                            final String startId, final java.util.Set<String> playIds) {
                 if (myUid == null || myUid.isEmpty() || db == null) return;
                 {   // نقطة انطلاق التكبير: مركز الصورة إن كان النقر عليها، وإلا موضع النقر (عنصر الملف / اقتباس الرد)
-                    float ox = tapX, oy = tapY, orad = dp(10);
-                    if (av instanceof View && ((View) av).isShown() && ((View) av).getWidth() > 0) {
-                        View avv = (View) av; int[] al = new int[2]; avv.getLocationOnScreen(al);
-                        ox = al[0] + avv.getWidth() / 2f; oy = al[1] + avv.getHeight() / 2f; orad = Math.min(avv.getWidth(), avv.getHeight()) / 2f;
+                    float ox = tapX, oy = tapY, orad = dp(10), ow = 0f, oh = 0f;
+                    View srcV = null;
+                    if (av instanceof View && ((View) av).isShown() && ((View) av).getWidth() > 0) srcV = (View) av;       // دائرة (قصص المحادثات / حلقة الملف)
+                    else if (storySrc != null && storySrc.isShown() && storySrc.getWidth() > 0) srcV = storySrc;            // مربع قصة في شبكة الملف الشخصي
+                    storySrc = null;
+                    if (srcV != null) {
+                        int[] al = new int[2]; srcV.getLocationOnScreen(al);
+                        ox = al[0] + srcV.getWidth() / 2f; oy = al[1] + srcV.getHeight() / 2f;
+                        ow = srcV.getWidth(); oh = srcV.getHeight(); orad = Math.min(ow, oh) / 2f;
                     }
                     if (ox == 0f && oy == 0f) ox = oy = -1f;
                     StoryViewer.originX = ox; StoryViewer.originY = oy; StoryViewer.originR = orad;
+                    StoryViewer.originW = ow; StoryViewer.originH = oh;
                 }
                 StoryViewer.launch(act, db, myUid, av, uid, name, letter, photo, blue, startId, playIds, new StoryViewer.Listener() {
                     @Override public void onClosed() { try { buildStories(); } catch (Throwable ignored) { } try { refreshProfileRings(); } catch (Throwable ignored) { } }   // لا إعادة تحميل لشبكة قصص الملف عند الخروج من قصة (كانت تسبب وميضاً)
@@ -3236,6 +3271,7 @@ public class MassActivity extends Activity {
                         }
                         final String sid = (String) it[0];
                         card.setOnClickListener(vw -> {   // startViewer(uid, list.reverse(), index): يشغّل من الأقدم للأحدث ويبدأ من المضغوطة
+                            storySrc = vw;
                             if (mine) {
                                 openStory(myUid, "قصتي", userName != null && userName.length() > 0 ? userName.substring(0, 1).toUpperCase() : "?", photoBmp, false, null, sid, ids);
                             } else {
@@ -4490,15 +4526,39 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                         }
                         if (fpage != null && fpage.more && fpage.curId != null) startLocalPaging(chatId, fpage.curTs, fpage.curId);   // بقية التاريخ المحلي فوقها على دفعات
                         if (messagesListener != null) messagesListener.remove();
-                        // الاستماع يبدأ من نقطة الاستئناف: كل جديد منذ آخر مزامنة + آخر 50 رسالة (تفاعل/قراءة/حذف) بدل جلب المحادثة كاملة
-                        Query mq = db.collection("chats").document(chatId).collection("messages");
-                        if (fws > 0) mq = mq.whereGreaterThanOrEqualTo("timestamp", fws);
-                        messagesListener = mq
-                            .orderBy("timestamp", Query.Direction.ASCENDING)
-                            .addSnapshotListener(com.google.firebase.firestore.MetadataChanges.INCLUDE,
-                                (sn, er) -> deferSnap(onSnap, chatId, sn, er));
+                        partialWinTs = -1L; partialWinChat = chatId; partialBackfilling = false;
+                        if (fws >= 0) { attachMessagesListener(chatId, fws, onSnap); return; }   // لدينا نقطة استئناف: كل جديد منذ آخر مزامنة + آخر 50 رسالة
+                        // لا خزن كامل (أول دخول): لا نجلب المحادثة كلها؛ نحدّد وقت الرسالة رقم RESYNC_WINDOW من الآخر ونستمع منه فقط
+                        db.collection("chats").document(chatId).collection("messages")
+                            .orderBy("timestamp", Query.Direction.DESCENDING).limit(LocalDb.RESYNC_WINDOW).get()
+                            .addOnCompleteListener(pt -> {
+                                if (gen0 != openGen || !chatId.equals(currentChatId)) return;
+                                long start = 0L;
+                                try {
+                                    if (pt.isSuccessful() && pt.getResult() != null) {
+                                        java.util.List<DocumentSnapshot> ds = pt.getResult().getDocuments();
+                                        if (ds.size() >= LocalDb.RESYNC_WINDOW) {
+                                            Long t0 = ds.get(ds.size() - 1).getLong("timestamp");
+                                            if (t0 != null && t0 > 0) start = t0;
+                                        }
+                                    }
+                                } catch (Throwable ignored) { }
+                                if (start > 0) { partialWinTs = start; chatWinStart = start; }   // محادثة طويلة: الأقدم يُنزَّل في الخلفية
+                                attachMessagesListener(chatId, start, onSnap);
+                            });
                     });
                 }).start();
+            }
+
+            void attachMessagesListener(final String chatId, final long startTs,
+                                        final com.google.firebase.firestore.EventListener<com.google.firebase.firestore.QuerySnapshot> onSnap) {
+                if (messagesListener != null) messagesListener.remove();
+                Query mq = db.collection("chats").document(chatId).collection("messages");
+                if (startTs > 0) mq = mq.whereGreaterThanOrEqualTo("timestamp", startTs);
+                messagesListener = mq
+                    .orderBy("timestamp", Query.Direction.ASCENDING)
+                    .addSnapshotListener(com.google.firebase.firestore.MetadataChanges.INCLUDE,
+                        (sn, er) -> deferSnap(onSnap, chatId, sn, er));
             }
 
             // ---- قراءة التاريخ المحلي الأقدم على صفحات (خيط خلفي) ثم رسمه فوق الظاهر دفعة لكل إطار
@@ -4775,6 +4835,26 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                     final boolean fromCache = sn.getMetadata().isFromCache();
                     final boolean needFull = !localFull[0];
                     if (needFull && fromCache) return;
+                    if (needFull && partialWinTs > 0 && chatId.equals(partialWinChat)) {   // الاستماع على نافذة آخر الرسائل فقط: احفظ النافذة ثم نزّل الأقدم في الخلفية
+                        final java.util.ArrayList<DocumentSnapshot> pu = new java.util.ArrayList<>();
+                        final java.util.ArrayList<String> pr = new java.util.ArrayList<>();
+                        long pmx = 0L;
+                        for (DocumentSnapshot dd : sn.getDocuments()) {
+                            if (dd.getMetadata().hasPendingWrites()) continue;
+                            Long t = dd.getLong("timestamp"); if (t == null) t = dd.getLong("createdAt");
+                            if (t != null && t > pmx) pmx = t;
+                        }
+                        for (DocumentChange dc : sn.getDocumentChanges(com.google.firebase.firestore.MetadataChanges.INCLUDE)) {
+                            if (dc.getType() == DocumentChange.Type.REMOVED) pr.add(dc.getDocument().getId());
+                            else pu.add(dc.getDocument());
+                        }
+                        final long fmx = pmx;
+                        final boolean startBackfill = !partialBackfilling;
+                        partialBackfilling = true;
+                        CACHE_EXEC.execute(() -> persistWork(chatId, pu, pr, false, fmx, true));
+                        if (startBackfill) backfillHistory(chatId, partialWinTs, fmx, localFull);
+                        return;
+                    }
                     final java.util.ArrayList<DocumentSnapshot> ups = new java.util.ArrayList<>();
                     final java.util.ArrayList<String> rem = new java.util.ArrayList<>();
                     long mx = 0L;
@@ -4795,6 +4875,51 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
             }
 
             void persistWork(String chatId, java.util.List<DocumentSnapshot> ups, java.util.List<String> rem, boolean full, long maxTs) {
+                persistWork(chatId, ups, rem, full, maxTs, false);
+            }
+
+            // ---- أول فتح لمحادثة بلا خزن محلي: لا نجلب كل التاريخ لعرضها
+            long partialWinTs = -1L;            // بداية نافذة الاستماع الجزئية (آخر RESYNC_WINDOW رسالة)؛ -1 = لا نافذة جزئية
+            String partialWinChat = null;
+            boolean partialBackfilling = false; // بدأ تنزيل التاريخ الأقدم في الخلفية
+            static final int BACKFILL_PAGE = 100;
+
+            /** ينزّل ما قبل النافذة صفحةً صفحة في الخلفية ويحفظه في SQLite، ثم يعلّم الخزن كاملاً ويعرض الأقدم من الخزن المحلي. */
+            void backfillHistory(final String chatId, final long beforeTs, final long syncedTs, final boolean[] localFull) {
+                backfillPage(chatId, beforeTs, null, syncedTs, localFull);
+            }
+
+            void backfillPage(final String chatId, final long beforeTs, final DocumentSnapshot after, final long syncedTs, final boolean[] localFull) {
+                if (loggedOut) return;
+                Query q = db.collection("chats").document(chatId).collection("messages")
+                        .whereLessThan("timestamp", beforeTs)
+                        .orderBy("timestamp", Query.Direction.DESCENDING);
+                if (after != null) q = q.startAfter(after);
+                q.limit(BACKFILL_PAGE).get().addOnCompleteListener(task -> {
+                    if (!task.isSuccessful() || task.getResult() == null) {   // انقطاع: يبقى الخزن غير كامل فيُعاد التنزيل في الدخول القادم
+                        if (chatId.equals(partialWinChat)) partialBackfilling = false;
+                        return;
+                    }
+                    final com.google.firebase.firestore.QuerySnapshot qs = task.getResult();
+                    final java.util.List<DocumentSnapshot> docs = qs.getDocuments();
+                    CACHE_EXEC.execute(() -> {
+                        persistWork(chatId, docs, new java.util.ArrayList<String>(), false, 0L, true);
+                        if (docs.size() >= BACKFILL_PAGE) {
+                            backfillPage(chatId, beforeTs, docs.get(docs.size() - 1), syncedTs, localFull);
+                            return;
+                        }
+                        LocalDb.markComplete(chatId, syncedTs);   // نفس خيط الكتابة: أي حفظ لاحق يأتي بعده بالترتيب
+                        localFull[0] = true;
+                        uiH.post(() -> {
+                            if (!chatId.equals(currentChatId)) return;
+                            chatWinStart = beforeTs;
+                            startLocalPaging(chatId, beforeTs, "");   // الأقدم من النافذة يُعرض الآن من SQLite فوق ما ظهر
+                        });
+                    });
+                });
+            }
+
+            void persistWork(String chatId, java.util.List<DocumentSnapshot> ups, java.util.List<String> rem, boolean full, long maxTs, boolean force) {
                 try {
                     java.util.ArrayList<org.json.JSONObject> arr = new java.util.ArrayList<>();
                     for (DocumentSnapshot dd : ups) {
@@ -4803,7 +4928,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                         if (o != null) arr.add(o);
                     }
                     if (full) LocalDb.putAllMessages(chatId, arr, maxTs);
-                    else LocalDb.upsertMessages(chatId, arr, rem, maxTs);
+                    else LocalDb.upsertMessages(chatId, arr, rem, maxTs, force);
                 } catch (Throwable ignored) { }
             }
 
@@ -5426,7 +5551,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
             void vpStyle(String mode) {
                 final boolean inChat = "chat".equals(mode);
                 // داخل المحادثة: ألوان الثيم (مثل شريط الرسالة المثبتة)؛ خارجها: لون ثابت لا يتأثر بالثيمات
-                int bg = inChat ? Tk.crCard(cSf()) : (dark ? Tk.chatSurface(true) : 0xFFFFFFFF);
+                int bg = inChat ? Tk.crCard(cSf()) : (dark ? 0xFF1E2A36 : 0xFFFFFFFF);   // خارج المحادثة: نفس لون حقل شريط التنقل (ليلي #1E2A36 / نهاري أبيض)
                 int fg = inChat ? Tk.crInk(cText()) : (dark ? 0xFFF1F5F9 : 0xFF17212B);
                 int bd = inChat ? Tk.crLine(cBorder()) : (dark ? 0x4DE4C45B : 0x66C29D30);
                 final int accent = inChat ? selAcc() : (dark ? 0xFFE4C45B : 0xFFB98710);
@@ -5488,6 +5613,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 vpEqStop();
                 if (vpBar != null && vpBar.getParent() instanceof ViewGroup) ((ViewGroup) vpBar.getParent()).removeView(vpBar);
                 vpMode = ""; vpShown = false;
+                navGlassSync();   // يعيد موضع زر المجموعة بعد زوال الشريط
             }
 
             /** يضع الشريط في مكانه حسب الشاشة الحالية (place() في الـ HTML) أو يخفيه إن لم يكن هناك تشغيل. */
@@ -7044,7 +7170,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                         top = ol.topMargin; right = ol.rightMargin;
                     }
                     par.removeView(meta);
-                    wrap = new MsgViews.MetaReactRow(act, (g & Gravity.HORIZONTAL_GRAVITY_MASK) == Gravity.RIGHT);
+                    wrap = new MsgViews.MetaReactRow(act, true);   // رسائل الإيموجي: الوقت و✓ أقصى اليمين دائماً والتفاعل أقصى اليسار
                     ViewGroup.MarginLayoutParams mlp = new ViewGroup.MarginLayoutParams(-2, -2);
                     mlp.topMargin = top; mlp.rightMargin = right;
                     wrap.addView(meta, mlp);

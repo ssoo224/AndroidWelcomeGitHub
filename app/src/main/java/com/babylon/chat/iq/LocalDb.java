@@ -436,13 +436,18 @@ final class LocalDb {
      * ويرفع synced_ts (إن كان > 0 أي اللقطة من السيرفر لا من كاش Firestore). لا يفعل شيئاً إن لم يكن الخزن كاملاً.
      */
     static void upsertMessages(final String chatId, final List<JSONObject> add, final List<String> removed, final long syncedTs) {
+        upsertMessages(chatId, add, removed, syncedTs, false);
+    }
+
+    /** force=true: يحفظ الرسائل حتى لو لم يُعلَّم الخزن «كاملاً» بعد (أثناء التنزيل الأول على مراحل). */
+    static void upsertMessages(final String chatId, final List<JSONObject> add, final List<String> removed, final long syncedTs, final boolean force) {
         if (chatId == null) return;
         run(() -> {
             SQLiteDatabase d = db;
             if (d == null) return;
             ArrayList<String> stale = new ArrayList<>();
             try {
-                if (!isComplete(chatId)) return;
+                if (!force && !isComplete(chatId)) return;
                 d.beginTransaction();
                 try {
                     if (add != null) for (JSONObject o : add) {
@@ -467,6 +472,24 @@ final class LocalDb {
                 } finally { d.endTransaction(); }
             } catch (Throwable ignored) { }
             deleteMediaFiles(stale);
+        });
+    }
+
+    /** يعلّم خزن المحادثة «كاملاً» بعد انتهاء التنزيل التدريجي للتاريخ في الخلفية. syncedTs = أحدث وقت أكّده السيرفر. */
+    static void markComplete(final String chatId, final long syncedTs) {
+        if (chatId == null) return;
+        run(() -> {
+            SQLiteDatabase d = db;
+            if (d == null) return;
+            try {
+                long keep = 0L;
+                try (Cursor c = d.rawQuery("SELECT synced_ts FROM chat_meta WHERE chat_id=?", new String[]{chatId})) {
+                    if (c.moveToFirst()) keep = c.getLong(0);
+                }
+                ContentValues cv = new ContentValues();
+                cv.put("chat_id", chatId); cv.put("complete", 1); cv.put("synced_ts", Math.max(0L, Math.max(keep, syncedTs)));
+                d.insertWithOnConflict("chat_meta", null, cv, SQLiteDatabase.CONFLICT_REPLACE);
+            } catch (Throwable ignored) { }
         });
     }
 

@@ -742,7 +742,7 @@ public final class MsgViews {
             if (c instanceof TextView) { c.setTag("mmEmoji"); ((TextView) c).setTextColor(0xFFFFFFFF); ((TextView) c).setTextSize(10.5f); }
         }
         LinearLayout.LayoutParams ml = new LinearLayout.LayoutParams(-2, -2);
-        ml.gravity = Gravity.LEFT; ml.topMargin = -dp(a, 2);   // الوقت والعلامة يسار الإيموجي
+        ml.gravity = Gravity.RIGHT; ml.topMargin = -dp(a, 2); ml.rightMargin = dp(a, 2);   // الوقت والعلامة أقصى يمين رسالة الإيموجي (والتفاعل أقصى اليسار)
         meta.setLayoutParams(ml);
         meta.setTag("emojiMeta");   // التفاعلات تُوضع بجانبه في نفس السطر
         if (colRef != null) colRef.addView(meta); else b.addView(meta);
@@ -843,6 +843,23 @@ public final class MsgViews {
         private View metaView() { return findViewWithTag("emojiMeta"); }
         private View reactView() { return findViewWithTag("reactRow"); }
 
+        /** عرض (مع هوامش) كتلة الإيموجي الشقيقة في نفس الأب؛ تُقاس قبل هذا السطر لأنها أُضيفت قبله. */
+        private int emojiBlockWidth() {
+            if (!(getParent() instanceof ViewGroup)) return 0;
+            ViewGroup p = (ViewGroup) getParent();
+            for (int i = 0; i < p.getChildCount(); i++) {
+                View c = p.getChildAt(i);
+                if (c == this) continue;
+                Object tg = c.getTag();
+                if ("emojiRowBox".equals(tg) || "emojiBox".equals(tg)) {
+                    int w = c.getMeasuredWidth();
+                    if (c.getLayoutParams() instanceof MarginLayoutParams) { MarginLayoutParams lp = (MarginLayoutParams) c.getLayoutParams(); w += lp.leftMargin + lp.rightMargin; }
+                    return w;
+                }
+            }
+            return 0;
+        }
+
         private int outerW(View v) { MarginLayoutParams lp = (MarginLayoutParams) v.getLayoutParams(); return v.getMeasuredWidth() + lp.leftMargin + lp.rightMargin; }
         private int outerH(View v) { MarginLayoutParams lp = (MarginLayoutParams) v.getLayoutParams(); return v.getMeasuredHeight() + lp.topMargin + lp.bottomMargin; }
 
@@ -853,8 +870,9 @@ public final class MsgViews {
             if (m != null && m.getVisibility() != GONE) { m.measure(spec, spec); mw = outerW(m); mh = outerH(m); }
             if (r != null && r.getVisibility() != GONE) { r.measure(spec, spec); rw = outerW(r); rh = outerH(r); }
             int single = mw + (rw > 0 ? (mw > 0 ? gap : 0) + rw : 0);
+            int target = Math.max(single, emojiBlockWidth());   // يتمدّد بعرض كتلة الإيموجي: الوقت أقصى اليمين والتفاعل أقصى اليسار
             int mode = View.MeasureSpec.getMode(wSpec), size = View.MeasureSpec.getSize(wSpec);
-            int width = mode == View.MeasureSpec.EXACTLY ? size : mode == View.MeasureSpec.AT_MOST ? Math.min(single, size) : single;
+            int width = mode == View.MeasureSpec.EXACTLY ? size : mode == View.MeasureSpec.AT_MOST ? Math.min(target, size) : target;
             stacked = mw > 0 && rw > 0 && width < single;
             int height = stacked ? mh + rh : Math.max(mh, rh);
             setMeasuredDimension(resolveSize(width, wSpec), resolveSize(height, hSpec));

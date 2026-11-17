@@ -87,6 +87,8 @@ public final class StoryViewer {
 
     /** نقطة انطلاق حركة الفتح (إحداثيات الشاشة) ونصف قطر البداية: صورة المستخدم / عنصر الملف / اقتباس الرد. -1 = بلا نقطة. */
     public static float originX = -1f, originY = -1f, originR = 0f;
+    /** أبعاد العنصر المصدر (مربع قصة الملف / دائرة الصورة) لتنطلق منه القصة نفسها وتكبر؛ 0 = غير معروفة. */
+    public static float originW = 0f, originH = 0f;
 
     /** عنوان إشعار الرد على القصة (نفس /api/index في الموقع) مثل: https://موقعك/api/index — فارغ = بلا إشعار. */
     public static String NOTIFY_URL = "";
@@ -485,15 +487,15 @@ public final class StoryViewer {
         });
 
         // --- حركة الفتح: .story-opening
-        final float ox = originX, oy = originY, orad = originR;
-        originX = -1f;
+        final float ox = originX, oy = originY, orad = originR, osw = originW, osh = originH;
+        originX = -1f; originW = 0f; originH = 0f;
         ValueAnimator bg = ValueAnimator.ofInt(0, 255);
-        bg.setDuration(220);
+        bg.setDuration(240);
         bg.setInterpolator(new android.view.animation.DecelerateInterpolator());
         bg.addUpdateListener(a -> { if (!swipeDragging && overlay != null) overlay.setBackgroundColor(Color.argb((Integer) a.getAnimatedValue(), 0, 0, 0)); });
         bg.start();
-        if (Build.VERSION.SDK_INT >= 21 && ox >= 0f) {
-            // تكبير دائري سريع من مكان النقر (الصورة/الملف/الرد)
+        if (ox >= 0f) {
+            // القصة نفسها تنطلق من مكان العنصر المصدر (مربع قصة في الملف الشخصي / دائرة الصورة) وتكبر حتى تملأ الشاشة وهي تظهر
             stage.setVisibility(View.INVISIBLE);
             stage.post(() -> {
                 try {
@@ -501,15 +503,18 @@ public final class StoryViewer {
                     int w = stage.getWidth(), h = stage.getHeight();
                     if (w <= 0 || h <= 0) { stage.setVisibility(View.VISIBLE); return; }
                     int[] loc = new int[2]; stage.getLocationOnScreen(loc);
-                    int cx = (int) Math.max(0f, Math.min((float) w, ox - loc[0]));
-                    int cy = (int) Math.max(0f, Math.min((float) h, oy - loc[1]));
-                    float end = (float) Math.hypot(Math.max(cx, w - cx), Math.max(cy, h - cy));
-                    Animator an = android.view.ViewAnimationUtils.createCircularReveal(stage, cx, cy, Math.max(1f, orad), end);
-                    an.setDuration(240);
-                    an.setInterpolator(new android.view.animation.DecelerateInterpolator(1.4f));
+                    float cx = loc[0] + w / 2f, cy = loc[1] + h / 2f;
+                    float sw = osw > 0f ? osw : Math.max(2f, orad * 2f), sh = osh > 0f ? osh : Math.max(2f, orad * 2f);
+                    float s0 = Math.max(0.05f, Math.min(1f, Math.max(sw / w, sh / h)));
+                    stage.setPivotX(w / 2f); stage.setPivotY(h / 2f);
+                    stage.setScaleX(s0); stage.setScaleY(s0);
+                    stage.setTranslationX(ox - cx); stage.setTranslationY(oy - cy);
+                    stage.setAlpha(0f);
                     stage.setVisibility(View.VISIBLE);
-                    an.start();
-                } catch (Throwable t) { if (stage != null) stage.setVisibility(View.VISIBLE); }
+                    stage.animate().scaleX(1f).scaleY(1f).translationX(0f).translationY(0f).alpha(1f)
+                            .setDuration(300).withLayer()
+                            .setInterpolator(new PathInterpolator(.18f, .78f, .22f, 1f)).start();
+                } catch (Throwable t) { if (stage != null) { stage.setVisibility(View.VISIBLE); stage.setAlpha(1f); stage.setScaleX(1f); stage.setScaleY(1f); stage.setTranslationX(0f); stage.setTranslationY(0f); } }
             });
         } else {
             stage.setScaleX(.88f); stage.setScaleY(.88f); stage.setAlpha(.35f);

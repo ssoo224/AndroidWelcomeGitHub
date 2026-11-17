@@ -26,7 +26,7 @@ import java.util.List;
 /** شاشة البداية (Splash): تحدد هل المستخدم مسجّل دخوله أم لا ثم تنتقل للشاشة المناسبة. */
 public class MainActivity extends Activity {
 
-    private static final long SPLASH_MS = 3096;   // 2650ms رسم السبلاش + 446ms انتظار، ثم 54ms للاستقرار = نصف ثانية بعد اكتمال الرسم
+    private static final long SPLASH_MS = 2650;   // الرسم والتلوين والاستقرار؛ الدخول فور اكتمال المخطط بلا وقفة
 
     // ===== توقيت حركة الشعار (ms) =====
     private static final float T_CIRCLE_A = 0f,    T_CIRCLE_B = 800f;    // رسم محيط الدائرة الذهبية أولاً
@@ -65,16 +65,66 @@ public class MainActivity extends Activity {
      * يتم كله على الخيط الرئيسي فتتجمّد حركة السبلاش لأجزاء من الثانية.
      * هنا نُسخّن هذه الأشياء في خيط خلفي أثناء السبلاش (يُهمَل ناتجها) فيصبح بناء الشاشة الفعلي أسرع بكثير.
      */
-    /** تهيئة Firebase فقط بالخلفية؛ لا نضخّم تخطيط المحادثات ولا نحمّل عشرات الكلاسات بالتوازي مع رسم السبلاش،
-     * لأن ذلك يستهلك المعالج والذاكرة وقد يبطئ فتح MassActivity بدلاً من تسريعه. */
     private void warmUp() {
-        android.os.HandlerThread ht = new android.os.HandlerThread("bb-firebase-warm");
+        final android.content.Context app = getApplicationContext();
+        final boolean loggedIn = FirebaseAuth.getInstance().getCurrentUser() != null;
+        final com.google.firebase.auth.FirebaseUser fu = FirebaseAuth.getInstance().getCurrentUser();
+        final String uid = fu != null ? fu.getUid() : null;
+        android.os.HandlerThread ht = new android.os.HandlerThread("bb-warm", android.os.Process.THREAD_PRIORITY_BACKGROUND);   // له Looper لأن بعض الـViews تنشئ Handler؛ أولوية خلفية كي لا يتقطع السبلاش
         ht.start();
         new Handler(ht.getLooper()).post(() -> {
-            try { com.google.firebase.firestore.FirebaseFirestore.getInstance(); }
-            catch (Throwable ignored) { }
-            finally { ht.quitSafely(); }
+            try { com.google.firebase.firestore.FirebaseFirestore.getInstance(); } catch (Throwable ignored) { }
+            warmData(app, uid);
+            String[] cls = {"MassActivity", "Main2Activity", "MsgViews", "MsgMenu", "ChatThemes", "ChatPreview", "ChatPattern",
+                    "Tk", "EmojiFx", "BabylonFx", "BabylonBars", "StoriesController", "StoryViewer", "StoryComposer",
+                    "StoryAvatarView", "ProfileRing", "ProfileHero", "SearchPage", "LocalDb", "FontManager", "CoverThemes", "Glass"};
+            for (String c : cls) {
+                try { Class.forName("com.babylon.chat.iq." + c, true, getClassLoader()); } catch (Throwable ignored) { }
+            }
+            try {   // تضخيم تجريبي يُرمى: يسخّن تحليل الـXML وكاش الموارد وتحميل كلاسات الـViews
+                android.view.LayoutInflater inf = android.view.LayoutInflater.from(new android.view.ContextThemeWrapper(app, R.style.NoActionBar));
+                if (loggedIn) {
+                    com.babylon.chat.iq.databinding.MassBinding.inflate(inf);
+                    for (String pf : new String[]{"part_profile", "part_settings"}) {   // MassActivity.init يضخّمها على الخيط الرئيسي أيضاً
+                        int lid = app.getResources().getIdentifier(pf, "layout", app.getPackageName());
+                        if (lid != 0) inf.inflate(lid, null);
+                    }
+                } else com.babylon.chat.iq.databinding.Main2Binding.inflate(inf);
+            } catch (Throwable ignored) { }
+            ht.quitSafely();
         });
+    }
+
+    /**
+     * تجهيز بيانات الشاشة التالية على الخيط الخلفي: فتح قاعدة SQLite (كانت تُفتح على الخيط الرئيسي داخل MassActivity.onCreate)،
+     * وقراءة الملف الشخصي والمحادثات والجهات وأحدث رسائل أول محادثتين لتسخين الكاش، وتحميل الإعدادات والخطوط وكاش Firestore.
+     * أي استدعاء لاحق من MassActivity يجد كل شيء جاهزاً فلا ينتظر.
+     */
+    private void warmData(android.content.Context app, String uid) {
+        try { AppSettings.init(app); } catch (Throwable ignored) { }
+        try { FontManager.init(app); } catch (Throwable ignored) { }
+        for (String n : new String[]{"babylon_ui", "babylon_boot"}) {   // أول getAll يقرأ ملف XML؛ هنا لا على الخيط الرئيسي
+            try { AppSettings.prefs(app, n).getAll(); } catch (Throwable ignored) { }
+        }
+        if (uid == null) return;
+        try {
+            LocalDb.init(app, uid);   // synchronized وتتجاهل المكرر: استدعاء MassActivity لها يصير فورياً
+            LocalDb.getMyProfile();
+            LocalDb.getContacts();
+            org.json.JSONArray chats = LocalDb.getChats();
+            if (chats != null) {
+                for (int i = 0; i < Math.min(2, chats.length()); i++) {   // أعلى محادثتين: الأرجح فتحهما أولاً
+                    String cid = chats.getJSONObject(i).optString("cid");
+                    if (cid.isEmpty()) continue;
+                    LocalDb.resumeStart(cid);
+                    LocalDb.messagesBefore(cid, 0L, null, 25);
+                }
+            }
+        } catch (Throwable ignored) { }
+        try {   // يفتح مخزن Firestore المحلي الآن بدل أول استعلام للشاشة
+            com.google.firebase.firestore.FirebaseFirestore.getInstance().collection("users").document(uid)
+                    .get(com.google.firebase.firestore.Source.CACHE);
+        } catch (Throwable ignored) { }
     }
 
     @Override
@@ -127,8 +177,9 @@ public class MainActivity extends Activity {
         if (logoAnim != null) { logoAnim.cancel(); logoAnim = null; }
         applyLogo(T_SETTLE_B);   // الشعار والعنوان بحالتهما النهائية (حجم طبيعي) قبل الانتقال لشاشة الدخول
         android.view.animation.DecelerateInterpolator di = new android.view.animation.DecelerateInterpolator();
-        binding.logoGlow.animate().alpha(0f).setDuration(50).setInterpolator(di).start();
-        handler.postDelayed(next, 54);
+        binding.logoGlow.animate().cancel();
+        binding.logoGlow.setAlpha(0f);   // لا يبقى توهج نصف خابٍ مجمّداً أثناء بناء الشاشة التالية
+        handler.post(next);              // فوراً: كل التجهيز الثقيل تم في الخلفية أثناء السبلاش
     }
 
     private void proceed() {

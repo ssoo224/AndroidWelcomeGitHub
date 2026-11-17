@@ -401,7 +401,10 @@ public final class BabylonFx {
     }
 
     /** ظهور سريع متتابع لعناصر الصفحة من الأعلى للأسفل (كل عنصر ينزل قليلاً من فوق مكانه). */
-    public static void staggerDown(final View root, final long baseDelay) {
+    public static void staggerDown(final View root, final long baseDelay) { staggerDown(root, baseDelay, 150L, 16L); }
+
+    /** نفس المتتابع بمدة وفاصل مخصّصين (تفاصيل تظهر بسرعة كبيرة بعد الانتقال). */
+    public static void staggerDown(final View root, final long baseDelay, final long durMs, final long stepMs) {
         if (root == null) return;
         final Runnable run = () -> {
             java.util.ArrayList<View> list = new java.util.ArrayList<>();
@@ -417,7 +420,7 @@ public final class BabylonFx {
                 v.setAlpha(0f);
                 v.setTranslationY(-dp(v, 10));
                 v.animate().alpha(1f).translationY(0f)
-                        .setStartDelay(baseDelay + Math.min(i, 12) * 16L).setDuration(150)
+                        .setStartDelay(baseDelay + Math.min(i, 12) * stepMs).setDuration(durMs)
                         .setInterpolator(easeOut())
                         .withEndAction(() -> reset(v)).start();
                 i++;
