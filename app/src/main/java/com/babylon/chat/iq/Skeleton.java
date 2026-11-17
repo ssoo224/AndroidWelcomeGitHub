@@ -30,6 +30,9 @@ final class Skeleton {
     /** كتلة بلمعة متحركة؛ corner بالبكسل (0 = بلا تدوير، تُقصّ عادةً بإطار أبيها). */
     static Drawable shimmer(boolean dark, float cornerPx) { return new Shimmer(dark, cornerPx); }
 
+    /** كتلة بلمعة بألوان مخصّصة (لون الثيم). */
+    static Drawable shimmer(int base, int hi, float cornerPx) { return new Shimmer(base, hi, cornerPx); }
+
     static boolean isShimmer(Drawable d) { return d instanceof Shimmer; }
 
     private static final class Shimmer extends Drawable {
@@ -43,6 +46,7 @@ final class Skeleton {
         private final Runnable tick = this::invalidateSelf;
 
         Shimmer(boolean dark, float corner) { this.base = Skeleton.base(dark); this.hi = Skeleton.light(dark); this.corner = corner; }
+        Shimmer(int base, int hi, float corner) { this.base = base; this.hi = hi; this.corner = corner; }
 
         @Override protected void onBoundsChange(android.graphics.Rect b) {
             bw = Math.max(1f, b.width() * 0.7f);
@@ -71,16 +75,35 @@ final class Skeleton {
         @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
     }
 
-    private static View block(Context c, boolean dark, int wDp, int hDp, int cornerDp) {
+    static int mix(int a, int b, float t) {
+        int r = (int) (((a >> 16) & 255) * (1 - t) + ((b >> 16) & 255) * t);
+        int g = (int) (((a >> 8) & 255) * (1 - t) + ((b >> 8) & 255) * t);
+        int bl = (int) ((a & 255) * (1 - t) + (b & 255) * t);
+        return 0xFF000000 | (r << 16) | (g << 8) | bl;
+    }
+
+    /** لمعة اللون: أفتح قليلاً من الأساس (أكثر في النهاري). */
+    static int hiOf(int base, boolean dark) { return mix(base, 0xFFFFFFFF, dark ? 0.14f : 0.45f); }
+
+    private static View block(Context c, boolean dark, int wDp, int hDp, int cornerDp) { return block(c, dark, wDp, hDp, cornerDp, 0, 0); }
+
+    /** base/hi = 0 → ألوان الهيكل الافتراضية؛ غير ذلك لون الثيم. */
+    private static View block(Context c, boolean dark, int wDp, int hDp, int cornerDp, int base, int hi) {
         float d = c.getResources().getDisplayMetrics().density;
         View v = new View(c);
-        v.setBackground(shimmer(dark, cornerDp * d));
+        v.setBackground(base != 0 ? shimmer(base, hi, cornerDp * d) : shimmer(dark, cornerDp * d));
         v.setLayoutParams(new LinearLayout.LayoutParams(wDp < 0 ? -1 : Math.round(wDp * d), Math.round(hDp * d)));
         return v;
     }
 
     /** هيكل رسائل: فقاعات متبادلة الجهتين تملأ المحادثة من الأسفل. */
-    static LinearLayout messages(Context c, boolean dark) {
+    static LinearLayout messages(Context c, boolean dark) { return messages(c, dark, 0, 0); }
+
+    /** mineBase/otherBase: لونا فقاعتي وفقاعة الطرف الآخر في ثيم المحادثة (0 = الافتراضي). */
+    static LinearLayout messages(Context c, boolean dark, int mineBase, int otherBase) { return messages(c, dark, mineBase, otherBase, null); }
+
+    /** custom: صفوف {الجهة (0 = رسالتي يميناً، 1 = الطرف الآخر يساراً), العرض dp, الارتفاع dp} بدل التصميم الافتراضي. */
+    static LinearLayout messages(Context c, boolean dark, int mineBase, int otherBase, int[][] custom) {
         float d = c.getResources().getDisplayMetrics().density;
         LinearLayout col = new LinearLayout(c);
         col.setOrientation(LinearLayout.VERTICAL);
@@ -89,10 +112,12 @@ final class Skeleton {
         col.setClickable(true);   // لا تمرّر اللمسات إلى ما تحته أثناء التحميل
         int[][] spec = {{0, 190, 44}, {1, 250, 62}, {1, 140, 40}, {0, 230, 78}, {1, 210, 44}, {0, 150, 40}, {1, 260, 90}, {0, 200, 44}};
         int maxW = Math.round(c.getResources().getDisplayMetrics().widthPixels / d * 0.72f);
+        if (custom != null && custom.length > 0) spec = custom;
         for (int[] s : spec) {
-            View b = block(c, dark, Math.min(s[1], maxW), s[2], 16);
+            int bb = mineBase != 0 || otherBase != 0 ? (s[0] == 0 ? mineBase : otherBase) : 0;
+            View b = block(c, dark, Math.min(s[1], maxW), s[2], 16, bb, bb != 0 ? hiOf(bb, dark) : 0);
             LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) b.getLayoutParams();
-            lp.gravity = s[0] == 0 ? Gravity.END : Gravity.START;
+            lp.gravity = s[0] == 0 ? Gravity.RIGHT : Gravity.LEFT;   // رسالتي يميناً والطرف الآخر يساراً (مطلق كالفقاعات الحقيقية)
             lp.bottomMargin = Math.round(8 * d);
             col.addView(b, lp);
         }
@@ -124,6 +149,27 @@ final class Skeleton {
             tp.setMarginStart(Math.round(12 * d));
             row.addView(txt, tp);
             col.addView(row, new LinearLayout.LayoutParams(-1, -2));
+        }
+        return col;
+    }
+
+    /** شريط هيكل للرسائل الأقدم: ثلاث فقاعات في أعلى المحادثة (حيث ستظهر الرسائل المحمّلة). */
+    static LinearLayout olderStrip(Context c, boolean dark) { return olderStrip(c, dark, 0, 0); }
+
+    static LinearLayout olderStrip(Context c, boolean dark, int mineBase, int otherBase) {
+        float d = c.getResources().getDisplayMetrics().density;
+        LinearLayout col = new LinearLayout(c);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setPadding(Math.round(10 * d), Math.round(6 * d), Math.round(10 * d), 0);
+        int maxW = Math.round(c.getResources().getDisplayMetrics().widthPixels / d * 0.72f);
+        int[][] spec = {{1, 200, 40}, {0, 150, 56}, {1, 240, 40}};
+        for (int[] s : spec) {
+            int bb = mineBase != 0 || otherBase != 0 ? (s[0] == 0 ? mineBase : otherBase) : 0;
+            View b = block(c, dark, Math.min(s[1], maxW), s[2], 16, bb, bb != 0 ? hiOf(bb, dark) : 0);
+            LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) b.getLayoutParams();
+            lp.gravity = s[0] == 0 ? Gravity.RIGHT : Gravity.LEFT;
+            lp.bottomMargin = Math.round(8 * d);
+            col.addView(b, lp);
         }
         return col;
     }

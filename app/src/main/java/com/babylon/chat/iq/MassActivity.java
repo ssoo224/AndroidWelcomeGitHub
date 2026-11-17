@@ -427,6 +427,60 @@ public class MassActivity extends Activity {
             boolean sessionDirty = false;   // أُعيد بناء المحادثة بالكامل أثناء فتحها: لا تُحفظ جلستها
             boolean sessionRestored = false;
 
+            /** لونا هيكل الرسائل من ثيم المحادثة الحالي: فقاعاتي بلون فقاعتي (مخفّف نحو الخلفية) وفقاعات الطرف الآخر بلون كبسولته. */
+            /** هيكل بنفس جهات وأحجام آخر رسائل المحادثة (من القاعدة، وإلا من آخر رسالة في قائمة المحادثات)؛ null = الشكل الافتراضي. */
+            int[][] skelSpec() {
+                try {
+                    java.util.ArrayList<Object[]> rows = LocalDb.skeletonRows(currentChatId, 8);
+                    if (rows.isEmpty()) {
+                        for (String[] r : chatData) {
+                            if (r.length > 4 && r[4] != null && r[4].equals(otherUid) && r[1] != null && !r[1].isEmpty()) {
+                                rows.add(new Object[]{Boolean.TRUE.equals(lastMineByUid.get(otherUid)) ? myUid : otherUid, "text", Integer.valueOf(r[1].length())});
+                                break;
+                            }
+                        }
+                    }
+                    if (rows.isEmpty()) return null;
+                    android.util.DisplayMetrics dm = act.getResources().getDisplayMetrics();
+                    float maxW = dm.widthPixels / dm.density * 0.72f;
+                    int[][] out = new int[rows.size()][];
+                    for (int i = 0; i < rows.size(); i++) {
+                        Object[] r = rows.get(i);
+                        String ty = String.valueOf(r[1]).toLowerCase(Locale.US);
+                        int w, h;
+                        if (ty.contains("image") || ty.contains("photo") || ty.contains("video")) { w = (int) Math.min(220f, dm.widthPixels / dm.density * 0.68f); h = w; }
+                        else if (ty.contains("voice") || ty.contains("audio")) { w = (int) Math.min(210f, maxW); h = 52; }
+                        else if (ty.contains("file")) { w = (int) Math.min(230f, maxW); h = 64; }
+                        else {
+                            int len = ((Integer) r[2]).intValue();
+                            float textW = len * 7.2f;
+                            w = (int) Math.max(64f, Math.min(maxW, textW + 28f));
+                            int lines = Math.max(1, (int) Math.ceil(textW / Math.max(40f, maxW - 28f)));
+                            h = 26 + lines * 20;
+                        }
+                        boolean mine = myUid != null && myUid.equals(String.valueOf(r[0]));
+                        out[i] = new int[]{mine ? 0 : 1, w, h};
+                    }
+                    return out;
+                } catch (Throwable t) { return null; }
+            }
+            int skelMine() {
+                try {
+                    ChatThemes.Pal pl = Tk.chatPal;
+                    int bg = Tk.chatSurface(dark) | 0xFF000000;
+                    int mine = pl != null ? Skeleton.mix(pl.mineFrom | 0xFF000000, pl.mineTo | 0xFF000000, 0.5f) : Skeleton.mix(0xFFE2B83F, 0xFFB8861B, 0.5f);
+                    return Skeleton.mix(mine, bg, dark ? 0.35f : 0.30f);
+                } catch (Throwable t) { return 0; }
+            }
+            int skelOther() {
+                try {
+                    ChatThemes.Pal pl = Tk.chatPal;
+                    int other = Tk.composerOuter(dark) | 0xFF000000;
+                    int txt = pl != null ? (pl.textOther | 0xFF000000) : (dark ? 0xFFFFFFFF : 0xFF000000);
+                    return Skeleton.mix(other, txt, dark ? 0.10f : 0.08f);   // أغمق/أفتح قليلاً من الكبسولة كي يظهر فوق الخلفية
+                } catch (Throwable t) { return 0; }
+            }
+
             // ---- Skeleton loading للرسائل: طبقة فوق المحادثة (لا داخل messagesArea كي لا تتأثر الجلسات) تزول عند ظهور الرسائل
             View msgSkel = null;
             void showMsgSkeleton() {
@@ -435,7 +489,7 @@ public class MassActivity extends Activity {
                     View ms = v("messagesScroll");
                     if (ms == null || !(ms.getParent() instanceof FrameLayout)) return;
                     FrameLayout par = (FrameLayout) ms.getParent();
-                    final View sk = Skeleton.messages(act, dark);
+                    final View sk = Skeleton.messages(act, dark, skelMine(), skelOther(), skelSpec());
                     sk.setPadding(ms.getPaddingLeft(), ms.getPaddingTop(), ms.getPaddingRight(), ms.getPaddingBottom());
                     par.addView(sk, par.indexOfChild(ms) + 1, new FrameLayout.LayoutParams(-1, -1));
                     msgSkel = sk;
@@ -449,6 +503,47 @@ public class MassActivity extends Activity {
             }
             void hideMsgSkeletonNow() {
                 View sk = msgSkel; msgSkel = null;
+                if (sk != null) { sk.animate().cancel(); if (sk.getParent() instanceof ViewGroup) ((ViewGroup) sk.getParent()).removeView(sk); }
+            }
+
+            // ---- هيكل الرسائل الأقدم: يظهر في أعلى المحادثة (مكان وصولها) ما دام تاريخها قيد التنزيل/العرض، ويزول فور ظهورها
+            View olderSkel = null;
+            boolean backfillActive = false;
+            int olderPendingTicks = 0;
+            final Runnable olderSkelTick = new Runnable() {
+                @Override public void run() {
+                    if (currentChatId.isEmpty()) { hideOlderSkelNow(); olderPendingTicks = 0; return; }
+                    boolean pending = !olderQ.isEmpty() || localPaging || backfillActive;
+                    if (pending && msgSkel == null) {
+                        if (++olderPendingTicks >= 2 && olderSkel == null) showOlderSkel();   // لا وميض للتحميل السريع
+                    } else {
+                        olderPendingTicks = 0;
+                        if (olderSkel != null) hideOlderSkel();
+                    }
+                    uiH.postDelayed(this, 350);
+                }
+            };
+            void startOlderSkelWatch() { uiH.removeCallbacks(olderSkelTick); olderPendingTicks = 0; backfillActive = false; uiH.postDelayed(olderSkelTick, 350); }
+            void showOlderSkel() {
+                try {
+                    View ms = v("messagesScroll");
+                    if (ms == null || !(ms.getParent() instanceof FrameLayout)) return;
+                    FrameLayout par = (FrameLayout) ms.getParent();
+                    View sk = Skeleton.olderStrip(act, dark, skelMine(), skelOther());
+                    FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-1, -2, Gravity.TOP);
+                    lp.topMargin = ms.getPaddingTop();
+                    par.addView(sk, par.indexOfChild(ms) + 1, lp);
+                    olderSkel = sk;
+                } catch (Throwable ignored) { }
+            }
+            void hideOlderSkel() {
+                final View sk = olderSkel;
+                if (sk == null) return;
+                olderSkel = null;
+                sk.animate().alpha(0f).setDuration(140).withEndAction(() -> { if (sk.getParent() instanceof ViewGroup) ((ViewGroup) sk.getParent()).removeView(sk); }).start();
+            }
+            void hideOlderSkelNow() {
+                View sk = olderSkel; olderSkel = null;
                 if (sk != null) { sk.animate().cancel(); if (sk.getParent() instanceof ViewGroup) ((ViewGroup) sk.getParent()).removeView(sk); }
             }
 
@@ -2970,6 +3065,15 @@ public class MassActivity extends Activity {
                         arr.put(o);
                     }
                     LocalDb.putChats(arr);
+                    try {   // حلقات القصص تُحفظ أيضاً: تظهر الصفوف عند فتح التطبيق بشكلها النهائي فلا يُعاد بناؤها
+                        org.json.JSONObject suj = new org.json.JSONObject();
+                        for (String[] r : chatData) {
+                            if (r == null || r.length < 5 || r[4] == null) continue;
+                            Long u = storyUntil.get(r[4]);
+                            if (u != null && u.longValue() > System.currentTimeMillis()) suj.put(r[4], u.longValue());
+                        }
+                        sp.edit().putString("cache_chat_su", suj.toString()).apply();
+                    } catch (Throwable ignored) { }
                 } catch (Throwable ignored) { }
             };
             /** يحفظ قائمة المحادثات بعد هدوء 800ms (تجميع الكتابات المتتالية). */
@@ -2995,6 +3099,26 @@ public class MassActivity extends Activity {
                         chatTsMap.put(uid, ts);
                         if (!cid.isEmpty()) chatIdByUid.put(uid, cid);
                         chatData.add(new String[]{nm, o.optString("last"), ts > 0 ? listTime(ts) : "", un, uid});
+                    }
+                    try {   // حلقات القصص المحفوظة
+                        String sus = sp.getString("cache_chat_su", null);
+                        if (sus != null) {
+                            org.json.JSONObject suj = new org.json.JSONObject(sus);
+                            for (String[] r : chatData) {
+                                if (r.length > 4 && suj.has(r[4]) && !storyUntil.containsKey(r[4])) storyUntil.put(r[4], suj.optLong(r[4], 0L));
+                            }
+                        }
+                    } catch (Throwable ignored) { }
+                    // صور الأشخاص من القرص قبل أول بناء (ملفات صغيرة ≤256px): تُبنى الصفوف مرة واحدة بصورها كاملة بلا بناء ثانٍ عند وصول الصور
+                    for (String[] r : chatData) {
+                        try {
+                            if (r.length < 5 || r[4] == null || peerPhotos.containsKey(r[4])) continue;
+                            java.io.File af = avatarFile(r[4]), asg = avatarSigFile(r[4]);
+                            if (!af.isFile() || !asg.isFile()) continue;
+                            Bitmap ab = BitmapFactory.decodeFile(af.getPath());
+                            String asig = readSmall(asg);
+                            if (ab != null) { peerPhotos.put(r[4], ab); if (asig != null) peerPhotoSig.put(r[4], asig); }
+                        } catch (Throwable ignored) { }
                     }
                     sortChats();
                     buildChats();
@@ -4488,7 +4612,10 @@ public class MassActivity extends Activity {
                 if (cv != null) BabylonFx.chatGrowNow(cv, v("chatTopBar"), v("chatBottomBar"));
                 applyChatBlockUi();
                 checkBlockedByThem(uid);
-                if (sessionRestored) hideMsgSkeletonNow(); else showMsgSkeleton();   // رسائل غير محمّلة بعد: هيكل لامع بدل فراغ
+                boolean localReady = false;   // التاريخ كله محفوظ على الجهاز: الرسائل تظهر من القاعدة مباشرة، فلا هيكل تحميل ولا شعور بتحميل جديد
+                if (!sessionRestored) { try { localReady = LocalDb.isComplete(openCid); } catch (Throwable ignored) { } }
+                if (sessionRestored || localReady) hideMsgSkeletonNow(); else showMsgSkeleton();   // الهيكل اللامع فقط لمحادثة لم تُنزَّل بعد
+                hideOlderSkelNow(); startOlderSkelWatch();
             }
 
             String mediaQuote = null;   // اقتباس رد لرسالة صورة/صوتية قيد الرسم
@@ -5057,6 +5184,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
 
             /** ينزّل ما قبل النافذة صفحةً صفحة في الخلفية ويحفظه في SQLite، ثم يعلّم الخزن كاملاً ويعرض الأقدم من الخزن المحلي. */
             void backfillHistory(final String chatId, final long beforeTs, final long syncedTs, final boolean[] localFull) {
+                backfillActive = true;   // الرسائل الأقدم قيد التنزيل: يظهر هيكلها في أعلى المحادثة
                 backfillPage(chatId, beforeTs, null, syncedTs, localFull);
             }
 
@@ -5068,7 +5196,12 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 if (after != null) q = q.startAfter(after);
                 q.limit(BACKFILL_PAGE).get().addOnCompleteListener(task -> {
                     if (!task.isSuccessful() || task.getResult() == null) {   // انقطاع: يبقى الخزن غير كامل فيُعاد التنزيل في الدخول القادم
+                        if (chatId.equals(currentChatId) && !loggedOut) {   // إنترنت ضعيف/منقطع: يبقى الهيكل وتُعاد المحاولة حتى ينجح التنزيل
+                            uiH.postDelayed(() -> { if (chatId.equals(currentChatId) && !loggedOut) backfillPage(chatId, beforeTs, after, syncedTs, localFull); }, 5000);
+                            return;
+                        }
                         if (chatId.equals(partialWinChat)) partialBackfilling = false;
+                        backfillActive = false;
                         return;
                     }
                     final com.google.firebase.firestore.QuerySnapshot qs = task.getResult();
@@ -5082,6 +5215,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                         LocalDb.markComplete(chatId, syncedTs);   // نفس خيط الكتابة: أي حفظ لاحق يأتي بعده بالترتيب
                         localFull[0] = true;
                         uiH.post(() -> {
+                            backfillActive = false;
                             if (!chatId.equals(currentChatId)) return;
                             chatWinStart = beforeTs;
                             startLocalPaging(chatId, beforeTs, "");   // الأقدم من النافذة يُعرض الآن من SQLite فوق ما ظهر
@@ -5390,6 +5524,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 hideKb();
                 clearSel();
                 hideMsgSkeletonNow();
+                uiH.removeCallbacks(olderSkelTick); hideOlderSkelNow(); backfillActive = false;
                 stashSession();   // الرسائل المبنية تبقى ثابتة في الذاكرة حتى الدخول التالي
                 // إعادة بناء قائمة المحادثات والقصص ثقيلة (تُنشئ كل الصفوف من جديد) وكانت تعمل قبل التلاشي فتتجمّد الحركة في منتصفها.
                 // الآن: لا تُعاد أبداً إن لم يتغيّر شيء (بصمة الحالة)، وإن تغيّر شيء تُنفَّذ بعد انتهاء التلاشي وعند خمول الخيط، لا أثناءه.

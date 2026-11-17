@@ -198,6 +198,7 @@ public final class StoryViewer {
     private int idx = 0;
     private long t = 0, dur = SDUR;
     private boolean paused, hold, closed, videoReady, videoEnded, swipeActive, swipeDragging, heartLong;
+    private boolean imgReady = true;   // صورة القصة وصل منها 10% (أو أكثر): تُفتح وتبدأ المدة؛ قبلها معاينة ضبابية بلا عدّاد
     private String react;
     private int loadToken = 0, reactToken = 0;
     private int sat = 0, sab = 0;
@@ -936,7 +937,7 @@ public final class StoryViewer {
         if (idx < 0 || idx >= list.size()) { close(); return; }
         final Story s = list.get(idx);
         hidePicker();   // قصة جديدة: أغلق المنتقي كي لا تبقى القصة متوقفة
-        t = 0; videoReady = false; videoEnded = false;
+        t = 0; videoReady = false; videoEnded = false; imgReady = false; applyBlur(false);
         react = null; reactToken++;
         dur = SDUR;
         final int token = ++loadToken;
@@ -949,6 +950,7 @@ public final class StoryViewer {
         if (!s.videoUrl.isEmpty()) {
             dur = (long) (Math.min(30, s.duration > 0 ? s.duration : 30) * 1000);
             vid.setVisibility(View.INVISIBLE);
+            applyBlur(true);   // الغلاف ضبابي حتى يصل 10% من الفيديو فيُفتح ويعمل
             if (!s.imageUrl.isEmpty()) loadImage(s.imageUrl, token);
             try {
                 vid.stopPlayback();
@@ -957,18 +959,25 @@ public final class StoryViewer {
                     try { int d = mp.getDuration(); if (d > 0) dur = Math.min(30000, d); } catch (Throwable ignored) { }
                     curMp = mp;
                     try { mp.setVolume(sMuted ? 0f : 1f, sMuted ? 0f : 1f); } catch (Throwable ignored) { }
-                    videoReady = true;
-                    vid.setVisibility(View.VISIBLE);
-                    if (!paused && !hold) vid.start();
+                    final Runnable open = () -> {   // يُفتح الفيديو ويعمل عند وصول 10% منه
+                        if (token != loadToken || videoReady || closed) return;
+                        videoReady = true;
+                        vid.setVisibility(View.VISIBLE);
+                        applyBlur(false);
+                        if (!paused && !hold) vid.start();
+                    };
+                    if (!s.videoUrl.startsWith("http")) { open.run(); return; }   // ملف محلي: جاهز فوراً
+                    try { mp.setOnBufferingUpdateListener((m, pct) -> { if (pct >= 10) handler.post(open); }); } catch (Throwable ignored) { }
+                    handler.postDelayed(open, 3000);   // احتياط إن لم تصل إشعارات التخزين المؤقت
                 });
                 vid.setOnCompletionListener(mp -> { if (token == loadToken) videoEnded = true; });
-                vid.setOnErrorListener((mp, what, extra) -> { if (token == loadToken) { vid.setVisibility(View.INVISIBLE); dur = SDUR; videoReady = false; videoEnded = false; s.videoUrl = ""; } return true; });
+                vid.setOnErrorListener((mp, what, extra) -> { if (token == loadToken) { vid.setVisibility(View.INVISIBLE); dur = SDUR; videoReady = false; videoEnded = false; s.videoUrl = ""; applyBlur(false); imgReady = true; } return true; });
                 vid.setVideoURI(Uri.parse(s.videoUrl));
             } catch (Throwable ignored) { }
         } else {
             try { vid.stopPlayback(); } catch (Throwable ignored) { }
             vid.setVisibility(View.INVISIBLE);
-            loadImage(s.imageUrl, token);
+            loadStoryImage(s.imageUrl, token);
         }
 
         // التعليق
@@ -1085,7 +1094,7 @@ public final class StoryViewer {
     /** فهارس القصص (في list) التي يمثّلها كل شريط بالترتيب. */
     private int[] barMap = new int[0];
 
-    /** الأشرطة العلوية تظهر فقط حين تكون القصة المعروضة مثبّتة؛ عددها = القصص المثبّتة (حتى 6). */
+    /** قصة مثبّتة: أشرطة القصص المثبّتة (حتى 6)؛ قصة غير مثبّتة: شريطها وحده. */
     private void rebuildBars() {
         if (bars == null) return;
         bars.removeAllViews();
@@ -1095,8 +1104,8 @@ public final class StoryViewer {
         if (list.get(idx).pinned) {
             for (int k = 0; k < list.size(); k++) if (list.get(k).pinned) pins.add(k);   // قصة مثبّتة: أشرطة المثبّتات (حتى 6)
         } else {
-            // الشريط يظهر دائماً: حتى لو كانت القصة غير مثبّتة أو مؤرشفة أو غير ظاهرة في البروفايل → شريط لكل قصة في القائمة
-            for (int k = 0; k < list.size(); k++) pins.add(k);
+            // قصة غير مثبّتة: شريط واحد خاص بها فقط (لا تظهر معها أشرطة القصص الأخرى)
+            pins.add(idx);
         }
         int n = Math.min(list.get(idx).pinned ? MAX_PINS : MAX_BARS, pins.size());
         int pos = pins.indexOf(idx);
@@ -1151,7 +1160,7 @@ public final class StoryViewer {
                     if (videoReady) t = vid.getCurrentPosition();
                     updateBars();
                     if (videoEnded || (videoReady && t >= dur - 50)) { nav(1); return; }
-                } else {
+                } else if (imgReady) {   // قبل وصول 10% من الصورة: معاينة ضبابية والعدّاد واقف
                     t += 50; updateBars();
                     if (t >= SDUR) { nav(1); return; }
                 }
@@ -1274,6 +1283,85 @@ public final class StoryViewer {
             o2.inSampleSize = sample;
             return BitmapFactory.decodeByteArray(data, 0, data.length, o2);
         } catch (Throwable ignored) { return null; }
+    }
+
+    /** يضبّب الوسائط (معاينة أثناء التحميل). Android 12+: تمويه حقيقي؛ أقدم: المعاينة المصغّرة المكبّرة ناعمة أصلاً. */
+    private void applyBlur(boolean on) {
+        try {
+            if (Build.VERSION.SDK_INT >= 31 && img != null)
+                img.setRenderEffect(on ? android.graphics.RenderEffect.createBlurEffect(40f, 40f, android.graphics.Shader.TileMode.CLAMP) : null);
+        } catch (Throwable ignored) { }
+    }
+
+    private static Bitmap decodeSampled(byte[] data, int maxDim) {
+        try {
+            BitmapFactory.Options o = new BitmapFactory.Options();
+            o.inJustDecodeBounds = true;
+            BitmapFactory.decodeByteArray(data, 0, data.length, o);
+            int sample = 1, mx = Math.max(o.outWidth, o.outHeight);
+            if (mx <= 0) return null;
+            while (mx / sample > maxDim) sample *= 2;
+            BitmapFactory.Options o2 = new BitmapFactory.Options();
+            o2.inSampleSize = sample;
+            return BitmapFactory.decodeByteArray(data, 0, data.length, o2);
+        } catch (Throwable t) { return null; }
+    }
+
+    /**
+     * صورة القصة: عند وصول 10% من الملف تظهر معاينة ضبابية وتُفتح القصة ويبدأ عدّادها،
+     * ثم تحلّ محلها الصورة الواضحة (بتلاشٍ ناعم) فور اكتمال التنزيل.
+     */
+    private void loadStoryImage(final String src, final int token) {
+        if (src == null || src.isEmpty()) { imgReady = true; return; }
+        if (preBmp != null && src.equals(preSrc)) {          // جاهزة مسبقاً: واضحة فوراً
+            img.setImageBitmap(preBmp);
+            preBmp = null; preSrc = null;
+            imgReady = true;
+            return;
+        }
+        IO.execute(() -> {
+            byte[] data = null;
+            try {
+                if (src.startsWith("data:")) {
+                    data = Base64.decode(src.substring(src.indexOf(',') + 1), Base64.DEFAULT);
+                } else {
+                    HttpURLConnection c = (HttpURLConnection) new URL(src).openConnection();
+                    c.setConnectTimeout(12000); c.setReadTimeout(20000);
+                    int total = c.getContentLength();
+                    InputStream is = c.getInputStream();
+                    ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                    byte[] buf = new byte[8192]; int n;
+                    final long gate = total > 0 ? Math.max(4096, total / 10) : 20000;   // 10% من حجم الملف
+                    boolean previewed = false;
+                    while ((n = is.read(buf)) > 0) {
+                        bos.write(buf, 0, n);
+                        if (!previewed && bos.size() >= gate) {
+                            previewed = true;
+                            final Bitmap pb = decodeSampled(bos.toByteArray(), 64);   // جزء الصورة الواصل بدقة منخفضة (قد يكون null)
+                            handler.post(() -> {
+                                if (closed || token != loadToken) return;
+                                if (pb != null) { img.setImageBitmap(pb); applyBlur(true); }
+                                imgReady = true;
+                            });
+                        }
+                        if (bos.size() > 25 * 1024 * 1024) break;
+                    }
+                    is.close();
+                    data = bos.toByteArray();
+                }
+            } catch (Throwable ignored) { }
+            final Bitmap fb = data == null ? null : decodeSampled(data, 1800);
+            handler.post(() -> {
+                if (closed || token != loadToken) return;
+                if (fb != null) {
+                    img.setImageBitmap(fb);
+                    applyBlur(false);
+                    img.setAlpha(0.7f);
+                    img.animate().alpha(1f).setDuration(180).start();
+                }
+                imgReady = true;   // حتى عند الفشل: لا تبقى القصة معلّقة
+            });
+        });
     }
 
     private void loadImage(final String src, final int token) {

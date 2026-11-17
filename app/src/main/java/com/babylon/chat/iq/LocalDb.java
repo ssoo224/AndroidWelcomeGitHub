@@ -353,6 +353,20 @@ final class LocalDb {
         boolean more;      // هل يوجد أقدم منه؟
     }
 
+    /** قراءة خفيفة (بلا وسائط) لآخر رسائل المحادثة لرسم هيكل التحميل بنفس جهات وأحجام الرسائل: صفوف {sender, type, طول النص} تصاعدياً. */
+    static ArrayList<Object[]> skeletonRows(String chatId, int limit) {
+        ArrayList<Object[]> out = new ArrayList<>();
+        SQLiteDatabase d = db;
+        if (d == null || chatId == null) return out;
+        try (Cursor c = d.rawQuery("SELECT sender,type,text FROM messages WHERE chat_id=? AND ghost=0 ORDER BY ts DESC, id DESC LIMIT " + limit, new String[]{chatId})) {
+            while (c.moveToNext()) {
+                String tx = c.isNull(2) ? "" : c.getString(2);
+                out.add(0, new Object[]{c.isNull(0) ? "" : c.getString(0), c.isNull(1) ? "text" : c.getString(1), Integer.valueOf(tx.length())});
+            }
+        } catch (Throwable ignored) { }
+        return out;
+    }
+
     /**
      * الرسائل الأقدم من (beforeTs, beforeId) — أو الأحدث إن كان beforeId=null — بحد limit، مرتبة تصاعدياً.
      * القراءة على صفحات تمنع تحميل آلاف الصور في الذاكرة دفعة واحدة؛ ملف الوسائط يُقرأ فقط للصفحة المطلوبة.

@@ -216,14 +216,14 @@ public final class BabylonFx {
                 .withEndAction(() -> reset(chat)).start();
     }
 
-    private static final long LEAVE_MSGS_MS = 220;    // 1) تلاشي الرسائل أولاً
-    private static final long LEAVE_REST_DELAY = 30;  // 2) ثم الهيدر وشريط الكتابة (يبدآن قبل انتهاء الرسائل بقليل)
-    private static final long LEAVE_REST_MS = 230;
-    private static final long LEAVE_BG_DELAY = 70;    // 3) ثم خلفية المحادثة نفسها فتنكشف الصفحة الرئيسية شفافة من خلفها
-    private static final long LEAVE_BG_MS = 250;
+    private static final long LEAVE_MSGS_MS = 170;    // 1) تلاشي الرسائل أولاً (وحدها)
+    private static final long LEAVE_REST_DELAY = 150; // 2) ثم الهيدر وشريط الكتابة والشريط المثبّت: يبدآن عند انتهاء الرسائل تقريباً
+    private static final long LEAVE_REST_MS = 170;
+    private static final long LEAVE_BG_DELAY = 300;   // 3) ثم خلفية المحادثة نفسها فتنكشف الصفحة الرئيسية شفافة من خلفها
+    private static final long LEAVE_BG_MS = 180;
 
     /**
-     * الخروج من غرفة المحادثة بتلاشٍ شفاف ناعم (~320ms) على مراحل متداخلة:
+     * الخروج من غرفة المحادثة بتلاشٍ شفاف ناعم (~480ms) على مراحل متتابعة:
      *   الرسائل أولاً، ثم الهيدر وشريط الكتابة والشريط المثبّت، ثم الخلفية؛ فتنكشف الصفحة الرئيسية (page) من خلفها
      *   (cross-fade حقيقي: لا فراغ بلون الخلفية بينهما). عند اكتمال التلاشي تُنفَّذ swap (إخفاء المحادثة).
      */
@@ -237,8 +237,8 @@ public final class BabylonFx {
         if (page != null) {   // أنيميشن ظهور الصفحة الرئيسية خلف تلاشي المحادثة: صعود + تكبير خفيف خلال 320ms
             page.setTranslationY(dp(page, 10));
             page.setScaleX(0.985f); page.setScaleY(0.985f);
-            page.animate().translationY(0f).scaleX(1f).scaleY(1f).setDuration(320)
-                    .setInterpolator(easeOut()).withEndAction(() -> reset(page)).start();
+            page.animate().translationY(0f).scaleX(1f).scaleY(1f).setStartDelay(200).setDuration(280)   // تظهر مع تلاشي الخلفية لا قبله
+                    .setInterpolator(easeOut()).withEndAction(() -> { reset(page); page.animate().setStartDelay(0); }).start();
         }
         final java.util.ArrayList<View> rest = new java.util.ArrayList<>();
         final View msgs = chat.findViewById(R.id.messagesArea);
@@ -258,8 +258,8 @@ public final class BabylonFx {
                 .withLayer()
                 .withEndAction(() -> {   // لا يُنفَّذ إن أُلغيت الحركة (دخول محادثة جديدة)
                     if (swap != null) swap.run();
-                    reset(chat);
-                    for (View c : rest) { c.animate().cancel(); c.setAlpha(1f); }
+                    reset(chat); chat.animate().setStartDelay(0);
+                    for (View c : rest) { c.animate().cancel(); c.animate().setStartDelay(0); c.setAlpha(1f); }
                     if (msgs != null) { msgs.animate().cancel(); msgs.setAlpha(1f); }
                 }).start();
     }
