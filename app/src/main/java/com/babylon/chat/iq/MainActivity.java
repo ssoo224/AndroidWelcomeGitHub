@@ -26,7 +26,9 @@ import java.util.List;
 /** شاشة البداية (Splash): تحدد هل المستخدم مسجّل دخوله أم لا ثم تنتقل للشاشة المناسبة. */
 public class MainActivity extends Activity {
 
-    private static final long SPLASH_MS = 2650;   // الرسم والتلوين والاستقرار؛ الدخول فور اكتمال المخطط بلا وقفة
+    private static final long LOGO_DONE_MS = 2650;   // اكتمال رسم اللوگو وتلوينه واستقراره
+    private static final long HOLD_AFTER_LOGO_MS = 500;   // يثبت اللوگو نصف ثانية ثم تظهر صفحة المحادثات مباشرة
+    private static final long SPLASH_MS = LOGO_DONE_MS + HOLD_AFTER_LOGO_MS;   // 3150ms
 
     // ===== توقيت حركة الشعار (ms) =====
     private static final float T_CIRCLE_A = 0f,    T_CIRCLE_B = 800f;    // رسم محيط الدائرة الذهبية أولاً
@@ -66,7 +68,7 @@ public class MainActivity extends Activity {
         handler.postDelayed(this::goNext, SPLASH_MS);
     }
 
-    private static final long EARLY_START_MS = 60;   // بعد أول إطار؛ التجمّد القصير أثناء البناء يقع في بداية رسم الدائرة لا في نهايته
+    private static final long EARLY_START_MS = LOGO_DONE_MS;   // بناء الصفحة يبدأ بعد اكتمال الرسم (فترة الثبات)، فلا يُقطّع حركة الرسم نفسها
     private boolean earlyStarted = false;
 
     private void startMassEarly() {

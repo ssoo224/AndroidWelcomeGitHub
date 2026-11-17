@@ -248,6 +248,7 @@ public class MassActivity extends Activity {
 
     private boolean heldBySplash = false;
     private android.graphics.drawable.Drawable origWinBg;
+    private Runnable revealBarsHook;   // تُسنَد من initializeLogic: تفكّ تجميد الأشرطة وتزامنها
 
     /** تكشف السبلاش الصفحة المبنية مسبقاً بتلاشٍ سريع ثم تُنهي نفسها (done). */
     void revealFromSplash(final Runnable done) {
@@ -257,6 +258,7 @@ public class MassActivity extends Activity {
         r.animate().alpha(1f).setDuration(300).setInterpolator(new android.view.animation.DecelerateInterpolator(2f)).withLayer()
                 .withEndAction(() -> {
                     heldBySplash = false;
+                    try { if (revealBarsHook != null) revealBarsHook.run(); } catch (Throwable ignored) { }   // الآن فقط تُلوَّن الأشرطة بألوان الصفحة
                     try { if (origWinBg != null) getWindow().setBackgroundDrawable(origWinBg); } catch (Throwable ignored) { }
                     if (done != null) done.run();
                 }).start();
@@ -734,6 +736,7 @@ public class MassActivity extends Activity {
             android.os.Handler uiH = new android.os.Handler(android.os.Looper.getMainLooper());
             boolean tabStories = true;
             BabylonBars bars = new BabylonBars(act);
+            { if (heldBySplash) bars.setFrozen(true); }   // أثناء الاختباء خلف السبلاش: لا تلوين لأشرطة النظام
             boolean tabAnimating = false;
             // حواف النافذة: ارتفاع شريط الحالة/الإيماءات، وطبقات سحب صورة الملف الشخصي
             int sbTop = 0, navBottom = 0, padBottom = 0;   // navBottom = ارتفاع شريط النظام السفلي الفعلي فقط (0 إن لم يوجد)؛ padBottom يشمل لوحة المفاتيح
@@ -10211,6 +10214,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
         touchHook = ev -> { ui.globalTap(ev); ui.dragSelTouch(ev); };
         vpStopHook = ui::vpStop;
         dropSessionsHook = ui::dropSessions;
+        revealBarsHook = () -> { ui.bars.setFrozen(false); ui.syncBars(); };
 
         ui.bars.setup();
         ui.syncBars();

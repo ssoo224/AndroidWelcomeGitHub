@@ -31,6 +31,10 @@ public final class BabylonBars {
     private boolean glassBottom = false;
     public void setGlassBottom(boolean on) { glassBottom = on; }
 
+    /** مجمَّد: لا تُغيَّر ألوان شريط الحالة/الإيماءات ولا أيقوناتهما (أثناء بناء الصفحة خلف السبلاش) كي لا يظهر شريط ملوّن فوقها. */
+    private boolean frozen = false;
+    public void setFrozen(boolean f) { frozen = f; }
+
     /** لون خلف شريط الحالة الحالي (0 = شفاف: الملف الشخصي). */
     public int topColor() { return curTop; }
     /** لون خلف شريط الإيماءات الحالي. */
@@ -85,6 +89,7 @@ public final class BabylonBars {
      * @param bottom لون القسم السفلي الظاهر (خلف شريط الإيماءات)
      */
     public void sync(int top, int bottom) {
+        if (frozen) return;
         top |= 0xFF000000;
         bottom |= 0xFF000000;
         Window w = act.getWindow();
@@ -126,6 +131,7 @@ public final class BabylonBars {
      * @param bottom لون القسم السفلي الظاهر (خلف شريط الإيماءات)
      */
     public void syncProfile(int bottom) {
+        if (frozen) return;
         bottom |= 0xFF000000;
         Window w = act.getWindow();
         int flags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
@@ -150,6 +156,7 @@ public final class BabylonBars {
      * @param surface لون خلفية المحادثة (--cr-surface)
      */
     public void syncChat(int surface) {
+        if (frozen) return;
         surface |= 0xFF000000;
         Window w = act.getWindow();
         int flags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
@@ -174,6 +181,7 @@ public final class BabylonBars {
 
     /** داخل المحادثة أثناء البحث عن رسالة: شريط الحالة يمتد بنفس لون شريط البحث (وأيقوناته حسب سطوعه). */
     public void syncChatSearch(int color) {
+        if (frozen) return;
         color |= 0xFF000000;
         Window w = act.getWindow();
         int flags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
