@@ -1599,38 +1599,49 @@ public class MassActivity extends Activity {
                     final int topNew = (isProfilePage(p) ? 0 : sbTop) + ((home && !chatSelMode) ? dp(62) : 0);
                     final boolean toChats = home && !chatSelMode;
                     final int gen = tabGen0;
-                    final long outMs = 10;   // تلاشي الصفحة الخارجة 10ms
-                    final long inMs = 20;    // بداية دخول الصفحة الجديدة والهيدر وزر المجموعة: 20ms
+                    final long outMs = 20;   // 1) تلاشي الصفحة الخارجة 20ms
+                    final View hdr = toChats ? v("mainHeader") : null;
+                    final View fab = toChats ? v("newGroupFab") : null;
                     fv.animate().cancel();
                     fv.setAlpha(1f);
                     fv.setTranslationY(-(topNew - topOld));   // يعوّض تغيّر الهيدر/شريط الحالة فتبقى الصفحة الخارجة في مكانها أثناء تلاشيها
-                    fv.animate().alpha(0f).setDuration(outMs).setInterpolator(new android.view.animation.LinearInterpolator())
-                            .withEndAction(() -> {
-                                if (gen != BabylonFx.tabGenNow() || fv.getVisibility() != View.VISIBLE) return;   // حلّ مكانه تبديل أحدث: لا تُخفِ الصفحة الهدف
-                                fv.setVisibility(View.GONE); fv.setAlpha(1f); fv.setTranslationY(0f);
-                            }).start();
+                    // الصفحة الجديدة والهيدر والزر يبقون مخفيّين (شفافية 0) طوال تلاشي الصفحة الخارجة، ولا يبدأ أي منهم إلا بعد انتهائه
                     to.animate().cancel();
                     to.setVisibility(View.VISIBLE);
-                    final View[] grp = toChats ? new View[]{to, v("mainHeader"), v("newGroupFab")} : new View[]{to};
-                    homeAnimOn = true;
-                    for (View g : grp) {
-                        if (g == null || g.getVisibility() != View.VISIBLE) continue;
-                        BabylonFx.pageIn(g, inMs);   // نفس حركة bbViewIn لقسم المظهر؛ الهيدر يظهر عند 20ms مع الصفحة
+                    to.setAlpha(0f);
+                    for (View h : new View[]{hdr, fab}) {
+                        if (h == null || h.getVisibility() != View.VISIBLE) continue;
+                        h.animate().cancel();
+                        h.setAlpha(0f);
                     }
-                    if (toChats) BabylonFx.chatRowsIn((ViewGroup) v("chatList"), 60);   // صفوف المحادثات تنزلق متتابعة
-                    else BabylonFx.stagger(to);                                         // بطاقات/أزرار الإعدادات والملف الشخصي تظهر متتابعة
-                    act.getWindow().getDecorView().postDelayed(() -> { if (homeAnimOn && gen == BabylonFx.tabGenNow()) endHomeEntry(); }, 460);
+                    homeAnimOn = true;
+                    fv.animate().alpha(0f).setDuration(outMs).setInterpolator(new android.view.animation.LinearInterpolator())
+                            .withEndAction(() -> {
+                                if (gen != BabylonFx.tabGenNow()) return;   // حلّ مكانه تبديل أحدث
+                                if (fv.getVisibility() == View.VISIBLE) {
+                                    fv.setVisibility(View.GONE); fv.setAlpha(1f); fv.setTranslationY(0f);
+                                }
+                                // 2) الآن فقط (بعد اختفاء الصفحة الخارجة تماماً) يظهر الهيدر مع الصفحة الجديدة وزر المجموعة
+                                final View[] grp = toChats ? new View[]{to, hdr, fab} : new View[]{to};
+                                for (View g : grp) {
+                                    if (g == null || g.getVisibility() != View.VISIBLE) continue;
+                                    BabylonFx.pageIn(g, 0);
+                                }
+                                if (toChats) BabylonFx.chatRowsIn((ViewGroup) v("chatList"), 0);   // صفوف المحادثات تنزلق متتابعة
+                                else BabylonFx.stagger(to);                                        // بطاقات/أزرار الإعدادات والملف الشخصي تظهر متتابعة
+                                act.getWindow().getDecorView().postDelayed(() -> { if (homeAnimOn && gen == BabylonFx.tabGenNow()) endHomeEntry(); }, 300);
+                            }).start();
                 } else if (to != null) {
                     boolean secondary = ti < 0;
                     if (secondary) BabylonFx.viewIn(to);
                     BabylonFx.stagger(to);
                 }
-                if (home && !hdrWas && !homeAnimOn) BabylonFx.barDown(v("mainHeader"), 20);   // الهيدر يظهر عند 20ms
+                if (home && !hdrWas && !homeAnimOn) BabylonFx.barDown(v("mainHeader"), 0);
                 syncBars();
                 vpPlace();   // الشريط العائم يتبع الصفحة (أسفل فوق أزرار التنقل، أو أعلى الصفحة حيث لا أزرار)
                 // شبكة أمان: مهما حصل للأنيميشن (إلغاء/سباق/إطار ضائع) تُثبَّت الصفحة الهدف وحدها بعد انتهاء المدة
                 final String settleTarget = p;
-                act.getWindow().getDecorView().postDelayed(() -> settleTabs(settleTarget), 480);
+                act.getWindow().getDecorView().postDelayed(() -> settleTabs(settleTarget), 450);
             }
 
             /** يفرض الحالة النهائية الصحيحة بعد التنقل: الصفحة الحالية وحدها ظاهرة بلا إزاحة/شفافية عالقة، والباقي مخفي. */

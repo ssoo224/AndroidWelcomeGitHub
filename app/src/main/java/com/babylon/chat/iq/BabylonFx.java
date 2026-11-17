@@ -71,7 +71,7 @@ public final class BabylonFx {
         v.setAlpha(0f);
         v.setTranslationY(dp(v, 12));
         v.animate().alpha(1f).translationY(0f)
-                .setDuration(380).setStartDelay(index * 32L + 70)
+                .setDuration(150).setStartDelay(index * 14L)
                 .setInterpolator(easeOut())
                 .withEndAction(() -> reset(v)).start();
     }
@@ -84,7 +84,7 @@ public final class BabylonFx {
         v.setScaleX(0.85f);
         v.setScaleY(0.85f);
         v.animate().alpha(1f).scaleX(1f).scaleY(1f)
-                .setDuration(260).setStartDelay(index * 20L + 70)
+                .setDuration(130).setStartDelay(index * 10L)
                 .setInterpolator(easeOut())
                 .withEndAction(() -> reset(v)).start();
     }
@@ -111,7 +111,7 @@ public final class BabylonFx {
         v.setScaleX(0.985f);
         v.setScaleY(0.985f);
         v.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f)
-                .setStartDelay(delay).setDuration(320).setInterpolator(easeOut())
+                .setStartDelay(delay).setDuration(140).setInterpolator(easeOut())
                 .withEndAction(() -> reset(v)).start();
     }
 
@@ -122,7 +122,7 @@ public final class BabylonFx {
         v.setAlpha(0f);
         v.setTranslationY(-dp(v, 14));
         v.animate().alpha(1f).translationY(0f)
-                .setDuration(340).setStartDelay(delay).setInterpolator(easeOut())
+                .setDuration(150).setStartDelay(delay).setInterpolator(easeOut())
                 .withEndAction(() -> reset(v)).start();
     }
 
@@ -133,7 +133,7 @@ public final class BabylonFx {
         v.setAlpha(0f);
         v.setTranslationY(dp(v, 16));
         v.animate().alpha(1f).translationY(0f)
-                .setDuration(340).setStartDelay(delay).setInterpolator(easeOut())
+                .setDuration(150).setStartDelay(delay).setInterpolator(easeOut())
                 .withEndAction(() -> reset(v)).start();
     }
 
@@ -145,7 +145,7 @@ public final class BabylonFx {
         v.setScaleX(0.85f);
         v.setScaleY(0.85f);
         v.animate().alpha(1f).scaleX(1f).scaleY(1f)
-                .setDuration(300).setStartDelay(150).setInterpolator(easeOut()).start();
+                .setDuration(140).setStartDelay(60).setInterpolator(easeOut()).start();
     }
 
     /** bbMsgIn: رسالة جديدة داخل المحادثة. */
@@ -285,10 +285,10 @@ public final class BabylonFx {
                 if (r == null || r.getVisibility() != View.VISIBLE) continue;
                 r.animate().cancel();
                 r.setAlpha(0f);
-                r.setTranslationX(dp(r, 24));
-                r.setScaleX(0.97f); r.setScaleY(0.97f);
+                r.setTranslationX(dp(r, 14));
+                r.setScaleX(0.985f); r.setScaleY(0.985f);
                 r.animate().alpha(1f).translationX(0f).scaleX(1f).scaleY(1f)
-                        .setStartDelay(baseDelay + i * 34L).setDuration(260).setInterpolator(soft)
+                        .setStartDelay(baseDelay + i * 16L).setDuration(140).setInterpolator(soft)
                         .withEndAction(() -> reset(r)).start();
             }
         });
