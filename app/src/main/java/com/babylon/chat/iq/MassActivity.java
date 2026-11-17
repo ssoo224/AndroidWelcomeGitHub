@@ -75,6 +75,16 @@ public class MassActivity extends Activity {
 
     // خيوط مشتركة لفتح المحادثة (على مستوى الصنف الخارجي لأن UI صنف محلي لا يقبل حقولاً static)
     static final java.util.concurrent.ExecutorService CACHE_EXEC = java.util.concurrent.Executors.newSingleThreadExecutor();   // حفظ خزن الرسائل بالترتيب وخارج الخيط الرئيسي
+    /** رسالة تنتظر الرسم فوق الظاهرة (من لقطة السيرفر أو من الخزن المحلي). */
+    static final class OlderItem {
+        final String id; final Map<String, Object> data; final boolean pending; final com.google.firebase.firestore.DocumentReference ref;
+        OlderItem(String id, Map<String, Object> data, boolean pending, com.google.firebase.firestore.DocumentReference ref) { this.id = id; this.data = data; this.pending = pending; this.ref = ref; }
+        static OlderItem of(com.google.firebase.firestore.DocumentSnapshot d) { return new OlderItem(d.getId(), d.getData(), d.getMetadata().hasPendingWrites(), d.getReference()); }
+    }
+    /** كاش Bitmap في الذاكرة للصور المفكوكة: إعادة دخول المحادثة لا تفك الصور من جديد. المفتاح: طول النص + hash. */
+    static final android.util.LruCache<Long, Bitmap> BMP_CACHE = new android.util.LruCache<Long, Bitmap>(Math.max(4 * 1024 * 1024, (int) (Runtime.getRuntime().maxMemory() / 10))) {
+        @Override protected int sizeOf(Long k, Bitmap b) { return b.getByteCount(); }
+    };
     static final java.util.concurrent.ThreadPoolExecutor IMG_EXEC = newImgExec();   // فكّ الصور: 3 خيوط فقط (كان خيط لكل صورة)، والأحدث (أسفل المحادثة) أولاً
     static java.util.concurrent.ThreadPoolExecutor newImgExec() {
         java.util.concurrent.ThreadPoolExecutor ex = new java.util.concurrent.ThreadPoolExecutor(3, 3, 30, java.util.concurrent.TimeUnit.SECONDS,
@@ -1589,7 +1599,8 @@ public class MassActivity extends Activity {
                     final int topNew = (isProfilePage(p) ? 0 : sbTop) + ((home && !chatSelMode) ? dp(62) : 0);
                     final boolean toChats = home && !chatSelMode;
                     final int gen = tabGen0;
-                    final long outMs = 20;   // تلاشي الصفحة الخارجة 20ms ثم تبدأ الداخلة
+                    final long outMs = 10;   // تلاشي الصفحة الخارجة 10ms
+                    final long inMs = 20;    // بداية دخول الصفحة الجديدة والهيدر وزر المجموعة: 20ms
                     fv.animate().cancel();
                     fv.setAlpha(1f);
                     fv.setTranslationY(-(topNew - topOld));   // يعوّض تغيّر الهيدر/شريط الحالة فتبقى الصفحة الخارجة في مكانها أثناء تلاشيها
@@ -1604,7 +1615,7 @@ public class MassActivity extends Activity {
                     homeAnimOn = true;
                     for (View g : grp) {
                         if (g == null || g.getVisibility() != View.VISIBLE) continue;
-                        BabylonFx.pageIn(g, outMs);   // نفس حركة bbViewIn لقسم المظهر، بعد انتهاء خروج الصفحة السابقة
+                        BabylonFx.pageIn(g, inMs);   // نفس حركة bbViewIn لقسم المظهر؛ الهيدر يظهر عند 20ms مع الصفحة
                     }
                     if (toChats) BabylonFx.chatRowsIn((ViewGroup) v("chatList"), 60);   // صفوف المحادثات تنزلق متتابعة
                     else BabylonFx.stagger(to);                                         // بطاقات/أزرار الإعدادات والملف الشخصي تظهر متتابعة
@@ -1614,7 +1625,7 @@ public class MassActivity extends Activity {
                     if (secondary) BabylonFx.viewIn(to);
                     BabylonFx.stagger(to);
                 }
-                if (home && !hdrWas && !homeAnimOn) BabylonFx.barDown(v("mainHeader"), 0);
+                if (home && !hdrWas && !homeAnimOn) BabylonFx.barDown(v("mainHeader"), 20);   // الهيدر يظهر عند 20ms
                 syncBars();
                 vpPlace();   // الشريط العائم يتبع الصفحة (أسفل فوق أزرار التنقل، أو أعلى الصفحة حيث لا أزرار)
                 // شبكة أمان: مهما حصل للأنيميشن (إلغاء/سباق/إطار ضائع) تُثبَّت الصفحة الهدف وحدها بعد انتهاء المدة
@@ -4194,6 +4205,7 @@ public class MassActivity extends Activity {
                 if (msgArea != null) { msgArea.removeAllViews(); msgArea.animate().cancel(); msgArea.setAlpha(1f); }
                 renderedMsgIds.clear(); lastDayKey = ""; daySeps.clear(); msgViewsById.clear(); msgMeta.clear();
                 olderTok++; olderQ.clear();   // دفعات رسائل قديمة معلّقة لمحادثة سابقة
+                localTok++; localPaging = false; prependBusy = false; chatWinStart = -1L;
                 playingHandle = null;   // فقاعاتها القديمة أُزيلت؛ التشغيل يستمر ويُعاد ربطه عند رسم رسالتها
                 pins = new ArrayList<>(); pinIdx = -1; renderPinnedBar();
                 cancelReply();
@@ -4266,6 +4278,7 @@ public class MassActivity extends Activity {
 
             void loadMessages(String chatId) {
                 final boolean[] firstSnap = {true};
+                final boolean[] localFull = {false};   // خزن هذه المحادثة المحلي كامل (نُزّل التاريخ كله سابقاً)
                 {   // أخفِ الرسائل حتى يكتمل التحميل الأول (لا وميض ولا قفزة من أول المحادثة)
                     final View ms0 = v("messagesScroll"), area0 = v("messagesArea");
                     if (area0 != null) area0.setAlpha(0f);
@@ -4324,6 +4337,7 @@ public class MassActivity extends Activity {
                         final boolean wasFirst = firstSnap[0];
                         firstSnap[0] = false;
                         final boolean hadCache = !cacheRenderedIds.isEmpty();
+                        final java.util.HashSet<String> cacheIdsSnap = new java.util.HashSet<>(cacheRenderedIds);   // reconcile يفرّغ المجموعة قبل الحلقة: نحتفظ بنسخة لمزامنة التفاعلات/القراءة
                         final boolean rebuilt = hadCache && reconcileCachedMsgs(snapshots);
                         final java.util.ArrayList<DocumentSnapshot> fresh = new java.util.ArrayList<>();   // رسائل اللقطة الأولى الجديدة (تُرسم أحدثها فوراً والباقي على دفعات)
                         final boolean liveBatch = !wasFirst && !rebuilt;
@@ -4340,7 +4354,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                                 DocumentSnapshot md = dc.getDocument();
                                 View mv = msgViewsById.get(md.getId());
                                 // MetadataChanges.INCLUDE يُصدر MODIFIED لكل الرسائل عند وصول تأكيد السيرفر: أعِد الرسم فقط إن تغيّر المحتوى فعلاً (وإلا ترمش التفاعلات والعلامات)
-                                if (mv == null && olderQ.containsKey(md.getId())) olderQ.put(md.getId(), md);   // رسالة قديمة لم تُرسم بعد: احتفظ بأحدث بياناتها
+                                if (mv == null && olderQ.containsKey(md.getId())) olderQ.put(md.getId(), OlderItem.of(md));   // رسالة قديمة لم تُرسم بعد: احتفظ بأحدث بياناتها
                                 if (mv != null && !reactSame(md.getId(), md.get("reactions"))) applyReactions(md.getId(), mv, md.get("reactions"));
                                 if (mv != null && myUid.equals(md.getString("sender"))) {
                                     boolean rd = Boolean.TRUE.equals(md.getBoolean("read"));
@@ -4352,7 +4366,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                                 DocumentSnapshot doc = dc.getDocument();
                                 if (!doc.exists()) continue;
                                 String id = doc.getId();
-                                if (renderedMsgIds.contains(id)) { if (cacheRenderedIds.contains(id)) syncRenderedMsg(id, doc); continue; }
+                                if (renderedMsgIds.contains(id)) { if (cacheIdsSnap.contains(id) || cacheRenderedIds.contains(id)) syncRenderedMsg(id, doc); continue; }
                                 if (wasFirst) fresh.add(doc);
                                 else renderMsgData(chatId, id, doc.getData(), doc.getMetadata().hasPendingWrites(), liveBatch, doc.getReference());
                             }
@@ -4372,26 +4386,39 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                     } finally { endRenderBatch(); }
                     if (wasFirst && chatId.equals(currentChatId)) renderGhosts(chatId, snapshots);
                         final com.google.firebase.firestore.QuerySnapshot snapForCache = snapshots;
-                        uiH.post(() -> saveMsgCache(chatId, snapForCache));   // بعد رسم الإطار لا قبله (لا يؤخّر ظهور الرسالة)؛ آخر 50 رسالة نصية للمحادثة في الخزن المحلي
+                        uiH.post(() -> persistSnapshot(chatId, snapForCache, localFull));   // بعد رسم الإطار لا قبله؛ يحفظ كل جديد/معدّل محلياً (الأول: كل التاريخ مرة واحدة)
                         if (!liveBatch && !(wasFirst && !rebuilt && cacheShown)) revealChatBottom();   // ظهرت من الخزن: لا إعادة إخفاء/وميض
                     };
                 // لا تُعالَج الرسائل أثناء حركة الدخول (تفادياً للتقطيع والتداخل)؛ تُؤجَّل بالترتيب إلى نهايتها
                 cacheShown = false;
                 final int gen0 = openGen;
-                // قراءة ملف الخزن وتحليل JSON (قد يحوي صوراً/صوتيات base64 كبيرة) في خيط خلفي، ثم الرسم والاشتراك على الخيط الرئيسي
+                // قراءة الخزن المحلي في خيط خلفي: آخر FIRST_RENDER رسالة فقط الآن، والباقي على صفحات بعد الرسم الأول
                 new Thread(() -> {
                     org.json.JSONArray cached = null;
-                    try { if (LocalDb.isComplete(chatId)) cached = LocalDb.getMessages(chatId); } catch (Throwable ignored) { }
+                    long ws = -1L;
+                    LocalDb.Page first = null;
+                    try {
+                        ws = LocalDb.resumeStart(chatId);   // -1: لم يُنزَّل التاريخ كله بعد
+                        if (ws >= 0) { first = LocalDb.messagesBefore(chatId, 0L, null, FIRST_RENDER); cached = first.msgs; }
+                    } catch (Throwable ignored) { }
                     final org.json.JSONArray carr = cached;
+                    final long fws = ws;
+                    final LocalDb.Page fpage = first;
                     uiH.post(() -> {
                         if (gen0 != openGen || !chatId.equals(currentChatId)) return;
-                        renderCachedMessages(chatId, carr);   // آخر 50 رسالة محفوظة تظهر قبل وصول السيرفر
+                        localFull[0] = fws >= 0;
+                        chatWinStart = fws;
+                        renderCachedMessages(chatId, carr);   // آخر رسائل محفوظة تظهر قبل وصول السيرفر
                         if (!cacheRenderedIds.isEmpty()) {   // لا ننتظر السيرفر لإظهارها: تظهر بعد انتهاء حركة الدخول مباشرة
                             cacheShown = true;
                             uiH.postDelayed(() -> { if (chatId.equals(currentChatId)) revealChatBottom(); }, BabylonFx.chatFoldRemaining());
                         }
+                        if (fpage != null && fpage.more && fpage.curId != null) startLocalPaging(chatId, fpage.curTs, fpage.curId);   // بقية التاريخ المحلي فوقها على دفعات
                         if (messagesListener != null) messagesListener.remove();
-                        messagesListener = db.collection("chats").document(chatId).collection("messages")
+                        // الاستماع يبدأ من نقطة الاستئناف: كل جديد منذ آخر مزامنة + آخر 50 رسالة (تفاعل/قراءة/حذف) بدل جلب المحادثة كاملة
+                        Query mq = db.collection("chats").document(chatId).collection("messages");
+                        if (fws > 0) mq = mq.whereGreaterThanOrEqualTo("timestamp", fws);
+                        messagesListener = mq
                             .orderBy("timestamp", Query.Direction.ASCENDING)
                             .addSnapshotListener(com.google.firebase.firestore.MetadataChanges.INCLUDE,
                                 (sn, er) -> deferSnap(onSnap, chatId, sn, er));
@@ -4399,17 +4426,66 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 }).start();
             }
 
+            // ---- قراءة التاريخ المحلي الأقدم على صفحات (خيط خلفي) ثم رسمه فوق الظاهر دفعة لكل إطار
+            long chatWinStart = -1L;      // بداية نافذة الاستماع الحالية (رسائل أقدم منها لا تصل من السيرفر ولا تُحذف بسببه)
+            boolean localPaging = false;  // ما زال هناك تاريخ محلي يُرسم
+            int localTok = 0;             // يلغي صفحات التاريخ المحلي لمحادثة سابقة (منفصل عن olderTok كي لا تلغيها دفعات السيرفر)
+            boolean prependBusy = false;  // دفعة قيد التعويض في التمرير: لا تبدأ دفعة ثانية قبل انتهائها (تعويض مضاعف)
+            static final int LOCAL_PAGE = 16;
+
+            void startLocalPaging(final String chatId, final long curTs, final String curId) {
+                localPaging = true;
+                final int tok = ++localTok;
+                localPageStep(chatId, tok, curTs, curId);
+            }
+
+            void localPageStep(final String chatId, final int tok, final long curTs, final String curId) {
+                new Thread(() -> {
+                    final LocalDb.Page pg = LocalDb.messagesBefore(chatId, curTs, curId, LOCAL_PAGE);
+                    final java.util.ArrayList<OlderItem> items = new java.util.ArrayList<>();
+                    try {
+                        for (int i = 0; i < pg.msgs.length(); i++) {   // تصاعدياً؛ prependChunk يلصق الدفعة كلها فوق ما قبلها
+                            org.json.JSONObject o = pg.msgs.getJSONObject(i);
+                            items.add(new OlderItem(o.optString("id"), cacheJsonToMap(o), false, null));
+                        }
+                    } catch (Throwable ignored) { }
+                    uiH.post(() -> android.view.Choreographer.getInstance().postFrameCallback(ft -> uiH.post(() -> {
+                        if (tok != localTok || !chatId.equals(currentChatId)) { if (tok == localTok) localPaging = false; return; }
+                        if (prependBusy || !olderQ.isEmpty()) { localRetry(chatId, tok, pg, items); return; }   // دفعة السيرفر تعمل: انتظر دورك
+                        try {
+                            for (OlderItem it : items) if (it.data != null) cacheRenderedIds.add(it.id);
+                            prependChunk(chatId, items);
+                        } catch (Throwable t) { android.util.Log.e("BABYLON_OLDER", "local chunk", t); }
+                        if (pg.more && pg.curId != null) localPageStep(chatId, tok, pg.curTs, pg.curId);
+                        else localPaging = false;
+                    })));
+                }).start();
+            }
+
+            void localRetry(final String chatId, final int tok, final LocalDb.Page pg, final java.util.ArrayList<OlderItem> items) {
+                uiH.postDelayed(() -> {
+                    if (tok != localTok || !chatId.equals(currentChatId)) { if (tok == localTok) localPaging = false; return; }
+                    if (prependBusy || !olderQ.isEmpty()) { localRetry(chatId, tok, pg, items); return; }
+                    try {
+                        for (OlderItem it : items) if (it.data != null) cacheRenderedIds.add(it.id);
+                        prependChunk(chatId, items);
+                    } catch (Throwable t) { android.util.Log.e("BABYLON_OLDER", "local chunk", t); }
+                    if (pg.more && pg.curId != null) localPageStep(chatId, tok, pg.curTs, pg.curId);
+                    else localPaging = false;
+                }, 30);
+            }
+
             // ================= رسم المحادثات الكبيرة على دفعات =================
             // رسم مئات الفقاعات دفعة واحدة كان يحجب الخيط الرئيسي (تأخّر الدخول). الآن: آخر FIRST_RENDER رسالة تظهر فوراً،
             // والأقدم تُضاف فوقها على دفعات صغيرة (دفعة لكل إطار) مع تعويض موضع التمرير فلا يتحرك شيء أمام عينيك.
             static final int FIRST_RENDER = 40, OLDER_CHUNK = 8;
-            final java.util.LinkedHashMap<String, DocumentSnapshot> olderQ = new java.util.LinkedHashMap<>();   // الرسائل الأقدم المنتظرة (تصاعدياً بالوقت)
+            final java.util.LinkedHashMap<String, OlderItem> olderQ = new java.util.LinkedHashMap<>();   // الرسائل الأقدم المنتظرة (تصاعدياً بالوقت)
             int olderTok = 0;   // يلغي أي دفعات معلّقة لمحادثة سابقة
 
             void queueOlder(final String chatId, java.util.List<DocumentSnapshot> older) {
                 if (!chatId.equals(currentChatId)) return;   // المستخدم غادر المحادثة قبل بدء الدفعات
                 olderQ.clear();
-                for (DocumentSnapshot d : older) olderQ.put(d.getId(), d);
+                for (DocumentSnapshot d : older) olderQ.put(d.getId(), OlderItem.of(d));
                 if (olderQ.isEmpty()) return;
                 olderStep(chatId, ++olderTok);
             }
@@ -4417,9 +4493,10 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
             void olderStep(final String chatId, final int tok) {
                 android.view.Choreographer.getInstance().postFrameCallback(ft -> uiH.post(() -> {
                     if (tok != olderTok || !chatId.equals(currentChatId) || olderQ.isEmpty()) return;
+                    if (prependBusy) { uiH.postDelayed(() -> olderStep(chatId, tok), 30); return; }
                     java.util.ArrayList<String> keys = new java.util.ArrayList<>(olderQ.keySet());
                     int from = Math.max(0, keys.size() - OLDER_CHUNK);   // الأحدث أولاً: كل دفعة تلتصق فوق التي قبلها
-                    java.util.ArrayList<DocumentSnapshot> chunk = new java.util.ArrayList<>();
+                    java.util.ArrayList<OlderItem> chunk = new java.util.ArrayList<>();
                     for (int i = from; i < keys.size(); i++) chunk.add(olderQ.remove(keys.get(i)));
                     try { prependChunk(chatId, chunk); } catch (Throwable t) { android.util.Log.e("BABYLON_OLDER", "chunk", t); }
                     if (!olderQ.isEmpty()) olderStep(chatId, tok);
@@ -4427,7 +4504,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
             }
 
             /** يرسم دفعة رسائل أقدم ثم ينقلها لأعلى القائمة، ويعوّض ارتفاعها في التمرير كي تبقى الرسائل الظاهرة في مكانها. */
-            void prependChunk(String chatId, java.util.List<DocumentSnapshot> chunk) {
+            void prependChunk(String chatId, java.util.List<OlderItem> chunk) {
                 final View ms = v("messagesScroll");
                 final View ar = v("messagesArea");
                 if (!(ar instanceof LinearLayout) || !(ms instanceof ScrollView)) return;
@@ -4438,9 +4515,9 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 lastDayKey = "";   // أول رسالة في الدفعة تأخذ فاصل يومها
                 beginRenderBatch(chatId);
                 try {
-                    for (DocumentSnapshot doc : chunk) {
-                        if (doc == null || !doc.exists() || renderedMsgIds.contains(doc.getId())) continue;
-                        renderMsgData(chatId, doc.getId(), doc.getData(), doc.getMetadata().hasPendingWrites(), false, doc.getReference());
+                    for (OlderItem it : chunk) {
+                        if (it == null || it.data == null || renderedMsgIds.contains(it.id)) continue;
+                        renderMsgData(chatId, it.id, it.data, it.pending, false, it.ref);
                     }
                 } finally {
                     batchHid = null; batchClr = -1L; batchOn = false; batchScroll = false;   // بلا نزول للأسفل
@@ -4459,11 +4536,14 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                     if (k != null && k.equals(chunkLastDay)) { area.removeViewAt(moved.size()); daySeps.remove(first); }
                 }
                 if (oldH > 0) {
+                    prependBusy = true;
+                    uiH.postDelayed(() -> prependBusy = false, 400);   // احتياط إن لم يُرسم الإطار
                     final android.view.ViewTreeObserver vto = ms.getViewTreeObserver();
                     vto.addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
                         @Override public boolean onPreDraw() {
                             android.view.ViewTreeObserver o = ms.getViewTreeObserver();
                             if (o.isAlive()) o.removeOnPreDrawListener(this);
+                            prependBusy = false;
                             int d = area.getHeight() - oldH;
                             if (d > 0) ((ScrollView) ms).scrollTo(0, ms.getScrollY() + d);
                             return true;
@@ -4473,12 +4553,12 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 ms.invalidate();
             }
 
-            // ================= خزن محلي لرسائل المحادثة (آخر 50 رسالة نصية فقط) =================
+            // ================= خزن محلي لرسائل المحادثة (كل التاريخ، يُنزَّل مرة واحدة) =================
             final java.util.HashSet<String> cacheRenderedIds = new java.util.HashSet<>();   // رسائل رُسمت من الخزن وتنتظر تأكيد السيرفر
             long cacheMaxTs = 0L, cacheMinTs = Long.MAX_VALUE;
             int openGen = 0;   // يلغي تحميلاً معلّقاً لمحادثة سبقتها محادثة أحدث
             boolean cacheShown = false;   // أُظهرت رسائل الخزن المحلي فلا تُعاد حركة الكشف عند وصول السيرفر
-            static final int CACHE_MAX_PAYLOAD = 1_000_000;   // أكبر حجم (محارف) لصورة/صوتية تُحفظ محلياً؛ الأكبر تنتظر السيرفر
+            static final int CACHE_MAX_PAYLOAD = 1_100_000;   // أكبر من حد مستند Firestore (1MB): عملياً كل صورة/صوتية تُحفظ محلياً
 
             String gStr(Map<String, Object> d, String k) { Object o = d == null ? null : d.get(k); return o instanceof String ? (String) o : null; }
             Long gLong(Map<String, Object> d, String k) { Object o = d == null ? null : d.get(k); return o instanceof Number ? Long.valueOf(((Number) o).longValue()) : null; }
@@ -4491,18 +4571,8 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 return t != null && t > 0 && t <= clr;
             }
 
-            /** يرسم رسائل المحادثة المحفوظة محلياً (نصية فقط) فوراً. */
-            void renderCachedMessages(String chatId, org.json.JSONArray arr) {   // arr: null إن كان الخزن ناقصاً (يُرسم كل شيء مرة واحدة من لقطة Firestore)
-                cacheRenderedIds.clear(); cacheMaxTs = 0L; cacheMinTs = Long.MAX_VALUE;
-                try {
-                    if (arr == null || arr.length() == 0) return;
-                    beginRenderBatch(chatId);   // دفعة: المحذوفات تُقرأ مرة واحدة والنزول للأسفل مرة واحدة
-        java.util.Set<String> hid = hiddenSet();
-                    long clr = chatClearedAt(chatId);
-                    for (int i = 0; i < arr.length(); i++) {
-                        org.json.JSONObject o = arr.getJSONObject(i);
-                        String id = o.optString("id");
-                        if (id.isEmpty() || renderedMsgIds.contains(id) || hid.contains(id)) continue;
+            /** صف محفوظ (JSON) -> خريطة بنفس شكل مستند Firestore ليرسمها renderMsgData. */
+            HashMap<String, Object> cacheJsonToMap(org.json.JSONObject o) {
                         HashMap<String, Object> d = new HashMap<>();
                         String cty = o.optString("type", "text");
                         d.put("type", cty);
@@ -4537,6 +4607,23 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                             sdc.put("storyId", o.optString("storyId"));
                             d.put("storyReplyData", sdc);
                         }
+                return d;
+            }
+
+            /** يرسم رسائل المحادثة المحفوظة محلياً فوراً (آخر صفحة؛ الأقدم تأتي بعدها على دفعات). */
+            void renderCachedMessages(String chatId, org.json.JSONArray arr) {   // arr: null إن كان الخزن ناقصاً (يُرسم كل شيء مرة واحدة من لقطة Firestore)
+                cacheRenderedIds.clear(); cacheMaxTs = 0L; cacheMinTs = Long.MAX_VALUE;
+                try {
+                    if (arr == null || arr.length() == 0) return;
+                    beginRenderBatch(chatId);   // دفعة: المحذوفات تُقرأ مرة واحدة والنزول للأسفل مرة واحدة
+        java.util.Set<String> hid = hiddenSet();
+                    long clr = chatClearedAt(chatId);
+                    for (int i = 0; i < arr.length(); i++) {
+                        org.json.JSONObject o = arr.getJSONObject(i);
+                        String id = o.optString("id");
+                        if (id.isEmpty() || renderedMsgIds.contains(id) || hid.contains(id)) continue;
+                        HashMap<String, Object> d = cacheJsonToMap(o);
+                        long ts = o.optLong("timestamp", 0L);
                         if (msgClearedMap(d, clr)) continue;
                         renderMsgData(chatId, id, d, false, false, null);
                         if (msgViewsById.containsKey(id)) { cacheRenderedIds.add(id); if (ts > cacheMaxTs) cacheMaxTs = ts; if (ts > 0 && ts < cacheMinTs) cacheMinTs = ts; }
@@ -4544,84 +4631,104 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 } catch (Throwable ignored) { } finally { endRenderBatch(); }
             }
 
-            /** يحفظ آخر 50 رسالة (نص/ملف/صورة/صوتية ≤ ~450KB) من لقطة السيرفر، بدون المخفية/المحذوفة. */
-                void saveMsgCache(final String chatId, final com.google.firebase.firestore.QuerySnapshot sn) {
-                    final long clr0 = chatClearedAt(chatId);
-                    final java.util.Set<String> hid0 = hiddenSet();
-                    try { CACHE_EXEC.execute(() -> saveMsgCacheWork(chatId, sn, clr0, hid0)); } catch (Throwable ignored) { }
+            /** مستند Firestore -> صف للحفظ المحلي (كل الأنواع المعروضة، بلا حد حجم)؛ null لنوع لا يُرسم أصلاً. */
+            org.json.JSONObject cacheJsonOf(DocumentSnapshot dd) throws Exception {
+                Map<String, Object> m = dd.getData();
+                if (m == null) return null;
+                String ty = gStr(m, "type"); if (ty == null) ty = "text";
+                String text = gStr(m, "text");
+                String pay = gStr(m, "data"); if (pay == null) pay = gStr(m, "url");
+                String fUrl = gStr(m, "fileUrl");
+                boolean fileMsg = "file".equals(ty) || (fUrl != null && fUrl.length() > 0);
+                if (fileMsg && fUrl == null) return null;
+                boolean media = !fileMsg && ("image".equals(ty) || "audio".equals(ty)) && pay != null;
+                if (!fileMsg && !media && !"text".equals(ty)) return null;
+                if (!fileMsg && !media && text == null) return null;
+                Long ts = gLong(m, "timestamp");
+                if (ts == null) ts = gLong(m, "createdAt");
+                if (ts == null || ts <= 0) return null;   // الطابع لم يصل بعد: تصل لقطة لاحقة به
+                org.json.JSONObject o = new org.json.JSONObject();
+                o.put("id", dd.getId());
+                o.put("type", ty);
+                if (text != null) o.put("text", text);
+                if (media) {
+                    o.put("data", pay);
+                    Long du = gLong(m, "duration");
+                    if (du != null) o.put("duration", du.longValue());
                 }
-
-                void saveMsgCacheWork(String chatId, com.google.firebase.firestore.QuerySnapshot sn, long clr, java.util.Set<String> hid) {
-                try {
-
-                    org.json.JSONArray out = new org.json.JSONArray();
-                    java.util.List<DocumentSnapshot> docs = sn.getDocuments();
-                    java.util.ArrayList<org.json.JSONObject> rev = new java.util.ArrayList<>();   // من الأحدث للأقدم حتى 50
-                    boolean holes = false;   // رسالة ظاهرة داخل نافذة الخزن لم تُحفظ (كبيرة/نوع غير مدعوم): الخزن ناقص فيُعاد بناؤه من السيرفر
-                    long budget = 16_000_000L;   // سقف إجمالي لحجم الوسائط المحفوظة (محارف) كي لا يثقل فتح المحادثة؛ ما زاد ينتظر السيرفر
-                    for (int di = docs.size() - 1; di >= 0 && rev.size() < LocalDb.MAX_MSGS; di--) {
-                        DocumentSnapshot dd = docs.get(di);
-                        String ty = dd.getString("type");
-                        if (ty == null) ty = "text";
-                        Map<String, Object> m = dd.getData();
-                        if (hid.contains(dd.getId()) || msgClearedMap(m, clr)) continue;   // المخفية/المحذوفة ليست ثغرة في الخزن
-                        String text = gStr(m, "text");
-                        String pay = gStr(m, "data"); if (pay == null) pay = gStr(m, "url");
-                        String fUrl = gStr(m, "fileUrl");
-                        boolean fileMsg = "file".equals(ty) || (fUrl != null && fUrl.length() > 0);
-                        if (fileMsg && fUrl == null) { holes = true; continue; }
-                        boolean media = !fileMsg && ("image".equals(ty) || "audio".equals(ty)) && pay != null;
-                        if (!fileMsg && !media && !"text".equals(ty)) { holes = true; continue; }
-                        if (!fileMsg && !media && text == null) { holes = true; continue; }
-                        if (media && pay.length() > CACHE_MAX_PAYLOAD) { holes = true; continue; }
-                        if (media && pay.length() > budget) { holes = true; continue; }
-                        if (media) budget -= pay.length();
-                        org.json.JSONObject o = new org.json.JSONObject();
-                        o.put("id", dd.getId());
-                        o.put("type", ty);
-                        if (text != null) o.put("text", text);
-                        if (media) {
-                            o.put("data", pay);
-                            Long du = gLong(m, "duration");
-                            if (du != null) o.put("duration", du.longValue());
-                        }
-                        if (fileMsg) {   // رسائل الملفات تُحفظ أيضاً (الرابط والاسم والحجم فقط، لا محتوى الملف)
-                            o.put("fileUrl", fUrl);
-                            String fnm = gStr(m, "fileName"); if (fnm != null) o.put("fileName", fnm);
-                            Long fsz = gLong(m, "fileSize"); if (fsz != null) o.put("fileSize", fsz.longValue());
-                        }
-                        String sender = gStr(m, "sender");
-                        o.put("sender", sender == null ? "" : sender);
-                        Long ts = gLong(m, "timestamp");
-                        if (ts != null) o.put("timestamp", ts.longValue());
-                        Boolean rd = gBool(m, "read");
-                        if (rd != null) o.put("read", rd.booleanValue());
-                        Boolean fw = gBool(m, "forwarded");
-                        if (fw != null) o.put("forwarded", fw.booleanValue());
-                        Object rxo = m.get("reactions");   // التفاعلات تُحفظ أيضاً: بدونها تظهر بعد وصول السيرفر فيتغيّر ارتفاع الرسائل (وميض)
-                        if (rxo instanceof Map && !((Map<?, ?>) rxo).isEmpty()) o.put("reactions", new org.json.JSONObject((Map<?, ?>) rxo));
-                        for (String k : new String[]{"replyTo", "replyToSenderId", "replyToId", "replyToType"}) {
-                            String v = gStr(m, k);
-                            if (v != null) o.put(k, v);
-                        }
-                        if (Boolean.TRUE.equals(gBool(m, "storyReply"))) {
-                            o.put("storyReply", true);
-                            Object sdo2 = m.get("storyReplyData");
-                            if (sdo2 instanceof Map) {
-                                Object c2 = ((Map<?, ?>) sdo2).get("caption"), v2 = ((Map<?, ?>) sdo2).get("videoUrl");
-                                o.put("storyCap", c2 instanceof String ? (String) c2 : "");
-                                o.put("storyVid", v2 instanceof String && ((String) v2).length() > 0);
-                                Object i2 = ((Map<?, ?>) sdo2).get("storyId");
-                                o.put("storyId", i2 instanceof String ? (String) i2 : "");
-                            }
-                        }
-                        rev.add(o);
+                if (fileMsg) {
+                    o.put("fileUrl", fUrl);
+                    String fnm = gStr(m, "fileName"); if (fnm != null) o.put("fileName", fnm);
+                    Long fsz = gLong(m, "fileSize"); if (fsz != null) o.put("fileSize", fsz.longValue());
+                }
+                String sender = gStr(m, "sender"); if (sender == null) sender = gStr(m, "senderId");
+                o.put("sender", sender == null ? "" : sender);
+                o.put("timestamp", ts.longValue());
+                Boolean rd = gBool(m, "read");
+                if (rd != null) o.put("read", rd.booleanValue());
+                Boolean fw = gBool(m, "forwarded");
+                if (fw != null) o.put("forwarded", fw.booleanValue());
+                Object rxo = m.get("reactions");
+                if (rxo instanceof Map && !((Map<?, ?>) rxo).isEmpty()) o.put("reactions", new org.json.JSONObject((Map<?, ?>) rxo));
+                for (String k : new String[]{"replyTo", "replyToSenderId", "replyToId", "replyToType"}) {
+                    String v = gStr(m, k);
+                    if (v != null) o.put(k, v);
+                }
+                if (Boolean.TRUE.equals(gBool(m, "storyReply"))) {
+                    o.put("storyReply", true);
+                    Object sdo2 = m.get("storyReplyData");
+                    if (sdo2 instanceof Map) {
+                        Object c2 = ((Map<?, ?>) sdo2).get("caption"), v2 = ((Map<?, ?>) sdo2).get("videoUrl");
+                        o.put("storyCap", c2 instanceof String ? (String) c2 : "");
+                        o.put("storyVid", v2 instanceof String && ((String) v2).length() > 0);
+                        Object i2 = ((Map<?, ?>) sdo2).get("storyId");
+                        o.put("storyId", i2 instanceof String ? (String) i2 : "");
                     }
-                    for (int ri = rev.size() - 1; ri >= 0; ri--) out.put(rev.get(ri));   // ترتيب تصاعدي
-                    // الخزن «كامل» فقط إن احتوى كل رسائل المحادثة الظاهرة: عندها لا يجد السيرفر رسالة ناقصة فلا إعادة بناء.
-                    // المحادثات الأطول من 50 رسالة أو التي فيها ملفات/وسائط كبيرة لا تُعرض من الخزن (كانت تُمسح وتُعاد كلها عند وصول السيرفر = «إعادة تحميل» ظاهرة).
-                    // «كامل» = آخر رسائل المحادثة متصلة بلا ثغرات (حتى 50): تظهر فوراً من الجهاز، والأقدم منها تُضاف فوقها لاحقاً بلا إعادة بناء
-                    LocalDb.putMessages(chatId, out, !holes);
+                }
+                return o;
+            }
+
+            /**
+             * يحفظ ما وصل في اللقطة محلياً (بعد رسم الإطار):
+             *  - الخزن غير كامل: أول لقطة من السيرفر تُحفظ كلها مرة واحدة (التاريخ كله) ثم يُعلَّم كاملاً؛ لقطات الكاش المحلي لا تُحفظ.
+             *  - الخزن كامل: تُحفظ الرسائل المضافة/المعدّلة فقط (تفاعل، قراءة)، وتُحذف المحذوفة، ويتقدّم synced_ts إن كانت اللقطة من السيرفر.
+             * رسائل مرسلة لم يؤكدها السيرفر بعد (hasPendingWrites) لا تُحفظ حتى تتأكد.
+             */
+            void persistSnapshot(final String chatId, final com.google.firebase.firestore.QuerySnapshot sn, final boolean[] localFull) {
+                try {
+                    if (sn == null) return;
+                    final boolean fromCache = sn.getMetadata().isFromCache();
+                    final boolean needFull = !localFull[0];
+                    if (needFull && fromCache) return;
+                    final java.util.ArrayList<DocumentSnapshot> ups = new java.util.ArrayList<>();
+                    final java.util.ArrayList<String> rem = new java.util.ArrayList<>();
+                    long mx = 0L;
+                    for (DocumentSnapshot dd : sn.getDocuments()) {
+                        if (dd.getMetadata().hasPendingWrites()) continue;
+                        Long t = dd.getLong("timestamp"); if (t == null) t = dd.getLong("createdAt");
+                        if (t != null && t > mx) mx = t;
+                    }
+                    final long maxTs = fromCache ? 0L : mx;
+                    if (needFull) { ups.addAll(sn.getDocuments()); localFull[0] = true; }
+                    else for (DocumentChange dc : sn.getDocumentChanges(com.google.firebase.firestore.MetadataChanges.INCLUDE)) {
+                        if (dc.getType() == DocumentChange.Type.REMOVED) rem.add(dc.getDocument().getId());
+                        else ups.add(dc.getDocument());
+                    }
+                    if (ups.isEmpty() && rem.isEmpty() && maxTs <= 0) return;
+                    CACHE_EXEC.execute(() -> persistWork(chatId, ups, rem, needFull, maxTs));
+                } catch (Throwable ignored) { }
+            }
+
+            void persistWork(String chatId, java.util.List<DocumentSnapshot> ups, java.util.List<String> rem, boolean full, long maxTs) {
+                try {
+                    java.util.ArrayList<org.json.JSONObject> arr = new java.util.ArrayList<>();
+                    for (DocumentSnapshot dd : ups) {
+                        if (dd.getMetadata().hasPendingWrites()) continue;
+                        org.json.JSONObject o = cacheJsonOf(dd);
+                        if (o != null) arr.add(o);
+                    }
+                    if (full) LocalDb.putAllMessages(chatId, arr, maxTs);
+                    else LocalDb.upsertMessages(chatId, arr, rem, maxTs);
                 } catch (Throwable ignored) { }
             }
 
@@ -4735,7 +4842,13 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 }
                 if (!sn.getMetadata().isFromCache()) {
                     // السيرفر أكّد: ما حُذف من الطرف الآخر يُزال من العرض
-                    for (String id : new ArrayList<>(cacheRenderedIds)) if (!srv.contains(id)) removeMsgView(id, null);
+                    for (String id : new ArrayList<>(cacheRenderedIds)) {
+                        if (srv.contains(id)) continue;
+                        Object[] mm = msgMeta.get(id);   // الاستماع يبدأ من chatWinStart: الأقدم منها غائبة عن اللقطة عمداً وليست محذوفة
+                        long mts = mm != null && mm.length > 5 && mm[5] instanceof Number ? ((Number) mm[5]).longValue() : 0L;
+                        if (chatWinStart > 0 && mts < chatWinStart) continue;
+                        removeMsgView(id, null);
+                    }
                     cacheRenderedIds.clear();
                 }
                 return false;
@@ -4925,7 +5038,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 pins = new ArrayList<>(); pinIdx = -1;   // الكبسولة تبقى ظاهرة وتتلاشى مع باقي أجزاء المحادثة (تُحذف عند نهاية الحركة)
                 uiH.postDelayed(() -> { if (currentChatId.isEmpty()) { try { renderPinnedBar(); } catch (Throwable ignored) { } } }, 700);   // احتياط إن أُلغيت الحركة
                 currentChatId = ""; otherUid = "";
-                olderTok++; olderQ.clear();
+                olderTok++; olderQ.clear(); localTok++; localPaging = false;
                 renderedMsgIds.clear(); lastDayKey = ""; daySeps.clear(); msgViewsById.clear(); msgMeta.clear();
                 playingHandle = null;   // الصوتية الجارية تستمر خارج المحادثة (الفقاعة تُرسم من جديد عند العودة) ويظهر شريطها العائم
             }
@@ -5445,6 +5558,11 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 IMG_EXEC.execute(() -> {
                     try {
                         Bitmap bmp;
+                        final Long ckey = url.startsWith("http") ? null : Long.valueOf(((long) url.length() << 32) | (url.hashCode() & 0xFFFFFFFFL));
+                        if (ckey != null) {
+                            final Bitmap hit = BMP_CACHE.get(ckey);
+                            if (hit != null) { act.runOnUiThread(() -> img.setImageBitmap(hit)); return; }
+                        }
                         BitmapFactory.Options opts = new BitmapFactory.Options();
                         opts.inSampleSize = 2;
                         if (url.startsWith("http")) {
@@ -5474,6 +5592,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                             bmp = BitmapFactory.decodeByteArray(b, 0, b.length, opts);
                         }
                         final Bitmap fb = bmp;
+                        if (fb != null && ckey != null) BMP_CACHE.put(ckey, fb);
                         if (fb != null) act.runOnUiThread(() -> img.setImageBitmap(fb));
                     } catch (Exception e) { }
                 });
@@ -6275,10 +6394,16 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 savePins(np);
             }
 
+            int jumpWaitTries = 0;
             void jumpToMsg(final String id) {
+                if (msgViewsById.get(id) == null && localPaging && jumpWaitTries++ < 60) {   // بقية التاريخ المحلي ما زالت تُرسم على دفعات: انتظرها قليلاً
+                    uiH.postDelayed(() -> jumpToMsg(id), 150);
+                    return;
+                }
+                jumpWaitTries = 0;
                 if (msgViewsById.get(id) == null && olderQ.containsKey(id)) {   // الرسالة قديمة وما زالت تنتظر الرسم على الدفعات: ارسم الباقي الآن ثم انتقل
                     try {
-                        java.util.ArrayList<DocumentSnapshot> all = new java.util.ArrayList<>(olderQ.values());
+                        java.util.ArrayList<OlderItem> all = new java.util.ArrayList<>(olderQ.values());
                         olderQ.clear(); olderTok++;
                         prependChunk(currentChatId, all);
                     } catch (Throwable ignored) { }

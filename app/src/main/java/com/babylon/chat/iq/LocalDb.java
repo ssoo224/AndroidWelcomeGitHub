@@ -22,16 +22,17 @@ import java.util.concurrent.Executors;
 
 /**
  * قاعدة SQLite المحلية (داخل ذاكرة التطبيق) — تحل محل LocalCache وGhostStore:
- *   messages       الرسائل (آخر 50 لكل محادثة + الرسائل الوهمية ghost=1). الصور/الصوت تُحفظ ملفات في MediaFiles ويُخزَّن مسارها فقط.
+ *   messages       كل رسائل كل محادثة (بلا حد) + الرسائل الوهمية ghost=1. الصور/الصوت تُحفظ ملفات في MediaFiles ويُخزَّن مسارها فقط.
  *   conversations  قائمة المحادثات
  *   contacts       جهات الدردشة (الأسماء المخصصة)
  *   profile        بيانات المستخدم (JSON) ووقت آخر مزامنة
- *   chat_meta      هل خزن المحادثة «كامل» (يحوي كل رسائلها الظاهرة)
+ *   chat_meta      complete: نُزّل كل تاريخ المحادثة مرة واحدة؛ synced_ts: آخر وقت أكّده السيرفر (منه يبدأ الاستماع عند الدخول)
  * الكتابة في خيط خلفي واحد بالترتيب، والقراءة مباشرة.
  */
 final class LocalDb {
 
-    static final int MAX_MSGS = 50;     // آخر 50 رسالة لكل محادثة تُعرض من الجهاز فوراً
+    /** عند الدخول تُعاد مزامنة آخر هذا العدد من الرسائل (تفاعلات/قراءة/حذف رسائل حديثة)، وما قبلها يُقرأ من الجهاز فقط. */
+    static final int RESYNC_WINDOW = 50;
     private static final int MAX_GHOST = 300;
 
     private static final ExecutorService IO = Executors.newSingleThreadExecutor();
@@ -41,7 +42,7 @@ final class LocalDb {
     private LocalDb() { }
 
     private static final class Helper extends SQLiteOpenHelper {
-        Helper(Context c, String name) { super(c, name, null, 1); }
+        Helper(Context c, String name) { super(c, name, null, 2); }
 
         @Override public void onCreate(SQLiteDatabase d) {
             d.execSQL("CREATE TABLE messages(" +
@@ -55,11 +56,27 @@ final class LocalDb {
             d.execSQL("CREATE TABLE conversations(uid TEXT PRIMARY KEY, cid TEXT, name TEXT, last TEXT, unread TEXT, ts INTEGER, pos INTEGER)");
             d.execSQL("CREATE TABLE contacts(uid TEXT PRIMARY KEY, name TEXT NOT NULL)");
             d.execSQL("CREATE TABLE profile(id INTEGER PRIMARY KEY, json TEXT, synced_at INTEGER)");
-            d.execSQL("CREATE TABLE chat_meta(chat_id TEXT PRIMARY KEY, complete INTEGER NOT NULL DEFAULT 0)");
+            d.execSQL(CHAT_META_SQL);
         }
 
-        @Override public void onUpgrade(SQLiteDatabase d, int o, int n) { }
+        @Override public void onUpgrade(SQLiteDatabase d, int o, int n) {
+            if (o < 2) {   // الإصدار 1 كان يحفظ آخر 50 رسالة فقط: يُمسح ليُبنى الخزن الكامل مرة واحدة عند أول دخول لكل محادثة
+                try {
+                    ArrayList<String> files = new ArrayList<>();
+                    try (Cursor c = d.rawQuery("SELECT media_path FROM messages WHERE ghost=0 AND media_path IS NOT NULL", null)) {
+                        while (c.moveToNext()) files.add(c.getString(0));
+                    }
+                    d.delete("messages", "ghost=0", null);
+                    d.execSQL("DROP TABLE IF EXISTS chat_meta");
+                    d.execSQL(CHAT_META_SQL);
+                    for (String p : files) MediaFiles.delete(p);
+                } catch (Throwable ignored) { }
+            }
+        }
     }
+
+    private static final String CHAT_META_SQL =
+            "CREATE TABLE chat_meta(chat_id TEXT PRIMARY KEY, complete INTEGER NOT NULL DEFAULT 0, synced_ts INTEGER NOT NULL DEFAULT 0)";
 
     /** يُستدعى مرة واحدة بعد معرفة uid؛ لكل حساب قاعدة خاصة حتى لا تختلط بيانات الحسابات. */
     static synchronized void init(Context c, String uid) {
@@ -88,7 +105,8 @@ final class LocalDb {
             "id", "type", "text", "data", "duration", "fileUrl", "fileName", "fileSize",
             "sender", "timestamp", "read", "forwarded", "reactions", "mime"));
 
-    private static void insertRow(SQLiteDatabase d, String chatId, JSONObject o, int ghost, String reusePath, String reusePfx) throws Exception {
+    /** يعيد المسار النسبي لملف الوسائط المحفوظ (أو null). */
+    private static String insertRow(SQLiteDatabase d, String chatId, JSONObject o, int ghost, String reusePath, String reusePfx) throws Exception {
         String id = o.optString("id");
         String type = o.optString("type", "text");
         ContentValues cv = new ContentValues();
@@ -115,6 +133,7 @@ final class LocalDb {
             String k = it.next();
             if (!HANDLED.contains(k)) extra.put(k, o.get(k));
         }
+        String savedPath = null;
         if (o.has("data")) {
             String data = o.optString("data", "");
             String path = reusePath, pfx = reusePfx;
@@ -126,11 +145,12 @@ final class LocalDb {
                     pfx = data.startsWith("data:") && data.contains(",") ? data.substring(0, data.indexOf(',') + 1) : "";
                 }
             }
-            if (path != null) { cv.put("media_path", path); cv.put("data_prefix", pfx == null ? "" : pfx); }
+            if (path != null) { cv.put("media_path", path); cv.put("data_prefix", pfx == null ? "" : pfx); savedPath = path; }
             else extra.put("data", data);   // لا يمكن حفظه ملفاً (رابط/نص غير base64): يبقى كما هو
         }
         if (extra.length() > 0) cv.put("extra", extra.toString());
         d.insertWithOnConflict("messages", null, cv, SQLiteDatabase.CONFLICT_REPLACE);
+        return savedPath;
     }
 
     private static final String[] MSG_COLS = {"id", "type", "sender", "text", "ts", "media_path", "data_prefix", "mime", "duration",
@@ -303,29 +323,72 @@ final class LocalDb {
         } catch (Throwable t) { return false; }
     }
 
-    /** الرسائل المحفوظة (تصاعدياً بالوقت) أو null إن لم يُحفظ شيء لهذه المحادثة بعد. */
-    static JSONArray getMessages(String chatId) {
+    /**
+     * -1: خزن المحادثة غير كامل (أول دخول، أو بعد الترقية) فيُجلب كل شيء من السيرفر مرة واحدة.
+     * غير ذلك: الوقت الذي يبدأ منه الاستماع عند الدخول = الأقدم بين «آخر مزامنة أكّدها السيرفر» و«وقت الرسالة رقم 50 من الآخر»،
+     * فيصل كل جديد أثناء الغياب + تعديلات آخر 50 رسالة (تفاعل/قراءة/حذف). 0 = المحادثة قصيرة: اسأل عن كلها.
+     */
+    static long resumeStart(String chatId) {
         SQLiteDatabase d = db;
-        if (d == null || chatId == null) return null;
+        if (d == null || chatId == null) return -1L;
         try {
-            boolean has;
-            try (Cursor c = d.rawQuery("SELECT 1 FROM chat_meta WHERE chat_id=?", new String[]{chatId})) { has = c.moveToFirst(); }
-            if (!has) return null;
-            JSONArray a = new JSONArray();
-            try (Cursor c = d.rawQuery("SELECT " + colsSql() + " FROM messages WHERE chat_id=? AND ghost=0 ORDER BY ts, rowid", new String[]{chatId})) {
-                while (c.moveToNext()) { JSONObject o = rowToJson(c); if (o != null) a.put(o); }
+            long synced;
+            try (Cursor c = d.rawQuery("SELECT complete, synced_ts FROM chat_meta WHERE chat_id=?", new String[]{chatId})) {
+                if (!c.moveToFirst() || c.getInt(0) == 0) return -1L;
+                synced = c.getLong(1);
             }
-            return a;
-        } catch (Throwable t) { return null; }
+            if (synced <= 0) return -1L;
+            try (Cursor c = d.rawQuery("SELECT ts FROM messages WHERE chat_id=? AND ghost=0 ORDER BY ts DESC, id DESC LIMIT 1 OFFSET " + (RESYNC_WINDOW - 1), new String[]{chatId})) {
+                if (!c.moveToFirst()) return 0L;
+                return Math.max(0L, Math.min(synced, c.getLong(0)));
+            }
+        } catch (Throwable t) { return -1L; }
+    }
+
+    /** صفحة رسائل (تصاعدياً بالوقت) + مؤشر الصفحة الأقدم التالية. */
+    static final class Page {
+        final JSONArray msgs = new JSONArray();
+        long curTs;        // وقت أقدم صف قُرئ (للصفحة التالية)
+        String curId;      // معرّفه
+        boolean more;      // هل يوجد أقدم منه؟
     }
 
     /**
-     * يحفظ آخر MAX_MSGS (50) رسالة (المصفوفة مرتبة تصاعدياً بالوقت) ويحدّد هل الخزن كامل.
-     * الصور/الصوتيات تُكتب ملفات في مجلدات الوسائط الداخلية، وما لم يعد مستخدماً منها يُحذف.
+     * الرسائل الأقدم من (beforeTs, beforeId) — أو الأحدث إن كان beforeId=null — بحد limit، مرتبة تصاعدياً.
+     * القراءة على صفحات تمنع تحميل آلاف الصور في الذاكرة دفعة واحدة؛ ملف الوسائط يُقرأ فقط للصفحة المطلوبة.
      */
-    static void putMessages(final String chatId, final JSONArray a, final boolean complete) {
-        if (chatId == null || a == null) return;
-        final int from = Math.max(0, a.length() - MAX_MSGS);
+    static Page messagesBefore(String chatId, long beforeTs, String beforeId, int limit) {
+        SQLiteDatabase d = db;
+        Page pg = new Page();
+        if (d == null || chatId == null) return pg;
+        try {
+            String sql = "SELECT " + colsSql() + " FROM messages WHERE chat_id=? AND ghost=0"
+                    + (beforeId == null ? "" : " AND (ts < ? OR (ts = ? AND id < ?))")
+                    + " ORDER BY ts DESC, id DESC LIMIT " + limit;
+            String[] args = beforeId == null ? new String[]{chatId}
+                    : new String[]{chatId, String.valueOf(beforeTs), String.valueOf(beforeTs), beforeId};
+            ArrayList<JSONObject> rev = new ArrayList<>();
+            int raw = 0;
+            try (Cursor c = d.rawQuery(sql, args)) {
+                while (c.moveToNext()) {
+                    raw++;
+                    pg.curTs = c.getLong(4); pg.curId = c.getString(0);
+                    JSONObject o = rowToJson(c);
+                    if (o != null) rev.add(o);
+                }
+            }
+            for (int i = rev.size() - 1; i >= 0; i--) pg.msgs.put(rev.get(i));
+            pg.more = raw >= limit;
+        } catch (Throwable ignored) { }
+        return pg;
+    }
+
+    /**
+     * أول تنزيل كامل لمحادثة من السيرفر: يحفظ كل الرسائل على دفعات (بلا حد 50) ثم يعلّم الخزن «كاملاً».
+     * syncedTs = أحدث وقت رسالة أكّده السيرفر؛ منه يبدأ الاستماع في المرات القادمة.
+     */
+    static void putAllMessages(final String chatId, final List<JSONObject> all, final long syncedTs) {
+        if (chatId == null || all == null) return;
         run(() -> {
             SQLiteDatabase d = db;
             if (d == null) return;
@@ -335,21 +398,30 @@ final class LocalDb {
                 try (Cursor c = d.rawQuery("SELECT id,media_path,data_prefix FROM messages WHERE chat_id=? AND ghost=0", new String[]{chatId})) {
                     while (c.moveToNext()) old.put(c.getString(0), new String[]{c.isNull(1) ? null : c.getString(1), c.isNull(2) ? "" : c.getString(2)});
                 }
-                HashSet<String> keep = new HashSet<>();
+                HashSet<String> ids = new HashSet<>(), keep = new HashSet<>();
+                final int BATCH = 100;   // معاملات صغيرة: لا تُقفل القاعدة طويلاً أثناء كتابة ملفات الصور
+                for (int i = 0; i < all.size(); i += BATCH) {
+                    d.beginTransaction();
+                    try {
+                        for (int j = i; j < Math.min(all.size(), i + BATCH); j++) {
+                            JSONObject o = all.get(j);
+                            String id = o.optString("id");
+                            if (id.isEmpty()) continue;
+                            String[] r = old.get(id);
+                            String path = insertRow(d, chatId, o, 0, r == null ? null : r[0], r == null ? null : r[1]);
+                            ids.add(id);
+                            if (path != null) keep.add(path);
+                        }
+                        d.setTransactionSuccessful();
+                    } finally { d.endTransaction(); }
+                }
                 d.beginTransaction();
                 try {
-                    d.delete("messages", "chat_id=? AND ghost=0", new String[]{chatId});
-                    for (int i = from; i < a.length(); i++) {
-                        JSONObject o = a.optJSONObject(i);
-                        if (o == null || o.optString("id").isEmpty()) continue;
-                        String[] r = old.get(o.optString("id"));
-                        insertRow(d, chatId, o, 0, r == null ? null : r[0], r == null ? null : r[1]);
-                        try (Cursor c = d.rawQuery("SELECT media_path FROM messages WHERE chat_id=? AND id=?", new String[]{chatId, o.optString("id")})) {
-                            if (c.moveToFirst() && !c.isNull(0)) keep.add(c.getString(0));
-                        }
+                    for (String oid : old.keySet()) {   // ما لم يعد في السيرفر
+                        if (!ids.contains(oid)) d.delete("messages", "chat_id=? AND id=? AND ghost=0", new String[]{chatId, oid});
                     }
                     ContentValues cv = new ContentValues();
-                    cv.put("chat_id", chatId); cv.put("complete", complete ? 1 : 0);
+                    cv.put("chat_id", chatId); cv.put("complete", 1); cv.put("synced_ts", Math.max(0L, syncedTs));
                     d.insertWithOnConflict("chat_meta", null, cv, SQLiteDatabase.CONFLICT_REPLACE);
                     d.setTransactionSuccessful();
                 } finally { d.endTransaction(); }
@@ -359,30 +431,63 @@ final class LocalDb {
         });
     }
 
-    /** نتيجة الدمج: هل بقي الخزن «كاملاً» (يحوي كل رسائل المحادثة الظاهرة). */
+    /**
+     * تغييرات لقطة السيرفر بعد التنزيل الكامل: يضيف/يحدّث الرسائل (ويحتفظ بملف الوسائط الموجود)، ويحذف المحذوفة،
+     * ويرفع synced_ts (إن كان > 0 أي اللقطة من السيرفر لا من كاش Firestore). لا يفعل شيئاً إن لم يكن الخزن كاملاً.
+     */
+    static void upsertMessages(final String chatId, final List<JSONObject> add, final List<String> removed, final long syncedTs) {
+        if (chatId == null) return;
+        run(() -> {
+            SQLiteDatabase d = db;
+            if (d == null) return;
+            ArrayList<String> stale = new ArrayList<>();
+            try {
+                if (!isComplete(chatId)) return;
+                d.beginTransaction();
+                try {
+                    if (add != null) for (JSONObject o : add) {
+                        String id = o.optString("id");
+                        if (id.isEmpty()) continue;
+                        String rp = null, rf = null;
+                        if (o.has("data")) {
+                            try (Cursor c = d.rawQuery("SELECT media_path,data_prefix FROM messages WHERE chat_id=? AND id=? AND ghost=0", new String[]{chatId, id})) {
+                                if (c.moveToFirst() && !c.isNull(0)) { rp = c.getString(0); rf = c.isNull(1) ? "" : c.getString(1); }
+                            }
+                        }
+                        insertRow(d, chatId, o, 0, rp, rf);
+                    }
+                    if (removed != null) for (String id : removed) {
+                        try (Cursor c = d.rawQuery("SELECT media_path FROM messages WHERE chat_id=? AND id=? AND ghost=0", new String[]{chatId, id})) {
+                            if (c.moveToFirst() && !c.isNull(0)) stale.add(c.getString(0));
+                        }
+                        d.delete("messages", "chat_id=? AND id=? AND ghost=0", new String[]{chatId, id});
+                    }
+                    if (syncedTs > 0) d.execSQL("UPDATE chat_meta SET synced_ts=? WHERE chat_id=? AND synced_ts<?", new Object[]{syncedTs, chatId, syncedTs});
+                    d.setTransactionSuccessful();
+                } finally { d.endTransaction(); }
+            } catch (Throwable ignored) { }
+            deleteMediaFiles(stale);
+        });
+    }
+
+    /** نتيجة الدمج (للتوافق). */
     interface MergeDone { void done(boolean stillComplete); }
 
     /**
-     * يضيف رسائل نصية واردة (وصلت والمحادثة مغلقة) إلى خزن محادثة موجود، بالترتيب ومن غير تكرار.
-     * otherIds: معرّفات رسائل غير نصية وردت أيضاً: إن لم تكن في الخزن أصلاً يصير الخزن «ناقصاً».
-     * إن تجاوز العدد MAX_MSGS يُقصّ الأقدم ويصير الخزن «ناقصاً» (لا يُعرض من الجهاز حتى تُفتح المحادثة وتُحفظ من جديد).
+     * يضيف رسائل واردة (وصلت والمحادثة مغلقة) إلى خزن محادثة كامل، بالترتيب ومن غير تكرار — بلا قصّ للأقدم.
+     * لا يرفع synced_ts عمداً: عند فتح المحادثة يستمع Firestore لكل ما بعده فيلتقط ما لم يُحفظ هنا (رسائلي من جهاز آخر، ملفات...).
      */
     static void mergeIncoming(final String chatId, final List<JSONObject> add, final List<String> otherIds, final MergeDone cb) {
         if (chatId == null) return;
         run(() -> {
             SQLiteDatabase d = db;
-            boolean complete = true;
-            ArrayList<String> stale = new ArrayList<>();
+            boolean ok = true;
             try {
-                if (d == null) { if (cb != null) cb.done(false); return; }
-                boolean has;
-                try (Cursor c = d.rawQuery("SELECT 1 FROM chat_meta WHERE chat_id=?", new String[]{chatId})) { has = c.moveToFirst(); }
-                if (!has) { if (cb != null) cb.done(false); return; }
+                if (d == null || !isComplete(chatId)) { if (cb != null) cb.done(false); return; }
                 HashSet<String> ids = new HashSet<>();
                 try (Cursor c = d.rawQuery("SELECT id FROM messages WHERE chat_id=? AND ghost=0", new String[]{chatId})) {
                     while (c.moveToNext()) ids.add(c.getString(0));
                 }
-                if (otherIds != null) for (String id : otherIds) if (!ids.contains(id)) complete = false;
                 d.beginTransaction();
                 try {
                     if (add != null) for (JSONObject o : add) {
@@ -391,27 +496,10 @@ final class LocalDb {
                         insertRow(d, chatId, o, 0, null, null);
                         ids.add(id);
                     }
-                    int total = 0;
-                    try (Cursor c = d.rawQuery("SELECT COUNT(*) FROM messages WHERE chat_id=? AND ghost=0", new String[]{chatId})) { if (c.moveToFirst()) total = c.getInt(0); }
-                    if (total > MAX_MSGS) {   // يُقصّ الأقدم فقط: يبقى الخزن «آخر MAX_MSGS رسالة» صالحاً للعرض الفوري
-                        try (Cursor c = d.rawQuery("SELECT id,media_path FROM messages WHERE chat_id=? AND ghost=0 ORDER BY ts, rowid LIMIT " + (total - MAX_MSGS),
-                                new String[]{chatId})) {
-                            while (c.moveToNext()) {
-                                d.delete("messages", "chat_id=? AND id=?", new String[]{chatId, c.getString(0)});
-                                if (!c.isNull(1)) stale.add(c.getString(1));
-                            }
-                        }
-                    }
-                    if (!complete) {
-                        ContentValues cv = new ContentValues();
-                        cv.put("chat_id", chatId); cv.put("complete", 0);
-                        d.insertWithOnConflict("chat_meta", null, cv, SQLiteDatabase.CONFLICT_REPLACE);
-                    }
                     d.setTransactionSuccessful();
                 } finally { d.endTransaction(); }
-            } catch (Throwable t) { complete = false; }
-            deleteMediaFiles(stale);
-            if (cb != null) cb.done(complete);
+            } catch (Throwable t) { ok = false; }
+            if (cb != null) cb.done(ok);
         });
     }
 
