@@ -157,7 +157,7 @@ public final class BabylonFx {
         v.setScaleX(0.94f);
         v.setScaleY(0.94f);
         v.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f)
-                .setDuration(50).setInterpolator(easeOut())   // ظهور الرسالة بأقصى سرعة (كان 160)
+                .setDuration(20).setInterpolator(easeOut())   // ظهور الرسالة 20ms
                 .withEndAction(() -> reset(v)).start();
     }
 
@@ -165,10 +165,10 @@ public final class BabylonFx {
     private static final boolean FOLD_HINGE_RIGHT = true;
     /** زاوية بداية الطي (درجة) ومدته (ms). إشارتها تحدّد اتجاه الدوران؛ اعكسها إن ظهر الدوران معكوساً. */
     private static final float FOLD_START_DEG = 78f;
-    private static final long FOLD_MS = 70;   // مدة حركة دخول المحادثة (أسرع ما يمكن مع بقاء الحركة ظاهرة)
+    private static final long FOLD_MS = 20;   // مدة حركة دخول المحادثة (أسرع ما يمكن مع بقاء الحركة ظاهرة)
     private static final long MSG_WAIT_MS = 0;   // الرسائل لا تنتظر الحركة: تُرسم فوراً أثناءها
-    private static final long LEAVE_MS = 70;   // تلاشي الخروج سريع جداً
-    private static final long POP_MS = 90;     // انبثاق الدخول سريع جداً
+    private static final long LEAVE_MS = 20;   // تلاشي الخروج سريع جداً
+    private static final long POP_MS = 20;     // انبثاق الدخول سريع جداً
     /** وقت (uptime) انتهاء حركة الطيّ؛ تنتظره المحادثة قبل رسم الرسائل كي لا تتداخل معها ولا تُقطّعها. */
     private static volatile long foldEndUptime = 0L;
 
@@ -204,11 +204,11 @@ public final class BabylonFx {
                 .withEndAction(() -> reset(chat)).start();
     }
 
-    private static final long LEAVE_MSGS_MS = 60;     // 1) تلاشي الرسائل أولاً
-    private static final long LEAVE_REST_DELAY = 40;   // 2) ثم الهيدر وشريط الكتابة (يبدآن قبل انتهاء الرسائل بقليل)
-    private static final long LEAVE_REST_MS = 80;
-    private static final long LEAVE_BG_DELAY = 60;     // 3) ثم خلفية المحادثة نفسها فتنكشف الصفحة الرئيسية شفافة من خلفها
-    private static final long LEAVE_BG_MS = 80;
+    private static final long LEAVE_MSGS_MS = 20;     // 1) تلاشي الرسائل أولاً
+    private static final long LEAVE_REST_DELAY = 0;   // 2) ثم الهيدر وشريط الكتابة (يبدآن قبل انتهاء الرسائل بقليل)
+    private static final long LEAVE_REST_MS = 20;
+    private static final long LEAVE_BG_DELAY = 0;     // 3) ثم خلفية المحادثة نفسها فتنكشف الصفحة الرئيسية شفافة من خلفها
+    private static final long LEAVE_BG_MS = 20;
 
     /**
      * الخروج من غرفة المحادثة بتلاشٍ شفاف سريع جداً (~140ms) على مراحل متداخلة:
@@ -222,6 +222,12 @@ public final class BabylonFx {
             return;
         }
         reset(chat);
+        if (page != null) {   // أنيميشن ظهور الصفحة الرئيسية خلف تلاشي المحادثة: صعود + تكبير خفيف خلال 20ms
+            page.setTranslationY(dp(page, 10));
+            page.setScaleX(0.985f); page.setScaleY(0.985f);
+            page.animate().translationY(0f).scaleX(1f).scaleY(1f).setDuration(20)
+                    .setInterpolator(easeOut()).withEndAction(() -> reset(page)).start();
+        }
         final java.util.ArrayList<View> rest = new java.util.ArrayList<>();
         final View msgs = chat.findViewById(R.id.messagesArea);
         if (chat instanceof ViewGroup) {

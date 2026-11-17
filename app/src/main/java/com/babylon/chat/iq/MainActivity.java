@@ -146,7 +146,7 @@ public class MainActivity extends Activity {
             if (isFinishing()) return;
             if (loggedIn) {
                 startActivity(new Intent(this, MassActivity.class));
-                overridePendingTransition(0, 0);   // بلا أنيميشن دخول لصفحة المحادثات
+                overridePendingTransition(R.anim.chat_fade_in, R.anim.splash_hold);   // صفحة المحادثات تتلاشى شفافةً فوق السبلاش الثابت
                 finish();
                 return;
             }

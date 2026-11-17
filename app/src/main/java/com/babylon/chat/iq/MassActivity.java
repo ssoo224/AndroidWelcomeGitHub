@@ -1347,7 +1347,7 @@ public class MassActivity extends Activity {
                 // حتى لا تصعد تحت شريط الحالة ولا تنزل تحت أزرار التنقل أثناء الحركة.
                 View mp = v("mainPage");
                 if (mp != null) {
-                    if (chat) mp.setPadding(0, isProfilePage(curPage) ? 0 : sbTop, 0, padBottom);
+                    if (chat) mp.setPadding(0, isProfilePage(curPage) ? 0 : sbTop, 0, (bnav != null && bnav.getVisibility() == View.VISIBLE) ? 0 : padBottom);   // نفس حشوة الصفحة الرئيسية: لا إزاحة خلف المحادثة
                     else mp.setPadding(0, 0, 0, 0);
                 }
                 if (chat) applyChatInsets();
@@ -1390,7 +1390,7 @@ public class MassActivity extends Activity {
                 try {
                     View bn = v("bottomNav");
                     if (!(bn instanceof LinearLayout)) return;
-                    boolean on = !chatOpen() && bn.getVisibility() == View.VISIBLE;
+                    boolean on = bn.getVisibility() == View.VISIBLE;   // يبقى ثابتاً أثناء فتح المحادثة: تغيّر الهندسة كان يُظهر شريطاً زجاجياً منزاحاً خلف الكبسولة
                     int extra = on ? navBottom : 0;
                     int h = dp(66) + extra;   // 7 أعلى + 54 الصف + 5 أسفل + شريط الإيماءات
                     boolean changed = NavBarBg.EXTRA_BOTTOM != extra;
@@ -4220,7 +4220,7 @@ public class MassActivity extends Activity {
                 // تحميل الرسائل بعد أول إطار: النقر يفتح المحادثة وتبدأ الحركة فوراً دون انتظار قراءة الخزن ورسم الفقاعات
                 // بعد رسم أول إطار فعلاً (Choreographer) لا مجرد post: كان قراءة الخزن ورسم 50 فقاعة يحجبان الخيط الرئيسي فتبقى القائمة معلّقة قبل الدخول
                 final int gen = ++openGen;
-                android.view.Choreographer.getInstance().postFrameCallback(ft -> uiH.post(() -> { if (gen == openGen && openCid.equals(currentChatId)) loadMessages(openCid); }));
+                uiH.post(() -> { if (gen == openGen && openCid.equals(currentChatId)) loadMessages(openCid); });   // فوراً: القراءة المحلية في خيط خلفي أصلاً
                 restoreRecording(currentChatId);   // تعود الصوتية المسجّلة إن وُجدت
                 listenPins(currentChatId);
                 vis("chatView", true);
@@ -4478,7 +4478,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
             // ================= رسم المحادثات الكبيرة على دفعات =================
             // رسم مئات الفقاعات دفعة واحدة كان يحجب الخيط الرئيسي (تأخّر الدخول). الآن: آخر FIRST_RENDER رسالة تظهر فوراً،
             // والأقدم تُضاف فوقها على دفعات صغيرة (دفعة لكل إطار) مع تعويض موضع التمرير فلا يتحرك شيء أمام عينيك.
-            static final int FIRST_RENDER = 40, OLDER_CHUNK = 8;
+            static final int FIRST_RENDER = 25, OLDER_CHUNK = 8;
             final java.util.LinkedHashMap<String, OlderItem> olderQ = new java.util.LinkedHashMap<>();   // الرسائل الأقدم المنتظرة (تصاعدياً بالوقت)
             int olderTok = 0;   // يلغي أي دفعات معلّقة لمحادثة سابقة
 
