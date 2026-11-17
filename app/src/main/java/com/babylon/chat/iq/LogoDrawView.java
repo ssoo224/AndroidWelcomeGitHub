@@ -30,6 +30,9 @@ public class LogoDrawView extends View {
     private final Path full = new Path();
     private final List<Path> contours = new ArrayList<>();
     private final List<Float> lengths = new ArrayList<>();
+    private final List<Integer> order = new ArrayList<>();   // ترتيب الرسم: الجذع (اليسار) أولاً ثم الانحناءات
+    private float totalLen = 0f;
+    private final PathMeasure measure = new PathMeasure();
     private final Path seg = new Path();
     private final Paint stroke = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -83,6 +86,17 @@ public class LogoDrawView extends View {
         if (cmd != 0) flush(cur, cmd, nums, s, ox, oy);
         full.setFillType(Path.FillType.EVEN_ODD);
         for (Path p : contours) lengths.add(new PathMeasure(p, true).getLength());
+        // ترتيب الكتابة كحرف B: الجذع الأيسر أولاً ثم الانحناءات من الأعلى للأسفل (الأقرب لليسار يُرسم أولاً)
+        order.clear();
+        totalLen = 0f;
+        final RectF[] bounds = new RectF[contours.size()];
+        for (int i = 0; i < contours.size(); i++) {
+            bounds[i] = new RectF();
+            contours.get(i).computeBounds(bounds[i], true);
+            order.add(i);
+            totalLen += lengths.get(i);
+        }
+        java.util.Collections.sort(order, (a, b) -> Float.compare(bounds[a].left, bounds[b].left));
         stroke.setStrokeWidth(1.5f * density);
         built = true;
         invalidate();
@@ -125,12 +139,21 @@ public class LogoDrawView extends View {
         if (drawP > 0f) {
             stroke.setColor((Integer) argb.evaluate(fillP, outlineColor, Color.WHITE));
             stroke.setAlpha((int) (255 * (1f - fillP * 0.85f)));
-            for (int i = 0; i < contours.size(); i++) {
-                float len = lengths.get(i);
-                if (drawP >= 0.999f) { c.drawPath(contours.get(i), stroke); continue; }
-                seg.reset();
-                new PathMeasure(contours.get(i), true).getSegment(0f, len * drawP, seg, true);
-                c.drawPath(seg, stroke);
+            if (drawP >= 0.999f) {
+                for (int i = 0; i < contours.size(); i++) c.drawPath(contours.get(i), stroke);
+            } else {
+                // قلم واحد متصل: يكمل الجذع ثم ينتقل للانحناءات (بدل رسم القطعتين معاً فيبدو الشكل «13»)
+                float remaining = totalLen * drawP;
+                for (int k = 0; k < order.size() && remaining > 0f; k++) {
+                    int i = order.get(k);
+                    float len = lengths.get(i);
+                    float take = Math.min(len, remaining);
+                    seg.reset();
+                    measure.setPath(contours.get(i), true);
+                    measure.getSegment(0f, take, seg, true);
+                    c.drawPath(seg, stroke);
+                    remaining -= take;
+                }
             }
         }
 

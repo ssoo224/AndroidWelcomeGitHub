@@ -1572,12 +1572,12 @@ public class MassActivity extends Activity {
                 final int topOld = (isProfilePage(curPage) ? 0 : sbTop) + (hdrOld ? dp(62) : 0);
                 prevPage = curPage; curPage = p;
                 if (stories != null && !p.equals("homeView")) stories.collapseNow();   // الانتقال لصفحة/قسم آخر يطوي القصص
-                applyInsets();
                 if (heroMe != null && !p.equals("profileView")) heroMe.reset();
                 if (heroOther != null && !p.equals("otherUserProfileView")) heroOther.reset();
                 int fi = tabIndex(from), ti = tabIndex(p);
                 final boolean slide = fi >= 0 && ti >= 0 && fi != ti && v(from) != null && v(p) != null
                         && v(from).getVisibility() == View.VISIBLE;
+                if (!slide) applyInsets();   // في انتقال التبويبات تُؤجَّل تغييرات الهيدر/شريط الحالة إلى ما بعد تلاشي الصفحة الخارجة (لئلا ينكشف الحقل الأبيض مبكراً)
                 for (String page : pages) {
                     if (slide && (page.equals(from) || page.equals(p))) continue;
                     vis(page, page.equals(p));
@@ -1585,8 +1585,7 @@ public class MassActivity extends Activity {
                 boolean home = p.equals("homeView");
                 boolean hdrWas = v("mainHeader") != null && v("mainHeader").getVisibility() == View.VISIBLE;
                 if (chatSelMode && !home) exitChatSel(false);
-                vis("mainHeader", home && !chatSelMode);
-                vis("newGroupFab", home);
+                if (!slide) { vis("mainHeader", home && !chatSelMode); vis("newGroupFab", home); }
                 vis("bottomNav", home || p.equals("settingsView") || p.equals("profileView"));
                 setNav(p);
                 hideKb();
@@ -1604,7 +1603,7 @@ public class MassActivity extends Activity {
                     final View fab = toChats ? v("newGroupFab") : null;
                     fv.animate().cancel();
                     fv.setAlpha(1f);
-                    fv.setTranslationY(-(topNew - topOld));   // يعوّض تغيّر الهيدر/شريط الحالة فتبقى الصفحة الخارجة في مكانها أثناء تلاشيها
+                    fv.setTranslationY(0f);   // التخطيط لا يتغيّر أثناء التلاشي، فتبقى الصفحة الخارجة في مكانها بلا حاجة لتعويض
                     // الصفحة الجديدة والهيدر والزر يبقون مخفيّين (شفافية 0) طوال تلاشي الصفحة الخارجة، ولا يبدأ أي منهم إلا بعد انتهائه
                     to.animate().cancel();
                     to.setVisibility(View.VISIBLE);
@@ -1621,7 +1620,10 @@ public class MassActivity extends Activity {
                                 if (fv.getVisibility() == View.VISIBLE) {
                                     fv.setVisibility(View.GONE); fv.setAlpha(1f); fv.setTranslationY(0f);
                                 }
-                                // 2) الآن فقط (بعد اختفاء الصفحة الخارجة تماماً) يظهر الهيدر مع الصفحة الجديدة وزر المجموعة
+                                // 2) الآن فقط (بعد اختفاء الصفحة الخارجة تماماً) يُطبَّق تغيّر الهيدر/شريط الحالة (ظهور الحقل الأبيض) ثم تدخل الصفحة الجديدة
+                                vis("mainHeader", toChats); vis("newGroupFab", home);
+                                syncBars(); vpPlace();
+                                for (View h2 : new View[]{hdr, fab}) { if (h2 != null && h2.getVisibility() == View.VISIBLE) { h2.animate().cancel(); h2.setAlpha(0f); } }
                                 final View[] grp = toChats ? new View[]{to, hdr, fab} : new View[]{to};
                                 for (View g : grp) {
                                     if (g == null || g.getVisibility() != View.VISIBLE) continue;
@@ -1637,8 +1639,8 @@ public class MassActivity extends Activity {
                     BabylonFx.stagger(to);
                 }
                 if (home && !hdrWas && !homeAnimOn) BabylonFx.barDown(v("mainHeader"), 0);
-                syncBars();
-                vpPlace();   // الشريط العائم يتبع الصفحة (أسفل فوق أزرار التنقل، أو أعلى الصفحة حيث لا أزرار)
+                if (!slide) { syncBars(); vpPlace(); }   // في انتقال التبويبات يتم هذا بعد التلاشي (في withEndAction)
+                // الشريط العائم يتبع الصفحة (أسفل فوق أزرار التنقل، أو أعلى الصفحة حيث لا أزرار)
                 // شبكة أمان: مهما حصل للأنيميشن (إلغاء/سباق/إطار ضائع) تُثبَّت الصفحة الهدف وحدها بعد انتهاء المدة
                 final String settleTarget = p;
                 act.getWindow().getDecorView().postDelayed(() -> settleTabs(settleTarget), 450);
@@ -1669,6 +1671,10 @@ public class MassActivity extends Activity {
                         if (hd.getTranslationY() != 0f) hd.setTranslationY(0f);
                     }
                     setNav(target);
+                    boolean wantHdr = home && !chatSelMode;
+                    if (hd != null && (hd.getVisibility() == View.VISIBLE) != wantHdr) vis("mainHeader", wantHdr);   // شبكة أمان للتغيير المؤجَّل
+                    vis("newGroupFab", home);
+                    syncBars();
                 } catch (Throwable ignored) { }
             }
 

@@ -33,13 +33,12 @@ public class MainActivity extends Activity {
     private static final float T_LOGO_A = 650f,    T_LOGO_B = 1550f;     // ثم رسم محيط الشعار
     private static final float T_COLOR_A = 1550f,  T_COLOR_B = 1950f;    // تلوين القرص والشعار
     private static final float T_SETTLE_A = 1950f, T_SETTLE_B = 2650f;   // رجوع للحجم الطبيعي + ارتفاع + ظهور العنوان
-    private static final float EXTRA_DP = 20f;   // التخطيط أكبر من الحجم الطبيعي بـ20dp (قطر القرص 108dp ← 128dp)
-    private static final float DISC_DP = 108f;
+    private static final float DISC_DP = 128f;    // قطر القرص النهائي بعد الاكتمال
+    private static final float DRAW_DP = 150f;    // قطر القرص أثناء التخطيط (الرسم) ثم يعود إلى 128dp
 
     private MainBinding binding;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final List<Animator> animators = new ArrayList<>();
-    private ValueAnimator shine;
     private ValueAnimator logoAnim;
     private float startTy;   // إزاحة الشعار نحو مركز الشاشة قبل ارتفاعه (العنوان لم يظهر بعد)
     private final android.view.animation.PathInterpolator ease = new android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f);
@@ -140,12 +139,10 @@ public class MainActivity extends Activity {
     private void settleThen(final Runnable next) {
         for (Animator a : animators) a.cancel();
         animators.clear();
-        if (shine != null) shine.cancel();
         if (logoAnim != null) { logoAnim.cancel(); logoAnim = null; }
         applyLogo(T_SETTLE_B);   // الشعار والعنوان بحالتهما النهائية (حجم طبيعي) قبل الانتقال لشاشة الدخول
         android.view.animation.DecelerateInterpolator di = new android.view.animation.DecelerateInterpolator();
         binding.logoGlow.animate().alpha(0f).setDuration(200).setInterpolator(di).start();
-        binding.logoRing.animate().alpha(0f).setDuration(200).setInterpolator(di).start();
         handler.postDelayed(next, 215);
     }
 
@@ -214,20 +211,19 @@ public class MainActivity extends Activity {
         binding.logoImg.setDrawProgress(logo);
         binding.logoImg.setFillProgress(color);
 
-        float big = (DISC_DP + EXTRA_DP) / DISC_DP;          // أكبر من الطبيعي بـ20dp
+        float big = DRAW_DP / DISC_DP;                       // 150dp أثناء الرسم ← 128dp عند الاكتمال
         float sc = 1f + (big - 1f) * (1f - settle);
         binding.logoFrame.setScaleX(sc);
         binding.logoFrame.setScaleY(sc);
         binding.logoFrame.setTranslationY(startTy * (1f - settle));   // يرتفع قليلاً ليفسح مكان العنوان
 
-        binding.logoRing.setAlpha(settle);
         binding.logoGlow.setAlpha(0.3f * settle);
         binding.title.setAlpha(settle);
         binding.title.setTranslationY(12f * d * (1f - settle));
     }
 
     private void startAnimations() {
-        // الشعار يبدأ أكبر بـ20dp في مركز الشاشة: تُرسم الدائرة الذهبية ثم الشعار، ثم يتلوّنان ويعودان لحجمهما ويرتفعان فيظهر العنوان
+        // الشعار يبدأ بقطر 150dp في مركز الشاشة: تُرسم الدائرة الذهبية ثم الشعار، ثم يتلوّنان ويعودان إلى 128dp ويرتفعان فيظهر العنوان
         final View root = binding.getRoot();
         root.getViewTreeObserver().addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
             @Override
@@ -254,26 +250,14 @@ public class MainActivity extends Activity {
             }
         });
 
-        // لمعان متحرك على عنوان "Babylon Chat" (نفس شاشة الدخول)
+        // تدرّج ذهبي ثابت (غير متحرك) على عنوان "Babylon Chat" بنفس تدرّج القرص الذهبي (bg_logo: زاوية 315°)
         binding.title.post(() -> {
             float w = binding.title.getPaint().measureText(binding.title.getText().toString());
+            float h = binding.title.getHeight();
             if (w <= 0) return;
-            final float tile = w * 2f;
-            int[] colors = {0xFF8F6C10, 0xFFC39A2A, 0xFFFFE58A, 0xFFC39A2A, 0xFF8F6C10, 0xFF8F6C10};
-            float[] pos = {0f, 0.2f, 0.4f, 0.6f, 0.8f, 1f};
-            final LinearGradient grad = new LinearGradient(0, 0, tile, 0, colors, pos, Shader.TileMode.REPEAT);
-            binding.title.getPaint().setShader(grad);
-            final Matrix m = new Matrix();
-            shine = ValueAnimator.ofFloat(0f, tile);
-            shine.setDuration(15000);
-            shine.setInterpolator(new LinearInterpolator());
-            shine.setRepeatCount(ValueAnimator.INFINITE);
-            shine.addUpdateListener(a -> {
-                m.setTranslate((float) a.getAnimatedValue(), 0f);
-                grad.setLocalMatrix(m);
-                binding.title.invalidate();
-            });
-            shine.start();
+            binding.title.getPaint().setShader(new LinearGradient(0, 0, w, h,
+                    new int[]{0xFFECD176, 0xFFD0A533, 0xFFB4871D}, null, Shader.TileMode.CLAMP));
+            binding.title.invalidate();
         });
     }
 
@@ -293,7 +277,6 @@ public class MainActivity extends Activity {
         super.onDestroy();
         handler.removeCallbacksAndMessages(null);
         for (Animator a : animators) a.cancel();
-        if (shine != null) shine.cancel();
         if (logoAnim != null) logoAnim.cancel();
         if (binding != null && binding.getRoot().getBackground() instanceof AuthBg) ((AuthBg) binding.getRoot().getBackground()).stopIntro();
     }
