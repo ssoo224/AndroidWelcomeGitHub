@@ -26,12 +26,23 @@ import java.util.List;
 /** شاشة البداية (Splash): تحدد هل المستخدم مسجّل دخوله أم لا ثم تنتقل للشاشة المناسبة. */
 public class MainActivity extends Activity {
 
-    private static final long SPLASH_MS = 2400;   // رسم الشعار (1.6ث) ثم نبضة قصيرة قبل الدخول
+    private static final long SPLASH_MS = 3000;   // الرسم والتلوين والاستقرار (2.65ث) ثم وقفة قصيرة قبل الدخول
+
+    // ===== توقيت حركة الشعار (ms) =====
+    private static final float T_CIRCLE_A = 0f,    T_CIRCLE_B = 800f;    // رسم محيط الدائرة الذهبية أولاً
+    private static final float T_LOGO_A = 650f,    T_LOGO_B = 1550f;     // ثم رسم محيط الشعار
+    private static final float T_COLOR_A = 1550f,  T_COLOR_B = 1950f;    // تلوين القرص والشعار
+    private static final float T_SETTLE_A = 1950f, T_SETTLE_B = 2650f;   // رجوع للحجم الطبيعي + ارتفاع + ظهور العنوان
+    private static final float EXTRA_DP = 20f;   // التخطيط أكبر من الحجم الطبيعي بـ20dp (قطر القرص 108dp ← 128dp)
+    private static final float DISC_DP = 108f;
 
     private MainBinding binding;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final List<Animator> animators = new ArrayList<>();
     private ValueAnimator shine;
+    private ValueAnimator logoAnim;
+    private float startTy;   // إزاحة الشعار نحو مركز الشاشة قبل ارتفاعه (العنوان لم يظهر بعد)
+    private final android.view.animation.PathInterpolator ease = new android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f);
     private boolean navigated = false;
 
     @Override
@@ -130,12 +141,11 @@ public class MainActivity extends Activity {
         for (Animator a : animators) a.cancel();
         animators.clear();
         if (shine != null) shine.cancel();
-        binding.logoImg.finishNow();   // الشعار كاملاً قبل الانتقال لشاشة الدخول
+        if (logoAnim != null) { logoAnim.cancel(); logoAnim = null; }
+        applyLogo(T_SETTLE_B);   // الشعار والعنوان بحالتهما النهائية (حجم طبيعي) قبل الانتقال لشاشة الدخول
         android.view.animation.DecelerateInterpolator di = new android.view.animation.DecelerateInterpolator();
-        binding.logoCircle.animate().scaleX(1f).scaleY(1f).setDuration(200).setInterpolator(di).start();
         binding.logoGlow.animate().alpha(0f).setDuration(200).setInterpolator(di).start();
         binding.logoRing.animate().alpha(0f).setDuration(200).setInterpolator(di).start();
-        binding.linear22.animate().alpha(0f).setDuration(200).setInterpolator(di).start();
         handler.postDelayed(next, 215);
     }
 
@@ -189,22 +199,60 @@ public class MainActivity extends Activity {
         AuthTheme.systemBars(w, AuthTheme.isDark(this));
     }
 
+    private static float seg(float t, float a, float b) { float v = (t - a) / (b - a); return v < 0f ? 0f : (v > 1f ? 1f : v); }
+
+    /** يضبط كل عناصر الشعار عند الزمن t (ms) من الحركة. */
+    private void applyLogo(float t) {
+        final float d = getResources().getDisplayMetrics().density;
+        float circle = ease.getInterpolation(seg(t, T_CIRCLE_A, T_CIRCLE_B));
+        float logo = ease.getInterpolation(seg(t, T_LOGO_A, T_LOGO_B));
+        float color = ease.getInterpolation(seg(t, T_COLOR_A, T_COLOR_B));
+        float settle = ease.getInterpolation(seg(t, T_SETTLE_A, T_SETTLE_B));
+
+        binding.logoDisc.setDraw(circle);
+        binding.logoDisc.setFill(color);
+        binding.logoImg.setDrawProgress(logo);
+        binding.logoImg.setFillProgress(color);
+
+        float big = (DISC_DP + EXTRA_DP) / DISC_DP;          // أكبر من الطبيعي بـ20dp
+        float sc = 1f + (big - 1f) * (1f - settle);
+        binding.logoFrame.setScaleX(sc);
+        binding.logoFrame.setScaleY(sc);
+        binding.logoFrame.setTranslationY(startTy * (1f - settle));   // يرتفع قليلاً ليفسح مكان العنوان
+
+        binding.logoRing.setAlpha(settle);
+        binding.logoGlow.setAlpha(0.3f * settle);
+        binding.title.setAlpha(settle);
+        binding.title.setTranslationY(12f * d * (1f - settle));
+    }
+
     private void startAnimations() {
-        // دخول هادئ للدائرة والتوهج، ثم رسم الشعار خطياً (Line Drawing)، وبعد اكتماله يبدأ النبض
-        binding.logoCircle.setAlpha(0f);
-        binding.logoCircle.animate().alpha(1f).setDuration(350).start();
-        binding.logoGlow.setAlpha(0f);
-        binding.logoRing.setAlpha(0f);
-        binding.logoRing.animate().alpha(1f).setDuration(600).setStartDelay(150).start();
-        binding.logoImg.play(1600, () -> {
-            if (isFinishing() || navigated) return;
-            play(binding.logoCircle, R.drawable.splash_breath);
-            binding.logoGlow.setAlpha(0.3f);
-            play(binding.logoGlow, R.drawable.glow_pulse);
+        // الشعار يبدأ أكبر بـ20dp في مركز الشاشة: تُرسم الدائرة الذهبية ثم الشعار، ثم يتلوّنان ويعودان لحجمهما ويرتفعان فيظهر العنوان
+        final View root = binding.getRoot();
+        root.getViewTreeObserver().addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
+            @Override
+            public boolean onPreDraw() {
+                root.getViewTreeObserver().removeOnPreDrawListener(this);
+                final float d = getResources().getDisplayMetrics().density;
+                startTy = (binding.title.getHeight() - 6f * d) / 2f;   // نصف (ارتفاع العنوان + هامشه السالب) لوضع الشعار في مركز الشاشة
+                applyLogo(0f);   // الحالة الأولى قبل أول إطار (بلا وميض)
+                logoAnim = ValueAnimator.ofFloat(0f, T_SETTLE_B);
+                logoAnim.setDuration((long) T_SETTLE_B);
+                logoAnim.setInterpolator(new LinearInterpolator());
+                logoAnim.addUpdateListener(a -> applyLogo((float) a.getAnimatedValue()));
+                logoAnim.addListener(new android.animation.AnimatorListenerAdapter() {
+                    boolean cancelled;
+                    @Override public void onAnimationCancel(Animator a) { cancelled = true; }
+                    @Override public void onAnimationEnd(Animator a) {
+                        if (cancelled || isFinishing() || navigated) return;
+                        binding.logoGlow.setAlpha(0.3f);
+                        play(binding.logoGlow, R.drawable.glow_pulse);   // توهج هادئ بعد الاستقرار
+                    }
+                });
+                logoAnim.start();
+                return true;
+            }
         });
-        play(binding.dot1, R.drawable.dot_pulse_1);
-        play(binding.dot2, R.drawable.dot_pulse_2);
-        play(binding.dot3, R.drawable.dot_pulse_3);
 
         // لمعان متحرك على عنوان "Babylon Chat" (نفس شاشة الدخول)
         binding.title.post(() -> {
@@ -246,7 +294,7 @@ public class MainActivity extends Activity {
         handler.removeCallbacksAndMessages(null);
         for (Animator a : animators) a.cancel();
         if (shine != null) shine.cancel();
-        if (binding != null) binding.logoImg.cancel();
+        if (logoAnim != null) logoAnim.cancel();
         if (binding != null && binding.getRoot().getBackground() instanceof AuthBg) ((AuthBg) binding.getRoot().getBackground()).stopIntro();
     }
 }

@@ -1,8 +1,6 @@
 package com.babylon.chat.iq;
 
-import android.animation.Animator;
-import android.animation.AnimatorListenerAdapter;
-import android.animation.ValueAnimator;
+import android.animation.ArgbEvaluator;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -12,7 +10,6 @@ import android.graphics.PathMeasure;
 import android.graphics.RectF;
 import android.util.AttributeSet;
 import android.view.View;
-import android.view.animation.PathInterpolator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,10 +17,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * لوكو السبلاش برسم خطي (Line Drawing / Blueprint):
- * 1) خطوط إرشادية خفيفة (مخطط هندسي) تظهر أولاً
- * 2) يُرسم مسار الشعار بخط أبيض رفيع يتتبّع محيطه
- * 3) تتلاشى الخطوط ويمتلئ الشعار بنعومة (Reveal) فيستقر بشكله الكامل
+ * لوكو السبلاش برسم خطي (Line Drawing):
+ * 1) يُرسم مسار الشعار بخط ذهبي رفيع يتتبّع محيطه (بلا مربع/خطوط المخطط الهندسي)
+ * 2) عند التلوين يتحوّل الخط إلى الأبيض ويمتلئ الشعار بنعومة فيستقر بشكله الكامل
+ * التوقيت تتحكّم به MainActivity عبر setDrawProgress / setFillProgress.
  */
 public class LogoDrawView extends View {
 
@@ -36,13 +33,12 @@ public class LogoDrawView extends View {
     private final Path seg = new Path();
     private final Paint stroke = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint guide = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final RectF bounds = new RectF();
+    private final ArgbEvaluator argb = new ArgbEvaluator();
     private float density;
-    private float progress = 0f;       // 0..1 للحركة كاملة
-    private ValueAnimator anim;
+    private float drawP = 1f;   // 0..1 رسم المحيط
+    private float fillP = 1f;   // 0..1 التلوين (الخط يصير أبيض ثم تمتلئ الأشكال)
+    private int outlineColor = 0xFFD9B04A;
     private boolean built = false;
-    private Runnable onDone;
 
     public LogoDrawView(Context c) { super(c); init(); }
     public LogoDrawView(Context c, AttributeSet a) { super(c, a); init(); }
@@ -53,13 +49,9 @@ public class LogoDrawView extends View {
         stroke.setStyle(Paint.Style.STROKE);
         stroke.setStrokeJoin(Paint.Join.ROUND);
         stroke.setStrokeCap(Paint.Cap.ROUND);
-        stroke.setColor(Color.WHITE);
         fill.setStyle(Paint.Style.FILL);
         fill.setColor(Color.WHITE);
-        guide.setStyle(Paint.Style.STROKE);
-        guide.setColor(Color.WHITE);
-        guide.setStrokeWidth(0.6f * density);
-        setProgress(1f);   // افتراضياً الشعار كامل (إلى أن تبدأ الحركة)
+        outlineColor = AuthTheme.isDark(getContext()) ? 0xFFD9B04A : 0xFFB4871D;
     }
 
     @Override
@@ -91,7 +83,6 @@ public class LogoDrawView extends View {
         if (cmd != 0) flush(cur, cmd, nums, s, ox, oy);
         full.setFillType(Path.FillType.EVEN_ODD);
         for (Path p : contours) lengths.add(new PathMeasure(p, true).getLength());
-        bounds.set(ox, oy, ox + VW * s, oy + VH * s);
         stroke.setStrokeWidth(1.5f * density);
         built = true;
         invalidate();
@@ -114,79 +105,38 @@ public class LogoDrawView extends View {
         return cur;
     }
 
-    private static float clamp(float v) { return v < 0f ? 0f : (v > 1f ? 1f : v); }
-    private static float seg(float p, float a, float b) { return clamp((p - a) / (b - a)); }
+    /** تقدّم رسم المحيط 0..1. */
+    public void setDrawProgress(float p) { drawP = p; invalidate(); }
 
-    public void setProgress(float p) { progress = p; invalidate(); }
+    /** تقدّم التلوين 0..1 (تحويل الخط للأبيض + امتلاء الشعار). */
+    public void setFillProgress(float f) { fillP = f; invalidate(); }
 
-    /** يبدأ الرسم من الصفر. */
-    public void play(long durationMs, Runnable done) {
-        cancel();
-        onDone = done;
-        progress = 0f;
-        anim = ValueAnimator.ofFloat(0f, 1f);
-        anim.setDuration(durationMs);
-        anim.setInterpolator(new android.view.animation.LinearInterpolator());
-        anim.addUpdateListener(a -> setProgress((float) a.getAnimatedValue()));
-        anim.addListener(new AnimatorListenerAdapter() {
-            boolean cancelled;
-            @Override public void onAnimationCancel(Animator a) { cancelled = true; }
-            @Override public void onAnimationEnd(Animator a) {
-                if (!cancelled && onDone != null) { Runnable r = onDone; onDone = null; r.run(); }
-            }
-        });
-        anim.start();
-    }
+    /** الشعار كاملاً فوراً (يُستخدم قبل الانتقال للشاشة التالية). */
+    public void finishNow() { drawP = 1f; fillP = 1f; invalidate(); }
 
-    /** ينهي الحركة فوراً بالشعار الكامل (يُستخدم قبل الانتقال للشاشة التالية). */
-    public void finishNow() {
-        cancel();
-        setProgress(1f);
-    }
-
-    public void cancel() {
-        if (anim != null) { anim.cancel(); anim = null; }
-    }
-
-    @Override
-    protected void onDetachedFromWindow() { cancel(); super.onDetachedFromWindow(); }
+    /** للتوافق مع الاستدعاءات القديمة؛ لا توجد حركة داخلية الآن. */
+    public void cancel() { }
 
     @Override
     protected void onDraw(Canvas c) {
         if (!built) return;
-        PathInterpolator ease = new PathInterpolator(0.4f, 0f, 0.2f, 1f);
 
-        // 1) خطوط المخطط الهندسي: إطار + محور أوسط، تظهر ثم تخبو
-        float gIn = ease.getInterpolation(seg(progress, 0f, 0.22f));
-        float gOut = 1f - seg(progress, 0.62f, 0.86f);
-        float ga = gIn * gOut;
-        if (ga > 0f) {
-            guide.setAlpha((int) (110 * ga));
-            float cx = bounds.centerX(), cy = bounds.centerY();
-            float hw = bounds.width() / 2f * gIn, hh = bounds.height() / 2f * gIn;
-            c.drawLine(cx - hw, cy, cx + hw, cy, guide);
-            c.drawLine(cx, cy - hh, cx, cy + hh, guide);
-            c.drawRect(cx - hw, cy - hh, cx + hw, cy + hh, guide);
-        }
-
-        // 2) رسم المحيط: كل مسار يُرسم تدريجياً بخط أبيض رفيع
-        float draw = ease.getInterpolation(seg(progress, 0.10f, 0.68f));
-        float strokeFade = 1f - seg(progress, 0.74f, 1f) * 0.85f;
-        if (draw > 0f) {
-            stroke.setAlpha((int) (255 * strokeFade));
+        // 1) رسم المحيط: كل مسار يُرسم تدريجياً بخط رفيع (ذهبي ثم أبيض عند التلوين)
+        if (drawP > 0f) {
+            stroke.setColor((Integer) argb.evaluate(fillP, outlineColor, Color.WHITE));
+            stroke.setAlpha((int) (255 * (1f - fillP * 0.85f)));
             for (int i = 0; i < contours.size(); i++) {
                 float len = lengths.get(i);
-                if (draw >= 0.999f) { c.drawPath(contours.get(i), stroke); continue; }
+                if (drawP >= 0.999f) { c.drawPath(contours.get(i), stroke); continue; }
                 seg.reset();
-                new PathMeasure(contours.get(i), true).getSegment(0f, len * draw, seg, true);
+                new PathMeasure(contours.get(i), true).getSegment(0f, len * drawP, seg, true);
                 c.drawPath(seg, stroke);
             }
         }
 
-        // 3) التعبئة: تظهر بنعومة بعد اكتمال الرسم
-        float f = ease.getInterpolation(seg(progress, 0.62f, 0.96f));
-        if (f > 0f) {
-            fill.setAlpha((int) (255 * f));
+        // 2) التلوين: يمتلئ الشعار بالأبيض
+        if (fillP > 0f) {
+            fill.setAlpha((int) (255 * fillP));
             c.drawPath(full, fill);
         }
     }
