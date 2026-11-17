@@ -105,6 +105,7 @@ public class MassActivity extends Activity {
     private String otherUid = "";
     private final java.util.Set<String> renderedMsgIds = new java.util.HashSet<>();
     private ListenerRegistration pinsListener;                       // الرسائل المثبتة: chats/{id}.pins
+    private Runnable dropSessionsHook;                                // يفرّغ جلسات الرسائل المحفوظة عند نقص الذاكرة (UI صنف محلي)
     private Runnable vpStopHook;                                      // يوقف مشغّل الصوت عند الإغلاق (UI صنف محلي)
     /** فتح ملف مستخدم من رابط ba.iq/username (تُسنَد من initializeLogic بعد بناء الواجهة). */
     private interface ListCb { void done(java.util.List<String> list); }
@@ -290,6 +291,13 @@ public class MassActivity extends Activity {
     // ==================== دورة الحياة ====================
 
     @Override
+    public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        // الجهاز يحتاج ذاكرة: تُفرَّغ الفقاعات المحفوظة (تُبنى من القاعدة المحلية عند الدخول التالي)
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) { try { if (dropSessionsHook != null) dropSessionsHook.run(); } catch (Throwable ignored) { } }
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
         if (messagesListener != null) messagesListener.remove();
@@ -398,6 +406,126 @@ public class MassActivity extends Activity {
             final java.util.HashMap<View, String> daySeps = new java.util.HashMap<>();   // فواصل الأيام (اليوم/أمس/تاريخ) -> مفتاح اليوم
             final java.util.Map<String, View> msgViewsById = new java.util.HashMap<>();
             MsgViews.Handle playingHandle = null;
+
+            // ============ جلسات المحادثات: الرسائل ثابتة ============
+            // الفقاعات المبنية تبقى حيّة في الذاكرة عند الخروج وتعود كما هي عند الدخول: لا قراءة من SQLite، لا إعادة بناء، ولا تنزيل من Firebase.
+            // Firebase يُستعمل فقط لـ: (1) الرسائل الجديدة/تحديث القراءة والتفاعلات، (2) إعادة التنزيل واحتياطها في القاعدة إن مُسحت البيانات.
+            final class ChatSession {
+                final ArrayList<View> views = new ArrayList<>();
+                final java.util.HashSet<String> rendered = new java.util.HashSet<>();
+                final java.util.HashMap<View, String> seps = new java.util.HashMap<>();
+                final java.util.HashMap<String, View> byId = new java.util.HashMap<>();
+                final java.util.HashMap<String, Object[]> meta = new java.util.HashMap<>();
+                String lastDayKey = "";
+                String playingId = null;
+            }
+            static final int SESSION_MAX_CHATS = 12, SESSION_MAX_VIEWS = 1000;
+            final java.util.LinkedHashMap<String, ChatSession> sessions = new java.util.LinkedHashMap<String, ChatSession>(16, 0.75f, true) {
+                @Override protected boolean removeEldestEntry(Map.Entry<String, ChatSession> e) { return size() > SESSION_MAX_CHATS; }
+            };
+            String loadedChatId = "";       // المحادثة التي اكتمل رسم رسائلها (لا تُحفظ جلسة ناقصة)
+            boolean sessionDirty = false;   // أُعيد بناء المحادثة بالكامل أثناء فتحها: لا تُحفظ جلستها
+            boolean sessionRestored = false;
+
+            // ---- Skeleton loading للرسائل: طبقة فوق المحادثة (لا داخل messagesArea كي لا تتأثر الجلسات) تزول عند ظهور الرسائل
+            View msgSkel = null;
+            void showMsgSkeleton() {
+                hideMsgSkeletonNow();
+                try {
+                    View ms = v("messagesScroll");
+                    if (ms == null || !(ms.getParent() instanceof FrameLayout)) return;
+                    FrameLayout par = (FrameLayout) ms.getParent();
+                    final View sk = Skeleton.messages(act, dark);
+                    sk.setPadding(ms.getPaddingLeft(), ms.getPaddingTop(), ms.getPaddingRight(), ms.getPaddingBottom());
+                    par.addView(sk, par.indexOfChild(ms) + 1, new FrameLayout.LayoutParams(-1, -1));
+                    msgSkel = sk;
+                } catch (Throwable ignored) { }
+            }
+            void hideMsgSkeleton() {
+                final View sk = msgSkel;
+                if (sk == null) return;
+                msgSkel = null;
+                sk.animate().alpha(0f).setDuration(140).withEndAction(() -> { if (sk.getParent() instanceof ViewGroup) ((ViewGroup) sk.getParent()).removeView(sk); }).start();
+            }
+            void hideMsgSkeletonNow() {
+                View sk = msgSkel; msgSkel = null;
+                if (sk != null) { sk.animate().cancel(); if (sk.getParent() instanceof ViewGroup) ((ViewGroup) sk.getParent()).removeView(sk); }
+            }
+
+            /** عند الخروج (أو الانتقال لمحادثة أخرى): احفظ الفقاعات المبنية كما هي. */
+            void stashSession() {
+                final String cid = currentChatId;
+                if (cid == null || cid.isEmpty()) return;
+                try {
+                    LinearLayout ma = (LinearLayout) v("messagesArea");
+                    if (ma == null) return;
+                    boolean complete = cid.equals(loadedChatId) && !sessionDirty && olderQ.isEmpty() && !localPaging && !prependBusy
+                            && !msgViewsById.isEmpty() && ma.getChildCount() <= SESSION_MAX_VIEWS;
+                    // الرسائل الأقدم من نافذة الاستماع تأتي من القاعدة: لا تُحفظ الجلسة قبل اكتمال القاعدة وعرضها
+                    if (complete && chatWinStart > 0 && !LocalDb.isComplete(cid)) complete = false;
+                    if (!complete) { sessions.remove(cid); return; }
+                    ChatSession ss = new ChatSession();
+                    for (int i = 0; i < ma.getChildCount(); i++) ss.views.add(ma.getChildAt(i));
+                    ss.rendered.addAll(renderedMsgIds);
+                    ss.seps.putAll(daySeps);
+                    ss.byId.putAll(msgViewsById);
+                    ss.meta.putAll(msgMeta);
+                    ss.lastDayKey = lastDayKey;
+                    if (playingHandle != null && vpId != null && msgViewsById.containsKey(vpId)) { ss.playingId = vpId; stashedPlay.add(vpId); }
+                    sessions.put(cid, ss);
+                } catch (Throwable t) { sessions.remove(cid); }
+            }
+
+            /** عند الدخول: أعد الفقاعات المحفوظة كما هي. true = استُعيدت (لا قراءة ولا بناء). */
+            boolean restoreSession(String cid) {
+                sessionDirty = false; loadedChatId = "";
+                ChatSession ss = sessions.remove(cid);
+                if (ss == null) return false;
+                try {
+                    LinearLayout ma = (LinearLayout) v("messagesArea");
+                    if (ma == null) return false;
+                    ma.removeAllViews();
+                    for (View c : ss.views) {
+                        if (c.getParent() instanceof ViewGroup) ((ViewGroup) c.getParent()).removeView(c);
+                        ma.addView(c);
+                    }
+                    renderedMsgIds.addAll(ss.rendered);
+                    daySeps.putAll(ss.seps);
+                    msgViewsById.putAll(ss.byId);
+                    msgMeta.putAll(ss.meta);
+                    lastDayKey = ss.lastDayKey;
+                    loadedChatId = cid;
+                    return true;
+                } catch (Throwable t) {
+                    try { LinearLayout ma = (LinearLayout) v("messagesArea"); if (ma != null) ma.removeAllViews(); } catch (Throwable ignored) { }
+                    renderedMsgIds.clear(); lastDayKey = ""; daySeps.clear(); msgViewsById.clear(); msgMeta.clear();
+                    loadedChatId = "";
+                    return false;
+                }
+            }
+
+            /** يجهّز مزامنة رسائل الجلسة المستعادة مع السيرفر (آخر RESYNC_WINDOW رسالة فقط) ويرجع بداية نافذة الاستماع (0 = محادثة قصيرة). */
+            long primeCacheFromSession() {
+                cacheRenderedIds.clear(); cacheMaxTs = 0L; cacheMinTs = Long.MAX_VALUE;
+                java.util.ArrayList<Object[]> rows = new java.util.ArrayList<>();
+                for (Map.Entry<String, Object[]> e : msgMeta.entrySet()) {
+                    Object[] mm = e.getValue();
+                    long ts = mm != null && mm.length > 5 && mm[5] instanceof Number ? ((Number) mm[5]).longValue() : 0L;
+                    rows.add(new Object[]{Long.valueOf(ts), e.getKey()});
+                }
+                Collections.sort(rows, (a, b) -> Long.compare(((Long) b[0]).longValue(), ((Long) a[0]).longValue()));
+                int n = Math.min(rows.size(), LocalDb.RESYNC_WINDOW);
+                for (int i = 0; i < n; i++) {
+                    long ts = ((Long) rows.get(i)[0]).longValue();
+                    cacheRenderedIds.add((String) rows.get(i)[1]);
+                    if (ts > cacheMaxTs) cacheMaxTs = ts;
+                    if (ts > 0 && ts < cacheMinTs) cacheMinTs = ts;
+                }
+                return rows.size() >= LocalDb.RESYNC_WINDOW && cacheMinTs != Long.MAX_VALUE ? cacheMinTs : 0L;
+            }
+
+            /** تغيّر الثيم/الخط/الانحناء: الجلسات المحفوظة بألوان قديمة تُنسى (تُبنى من جديد مرة واحدة). */
+            void dropSessions() { sessions.clear(); }
             android.os.Handler uiH = new android.os.Handler(android.os.Looper.getMainLooper());
             boolean tabStories = true;
             BabylonBars bars = new BabylonBars(act);
@@ -1255,6 +1383,7 @@ public class MassActivity extends Activity {
                     chip.setClickable(true);
                     chip.setOnClickListener(x -> {
                         FontManager.set(act, id);
+                        dropSessions();
                         buildFontStrip();
                     });
                     TextView sample = new TextView(act);
@@ -1283,6 +1412,7 @@ public class MassActivity extends Activity {
             }
 
             void applyTheme() {
+                dropSessions();
                 syncChatTheme();
                 style(v("root"));
                 if (searchPage != null) searchPage.applyTheme();
@@ -2966,6 +3096,7 @@ public class MassActivity extends Activity {
                         if (snapshots.getMetadata().isFromCache() && snapshots.isEmpty() && !chatData.isEmpty()) return;   // نتيجة محلية فارغة مؤقتة لا تمسح القائمة
                         // لقطة الخزن المحلي الناقصة (بعض المحادثات فقط) كانت تستبدل القائمة فتختفي محادثات ثم تعود حين تصل لقطة السيرفر: تُتجاهل وننتظر السيرفر
                         if (snapshots.getMetadata().isFromCache() && !chatData.isEmpty() && snapshots.size() < chatData.size()) return;
+                        if (!chatsLoadedOnce && (!snapshots.getMetadata().isFromCache() || !snapshots.isEmpty())) { chatsLoadedOnce = true; lastChatsSig = null; }   // لقطة محلية فارغة (بلا إنترنت) لا تُزيل الهيكل؛ يبقى حتى تصل بيانات حقيقية
                         final List<String[]> fresh = new ArrayList<>();
                         final List<Runnable> fetches = new ArrayList<>();
                         for (Map<String, Object> m : temp) {
@@ -3035,7 +3166,7 @@ public class MassActivity extends Activity {
                                     }
                                     if (!found) { String cu2 = unreadByUid.get(fOtherId); chatData.add(new String[]{oName, lastMsg, lastTime, cu2 != null ? cu2 : "0", fOtherId}); }
                                     sortChats();
-                                    try { buildChats(); } catch (Throwable ignored) { }
+                                    buildChatsIfChanged();
                                     try { buildStories(); } catch (Throwable ignored) { }
                                     // عدد الرسائل غير المقروءة (من الطرف الآخر): مراقبة لحظية فتظهر أزرار (الكل/غير المقروءة) فور وصول رسالة وتختفي عند قراءتها
                                     watchUnread(fChatId, fOtherId);
@@ -3044,7 +3175,7 @@ public class MassActivity extends Activity {
                         chatData.clear();
                         chatData.addAll(fresh);
                         sortChats();
-                        try { buildChats(); } catch (Throwable ignored) { }
+                        buildChatsIfChanged();   // المحفوظة محلياً ظاهرة أصلاً: لا إعادة بناء إن لم يتغيّر شيء
                         for (Runnable fr : fetches) fr.run();
                     });
             }
@@ -3469,6 +3600,7 @@ public class MassActivity extends Activity {
             }
 
             String lastChatsSig = null, lastStoriesSig = null;
+            boolean chatsLoadedOnce = false;   // وصلت أول لقطة حقيقية للمحادثات (قبلها يظهر الهيكل اللامع)
             // صفوف المحادثات المبنية: يُعاد استعمال كل صف لم تتغيّر بصمته، ولا يُبنى إلا الصف الذي تغيّر فعلاً
             java.util.HashMap<String, View> rowCache = new java.util.HashMap<>();
             java.util.HashMap<String, String> rowSigs = new java.util.HashMap<>();
@@ -3495,6 +3627,15 @@ public class MassActivity extends Activity {
                     for (String[] c : chatData) if (c.length > 4) sb.append(c[0]).append(System.identityHashCode(peerPhotos.get(c[4])));
                     return sb.toString();
                 } catch (Throwable t) { return null; }
+            }
+
+            /** القائمة ثابتة: لا إعادة بناء إلا إن تغيّر شيء فعلاً (بصمة الحالة). */
+            void buildChatsIfChanged() {
+                try {
+                    String sg = chatsSig();
+                    if (sg != null && sg.equals(lastChatsSig)) return;
+                    buildChats();
+                } catch (Throwable ignored) { }
             }
 
             void buildChats() {
@@ -3748,7 +3889,9 @@ public class MassActivity extends Activity {
                     }
                 }
                 rowCache = nextCache; rowSigs = nextSigs;   // الصفوف التي زالت من القائمة تُترك للتنظيف
-                if (list.getChildCount() == 0) {
+                if (list.getChildCount() == 0 && !chatsLoadedOnce) {
+                    list.addView(Skeleton.chatRows(act, dark));   // لم تصل القائمة بعد (لا خزن ولا سيرفر): هيكل لامع بدل «لا توجد محادثات»
+                } else if (list.getChildCount() == 0) {
                     TextView e = new TextView(act);
                     e.setText("لا توجد محادثات");
                     e.setGravity(Gravity.CENTER);
@@ -4197,6 +4340,7 @@ public class MassActivity extends Activity {
                 // تنظيف النسخ المحلية للمحادثات المحذوفة (كاش الرسائل + الرسائل الوهمية + المخفية + تجاوز آخر رسالة)
                 for (String cid : stamps.keySet()) {
                     try { LocalDb.removeChat(cid); } catch (Throwable ignored) { }
+                    sessions.remove(cid);
                     try { sp.edit().remove("hidden_msgs_" + cid).remove("lastov_" + cid).apply(); } catch (Throwable ignored) { }
                 }
                 exitChatSel(false);
@@ -4312,6 +4456,7 @@ public class MassActivity extends Activity {
                 if (chatSub != null) chatSub.setText("\u200B");
                 listenChatPresence(uid);
                 clearSel();
+                if (!currentChatId.isEmpty()) stashSession();   // انتقال مباشر من محادثة مفتوحة: تبقى فقاعاتها كما هي
                 LinearLayout msgArea = (LinearLayout) v("messagesArea");
                 if (msgArea != null) { msgArea.removeAllViews(); msgArea.animate().cancel(); msgArea.setAlpha(1f); }
                 renderedMsgIds.clear(); lastDayKey = ""; daySeps.clear(); msgViewsById.clear(); msgMeta.clear();
@@ -4328,6 +4473,7 @@ public class MassActivity extends Activity {
 
                 currentChatId = getChatId(myUid, uid);
                 final String openCid = currentChatId;
+                sessionRestored = restoreSession(openCid);   // فقاعاتها المبنية سابقاً تعود كما هي: لا قراءة من القاعدة ولا إعادة بناء
                 // تحميل الرسائل بعد أول إطار: النقر يفتح المحادثة وتبدأ الحركة فوراً دون انتظار قراءة الخزن ورسم الفقاعات
                 // بعد رسم أول إطار فعلاً (Choreographer) لا مجرد post: كان قراءة الخزن ورسم 50 فقاعة يحجبان الخيط الرئيسي فتبقى القائمة معلّقة قبل الدخول
                 final int gen = ++openGen;
@@ -4342,6 +4488,7 @@ public class MassActivity extends Activity {
                 if (cv != null) BabylonFx.chatGrowNow(cv, v("chatTopBar"), v("chatBottomBar"));
                 applyChatBlockUi();
                 checkBlockedByThem(uid);
+                if (sessionRestored) hideMsgSkeletonNow(); else showMsgSkeleton();   // رسائل غير محمّلة بعد: هيكل لامع بدل فراغ
             }
 
             String mediaQuote = null;   // اقتباس رد لرسالة صورة/صوتية قيد الرسم
@@ -4353,6 +4500,7 @@ public class MassActivity extends Activity {
             void revealChatBottom() {
                 final View ms = v("messagesScroll"), area = v("messagesArea");
                 if (!(ms instanceof ScrollView) || area == null) return;
+                hideMsgSkeleton();   // ظهر المحتوى (أو تأكد أنه فارغ)
                 chatStick = 0L;   // أُزيلت مهلة التثبيت (8 ثوانٍ): النزول لآخر رسالة مرة واحدة عند الدخول فقط
                 chatUserTouched = false;
                 final android.view.ViewTreeObserver vto = ms.getViewTreeObserver();
@@ -4447,6 +4595,7 @@ public class MassActivity extends Activity {
                         if (firstSnap[0] && snapshots.isEmpty() && snapshots.getMetadata().isFromCache()) return;
                         final boolean wasFirst = firstSnap[0];
                         firstSnap[0] = false;
+                        if (wasFirst && chatId.equals(currentChatId)) loadedChatId = chatId;   // اكتمل الرسم الأول: تصلح الجلسة للحفظ
                         final boolean hadCache = !cacheRenderedIds.isEmpty();
                         final java.util.HashSet<String> cacheIdsSnap = new java.util.HashSet<>(cacheRenderedIds);   // reconcile يفرّغ المجموعة قبل الحلقة: نحتفظ بنسخة لمزامنة التفاعلات/القراءة
                         final boolean rebuilt = hadCache && reconcileCachedMsgs(snapshots);
@@ -4503,6 +4652,28 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 // لا تُعالَج الرسائل أثناء حركة الدخول (تفادياً للتقطيع والتداخل)؛ تُؤجَّل بالترتيب إلى نهايتها
                 cacheShown = false;
                 final int gen0 = openGen;
+                if (sessionRestored) {   // الفقاعات موجودة أصلاً: لا نقرأ رسائل من القاعدة ولا نبني شيئاً؛ نستمع فقط لما يصل جديداً
+                    sessionRestored = false;
+                    final long winStart = primeCacheFromSession();
+                    new Thread(() -> {
+                        boolean comp = false;
+                        try { comp = LocalDb.isComplete(chatId); } catch (Throwable ignored) { }   // علم واحد: هل القاعدة كاملة؟
+                        final boolean fc = comp;
+                        uiH.post(() -> {
+                            if (gen0 != openGen || !chatId.equals(currentChatId)) return;
+                            localFull[0] = fc;
+                            chatWinStart = winStart;
+                            cacheShown = true;
+                            vpRebindSession(chatId);
+                            uiH.postDelayed(() -> { if (chatId.equals(currentChatId)) revealChatBottom(); }, BabylonFx.chatFoldRemaining());
+                            if (messagesListener != null) messagesListener.remove();
+                            // القاعدة مُسحت أو ناقصة: يُنزَّل التاريخ من Firebase ويُحفظ احتياطاً في القاعدة (المسار نفسه لأول دخول)
+                            partialWinTs = (!fc && winStart > 0) ? winStart : -1L; partialWinChat = chatId; partialBackfilling = false;
+                            attachMessagesListener(chatId, winStart, onSnap);
+                        });
+                    }).start();
+                    return;
+                }
                 // قراءة الخزن المحلي في خيط خلفي: آخر FIRST_RENDER رسالة فقط الآن، والباقي على صفحات بعد الرسم الأول
                 new Thread(() -> {
                     org.json.JSONArray cached = null;
@@ -5034,6 +5205,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                     }
                 }
                 if (needRebuild) {
+                    sessionDirty = true;
                     LinearLayout ma = (LinearLayout) v("messagesArea");
                     if (ma != null) ma.removeAllViews();
                     renderedMsgIds.clear(); lastDayKey = ""; daySeps.clear(); msgViewsById.clear(); msgMeta.clear();
@@ -5217,6 +5389,8 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 if (chatPresenceReg != null) { chatPresenceReg.remove(); chatPresenceReg = null; }
                 hideKb();
                 clearSel();
+                hideMsgSkeletonNow();
+                stashSession();   // الرسائل المبنية تبقى ثابتة في الذاكرة حتى الدخول التالي
                 // إعادة بناء قائمة المحادثات والقصص ثقيلة (تُنشئ كل الصفوف من جديد) وكانت تعمل قبل التلاشي فتتجمّد الحركة في منتصفها.
                 // الآن: لا تُعاد أبداً إن لم يتغيّر شيء (بصمة الحالة)، وإن تغيّر شيء تُنفَّذ بعد انتهاء التلاشي وعند خمول الخيط، لا أثناءه.
                 final boolean[] rebuilt = { false };
@@ -5319,6 +5493,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 img.setLayoutParams(new FrameLayout.LayoutParams(-1, -1));
                 img.setScaleType(ImageView.ScaleType.CENTER_CROP);
                 frame.addView(img);
+                img.setImageDrawable(Skeleton.shimmer(dark, 0f));   // هيكل لامع حتى تصل الصورة
                 loadImageAsync(img, url);
                 LinearLayout t = new LinearLayout(act);
                 t.setOrientation(LinearLayout.HORIZONTAL);
@@ -5742,6 +5917,20 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 }, 150);
             }
 
+            /** جلسة مستعادة: اربط الفقاعة بالصوتية الجارية إن وُجدت، وأوقف حالة التشغيل الظاهرة على فقاعة توقف تشغيلها أثناء الغياب. */
+            void vpRebindSession(String chatId) {
+                try {
+                    for (Map.Entry<String, View> e : msgViewsById.entrySet()) {
+                        View b = e.getValue();
+                        if (!(b instanceof MsgViews.Handle)) continue;
+                        boolean live = vpId != null && vpId.equals(e.getKey()) && mediaPlayer != null && chatId.equals(vpChatId);
+                        if (live) vpRebind(e.getKey(), b);
+                        else if (stashedPlay.remove(e.getKey())) { ((MsgViews.Handle) b).setPlaying(false); ((MsgViews.Handle) b).setProgress(0f, null); }
+                    }
+                } catch (Throwable ignored) { }
+            }
+            final java.util.HashSet<String> stashedPlay = new java.util.HashSet<>();
+
             /** عند رسم رسالة من المحادثة بعد العودة إليها: إن كانت هي الصوتية الجارية تُربط بها الفقاعة الجديدة فتظهر قيد التشغيل. */
             void vpRebind(String id, View bubble) {
                 try {
@@ -5755,7 +5944,23 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 } catch (Throwable ignored) { }
             }
 
-            void loadImageAsync(final ImageView img, final String url) {
+            void loadImageAsync(final ImageView img, final String url) { loadImageAsync(img, url, 0); }
+
+            /** فشل التحميل (لا إنترنت/ضعيف): يبقى الهيكل اللامع ويُعاد المحاولة حتى تصل الصورة فيختفي فوراً. */
+            void retryImage(final ImageView img, final String url, final int attempt) {
+                if (!Skeleton.isShimmer(img.getDrawable())) return;   // استُبدل المحتوى بغيره: لا داعي للمحاولة
+                final Runnable go = () -> { if (Skeleton.isShimmer(img.getDrawable())) loadImageAsync(img, url, attempt + 1); };
+                if (img.isAttachedToWindow()) uiH.postDelayed(() -> { if (img.isAttachedToWindow()) go.run(); else retryOnAttach(img, go); }, Math.min(3000L * (attempt + 1), 15000L));
+                else retryOnAttach(img, go);
+            }
+            void retryOnAttach(final ImageView img, final Runnable go) {
+                img.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+                    @Override public void onViewAttachedToWindow(View v0) { img.removeOnAttachStateChangeListener(this); uiH.postDelayed(go, 800); }
+                    @Override public void onViewDetachedFromWindow(View v0) { }
+                });
+            }
+
+            void loadImageAsync(final ImageView img, final String url, final int attempt) {
                 IMG_EXEC.execute(() -> {
                     try {
                         Bitmap bmp;
@@ -5769,6 +5974,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                         if (url.startsWith("http")) {
                             java.net.URL u = new java.net.URL(url);
                             java.net.HttpURLConnection conn = (java.net.HttpURLConnection) u.openConnection();
+                            conn.setConnectTimeout(12000); conn.setReadTimeout(15000);   // إنترنت ضعيف: يفشل ثم يُعاد بدل الانتظار للأبد
                             conn.setDoInput(true); conn.connect();
                             java.io.InputStream is = conn.getInputStream();
                             bmp = BitmapFactory.decodeStream(is, null, opts);
@@ -5794,8 +6000,14 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                         }
                         final Bitmap fb = bmp;
                         if (fb != null && ckey != null) BMP_CACHE.put(ckey, fb);
-                        if (fb != null) act.runOnUiThread(() -> img.setImageBitmap(fb));
-                    } catch (Exception e) { }
+                        act.runOnUiThread(() -> {
+                            if (fb != null) img.setImageBitmap(fb);
+                            else if (url.startsWith("http")) retryImage(img, url, attempt);   // يبقى الهيكل
+                            else img.setImageDrawable(null);   // بيانات تالفة لن تُحلّ بالإعادة
+                        });
+                    } catch (Exception e) {
+                        act.runOnUiThread(() -> { if (url.startsWith("http")) retryImage(img, url, attempt); else img.setImageDrawable(null); });
+                    }
                 });
             }
 
@@ -9215,6 +9427,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
 
             /** applyPrefs: حجم الخط وانحناء الفقاعات على المعاينة وعلى رسائل المحادثة المفتوحة */
             void applyBubbles() {
+                dropSessions();
                 LinearLayout a = (LinearLayout) v("messagesArea");
                 if (a != null) {
                     for (int i = 0; i < a.getChildCount(); i++) {
@@ -9244,6 +9457,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 loggedOut = true;   // قبل أي شيء: لا تُعتبر الرسائل مقروءة بعد الخروج
                 try { if (messagesListener != null) { messagesListener.remove(); messagesListener = null; } } catch (Throwable ignored) { }
                 avatarsClear();
+                dropSessions();
                 try { LocalDb.clearAll(); } catch (Throwable ignored) { }
                 vpStop();   // تسجيل الخروج يوقف الصوتية (if(cur&&!currentUser) stop() في الـ HTML)
                 try { for (ListenerRegistration ur : unreadRegs.values()) ur.remove(); unreadRegs.clear(); unreadByUid.clear(); lastSeenByUid.clear(); } catch (Throwable ignored) { }
@@ -9684,6 +9898,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
         backHook = ui::onBack;
         touchHook = ev -> { ui.globalTap(ev); ui.dragSelTouch(ev); };
         vpStopHook = ui::vpStop;
+        dropSessionsHook = ui::dropSessions;
 
         ui.bars.setup();
         ui.syncBars();
