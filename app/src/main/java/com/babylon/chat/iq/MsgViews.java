@@ -833,12 +833,9 @@ public final class MsgViews {
             this.rows = (ems.size() + this.perRow - 1) / this.perRow;
             tp.setTextSize(sizePx * 0.75f); tp.setTextAlign(Paint.Align.CENTER);
             ph.setColor(0x4D8794A8);
-            for (final String e : new java.util.LinkedHashSet<>(ems)) {
-                loadEmojiBitmap(a, e, sizePx, bm -> {
-                    if (bm == null) failed.add(e); else bmps.put(e, bm);
-                    invalidate();
-                });
-            }
+            // كان يُرسم أول إطار من صورة Noto المتحركة، وهو إطار البداية وليس الشكل النهائي (😭 يظهر كأنه 🥹 بلا دموع).
+            // الآن يُرسم الإيموجي نفسه بخط النظام (Noto) فيطابق ما أُرسل تماماً.
+            failed.addAll(ems);
         }
 
         @Override protected void onMeasure(int w, int h) {

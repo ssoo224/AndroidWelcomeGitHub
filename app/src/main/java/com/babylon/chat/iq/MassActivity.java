@@ -3242,6 +3242,7 @@ public class MassActivity extends Activity {
 
             void buildStories() {
                 if (stories == null) return;
+                lastStoriesSig = storiesSig();
                 long nowMs = System.currentTimeMillis();
                 ArrayList<StoriesController.Item> list = new ArrayList<>();
                 StoriesController.Item me = new StoriesController.Item();
@@ -3410,13 +3411,45 @@ public class MassActivity extends Activity {
                 }).addOnFailureListener(e -> peerPhotoReq.remove(uid));
             }
 
+            String lastChatsSig = null, lastStoriesSig = null;
+            // صفوف المحادثات المبنية: يُعاد استعمال كل صف لم تتغيّر بصمته، ولا يُبنى إلا الصف الذي تغيّر فعلاً
+            java.util.HashMap<String, View> rowCache = new java.util.HashMap<>();
+            java.util.HashMap<String, String> rowSigs = new java.util.HashMap<>();
+
+            /** بصمة رخيصة لكل ما يؤثر على رسم قائمة المحادثات: تتساوى = لا حاجة لإعادة البناء (كانت تُعاد عند كل خروج فتتوقف حركة التلاشي). */
+            String chatsSig() {
+                try {
+                    StringBuilder sb = new StringBuilder();
+                    for (String[] c : chatData) sb.append(java.util.Arrays.toString(c)).append(';');
+                    sb.append('|').append(getPins()).append(unreadOnly).append(chatSelMode).append(dark).append(onlineMap).append(storyUntil).append(myBlocks).append(contacts);
+                    for (java.util.Map.Entry<String, Bitmap> e : peerPhotos.entrySet()) sb.append(e.getKey()).append(System.identityHashCode(e.getValue())).append(',');
+                    return sb.toString();
+                } catch (Throwable t) { return null; }
+            }
+
+            String storiesSig() {
+                try {
+                    StringBuilder sb = new StringBuilder();
+                    sb.append(myStoryUntil).append(System.identityHashCode(photoBmp)).append(userName).append(storyUntil).append(myBlocks);
+                    long now = System.currentTimeMillis() / 60000L;
+                    sb.append(now);
+                    for (java.util.Map.Entry<String, Long> e : storyUntil.entrySet()) if (e.getValue() != null && e.getValue() > System.currentTimeMillis()) sb.append(StoryViewer.isSeen(act, myUid, e.getKey(), e.getValue()));
+                    if (myStoryUntil > System.currentTimeMillis()) sb.append(StoryViewer.isSeen(act, myUid, myUid, myStoryUntil));
+                    for (String[] c : chatData) if (c.length > 4) sb.append(c[0]).append(System.identityHashCode(peerPhotos.get(c[4])));
+                    return sb.toString();
+                } catch (Throwable t) { return null; }
+            }
+
             void buildChats() {
                 startBlocksListener();
                 LinearLayout list = (LinearLayout) v("chatList");
                 if (list == null) return;
+                lastChatsSig = chatsSig();
                 persistChats();
                 syncChatSelWithData();
-                list.removeAllViews();
+                list.removeAllViews();   // الصفوف تُفصل فقط (تبقى حيّة في rowCache) ثم يُعاد إلحاق غير المتغيّر منها
+                final java.util.HashMap<String, View> nextCache = new java.util.HashMap<>();
+                final java.util.HashMap<String, String> nextSigs = new java.util.HashMap<>();
                 int unreadChats = 0;
                 for (String[] c : chatData) if (!c[3].equals("0")) unreadChats++;
                 TextView fltUnread = tv("fltUnread");
@@ -3452,6 +3485,25 @@ public class MassActivity extends Activity {
                     final boolean rowSel = chatSelMode && chatSel.contains(rowUid);
                     final boolean rowPinned = c.length > 4 && pinsNow.contains(chatIdOf(rowUid));
                     final String dn = c.length > 4 ? dispName(c[4], c[0]) : c[0];
+                    // بصمة الصف: كل ما يؤثر على شكله. تطابقها = نُعيد الصف الجاهز بدل بنائه من جديد
+                    String rsig = null;
+                    if (rowUid.length() > 0) {
+                        try {
+                            Long su0 = storyUntil.get(rowUid);
+                            boolean ring0 = su0 != null && su0 > System.currentTimeMillis();
+                            rsig = java.util.Arrays.toString(c) + '|' + dn + '|' + rowSel + rowPinned + hasUnread + ring0
+                                    + (ring0 ? String.valueOf(StoryViewer.isSeen(act, myUid, rowUid, su0)) : "")
+                                    + '|' + System.identityHashCode(peerPhotos.get(rowUid)) + Boolean.TRUE.equals(onlineMap.get(rowUid))
+                                    + '|' + dark + cSf() + cText() + FontManager.current(act) + FontManager.isBoldMode() + chatSelMode;
+                        } catch (Throwable t) { rsig = null; }
+                        View cached = rsig == null ? null : rowCache.get(rowUid);
+                        if (cached != null && rsig.equals(rowSigs.get(rowUid)) && cached.getParent() == null) {
+                            BabylonFx.reset(cached);
+                            list.addView(cached);
+                            nextCache.put(rowUid, cached); nextSigs.put(rowUid, rsig);
+                            continue;
+                        }
+                    }
                     LinearLayout row = new LinearLayout(act);
                     row.setOrientation(LinearLayout.HORIZONTAL);
                     row.setGravity(Gravity.CENTER_VERTICAL);
@@ -3626,6 +3678,7 @@ public class MassActivity extends Activity {
                         return true;
                     });
                     list.addView(row);
+                    if (rsig != null) { nextCache.put(rowUid, row); nextSigs.put(rowUid, rsig); }
                     style(row);
                     FontManager.applyTo(act, row);   // الخط يُطبَّق قبل أول قياس: كان يُطبَّق بعد إطار فيتغير عرض الوقت وتهتز ✓ مع كل تحديد
                     chatRowPress(row);   // حركة نقر: تصغير سريع عند اللمس ثم ارتداد
@@ -3637,6 +3690,7 @@ public class MassActivity extends Activity {
                         row.setBackground(sg);
                     }
                 }
+                rowCache = nextCache; rowSigs = nextSigs;   // الصفوف التي زالت من القائمة تُترك للتنظيف
                 if (list.getChildCount() == 0) {
                     TextView e = new TextView(act);
                     e.setText("لا توجد محادثات");
@@ -5017,20 +5071,20 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 if (chatPresenceReg != null) { chatPresenceReg.remove(); chatPresenceReg = null; }
                 hideKb();
                 clearSel();
-                // إعادة بناء قائمة المحادثات والقصص ثقيلة: تُنفَّذ الآن بين تلاشي المحادثة وظهور الصفحة الرئيسية (الشاشة فارغة بلون الخلفية)
-                // فلا يُرى تقطيع ولا تتداخل الصفحتان، ولا يبقى الخيط الرئيسي مشغولاً عند التنقّل بعد الخروج.
+                // إعادة بناء قائمة المحادثات والقصص ثقيلة (تُنشئ كل الصفوف من جديد) وكانت تعمل قبل التلاشي فتتجمّد الحركة في منتصفها.
+                // الآن: لا تُعاد أبداً إن لم يتغيّر شيء (بصمة الحالة)، وإن تغيّر شيء تُنفَّذ بعد انتهاء التلاشي وعند خمول الخيط، لا أثناءه.
                 final boolean[] rebuilt = { false };
                 final Runnable rebuild = () -> {
                     if (rebuilt[0]) return;
                     rebuilt[0] = true;
-                    try { buildChats(); } catch (Throwable ignored) { }
-                    try { buildStories(); } catch (Throwable ignored) { }
+                    try { String sg = chatsSig(); if (sg == null || !sg.equals(lastChatsSig)) buildChats(); } catch (Throwable ignored) { }
+                    try { String sg = storiesSig(); if (sg == null || !sg.equals(lastStoriesSig)) buildStories(); } catch (Throwable ignored) { }
                 };
-                rebuild.run();   // القوائم تُحدَّث وهي ما زالت خلف المحادثة (لا تُرى)، كي تنكشف محدَّثة أثناء التلاشي الشفاف
                 BabylonFx.chatLeave(v("chatView"), v("mainPage"), () -> {
                     vis("chatView", false);
                     if (currentChatId.isEmpty()) { try { renderPinnedBar(); } catch (Throwable ignored) { } }   // كبسولة التثبيت تُزال بعد انتهاء التلاشي لا قبله
                     syncBars(); vpPlace();
+                    android.os.Looper.myQueue().addIdleHandler(() -> { rebuild.run(); return false; });   // بعد اكتمال الحركة وعند خمول الخيط
                 });   // تلاشي المحادثة ثم إخفاؤها ثم تلاشي ظهور الصفحة الرئيسية (والشريط العائم ينتقل لأسفل الصفحة)
                 uiH.postDelayed(rebuild, 600);   // احتياط: إن أُلغيت الحركة (دخول محادثة أخرى بسرعة) لا تبقى القائمة بلا تحديث
                 if (messagesListener != null) { messagesListener.remove(); messagesListener = null; }
