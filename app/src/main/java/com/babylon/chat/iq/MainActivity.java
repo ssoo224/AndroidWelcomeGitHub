@@ -26,7 +26,7 @@ import java.util.List;
 /** شاشة البداية (Splash): تحدد هل المستخدم مسجّل دخوله أم لا ثم تنتقل للشاشة المناسبة. */
 public class MainActivity extends Activity {
 
-    private static final long SPLASH_MS = 2740;   // الرسم والتلوين والاستقرار (2.65ث) ثم وقفة قصيرة قبل الدخول
+    private static final long SPLASH_MS = 500;   // الرسم والتلوين والاستقرار (2.65ث) ثم وقفة قصيرة قبل الدخول
 
     // ===== توقيت حركة الشعار (ms) =====
     private static final float T_CIRCLE_A = 0f,    T_CIRCLE_B = 800f;    // رسم محيط الدائرة الذهبية أولاً
