@@ -1630,11 +1630,11 @@ public class MassActivity extends Activity {
                                 final long pageMs = 170L;
                                 for (View g : grp) {
                                     if (g == null || g.getVisibility() != View.VISIBLE) continue;
-                                    if (g == to) BabylonFx.tabIn(g, -exitDx, pageMs);   // 2) الصفحة الجديدة تدخل جانبياً من الجهة المعاكسة
-                                    else BabylonFx.pageFade(g, 0, pageMs);              // الهيدر وزر المجموعة: تلاشٍ فقط
+                                    // 2) الصفحة (والهيدر وزر المجموعة في المحادثات) تدخل معاً كوحدة واحدة بنفس الحركة والمدة والاتجاه،
+                                    //    تماماً كالانتقال بين الملف الشخصي والإعدادات، فتبدو كل الأجزاء متلاصقة.
+                                    BabylonFx.tabIn(g, -exitDx, pageMs);
                                 }
-                                if (toChats) BabylonFx.chatRowsIn((ViewGroup) v("chatList"), 0, 20L, 150L);   // 3) الصفوف تظهر متتابعة من الأعلى للأسفل
-                                else BabylonFx.staggerDown(to, 0L);                                         // 3) بطاقات/أزرار الإعدادات والملف الشخصي من الأعلى للأسفل
+                                BabylonFx.staggerDown(to, 0L);   // 3) نفس تتابع العناصر لكل الصفحات (محادثات / إعدادات / ملف شخصي)
                                 act.getWindow().getDecorView().postDelayed(() -> { if (homeAnimOn && gen == BabylonFx.tabGenNow()) endHomeEntry(); }, 600);
                             }).start();
                 } else if (to != null) {
@@ -7030,8 +7030,8 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
             boolean placeEmojiReactions(View bubble, View rowL) {
                 View meta = bubble.findViewWithTag("emojiMeta");
                 if (meta == null || !(meta.getParent() instanceof ViewGroup)) return false;
-                FrameLayout wrap;
-                if (meta.getParent() instanceof FrameLayout && "emojiMetaRow".equals(((View) meta.getParent()).getTag())) wrap = (FrameLayout) meta.getParent();
+                MsgViews.MetaReactRow wrap;
+                if (meta.getParent() instanceof MsgViews.MetaReactRow) wrap = (MsgViews.MetaReactRow) meta.getParent();
                 else {
                     ViewGroup par = (ViewGroup) meta.getParent();
                     if (!(par instanceof LinearLayout)) return false;
@@ -7044,35 +7044,14 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                         top = ol.topMargin; right = ol.rightMargin;
                     }
                     par.removeView(meta);
-                    wrap = new FrameLayout(act);
-                    wrap.setTag("emojiMetaRow");
-                    wrap.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
-                    FrameLayout.LayoutParams mlp = new FrameLayout.LayoutParams(-2, -2, (g & Gravity.HORIZONTAL_GRAVITY_MASK) | Gravity.CENTER_VERTICAL);
+                    wrap = new MsgViews.MetaReactRow(act, (g & Gravity.HORIZONTAL_GRAVITY_MASK) == Gravity.RIGHT);
+                    ViewGroup.MarginLayoutParams mlp = new ViewGroup.MarginLayoutParams(-2, -2);
                     mlp.topMargin = top; mlp.rightMargin = right;
                     wrap.addView(meta, mlp);
                     par.addView(wrap, idx, new LinearLayout.LayoutParams(-1, -2));
                 }
-                FrameLayout.LayoutParams mp = (FrameLayout.LayoutParams) meta.getLayoutParams();
-                boolean metaRight = (mp.gravity & Gravity.HORIZONTAL_GRAVITY_MASK) == Gravity.RIGHT;
-                FrameLayout.LayoutParams rp = new FrameLayout.LayoutParams(-2, -2, (metaRight ? Gravity.LEFT : Gravity.RIGHT) | Gravity.CENTER_VERTICAL);
-                wrap.addView(rowL, rp);
-                // إيموجيات متعددة: نثبّت عرض سطر (الوقت | التفاعل) على عرض كتلة الإيموجي نفسها،
-                // فيبقى الوقت عند حافتها اليمنى والتفاعل عند حافتها اليسرى ولا يتراكبان في الوسط.
-                final View emBox = bubble.findViewWithTag("emojiRowBox");
-                if (emBox != null) {
-                    final FrameLayout wrapF = wrap;
-                    final Runnable fit = () -> {
-                        int bw = emBox.getWidth();
-                        if (bw <= 0) return;
-                        int lm = emBox.getLayoutParams() instanceof ViewGroup.MarginLayoutParams ? ((ViewGroup.MarginLayoutParams) emBox.getLayoutParams()).leftMargin : 0;
-                        ViewGroup.LayoutParams wl = wrapF.getLayoutParams();
-                        if (wl != null && wl.width != bw + lm) { wl.width = bw + lm; wrapF.setLayoutParams(wl); }
-                    };
-                    emBox.addOnLayoutChangeListener((v, l, t, r, b2, ol, ot, or2, ob) -> { if (r - l != or2 - ol) fit.run(); });
-                    emBox.post(fit);
-                }
-                // الشارة أطول من كبسولة الوقت: نضمن أن حاوية السطر تتسع لها ولا تقصّ أسفلها، ولا يقصّها أي أب
-                wrap.setMinimumHeight(dp(34));
+                // كبسولة التفاعل في السطر نفسه عند الحافة المقابلة للوقت؛ السطر يقيس الكبسولتين فلا تتراكبان (وتنزل تحت الوقت إن ضاق العرض)
+                wrap.addView(rowL, new ViewGroup.MarginLayoutParams(-2, -2));
                 for (View pv = wrap; pv != null; pv = pv.getParent() instanceof View ? (View) pv.getParent() : null) {
                     if (pv instanceof ViewGroup) { ((ViewGroup) pv).setClipChildren(false); ((ViewGroup) pv).setClipToPadding(false); }
                     if (pv == bubble) break;

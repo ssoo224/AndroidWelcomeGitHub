@@ -816,6 +816,70 @@ public final class MsgViews {
         }
     }
 
+    /**
+     * سطر (كبسولة الوقت | كبسولة التفاعل) لرسائل الإيموجي. لا تتراكب الكبسولتان أبداً:
+     * يتسع السطر ليضمّ الاثنين مع فاصل، فإن لم يتسع العرض المتاح نزلت كبسولة التفاعل تحت الوقت.
+     * الوقت عند الحافة metaRight (يمين/يسار) والتفاعل عند الحافة المقابلة.
+     */
+    public static final class MetaReactRow extends android.view.ViewGroup {
+        public final boolean metaRight;
+        private final int gap;
+        private boolean stacked;
+
+        public MetaReactRow(Context c, boolean metaRight) {
+            super(c);
+            this.metaRight = metaRight;
+            this.gap = Math.round(8f * c.getResources().getDisplayMetrics().density);
+            setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+            setClipChildren(false);
+            setClipToPadding(false);
+        }
+
+        @Override protected LayoutParams generateDefaultLayoutParams() { return new MarginLayoutParams(-2, -2); }
+        @Override public LayoutParams generateLayoutParams(android.util.AttributeSet as) { return new MarginLayoutParams(getContext(), as); }
+        @Override protected LayoutParams generateLayoutParams(LayoutParams p) { return p instanceof MarginLayoutParams ? p : new MarginLayoutParams(p); }
+        @Override protected boolean checkLayoutParams(LayoutParams p) { return p instanceof MarginLayoutParams; }
+
+        private View metaView() { return findViewWithTag("emojiMeta"); }
+        private View reactView() { return findViewWithTag("reactRow"); }
+
+        private int outerW(View v) { MarginLayoutParams lp = (MarginLayoutParams) v.getLayoutParams(); return v.getMeasuredWidth() + lp.leftMargin + lp.rightMargin; }
+        private int outerH(View v) { MarginLayoutParams lp = (MarginLayoutParams) v.getLayoutParams(); return v.getMeasuredHeight() + lp.topMargin + lp.bottomMargin; }
+
+        @Override protected void onMeasure(int wSpec, int hSpec) {
+            View m = metaView(), r = reactView();
+            int spec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED);
+            int mw = 0, mh = 0, rw = 0, rh = 0;
+            if (m != null && m.getVisibility() != GONE) { m.measure(spec, spec); mw = outerW(m); mh = outerH(m); }
+            if (r != null && r.getVisibility() != GONE) { r.measure(spec, spec); rw = outerW(r); rh = outerH(r); }
+            int single = mw + (rw > 0 ? (mw > 0 ? gap : 0) + rw : 0);
+            int mode = View.MeasureSpec.getMode(wSpec), size = View.MeasureSpec.getSize(wSpec);
+            int width = mode == View.MeasureSpec.EXACTLY ? size : mode == View.MeasureSpec.AT_MOST ? Math.min(single, size) : single;
+            stacked = mw > 0 && rw > 0 && width < single;
+            int height = stacked ? mh + rh : Math.max(mh, rh);
+            setMeasuredDimension(resolveSize(width, wSpec), resolveSize(height, hSpec));
+        }
+
+        @Override protected void onLayout(boolean changed, int l, int t, int rr, int b) {
+            View m = metaView(), r = reactView();
+            int w = rr - l, h = b - t;
+            View first = (m != null && m.getVisibility() != GONE) ? m : null;
+            View second = (r != null && r.getVisibility() != GONE) ? r : null;
+            if (first != null) {
+                MarginLayoutParams lp = (MarginLayoutParams) first.getLayoutParams();
+                int x = metaRight ? w - lp.rightMargin - first.getMeasuredWidth() : lp.leftMargin;
+                int y = stacked ? lp.topMargin : lp.topMargin + Math.max(0, (h - outerH(first)) / 2);
+                first.layout(x, y, x + first.getMeasuredWidth(), y + first.getMeasuredHeight());
+            }
+            if (second != null) {
+                MarginLayoutParams lp = (MarginLayoutParams) second.getLayoutParams();
+                int x = metaRight ? lp.leftMargin : w - lp.rightMargin - second.getMeasuredWidth();
+                int y = stacked && first != null ? outerH(first) + lp.topMargin : lp.topMargin + Math.max(0, (h - outerH(second)) / 2);
+                second.layout(x, y, x + second.getMeasuredWidth(), y + second.getMeasuredHeight());
+            }
+        }
+    }
+
     /** كل إيموجيات الرسالة في View واحد: يرسم الصفوف مباشرة (بدون View لكل إيموجي) ويشارك صورة واحدة لكل نوع. */
     private static final class EmojiGrid extends View {
         private final java.util.ArrayList<String> ems;

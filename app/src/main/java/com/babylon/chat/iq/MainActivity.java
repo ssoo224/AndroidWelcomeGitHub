@@ -26,7 +26,7 @@ import java.util.List;
 /** شاشة البداية (Splash): تحدد هل المستخدم مسجّل دخوله أم لا ثم تنتقل للشاشة المناسبة. */
 public class MainActivity extends Activity {
 
-    private static final long SPLASH_MS = 500;   // الرسم والتلوين والاستقرار (2.65ث) ثم وقفة قصيرة قبل الدخول
+    private static final long SPLASH_MS = 3096;   // 2650ms رسم السبلاش + 446ms انتظار، ثم 54ms للاستقرار = نصف ثانية بعد اكتمال الرسم
 
     // ===== توقيت حركة الشعار (ms) =====
     private static final float T_CIRCLE_A = 0f,    T_CIRCLE_B = 800f;    // رسم محيط الدائرة الذهبية أولاً
@@ -65,30 +65,15 @@ public class MainActivity extends Activity {
      * يتم كله على الخيط الرئيسي فتتجمّد حركة السبلاش لأجزاء من الثانية.
      * هنا نُسخّن هذه الأشياء في خيط خلفي أثناء السبلاش (يُهمَل ناتجها) فيصبح بناء الشاشة الفعلي أسرع بكثير.
      */
+    /** تهيئة Firebase فقط بالخلفية؛ لا نضخّم تخطيط المحادثات ولا نحمّل عشرات الكلاسات بالتوازي مع رسم السبلاش،
+     * لأن ذلك يستهلك المعالج والذاكرة وقد يبطئ فتح MassActivity بدلاً من تسريعه. */
     private void warmUp() {
-        final android.content.Context app = getApplicationContext();
-        final boolean loggedIn = FirebaseAuth.getInstance().getCurrentUser() != null;
-        android.os.HandlerThread ht = new android.os.HandlerThread("bb-warm");   // له Looper لأن بعض الـViews تنشئ Handler
+        android.os.HandlerThread ht = new android.os.HandlerThread("bb-firebase-warm");
         ht.start();
         new Handler(ht.getLooper()).post(() -> {
-            try { com.google.firebase.firestore.FirebaseFirestore.getInstance(); } catch (Throwable ignored) { }
-            String[] cls = {"MassActivity", "Main2Activity", "MsgViews", "MsgMenu", "ChatThemes", "ChatPreview", "ChatPattern",
-                    "Tk", "EmojiFx", "BabylonFx", "BabylonBars", "StoriesController", "StoryViewer", "StoryComposer",
-                    "StoryAvatarView", "ProfileRing", "ProfileHero", "SearchPage", "LocalDb", "FontManager", "CoverThemes", "Glass"};
-            for (String c : cls) {
-                try { Class.forName("com.babylon.chat.iq." + c, true, getClassLoader()); } catch (Throwable ignored) { }
-            }
-            try {   // تضخيم تجريبي يُرمى: يسخّن تحليل الـXML وكاش الموارد وتحميل كلاسات الـViews
-                android.view.LayoutInflater inf = android.view.LayoutInflater.from(new android.view.ContextThemeWrapper(app, R.style.NoActionBar));
-                if (loggedIn) {
-                    com.babylon.chat.iq.databinding.MassBinding.inflate(inf);
-                    for (String pf : new String[]{"part_profile", "part_settings"}) {   // MassActivity.init يضخّمها على الخيط الرئيسي أيضاً
-                        int lid = app.getResources().getIdentifier(pf, "layout", app.getPackageName());
-                        if (lid != 0) inf.inflate(lid, null);
-                    }
-                } else com.babylon.chat.iq.databinding.Main2Binding.inflate(inf);
-            } catch (Throwable ignored) { }
-            ht.quitSafely();
+            try { com.google.firebase.firestore.FirebaseFirestore.getInstance(); }
+            catch (Throwable ignored) { }
+            finally { ht.quitSafely(); }
         });
     }
 
