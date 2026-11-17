@@ -504,8 +504,8 @@ public final class StoryViewer {
                     if (w <= 0 || h <= 0) { stage.setVisibility(View.VISIBLE); return; }
                     int[] loc = new int[2]; stage.getLocationOnScreen(loc);
                     float cx = loc[0] + w / 2f, cy = loc[1] + h / 2f;
-                    float sw = osw > 0f ? osw : Math.max(2f, orad * 2f), sh = osh > 0f ? osh : Math.max(2f, orad * 2f);
-                    float s0 = Math.max(0.05f, Math.min(1f, Math.max(sw / w, sh / h)));
+                    float srcW = osw > 0f ? osw : Math.max(2f, orad * 2f), srcH = osh > 0f ? osh : Math.max(2f, orad * 2f);
+                    float s0 = Math.max(0.05f, Math.min(1f, Math.max(srcW / w, srcH / h)));
                     stage.setPivotX(w / 2f); stage.setPivotY(h / 2f);
                     stage.setScaleX(s0); stage.setScaleY(s0);
                     stage.setTranslationX(ox - cx); stage.setTranslationY(oy - cy);
