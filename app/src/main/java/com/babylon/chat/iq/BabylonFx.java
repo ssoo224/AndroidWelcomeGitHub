@@ -216,14 +216,14 @@ public final class BabylonFx {
                 .withEndAction(() -> reset(chat)).start();
     }
 
-    private static final long LEAVE_MSGS_MS = 20;     // 1) تلاشي الرسائل أولاً
-    private static final long LEAVE_REST_DELAY = 0;   // 2) ثم الهيدر وشريط الكتابة (يبدآن قبل انتهاء الرسائل بقليل)
-    private static final long LEAVE_REST_MS = 20;
-    private static final long LEAVE_BG_DELAY = 0;     // 3) ثم خلفية المحادثة نفسها فتنكشف الصفحة الرئيسية شفافة من خلفها
-    private static final long LEAVE_BG_MS = 20;
+    private static final long LEAVE_MSGS_MS = 220;    // 1) تلاشي الرسائل أولاً
+    private static final long LEAVE_REST_DELAY = 30;  // 2) ثم الهيدر وشريط الكتابة (يبدآن قبل انتهاء الرسائل بقليل)
+    private static final long LEAVE_REST_MS = 230;
+    private static final long LEAVE_BG_DELAY = 70;    // 3) ثم خلفية المحادثة نفسها فتنكشف الصفحة الرئيسية شفافة من خلفها
+    private static final long LEAVE_BG_MS = 250;
 
     /**
-     * الخروج من غرفة المحادثة بتلاشٍ شفاف سريع جداً (~140ms) على مراحل متداخلة:
+     * الخروج من غرفة المحادثة بتلاشٍ شفاف ناعم (~320ms) على مراحل متداخلة:
      *   الرسائل أولاً، ثم الهيدر وشريط الكتابة والشريط المثبّت، ثم الخلفية؛ فتنكشف الصفحة الرئيسية (page) من خلفها
      *   (cross-fade حقيقي: لا فراغ بلون الخلفية بينهما). عند اكتمال التلاشي تُنفَّذ swap (إخفاء المحادثة).
      */
@@ -234,10 +234,10 @@ public final class BabylonFx {
             return;
         }
         reset(chat);
-        if (page != null) {   // أنيميشن ظهور الصفحة الرئيسية خلف تلاشي المحادثة: صعود + تكبير خفيف خلال 20ms
+        if (page != null) {   // أنيميشن ظهور الصفحة الرئيسية خلف تلاشي المحادثة: صعود + تكبير خفيف خلال 320ms
             page.setTranslationY(dp(page, 10));
             page.setScaleX(0.985f); page.setScaleY(0.985f);
-            page.animate().translationY(0f).scaleX(1f).scaleY(1f).setDuration(20)
+            page.animate().translationY(0f).scaleX(1f).scaleY(1f).setDuration(320)
                     .setInterpolator(easeOut()).withEndAction(() -> reset(page)).start();
         }
         final java.util.ArrayList<View> rest = new java.util.ArrayList<>();
@@ -251,7 +251,7 @@ public final class BabylonFx {
                 rest.add(c);
             }
         }
-        final android.view.animation.Interpolator lin = new android.view.animation.LinearInterpolator();
+        final android.view.animation.Interpolator lin = new android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f);   // تلاشٍ ناعم (سرعة هادئة في البداية والنهاية)
         if (msgs != null) { msgs.animate().cancel(); msgs.animate().alpha(0f).setDuration(LEAVE_MSGS_MS).setInterpolator(lin).withLayer().start(); }
         for (View c : rest) c.animate().alpha(0f).setStartDelay(LEAVE_REST_DELAY).setDuration(LEAVE_REST_MS).setInterpolator(lin).start();
         chat.animate().alpha(0f).setStartDelay(LEAVE_BG_DELAY).setDuration(LEAVE_BG_MS).setInterpolator(lin)
@@ -373,6 +373,53 @@ public final class BabylonFx {
             int i = 0;
             for (View v : list) {
                 if (isRise(v)) rise(v, Math.min(i, 12)); else pop(v, Math.min(i, 12));
+                i++;
+            }
+        };
+        final android.view.ViewTreeObserver vto = root.getViewTreeObserver();
+        if (!vto.isAlive()) { root.post(run); return; }
+        vto.addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
+            @Override public boolean onPreDraw() {
+                android.view.ViewTreeObserver o = root.getViewTreeObserver();
+                if (o.isAlive()) o.removeOnPreDrawListener(this);
+                run.run();
+                return true;
+            }
+        });
+        root.invalidate();
+    }
+
+    /** دخول جانبي لصفحة قسم رئيسي: تنزلق من الجهة المعاكسة لخروج الصفحة السابقة مع تلاشٍ خفيف. */
+    public static void tabIn(final View v, float fromX, long durMs) {
+        if (v == null) return;
+        reset(v);
+        v.setAlpha(0f);
+        v.setTranslationX(fromX);
+        v.animate().alpha(1f).translationX(0f)
+                .setStartDelay(0).setDuration(durMs).setInterpolator(tabEase())
+                .withEndAction(() -> reset(v)).start();
+    }
+
+    /** ظهور سريع متتابع لعناصر الصفحة من الأعلى للأسفل (كل عنصر ينزل قليلاً من فوق مكانه). */
+    public static void staggerDown(final View root, final long baseDelay) {
+        if (root == null) return;
+        final Runnable run = () -> {
+            java.util.ArrayList<View> list = new java.util.ArrayList<>();
+            collect(root, list);
+            java.util.Collections.sort(list, (a, b) -> {
+                int[] la = new int[2], lb = new int[2];
+                a.getLocationOnScreen(la); b.getLocationOnScreen(lb);
+                return la[1] != lb[1] ? Integer.compare(la[1], lb[1]) : Integer.compare(la[0], lb[0]);
+            });
+            int i = 0;
+            for (final View v : list) {
+                reset(v);
+                v.setAlpha(0f);
+                v.setTranslationY(-dp(v, 10));
+                v.animate().alpha(1f).translationY(0f)
+                        .setStartDelay(baseDelay + Math.min(i, 12) * 16L).setDuration(150)
+                        .setInterpolator(easeOut())
+                        .withEndAction(() -> reset(v)).start();
                 i++;
             }
         };
