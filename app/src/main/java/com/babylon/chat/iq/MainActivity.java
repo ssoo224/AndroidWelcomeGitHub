@@ -26,7 +26,7 @@ import java.util.List;
 /** شاشة البداية (Splash): تحدد هل المستخدم مسجّل دخوله أم لا ثم تنتقل للشاشة المناسبة. */
 public class MainActivity extends Activity {
 
-    private static final long SPLASH_MS = 1800;
+    private static final long SPLASH_MS = 2400;   // رسم الشعار (1.6ث) ثم نبضة قصيرة قبل الدخول
 
     private MainBinding binding;
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -130,6 +130,7 @@ public class MainActivity extends Activity {
         for (Animator a : animators) a.cancel();
         animators.clear();
         if (shine != null) shine.cancel();
+        binding.logoImg.finishNow();   // الشعار كاملاً قبل الانتقال لشاشة الدخول
         android.view.animation.DecelerateInterpolator di = new android.view.animation.DecelerateInterpolator();
         binding.logoCircle.animate().scaleX(1f).scaleY(1f).setDuration(200).setInterpolator(di).start();
         binding.logoGlow.animate().alpha(0f).setDuration(200).setInterpolator(di).start();
@@ -189,8 +190,18 @@ public class MainActivity extends Activity {
     }
 
     private void startAnimations() {
-        play(binding.logoCircle, R.drawable.splash_breath);
-        play(binding.logoGlow, R.drawable.glow_pulse);
+        // دخول هادئ للدائرة والتوهج، ثم رسم الشعار خطياً (Line Drawing)، وبعد اكتماله يبدأ النبض
+        binding.logoCircle.setAlpha(0f);
+        binding.logoCircle.animate().alpha(1f).setDuration(350).start();
+        binding.logoGlow.setAlpha(0f);
+        binding.logoRing.setAlpha(0f);
+        binding.logoRing.animate().alpha(1f).setDuration(600).setStartDelay(150).start();
+        binding.logoImg.play(1600, () -> {
+            if (isFinishing() || navigated) return;
+            play(binding.logoCircle, R.drawable.splash_breath);
+            binding.logoGlow.setAlpha(0.3f);
+            play(binding.logoGlow, R.drawable.glow_pulse);
+        });
         play(binding.dot1, R.drawable.dot_pulse_1);
         play(binding.dot2, R.drawable.dot_pulse_2);
         play(binding.dot3, R.drawable.dot_pulse_3);
@@ -235,6 +246,7 @@ public class MainActivity extends Activity {
         handler.removeCallbacksAndMessages(null);
         for (Animator a : animators) a.cancel();
         if (shine != null) shine.cancel();
+        if (binding != null) binding.logoImg.cancel();
         if (binding != null && binding.getRoot().getBackground() instanceof AuthBg) ((AuthBg) binding.getRoot().getBackground()).stopIntro();
     }
 }

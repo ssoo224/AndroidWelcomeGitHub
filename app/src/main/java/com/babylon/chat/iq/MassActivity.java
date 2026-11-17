@@ -1627,7 +1627,7 @@ public class MassActivity extends Activity {
                                     if (g == null || g.getVisibility() != View.VISIBLE) continue;
                                     BabylonFx.pageIn(g, 0);
                                 }
-                                if (toChats) BabylonFx.chatRowsIn((ViewGroup) v("chatList"), 0);   // صفوف المحادثات تنزلق متتابعة
+                                if (toChats) BabylonFx.chatRowsIn((ViewGroup) v("chatList"), 0, 0L);   // الصفوف تبدأ مع الهيدر (الصورة/القصص) والصفحة في اللحظة نفسها، بلا تتابع يؤخّرها عنهما
                                 else BabylonFx.stagger(to);                                        // بطاقات/أزرار الإعدادات والملف الشخصي تظهر متتابعة
                                 act.getWindow().getDecorView().postDelayed(() -> { if (homeAnimOn && gen == BabylonFx.tabGenNow()) endHomeEntry(); }, 300);
                             }).start();

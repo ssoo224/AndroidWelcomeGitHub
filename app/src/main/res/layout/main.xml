@@ -37,12 +37,11 @@
 			android:gravity="center_horizontal|center_vertical"
 			android:orientation="vertical"
 			android:layout_gravity="center_horizontal|center_vertical">
-			<ImageView
+			<!-- لوكو برسم خطي متحرك (يُرسم محيطه ثم يمتلئ)؛ الهامش 3dp حول الشعار يتّسع لسماكة الخط -->
+			<com.babylon.chat.iq.LogoDrawView
 				android:id="@+id/logo_img"
-				android:layout_width="43dp"
-				android:layout_height="48dp"
-				android:src="@drawable/logo_vector"
-				android:scaleType="fitCenter"
+				android:layout_width="49dp"
+				android:layout_height="54dp"
 				android:translationX="2.0dp" />
 		</LinearLayout>
 	</FrameLayout>

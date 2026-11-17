@@ -273,7 +273,10 @@ public final class BabylonFx {
         });
     }
 
-    public static void chatRowsIn(final ViewGroup list, final long baseDelay) {
+    public static void chatRowsIn(final ViewGroup list, final long baseDelay) { chatRowsIn(list, baseDelay, 16L); }
+
+    /** stepMs = الفاصل بين صف وآخر؛ 0 = كل الصفوف تبدأ وتنتهي معاً (يتزامن ظهورها مع الهيدر وحقل القصص). */
+    public static void chatRowsIn(final ViewGroup list, final long baseDelay, final long stepMs) {
         if (list == null) return;
         final int n0 = Math.min(list.getChildCount(), 9);
         for (int i = 0; i < n0; i++) { View r = list.getChildAt(i); if (r != null) { r.animate().cancel(); r.setAlpha(0f); } }   // بلا إطار تظهر فيه الصفوف قبل الحركة
@@ -288,7 +291,7 @@ public final class BabylonFx {
                 r.setTranslationX(dp(r, 14));
                 r.setScaleX(0.985f); r.setScaleY(0.985f);
                 r.animate().alpha(1f).translationX(0f).scaleX(1f).scaleY(1f)
-                        .setStartDelay(baseDelay + i * 16L).setDuration(140).setInterpolator(soft)
+                        .setStartDelay(baseDelay + i * stepMs).setDuration(140).setInterpolator(soft)
                         .withEndAction(() -> reset(r)).start();
             }
         });
