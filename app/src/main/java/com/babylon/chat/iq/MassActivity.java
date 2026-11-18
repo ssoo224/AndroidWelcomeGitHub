@@ -813,7 +813,7 @@ public class MassActivity extends Activity {
             /** إشعارات التطبيق: نفس تصميم showToast في الـ HTML (انظر AppToast). */
             void toast(String s) { AppToast.show(act, s, dark); }
             /** صفحة المحادثات تبقى مبنية ومرتّبة (INVISIBLE لا GONE) عند الانتقال لغيرها: تبقى تعمل وتتحدّث في الخلفية، فلا إعادة قياس أو بناء عند الرجوع. */
-            void vis(String n, boolean on) { View x = v(n); if (x != null) x.setVisibility(on ? View.VISIBLE : ("homeView".equals(n) ? View.INVISIBLE : View.GONE)); }
+            void vis(String n, boolean on) { View x = v(n); if (x != null) x.setVisibility(on ? View.VISIBLE : (("homeView".equals(n) || ("newGroupFab".equals(n) && x.getParent() instanceof FrameLayout)) ? View.INVISIBLE : View.GONE)); }
             String now() { return new SimpleDateFormat("h:mm", Locale.getDefault()).format(new Date()); }
             void hideKb() {
                 try {
@@ -1987,11 +1987,19 @@ public class MassActivity extends Activity {
                     final int topNew = (isProfilePage(p) ? 0 : sbTop) + ((home && !chatSelMode) ? dp(62) : 0);
                     final boolean toChats = home && !chatSelMode;
                     final int gen = tabGen0;
-                    final long outMs = toChats ? 25L : 50L;   // الذهاب إلى المحادثات: خروج الصفحة الخارجة أسرع بالضعف   // 1) انزلاق جانبي سريع للصفحة الخارجة ثم اختفاؤها
+                    final long outMs = 50L;   // الذهاب إلى المحادثات: خروج الصفحة الخارجة أسرع بالضعف   // 1) انزلاق جانبي سريع للصفحة الخارجة ثم اختفاؤها
                     final float slideDx = act.getResources().getDisplayMetrics().widthPixels * 0.2f;
                     final float exitDx = (ti > fi ? 1f : -1f) * slideDx;   // الخروج في اتجاه، والدخول من الاتجاه المعاكس
                     final View hdr = toChats ? v("mainHeader") : null;
                     final View fab = toChats ? v("newGroupFab") : null;
+                    // الخروج من المحادثات: الهيدر وزر المجموعة يخرجان مع الصفحة معاً (نفس الزمن والحركة) لا منفردَين
+                    final View hdrOut = "homeView".equals(from) ? v("mainHeader") : null;
+                    final View fabOut = "homeView".equals(from) ? v("newGroupFab") : null;
+                    for (View ov : new View[]{hdrOut, fabOut}) {
+                        if (ov == null || ov.getVisibility() != View.VISIBLE) continue;
+                        ov.animate().cancel();
+                        ov.animate().alpha(0f).translationX(exitDx).setDuration(outMs).setInterpolator(new android.view.animation.AccelerateInterpolator()).start();
+                    }
                     fv.animate().cancel();
                     fv.setAlpha(1f);
                     fv.setTranslationY(0f);   // التخطيط لا يتغيّر أثناء التلاشي، فتبقى الصفحة الخارجة في مكانها بلا حاجة لتعويض
@@ -2009,10 +2017,11 @@ public class MassActivity extends Activity {
                                 }
                                 // 2) الآن فقط (بعد اختفاء الصفحة الخارجة تماماً) يُطبَّق تغيّر الهيدر/شريط الحالة (ظهور الحقل الأبيض) ثم تدخل الصفحة الجديدة
                                 vis("mainHeader", toChats); vis("newGroupFab", home);
+                                for (View ov2 : new View[]{hdrOut, fabOut}) { if (ov2 != null) { ov2.animate().cancel(); ov2.setAlpha(1f); ov2.setTranslationX(0f); } }   // بعد إخفائهما: إعادة الضبط
                                 syncBars(); vpPlace();
                                 // صفحة المحادثات: كل تفاصيلها (الهيدر + القصص + الصفوف + الزر) تدخل دفعة واحدة كوحدة واحدة بنفس الحركة والمدة،
                                 // بلا تتابع عناصر (staggerDown) فلا تظهر على أجزاء، ويُتجنَّب جمع/ترتيب العناصر على الخيط الرئيسي في لحظة التبديل.
-                                final long pageMs = toChats ? 75L : 170L;   // ودخول صفحة المحادثات أسرع بالضعف (كان 150ms)
+                                final long pageMs = 170L;   // نفس زمن دخول/خروج صفحة الإعدادات (خروج 50ms، دخول 170ms)   // ودخول صفحة المحادثات أسرع بالضعف (كان 150ms)
                                 final View[] grp = toChats ? new View[]{to, hdr, fab} : new View[]{to};
                                 if (!toChats) for (View h2 : new View[]{hdr, fab}) {   // (غير المحادثات: لا هيدر/زر أصلاً)
                                     if (h2 == null) continue;
@@ -2031,6 +2040,11 @@ public class MassActivity extends Activity {
                     boolean secondary = ti < 0;
                     if (secondary) BabylonFx.viewIn(to);
                     BabylonFx.stagger(to);
+                    if (home && !chatSelMode) {   // الدخول للمحادثات من صفحة ثانوية: الهيدر والزر يظهران مع الصفحة لا قبلها
+                        for (View hv : new View[]{v("mainHeader"), v("newGroupFab")}) {
+                            if (hv != null && hv.getVisibility() == View.VISIBLE) BabylonFx.tabIn(hv, 0f, 170L);
+                        }
+                    }
                 }
                 // الهيدر يظهر بلا أنيميشن
                 if (!slide) { syncBars(); vpPlace(); }   // في انتقال التبويبات يتم هذا بعد التلاشي (في withEndAction)
