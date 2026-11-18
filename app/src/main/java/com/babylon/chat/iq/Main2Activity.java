@@ -43,7 +43,6 @@ public class Main2Activity extends Activity {
         db = FirebaseFirestore.getInstance();
 
         dark = AuthTheme.isDark(this);
-        setupTabs();
         applyTheme();
         setupSystemBars();
         setupTitleShine();
@@ -54,6 +53,9 @@ public class Main2Activity extends Activity {
         binding.btnLogin.setOnClickListener(v -> doLogin());
         binding.btnRegister.setOnClickListener(v -> doRegister());
         binding.btnForgot.setOnClickListener(v -> doForgot());
+        // لا شريط تبويبات: الدخول هو الواجهة الأولى، ومنها رابط «إنشاء حساب جديد» (وفي التسجيل رابط العودة)
+        binding.btnNewAccount.setOnClickListener(v -> showRegister());
+        binding.btnHaveAccount.setOnClickListener(v -> showLogin());
 
         // إشعار قادم من الشاشة السابقة (مثل «تم تسجيل الخروج»)
         final String carried = getIntent() != null ? getIntent().getStringExtra("bb_toast") : null;
@@ -71,7 +73,7 @@ public class Main2Activity extends Activity {
         if (in == null || !in.hasExtra("logo_cx")) return;   // فتح عادي (مثلاً بعد تسجيل الخروج): بلا حركة
 
         final float d = getResources().getDisplayMetrics().density;
-        final View[] rest = {binding.subtitle, binding.tabs, binding.loginForm};
+        final View[] rest = {binding.subtitle, binding.loginForm};
         for (View v : rest) {
             v.setAlpha(0f);
             v.setTranslationY(28 * d);
@@ -305,52 +307,37 @@ public class Main2Activity extends Activity {
     @Override
     public void onBackPressed() {
         // من نموذج إنشاء الحساب نرجع لنموذج الدخول؛ وفي غير ذلك لا نُغلق التطبيق
-        if (binding != null && binding.registerForm.getVisibility() == View.VISIBLE) binding.tabLogin.performClick();
+        if (binding != null && binding.registerForm.getVisibility() == View.VISIBLE) showLogin();
     }
 
     // ======================= الواجهة =======================
 
-    private void setupTabs() {
-        final TextView tabLogin = binding.tabLogin;
-        final TextView tabRegister = binding.tabRegister;
-        final View loginForm = binding.loginForm;
-        final View registerForm = binding.registerForm;
-
-        tabLogin.setOnClickListener(v -> {
-            loginForm.setVisibility(View.VISIBLE);
-            registerForm.setVisibility(View.GONE);
-            tabLogin.setBackgroundResource(R.drawable.bg_tab_active);
-            tabLogin.setTextColor(0xFFFFFFFF);
-            tabRegister.setBackgroundColor(0x00000000);
-            tabRegister.setTextColor(dark ? AuthTheme.MUTED : 0xFF475569);
-        });
-
-        tabRegister.setOnClickListener(v -> {
-            loginForm.setVisibility(View.GONE);
-            registerForm.setVisibility(View.VISIBLE);
-            tabRegister.setBackgroundResource(R.drawable.bg_tab_active);
-            tabRegister.setTextColor(0xFFFFFFFF);
-            tabLogin.setBackgroundColor(0x00000000);
-            tabLogin.setTextColor(dark ? AuthTheme.MUTED : 0xFF475569);
-        });
+    /** الواجهة الأولى هي الدخول؛ «إنشاء حساب جديد» يعرض نموذج التسجيل، ورابط «لديك حساب؟» يرجع للدخول. */
+    private void showLogin() {
+        binding.loginForm.setVisibility(View.VISIBLE);
+        binding.registerForm.setVisibility(View.GONE);
     }
 
-    /** الطور الليلي: الخلفية، حاوية التبويبات، الحقول، التسميات والنصوص. */
+    private void showRegister() {
+        binding.loginForm.setVisibility(View.GONE);
+        binding.registerForm.setVisibility(View.VISIBLE);
+    }
+
+    /** الطور الليلي: الخلفية، الحقول، التسميات والنصوص. */
     private void applyTheme() {
         float d = getResources().getDisplayMetrics().density;
         binding.root.setBackground(AuthTheme.authBg(this, dark));   // التدرّج + الموجتان الذهبيتان (نهاري/ليلي)
         setupFieldIcons();
         if (!dark) return;
         binding.subtitle.setTextColor(AuthTheme.MUTED);
-        binding.tabs.setBackground(AuthTheme.goldBox(true, 27 * d, Math.round(2 * d)));
-        binding.tabRegister.setTextColor(AuthTheme.MUTED);   // التبويب النشط (الدخول) يبقى أبيض على الذهبي
         TextView[] labels = {binding.labelUser, binding.labelPass, binding.labelName,
-                binding.labelEmail, binding.labelRegPass, binding.labelRegPass2, binding.btnForgot};
+                binding.labelEmail, binding.labelRegPass, binding.labelRegPass2, binding.btnForgot,
+                binding.btnNewAccount, binding.btnHaveAccount};
         for (TextView t : labels) t.setTextColor(AuthTheme.GOLD_LABEL);
         android.widget.EditText[] inputs = {binding.editUser, binding.editPass, binding.editName,
                 binding.editEmail, binding.editRegPass, binding.editRegPass2};
         for (android.widget.EditText e : inputs) {
-            e.setBackground(AuthTheme.goldBox(true, 26 * d, Math.round(1.5f * d)));
+            e.setBackground(AuthTheme.goldBox(true, 26 * d, Math.max(1, Math.round(0.5f * d))));
             e.setTextColor(AuthTheme.TEXT);
             e.setHintTextColor(AuthTheme.HINT);
         }
@@ -415,11 +402,11 @@ public class Main2Activity extends Activity {
         };
         binding.btnLogin.setOnTouchListener(pressAnim);
         binding.btnRegister.setOnTouchListener(pressAnim);
-        binding.tabLogin.setOnTouchListener(pressAnim);
-        binding.tabRegister.setOnTouchListener(pressAnim);
         binding.btnForgot.setOnTouchListener(pressAnim);
+        binding.btnNewAccount.setOnTouchListener(pressAnim);
+        binding.btnHaveAccount.setOnTouchListener(pressAnim);
         // ارتداد الضغط يكبّر الزر لحظياً فوق حجمه (Overshoot) فكانت حدوده تُقصّ عند حافة الحاوية: لا قصّ في أي أب
-        for (View b : new View[]{binding.btnLogin, binding.btnRegister, binding.tabLogin, binding.tabRegister, binding.btnForgot}) noClipParents(b);
+        for (View b : new View[]{binding.btnLogin, binding.btnRegister, binding.btnForgot, binding.btnNewAccount, binding.btnHaveAccount}) noClipParents(b);
     }
 
     private static void noClipParents(View v) {

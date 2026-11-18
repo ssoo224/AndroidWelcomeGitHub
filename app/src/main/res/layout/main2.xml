@@ -54,36 +54,6 @@
 			android:textSize="13sp"
 			android:textColor="#3F4F63" />
 		<LinearLayout
-			android:id="@+id/tabs"
-			android:layout_width="match_parent"
-			android:layout_height="54dp"
-			android:layout_marginTop="24dp"
-			android:padding="2dp"
-			android:background="@drawable/bg_tab_container"
-			android:orientation="horizontal">
-			<TextView
-				android:id="@+id/tab_login"
-				android:layout_width="0dp"
-				android:layout_height="match_parent"
-				android:background="@drawable/bg_tab_active"
-				android:gravity="center_horizontal|center_vertical"
-				android:text="تسجيل الدخول"
-				android:textStyle="bold"
-				android:textColor="#FFFFFF"
-				android:layout_weight="1"
-				android:textSize="13.33sp" />
-			<TextView
-				android:id="@+id/tab_register"
-				android:layout_width="0dp"
-				android:layout_height="match_parent"
-				android:gravity="center_horizontal|center_vertical"
-				android:text="إنشاء حساب"
-				android:textStyle="bold"
-				android:textColor="#3F4F63"
-				android:layout_weight="1"
-				android:textSize="13.33sp" />
-		</LinearLayout>
-		<LinearLayout
 			android:id="@+id/login_form"
 			android:layout_width="match_parent"
 			android:layout_height="wrap_content"
@@ -164,6 +134,19 @@
 				android:drawablePadding="14dp"
 				android:textStyle="bold"
 				android:layout_gravity="center_horizontal"
+				android:focusable="true" />
+
+			<TextView
+				android:id="@+id/btn_new_account"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="10dp"
+				android:layout_gravity="center_horizontal"
+				android:padding="8dp"
+				android:text="إنشاء حساب جديد"
+				android:textSize="14sp"
+				android:textStyle="bold"
+				android:textColor="#B88A18"
 				android:focusable="true" />
 		</LinearLayout>
 		<LinearLayout
@@ -283,6 +266,19 @@
 				android:textSize="15sp"
 				android:textStyle="bold"
 				android:textColor="#FFFFFF"
+				android:focusable="true" />
+
+			<TextView
+				android:id="@+id/btn_have_account"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="10dp"
+				android:layout_gravity="center_horizontal"
+				android:padding="8dp"
+				android:text="لديك حساب؟ تسجيل الدخول"
+				android:textSize="14sp"
+				android:textStyle="bold"
+				android:textColor="#B88A18"
 				android:focusable="true" />
 		</LinearLayout>
 	</LinearLayout>

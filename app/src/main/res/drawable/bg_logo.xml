@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <!-- ثلاث درجات ذهبية واضحة: فاتح ← ذهبي ← عميق -->
     <gradient
         android:angle="315"
-        android:startColor="#F9D96A"
-        android:centerColor="#E9BD38"
-        android:endColor="#CFA020" />
+        android:startColor="#FCE58E"
+        android:centerColor="#EDC13F"
+        android:endColor="#C8991B"
+        android:centerX="0.5"
+        android:centerY="0.5" />
     <stroke android:width="2dp" android:color="#F3D677" />
 </shape>
