@@ -142,7 +142,7 @@ public class VerifyActivity extends Activity {
         title.post(() -> {
             float w = title.getPaint().measureText(title.getText().toString());
             if (w > 0) title.getPaint().setShader(new LinearGradient(0, 0, w, 0,
-                    new int[]{0xFFE5BD4C, 0xFFD9AE31, 0xFFBF9220}, null, Shader.TileMode.CLAMP));
+                    new int[]{0xFFE6B93A, 0xFFD4A528, 0xFFB88A18}, null, Shader.TileMode.CLAMP));
             title.invalidate();
         });
 
@@ -248,7 +248,7 @@ public class VerifyActivity extends Activity {
         btnVerify.setText("تحقق الآن");
         btnVerify.setTextSize(20);
         btnVerify.setTypeface(Typeface.DEFAULT_BOLD);
-        btnVerify.setTextColor(0xFF5B4208);
+        btnVerify.setTextColor(Color.WHITE);
         btnVerify.setGravity(Gravity.CENTER);
         btnVerify.setBackgroundResource(R.drawable.bg_button);
         btnVerify.setOnClickListener(v -> doVerify());

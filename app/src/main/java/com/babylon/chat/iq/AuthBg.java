@@ -11,11 +11,12 @@ import android.graphics.RadialGradient;
 import android.graphics.Rect;
 import android.graphics.Shader;
 import android.graphics.drawable.Drawable;
-import android.view.animation.DecelerateInterpolator;
+import android.view.animation.LinearInterpolator;
+import android.view.animation.OvershootInterpolator;
 
 /**
  * خلفية شاشتي السبلاش وتسجيل الدخول مرسومة برمجياً بالكامل (بلا أي صورة):
- * أرضية كريمية + موجتان ذهبيتان في الزاوية العلوية اليسرى والسفلية اليمنى،
+ * أرضية كريمية (نهاري) أو كحلية داكنة (ليلي) + موجتان ذهبيتان في الزاوية العلوية اليسرى والسفلية اليمنى،
  * كل موجة = قطعة ذهبية متدرّجة + شريط بيج فاتح + خط ذهبي رفيع.
  * الإحداثيات مأخوذة من التصميم المرجعي (842×1869) وتُرسم بنمط cover فتملأ أي شاشة.
  */
@@ -53,39 +54,40 @@ final class AuthBg extends Drawable {
 
     private ValueAnimator intro;
     private float introT = 1f;   // 1 = الوضع النهائي الثابت
+    private final OvershootInterpolator ov = new OvershootInterpolator(1.25f);
 
     AuthBg(boolean dark) {
         this.dark = dark;
 
         // أرضية: كريمي ثابت نهاراً، وتدرّج شعاعي ليلي
         basePaint.setShader(dark
-                ? new RadialGradient(RW / 2f, RH / 2f, RH * 0.72f, 0xFF17212B, 0xFF0E1621, Shader.TileMode.CLAMP)
+                ? new RadialGradient(RW / 2f, RH / 2f, RH * 0.72f, 0xFF1B2632, 0xFF0B121C, Shader.TileMode.CLAMP)
                 : new RadialGradient(RW / 2f, RH / 2f, RH * 0.75f, 0xFFFDFCF8, 0xFFFCF9F2, Shader.TileMode.CLAMP));
 
         // الشريط البيج بين الذهبي والخط
         bandPaint.setShader(dark
-                ? new LinearGradient(0, 300, 450, 80, 0x38E8BE45, 0x24E8BE45, Shader.TileMode.CLAMP)
-                : new LinearGradient(0, 300, 450, 80, 0xFFF9E6B8, 0xFFF9E9C5, Shader.TileMode.CLAMP));
+                ? new LinearGradient(0, 300, 450, 80, 0x34E6B93A, 0x14E6B93A, Shader.TileMode.CLAMP)
+                : new LinearGradient(0, 300, 450, 80, 0xFFF8E2A8, 0xFFF8E5B5, Shader.TileMode.CLAMP));
 
         // القطعة الذهبية: العلوية أفتح، والسفلية تغمق عند طرفها (#D9AE31)
         goldTL.setShader(new LinearGradient(0, 0, 410, 70,
-                gold(new int[]{0xFFFAE085, 0xFFF6D671, 0xFFEECB63, 0xFFEDC964}),
+                gold(new int[]{0xFFF8D96A, 0xFFF4CD55, 0xFFEAC046, 0xFFE8BC3F}),
                 new float[]{0f, 0.35f, 0.75f, 1f}, Shader.TileMode.CLAMP));
         goldBR.setShader(new LinearGradient(0, 0, 430, 40,
-                gold(new int[]{0xFFFCE282, 0xFFF8DB76, 0xFFF1D169, 0xFFE7C153, 0xFFD9AE31}),
+                gold(new int[]{0xFFFADB66, 0xFFF6D159, 0xFFEEC64A, 0xFFE2B63A, 0xFFCFA020}),
                 new float[]{0f, 0.3f, 0.6f, 0.82f, 1f}, Shader.TileMode.CLAMP));
 
         line.setStyle(Paint.Style.STROKE);
         line.setStrokeCap(Paint.Cap.ROUND);
         line.setStrokeWidth(2.2f);
-        line.setColor(dark ? 0xCCEDC548 : 0xFFEDC548);
+        line.setColor(0xFFE6B93A);
 
         // توهّج دافئ خفيف في وسط الصفحة (ظلال ناعمة كما في التصميم)
         glowPaint.setShader(new RadialGradient(640f, 1150f, 560f,
-                dark ? 0x18E8BE45 : 0x40FBF0D2, 0x00FBF0D2, Shader.TileMode.CLAMP));
+                dark ? 0x14E8BE45 : 0x40FBF0D2, 0x00FBF0D2, Shader.TileMode.CLAMP));
 
         // موجة دافئة باهتة جداً تعبر منتصف الصفحة (الانسياب الخفيف في التصميم)
-        swirlPaint.setColor(dark ? 0x0CE8BE45 : 0x16F6DFA0);
+        swirlPaint.setColor(dark ? 0x0AE8BE45 : 0x16F6DFA0);
         swirl.moveTo(0, 770);
         swirl.cubicTo(180, 520, 520, 470, 842, 330);
         swirl.lineTo(842, 1040);
@@ -103,8 +105,8 @@ final class AuthBg extends Drawable {
     private int[] gold(int[] c) {
         if (!dark) return c;
         int[] o = new int[c.length];
-        for (int i = 0; i < c.length; i++) {   // الليلي: نفس التدرّج بدرجة أخفّ
-            int r = Math.round(((c[i] >> 16) & 0xFF) * 0.66f), g = Math.round(((c[i] >> 8) & 0xFF) * 0.66f), b = Math.round((c[i] & 0xFF) * 0.66f);
+        for (int i = 0; i < c.length; i++) {   // الليلي: نفس التدرّج الذهبي بدرجة أهدأ قليلاً على الخلفية الداكنة
+            int r = Math.round(((c[i] >> 16) & 0xFF) * 0.9f), g = Math.round(((c[i] >> 8) & 0xFF) * 0.9f), b = Math.round((c[i] & 0xFF) * 0.9f);
             o[i] = 0xFF000000 | (r << 16) | (g << 8) | b;
         }
         return o;
@@ -127,13 +129,13 @@ final class AuthBg extends Drawable {
         return p;
     }
 
-    /** ظهور ناعم للموجتين من الزاويتين عند بداية السبلاش ثم تثبتان. */
+    /** حركة الدخول: الموجتان تنزلقان من خارج الزاويتين بطبقاتهما (الشريط ثم الخط ثم الذهبي) مع ارتداد خفيف ثم تثبتان. */
     void playIntro(long durationMs) {
         stopIntro();
         introT = 0f;
         intro = ValueAnimator.ofFloat(0f, 1f);
         intro.setDuration(durationMs);
-        intro.setInterpolator(new DecelerateInterpolator(1.6f));
+        intro.setInterpolator(new LinearInterpolator());
         intro.addUpdateListener(a -> { introT = (float) a.getAnimatedValue(); invalidateSelf(); });
         intro.start();
         invalidateSelf();
@@ -159,19 +161,35 @@ final class AuthBg extends Drawable {
         c.drawPath(swirl, swirlPaint);
         c.drawRect(0, 0, RW, RH, glowPaint);
 
-        final float k = 1f - introT;
-        final int alpha = Math.round(255f * Math.min(1f, introT * 1.6f));
+        final float t = introT;
+        final float eBand = ov.getInterpolation(t);                              // الشريط العريض الخلفي
+        final float eLine = ov.getInterpolation(clamp01((t - 0.07f) / 0.93f));   // الخط الرفيع
+        final float eGold = ov.getInterpolation(clamp01((t - 0.14f) / 0.86f));   // القطعة الذهبية تتأخر قليلاً
+        final int alpha = Math.round(255f * clamp01(t * 2.6f));
+        bandPaint.setAlpha(alpha); goldTL.setAlpha(alpha); goldBR.setAlpha(alpha); line.setAlpha(alpha);
+        final float ox = -RW * 0.55f, oy = -RH * 0.26f;                          // الانطلاق من خارج الزاوية
+
         for (int i = 0; i < 2; i++) {
             c.save();
             if (i == 1) c.rotate(180f, RW / 2f, RH / 2f);   // الزاوية السفلية اليمنى
-            float z = 1f + 0.18f * k;                        // انزلاق خفيف من الزاوية
-            c.scale(z, z, 0f, 0f);
-            bandPaint.setAlpha(alpha); (i == 0 ? goldTL : goldBR).setAlpha(alpha); line.setAlpha(Math.round(alpha * (dark ? 0.8f : 1f)));
-            c.drawPath(i == 0 ? bandTL : bandBR, bandPaint);
-            c.drawPath(i == 0 ? goldPathTL : goldPathBR, i == 0 ? goldTL : goldBR);
-            c.drawPath(i == 0 ? lineTL : lineBR, line);
+            drawLayer(c, i == 0 ? bandTL : bandBR, bandPaint, ox, oy, eBand);
+            drawLayer(c, i == 0 ? goldPathTL : goldPathBR, i == 0 ? goldTL : goldBR, ox, oy, eGold);
+            drawLayer(c, i == 0 ? lineTL : lineBR, line, ox, oy, eLine);
             c.restore();
         }
+        c.restore();
+    }
+
+    private static float clamp01(float v) { return v < 0f ? 0f : (v > 1f ? 1f : v); }
+
+    /** الانزلاق بالإزاحة حتى المكان النهائي، والارتداد بتكبير بسيط حول الزاوية فتبقى الحواف ملتصقة بحافتي الشاشة. */
+    private void drawLayer(Canvas c, Path p, Paint paint, float ox, float oy, float e) {
+        float ee = e > 1f ? 1f : e;
+        float z = 1f + (e > 1f ? (e - 1f) * 0.9f : 0f);
+        c.save();
+        c.translate(ox * (1f - ee), oy * (1f - ee));
+        c.scale(z, z);
+        c.drawPath(p, paint);
         c.restore();
     }
 

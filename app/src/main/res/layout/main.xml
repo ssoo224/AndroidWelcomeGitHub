@@ -48,7 +48,7 @@
 		android:text="Babylon Chat"
 		android:textSize="27sp"
 		android:textStyle="bold"
-		android:textColor="#C79A1F"
+		android:textColor="#C4961A"
 		android:alpha="0"
 		android:layout_marginTop="-22.5dp" />
 </LinearLayout>

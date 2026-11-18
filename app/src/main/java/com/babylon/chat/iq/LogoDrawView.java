@@ -54,7 +54,7 @@ public class LogoDrawView extends View {
         stroke.setStrokeCap(Paint.Cap.ROUND);
         fill.setStyle(Paint.Style.FILL);
         fill.setColor(Color.WHITE);
-        outlineColor = AuthTheme.isDark(getContext()) ? 0xFFEDC548 : 0xFFD9AE31;
+        outlineColor = AuthTheme.isDark(getContext()) ? 0xFFE6B93A : 0xFFCFA020;
     }
 
     @Override

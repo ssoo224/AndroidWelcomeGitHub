@@ -359,7 +359,7 @@ public class MainActivity extends Activity {
             float h = binding.title.getHeight();
             if (w <= 0) return;
             binding.title.getPaint().setShader(new LinearGradient(0, 0, w, h,
-                    new int[]{0xFFEDC548, 0xFFD9AE31, 0xFFBF9220}, null, Shader.TileMode.CLAMP));
+                    new int[]{0xFFE6B93A, 0xFFD4A528, 0xFFB88A18}, null, Shader.TileMode.CLAMP));
             binding.title.invalidate();
         });
     }

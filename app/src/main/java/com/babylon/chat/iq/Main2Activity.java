@@ -320,7 +320,7 @@ public class Main2Activity extends Activity {
             loginForm.setVisibility(View.VISIBLE);
             registerForm.setVisibility(View.GONE);
             tabLogin.setBackgroundResource(R.drawable.bg_tab_active);
-            tabLogin.setTextColor(0xFF5B4208);
+            tabLogin.setTextColor(0xFFFFFFFF);
             tabRegister.setBackgroundColor(0x00000000);
             tabRegister.setTextColor(dark ? AuthTheme.MUTED : 0xFF475569);
         });
@@ -329,7 +329,7 @@ public class Main2Activity extends Activity {
             loginForm.setVisibility(View.GONE);
             registerForm.setVisibility(View.VISIBLE);
             tabRegister.setBackgroundResource(R.drawable.bg_tab_active);
-            tabRegister.setTextColor(0xFF5B4208);
+            tabRegister.setTextColor(0xFFFFFFFF);
             tabLogin.setBackgroundColor(0x00000000);
             tabLogin.setTextColor(dark ? AuthTheme.MUTED : 0xFF475569);
         });
@@ -342,7 +342,7 @@ public class Main2Activity extends Activity {
         setupFieldIcons();
         if (!dark) return;
         binding.subtitle.setTextColor(AuthTheme.MUTED);
-        binding.tabs.setBackground(AuthTheme.box(true, 26 * d, 0, 0, Math.max(1, Math.round(d))));
+        binding.tabs.setBackground(AuthTheme.goldBox(true, 27 * d, Math.round(2 * d)));
         binding.tabRegister.setTextColor(AuthTheme.MUTED);   // التبويب النشط (الدخول) يبقى أبيض على الذهبي
         TextView[] labels = {binding.labelUser, binding.labelPass, binding.labelName,
                 binding.labelEmail, binding.labelRegPass, binding.labelRegPass2, binding.btnForgot};
@@ -350,7 +350,7 @@ public class Main2Activity extends Activity {
         android.widget.EditText[] inputs = {binding.editUser, binding.editPass, binding.editName,
                 binding.editEmail, binding.editRegPass, binding.editRegPass2};
         for (android.widget.EditText e : inputs) {
-            e.setBackground(AuthTheme.box(true, 26 * d, 0, 0, Math.max(1, Math.round(d))));
+            e.setBackground(AuthTheme.goldBox(true, 26 * d, Math.round(1.5f * d)));
             e.setTextColor(AuthTheme.TEXT);
             e.setHintTextColor(AuthTheme.HINT);
         }
@@ -537,7 +537,7 @@ public class Main2Activity extends Activity {
             float w = title.getPaint().measureText(title.getText().toString());
             if (w <= 0) return;
             final float tile = w * 2f;
-            int[] colors = {0xFFBF9220, 0xFFD9AE31, 0xFFFBE282, 0xFFD9AE31, 0xFFBF9220, 0xFFBF9220};
+            int[] colors = {0xFFB88A18, 0xFFD4A528, 0xFFF9D96A, 0xFFD4A528, 0xFFB88A18, 0xFFB88A18};
             float[] pos = {0f, 0.2f, 0.4f, 0.6f, 0.8f, 1f};
             final LinearGradient grad = new LinearGradient(0, 0, tile, 0, colors, pos, Shader.TileMode.REPEAT);
             title.getPaint().setShader(grad);

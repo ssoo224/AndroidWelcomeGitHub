@@ -31,7 +31,7 @@ public class DiscDrawView extends View {
         stroke.setStyle(Paint.Style.STROKE);
         stroke.setStrokeCap(Paint.Cap.ROUND);
         stroke.setStrokeWidth(1.8f * density);
-        stroke.setColor(AuthTheme.isDark(getContext()) ? 0xFFEDC548 : 0xFFD9AE31);   // ذهبي واضح على الخلفية النهارية والليلية
+        stroke.setColor(AuthTheme.isDark(getContext()) ? 0xFFE6B93A : 0xFFCFA020);   // ذهبي واضح على الخلفية النهارية والليلية
         disc = getResources().getDrawable(R.drawable.bg_logo, null).mutate();
     }
 

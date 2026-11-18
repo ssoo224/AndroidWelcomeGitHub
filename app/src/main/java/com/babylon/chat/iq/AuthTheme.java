@@ -10,7 +10,7 @@ import android.view.Window;
 final class AuthTheme {
     private AuthTheme() { }
 
-    static final int BG_TOP = 0xFF17212B, BG_EDGE = 0xFF0E1621;   // الليلي: سطح → خلفية الصفحة
+    static final int BG_TOP = 0xFF1B2632, BG_EDGE = 0xFF0B121C;   // الليلي: سطح → خلفية الصفحة
     static final int SURFACE = 0xFF17212B, BORDER = 0x24FFFFFF;
     static final int GOLD_LABEL = 0xFFE4C45B, TEXT = 0xFFF1F5F9, MUTED = 0xFFA5B2C2, HINT = 0xFF7D8DA0;
 
@@ -32,6 +32,17 @@ final class AuthTheme {
     /** خلفية الشاشة الكاملة (التدرّج + الموجتان الذهبيتان) لشاشتي السبلاش والدخول. */
     static android.graphics.drawable.Drawable authBg(Context c, boolean dark) {
         return new AuthBg(dark);
+    }
+
+    static final int GOLD_STROKE = 0xFFE2B63A;
+
+    /** صندوق بإطار ذهبي (الطور الليلي: سطح داكن + إطار ذهبي). */
+    static GradientDrawable goldBox(boolean dark, float radiusPx, int strokePx) {
+        GradientDrawable g = new GradientDrawable();
+        g.setCornerRadius(radiusPx);
+        g.setColor(dark ? SURFACE : 0xFFFFFFFF);
+        g.setStroke(strokePx, GOLD_STROKE);
+        return g;
     }
 
     static GradientDrawable box(boolean dark, float radiusPx, int fillLight, int strokeLight, int strokePx) {
