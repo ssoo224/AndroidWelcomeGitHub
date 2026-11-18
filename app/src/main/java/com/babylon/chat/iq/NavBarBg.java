@@ -29,13 +29,20 @@ final class NavBarBg extends Drawable {
 
     private final boolean dark;
     private final float d;
-    private final int glassColor;
+    private int glassColor;
     private Bitmap bm;
 
     NavBarBg(boolean dark, float density, int glassColor) {
         this.dark = dark;
         this.d = density;
         this.glassColor = glassColor;
+    }
+
+    /** لون الطبقة الزجاجية: يتبع خلفية الصفحة الظاهرة خلف الشريط (للمحادثات: لون أسفل الرسمة البابلية). */
+    void setGlass(int color) {
+        if (glassColor == color) return;
+        glassColor = color;
+        refresh();
     }
 
     /** يُعاد بناء الرسم عند تغيّر ارتفاع الإيماءات. */

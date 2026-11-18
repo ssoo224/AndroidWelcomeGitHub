@@ -16,6 +16,8 @@ public final class Tk {
     private Tk() { }
 
     // ----- الألوان الأساسية (HTML: --bg / --surface / ...)
+    /** لون الطبقة الزجاجية لشريط التنقل فوق خلفية المحادثات (أسفل الرسمة البابلية في اللقطتين). */
+    public static int homeGlass(boolean d) { return d ? 0xFF070A0D : 0xFFF5F4F3; }
     public static int pageBg(boolean d)  { return d ? 0xFF0E1621 : 0xFFF8F9FD; }   // نهاري #F8F9FD كما في اللقطة المرجعية
     public static int surface(boolean d) { return d ? 0xFF17212B : 0xFFFFFFFF; }
     public static int navBg(boolean d)   { return d ? 0xFF17212B : 0xFFFFFFFF; }   // شريط التنقل: ليلي #17212B / نهاري أبيض
@@ -348,7 +350,8 @@ public final class Tk {
             if (t != null) t.setTextColor(dark ? 0xFFFFFFFF : 0xFF2A3A48);
             return true;
         }
-        if (tag.equals("homepat")) { x.setBackground(new HomeBg(x.getContext(), dark, x.getResources().getDisplayMetrics().density)); return true; }   // خلفية المحادثات: موجات حريرية ذهبية خفيفة (HomeBg)
+        if (tag.equals("homepat")) { x.setBackground(new HomeBg(x.getContext(), dark, x.getResources().getDisplayMetrics().density)); return true; }   // خلفية المحادثات: الرسمة البابلية (HomeBg)
+        if (tag.equals("storybg")) { x.setBackground(new HomeBg(x.getContext(), dark, x.getResources().getDisplayMetrics().density)); return true; }   // شريط القصص: يعرض نفس الرسمة (محاذاة للنافذة) فيبدو شفافاً
         if (tag.equals("chatpat")) { x.setBackground(chatRoomBg(x, dark)); return true; }
         if (tag.equals("glasst")) {          // رأس المحادثة: طبقة زجاجية 72% تمتد خلف شريط الإشعارات وتتلاشى عند حافتها السفلية
             x.setBackground(new Glass(chatSurface(dark), true, dp(x, 16)));

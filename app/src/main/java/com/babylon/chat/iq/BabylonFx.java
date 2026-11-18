@@ -694,10 +694,10 @@ public final class BabylonFx {
         title.post(() -> {
             float w = title.getPaint().measureText(title.getText().toString());
             if (w <= 0) return;
-            // تدرّج ذهبي ثابت (بلا أنيميشن ولا إعادة رسم مستمرة): الصفحة أخف
-            int[] colors = {0xFFB8891A, 0xFFE0BD4A, 0xFFB8891A};
-            float[] pos = {0f, 0.5f, 1f};
-            title.getPaint().setShader(new LinearGradient(0, 0, w, 0, colors, pos, Shader.TileMode.CLAMP));
+            // تدرّج ذهبي ثابت (بلا أنيميشن) بنفس ألوان واتجاه عنوان السبلاش
+            float h = title.getHeight();
+            title.getPaint().setShader(new LinearGradient(0, 0, w, h,
+                    new int[]{0xFFECD176, 0xFFD0A533, 0xFFB4871D}, null, Shader.TileMode.CLAMP));
             title.setTextColor(Color.WHITE); // اللون الفعلي يأتي من الـ shader
             title.invalidate();
         });

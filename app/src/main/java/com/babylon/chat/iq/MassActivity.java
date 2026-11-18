@@ -598,6 +598,84 @@ public class MassActivity extends Activity {
                 if (sk != null) { sk.animate().cancel(); if (sk.getParent() instanceof ViewGroup) ((ViewGroup) sk.getParent()).removeView(sk); }
             }
 
+            // ---- حالة «لا توجد رسائل»: أيقونة رسالة + «أرسل أول رسالة» في منتصف المحادثة الفارغة
+            LinearLayout emptyChatView = null;
+            ImageView emptyChatIc = null;
+            TextView emptyChatTx = null;
+            boolean emptyChatHooked = false;
+
+            /** المحادثة محمَّلة فعلاً (وصلت أول لقطة) وليس فيها أي رسالة ولا فاصل. */
+            boolean chatIsEmpty() {
+                try {
+                    if (currentChatId.isEmpty() || !currentChatId.equals(loadedChatId)) return false;
+                    if (!msgViewsById.isEmpty()) return false;
+                    View ma = v("messagesArea");
+                    return !(ma instanceof ViewGroup) || ((ViewGroup) ma).getChildCount() == 0;
+                } catch (Throwable t) { return false; }
+            }
+
+            void hideEmptyChat() {
+                View ev = emptyChatView;
+                if (ev == null || ev.getVisibility() == View.GONE) return;
+                ev.animate().cancel();
+                ev.setVisibility(View.GONE);
+            }
+
+            void syncEmptyChat() {
+                try {
+                    if (!chatOpen() || !chatIsEmpty()) { hideEmptyChat(); return; }
+                    View ms = v("messagesScroll");
+                    if (ms == null || !(ms.getParent() instanceof FrameLayout)) return;
+                    FrameLayout par = (FrameLayout) ms.getParent();
+                    if (emptyChatView == null || emptyChatView.getParent() != par) {
+                        LinearLayout box = new LinearLayout(act);
+                        box.setOrientation(LinearLayout.VERTICAL);
+                        box.setGravity(Gravity.CENTER);
+                        box.setClickable(false); box.setFocusable(false);   // اللمس يمرّ إلى الصفحة خلفه
+                        emptyChatIc = new ImageView(act);
+                        emptyChatIc.setImageResource(R.drawable.ic_empty_chat);
+                        emptyChatIc.setScaleType(ImageView.ScaleType.CENTER);
+                        box.addView(emptyChatIc, new LinearLayout.LayoutParams(dp(84), dp(84)));
+                        emptyChatTx = new TextView(act);
+                        emptyChatTx.setText("أرسل أول رسالة");
+                        emptyChatTx.setTextSize(15);
+                        emptyChatTx.setTypeface(null, android.graphics.Typeface.BOLD);
+                        emptyChatTx.setGravity(Gravity.CENTER);
+                        LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(-2, -2);
+                        tl.topMargin = dp(12);
+                        box.addView(emptyChatTx, tl);
+                        if (emptyChatView != null && emptyChatView.getParent() instanceof ViewGroup) ((ViewGroup) emptyChatView.getParent()).removeView(emptyChatView);
+                        par.addView(box, par.indexOfChild(ms) + 1, new FrameLayout.LayoutParams(-1, -1));   // فوق الرسائل وتحت شريطَي الرأس والكتابة
+                        emptyChatView = box;
+                        if (!emptyChatHooked) {
+                            emptyChatHooked = true;
+                            // أول رسالة أو فاصل يُضاف: يختفي فوراً بلا انتظار
+                            View ma0 = v("messagesArea");
+                            if (ma0 instanceof ViewGroup) ((ViewGroup) ma0).setOnHierarchyChangeListener(new ViewGroup.OnHierarchyChangeListener() {
+                                @Override public void onChildViewAdded(View p0, View c) { hideEmptyChat(); }
+                                @Override public void onChildViewRemoved(View p0, View c) { uiH.post(() -> syncEmptyChat()); }
+                            });
+                        }
+                    }
+                    int mid = dark ? 0xFF8EA0B5 : 0xFF8A97A8;
+                    int muted = cMuted();
+                    GradientDrawable bg = new GradientDrawable();
+                    bg.setShape(GradientDrawable.OVAL);
+                    bg.setColor(dark ? 0x1FFFFFFF : 0xB3FFFFFF);
+                    bg.setStroke(dp(1), dark ? 0x26FFFFFF : 0x14000000);
+                    emptyChatIc.setBackground(bg);
+                    emptyChatIc.setColorFilter(mid, android.graphics.PorterDuff.Mode.SRC_IN);
+                    emptyChatTx.setTextColor(muted);
+                    // الحشوة تطابق منطقة الرسائل (بين الرأس وشريط الكتابة) فيكون المنتصف حقيقياً
+                    emptyChatView.setPadding(ms.getPaddingLeft(), ms.getPaddingTop(), ms.getPaddingRight(), ms.getPaddingBottom());
+                    if (emptyChatView.getVisibility() != View.VISIBLE) {
+                        emptyChatView.setAlpha(0f);
+                        emptyChatView.setVisibility(View.VISIBLE);
+                        emptyChatView.animate().alpha(1f).setDuration(180).start();
+                    }
+                } catch (Throwable ignored) { }
+            }
+
             // ---- هيكل الرسائل الأقدم: يظهر فوق أقدم رسالة ظاهرة (مكان وصول الرسائل الأقدم) ويتحرك مع التمرير، فلا يغطّي رسائل حقيقية أبداً
             View olderSkel = null;
             boolean backfillActive = false;
@@ -627,6 +705,7 @@ public class MassActivity extends Activity {
                         if (msgSkel != null && hasMsgs && area != null && area.getAlpha() >= 0.99f) hideMsgSkeleton();
                         else if (msgSkel == null && !hasMsgs && !currentChatId.equals(loadedChatId) && now - chatOpenedAt > 450 && now - chatOpenedAt < 8000) showMsgSkeleton();
                     } catch (Throwable ignored) { }
+                    syncEmptyChat();
                     uiH.postDelayed(this, 350);
                 }
             };
@@ -929,7 +1008,7 @@ public class MassActivity extends Activity {
                         TextView T = (x instanceof TextView) ? (TextView) x : null;
                         if (Tk.handle(k, x, T, dark)) continue;
                         if (k.equals("bg")) x.setBackgroundColor(cBg());
-                        else if (k.equals("storybg")) x.setBackgroundColor(cBg());   // شريط القصص: نفس لون الهيدر (pageBg الصريح) وليس نقش/خلفية المحادثة
+                        else if (k.equals("storybg")) x.setBackgroundColor(cBg());   // (يُعالَج في Tk.handle: الرسمة نفسها)
                         else if (k.equals("sf")) x.setBackgroundColor(cSf());
                         else if (k.equals("line")) x.setBackgroundColor(cBorder());
                         else if (k.equals("chatbg")) x.setBackgroundColor(cChatBg());
@@ -1762,6 +1841,9 @@ public class MassActivity extends Activity {
                     int h = dp(66) + extra;   // 7 أعلى + 54 الصف + 5 أسفل + شريط الإيماءات
                     boolean changed = NavBarBg.EXTRA_BOTTOM != extra;
                     NavBarBg.EXTRA_BOTTOM = extra;
+                    // الطبقة الزجاجية خلف الكبسولة تتبع خلفية الصفحة الظاهرة: لون الرسمة في المحادثات، ولون الصفحة في غيرها
+                    if (bn.getBackground() instanceof NavBarBg)
+                        ((NavBarBg) bn.getBackground()).setGlass("homeView".equals(curPage) ? Tk.homeGlass(dark) : Tk.pageBg(dark));
                     if (bn.getPaddingBottom() != dp(5) + extra) bn.setPadding(bn.getPaddingLeft(), bn.getPaddingTop(), bn.getPaddingRight(), dp(5) + extra);
                     if (changed && bn.getBackground() instanceof NavBarBg) ((NavBarBg) bn.getBackground()).refresh();
                     int ov = on ? h : 0;   // مقدار تداخل الشريط فوق الصفحة (الصفحة تمتد خلفه)
@@ -1901,12 +1983,20 @@ public class MassActivity extends Activity {
                         // صفحة البحث: خلفية --sr-bg وشريط الحالة بلون بداية تدرّج الهيدر (مثل الـ HTML)
                         boolean srch = "searchView".equals(curPage);
                         View rt = v("root");
-                        if (rt != null) rt.setBackgroundColor(srch ? SearchPage.bg(dark) : cBg());
+                        boolean homePg = "homeView".equals(curPage);
+                        if (rt != null) {
+                            if (homePg) {   // المحادثات: الرسمة البابلية تمتد خلف شريط الحالة أيضاً (متصلة بالهيدر والصفحة)
+                                Drawable cb = rt.getBackground();
+                                if (!(cb instanceof HomeBg) || ((HomeBg) cb).isDark() != dark)
+                                    rt.setBackground(new HomeBg(act, dark, act.getResources().getDisplayMetrics().density));
+                            } else rt.setBackgroundColor(srch ? SearchPage.bg(dark) : cBg());
+                        }
                         if (srch) { top = SearchPage.topColor(dark); bottom = SearchPage.bg(dark); }
                         // تعديل البيانات الشخصية (نهاري): شريط الإشعارات بنفس بياض ترويسة الصفحة (.edit-profile-header)
                         if (("editProfileView".equals(curPage) || "chatSettingsView".equals(curPage)) && !dark) top = 0xFFFFFFFF;
                     }
-                    if (!inChat && isProfilePage(curPage)) bars.syncProfile(bottom);   // شريط حالة شفاف + أيقونات بيضاء
+                    if (!inChat && "homeView".equals(curPage)) bars.syncHome(dark, Tk.homeGlass(dark));   // شريط حالة شفاف فوق الرسمة، أيقوناته حسب الثيم
+                    else if (!inChat && isProfilePage(curPage)) bars.syncProfile(bottom);   // شريط حالة شفاف + أيقونات بيضاء
                     else bars.sync(top, bottom);
                 } catch (Throwable ignored) { }
             }
@@ -1948,10 +2038,43 @@ public class MassActivity extends Activity {
                 trimmedRows.clear();
             }
 
+            // ---- إبقاء صفحة المحادثات حيّة في الخلفية: حجمها يُثبَّت عند مغادرتها فلا يُعاد قياسها/تخطيطها
+            // عندما يتغيّر حجم منطقة الصفحات (إخفاء الهيدر وشريط التنقل، حشوة شريط الحالة في الملف الشخصي...)،
+            // ويُحرَّر التثبيت عند العودة بعد أن يرجع الهيدر فيتطابق الحجم تماماً.
+            boolean homeFrozen = false;
+
+            void freezeHome() {
+                try {
+                    if (homeFrozen) return;
+                    View hv = v("homeView");
+                    if (hv == null || hv.getVisibility() != View.VISIBLE) return;
+                    int h = hv.getHeight();
+                    ViewGroup.LayoutParams lp = hv.getLayoutParams();
+                    if (h <= 0 || lp == null || lp.height == h) return;
+                    lp.height = h;
+                    hv.setLayoutParams(lp);
+                    homeFrozen = true;
+                } catch (Throwable ignored) { }
+            }
+
+            void unfreezeHome() {
+                if (!homeFrozen) return;
+                homeFrozen = false;
+                try {
+                    View hv = v("homeView");
+                    ViewGroup.LayoutParams lp = hv != null ? hv.getLayoutParams() : null;
+                    if (lp != null && lp.height != ViewGroup.LayoutParams.MATCH_PARENT) {
+                        lp.height = ViewGroup.LayoutParams.MATCH_PARENT;
+                        hv.setLayoutParams(lp);
+                    }
+                } catch (Throwable ignored) { }
+            }
+
             void show(String p) {
                 final String from = curPage;
                 restoreChatList();
                 endHomeEntry();
+                if ("homeView".equals(from) && !"homeView".equals(p)) freezeHome();   // المحادثات تبقى بحجمها وحالتها كما هي
                 BabylonFx.cancelTabSlide();   // تبديل سريع بين التبويبات: لا يبقى انتقال سابق يُظهر صفحته فوق الحالية
                 for (String pg0 : pages) { View pv0 = v(pg0); if (pv0 != null && (pv0.getTranslationX() != 0f)) { pv0.animate().cancel(); pv0.setTranslationX(0f); pv0.setAlpha(1f); } }
                 for (String pg1 : pages) { View pv1 = v(pg1); if (pv1 != null && pv1.getTranslationY() != 0f) pv1.setTranslationY(0f); }
@@ -1976,7 +2099,7 @@ public class MassActivity extends Activity {
                 boolean home = p.equals("homeView");
                 boolean hdrWas = v("mainHeader") != null && v("mainHeader").getVisibility() == View.VISIBLE;
                 if (chatSelMode && !home) exitChatSel(false);
-                if (!slide) { vis("mainHeader", home && !chatSelMode); vis("newGroupFab", home); }
+                if (!slide) { vis("mainHeader", home && !chatSelMode); vis("newGroupFab", home); if (home) unfreezeHome(); }
                 vis("bottomNav", home || p.equals("settingsView") || p.equals("profileView"));
                 setNav(p);
                 hideKb();
@@ -2018,6 +2141,7 @@ public class MassActivity extends Activity {
                                 }
                                 // 2) الآن فقط (بعد اختفاء الصفحة الخارجة تماماً) يُطبَّق تغيّر الهيدر/شريط الحالة (ظهور الحقل الأبيض) ثم تدخل الصفحة الجديدة
                                 vis("mainHeader", toChats); vis("newGroupFab", home);
+                                if (home) unfreezeHome();   // الهيدر عاد فتطابق الحجم المثبَّت: لا إعادة قياس
                                 for (View ov2 : new View[]{hdrOut, fabOut}) { if (ov2 != null) { ov2.animate().cancel(); ov2.setAlpha(1f); ov2.setTranslationX(0f); } }   // بعد إخفائهما: إعادة الضبط
                                 syncBars(); vpPlace();
                                 // صفحة المحادثات: كل تفاصيلها (الهيدر + القصص + الصفوف + الزر) تدخل دفعة واحدة كوحدة واحدة بنفس الحركة والمدة،
@@ -2036,13 +2160,14 @@ public class MassActivity extends Activity {
                                     } else h2.setAlpha(1f);
                                 }
                                 BabylonFx.tabIn(to, -exitDx, pageMs);
-                                BabylonFx.staggerDown(to, 0L);
+                                // المحادثات تدخل كوحدة واحدة (طبقة واحدة): لا جمع ولا فرز ولا تحريك لكل صف وعنصر
+                                if (!toChats) BabylonFx.staggerDown(to, 0L);
                                 act.getWindow().getDecorView().postDelayed(() -> { if (homeAnimOn && gen == BabylonFx.tabGenNow()) endHomeEntry(); }, 600);
                             }).start();
                 } else if (to != null) {
                     boolean secondary = ti < 0;
                     if (secondary) BabylonFx.viewIn(to);
-                    BabylonFx.stagger(to);
+                    if (!home) BabylonFx.stagger(to);   // المحادثات حيّة ومبنية: لا حركة تتابع على عناصرها
                     if (home && !chatSelMode) {   // الدخول للمحادثات من صفحة ثانوية: الهيدر والزر يظهران مع الصفحة لا قبلها
                         for (View hv : new View[]{v("mainHeader"), v("newGroupFab")}) {
                             if (hv != null && hv.getVisibility() == View.VISIBLE) BabylonFx.tabIn(hv, 0f, 170L);
@@ -2077,6 +2202,7 @@ public class MassActivity extends Activity {
                         }
                     }
                     boolean home = "homeView".equals(target);
+                    if (home) unfreezeHome();
                     View hd = v("mainHeader");
                     if (hd != null && home && !chatSelMode && hd.getVisibility() == View.VISIBLE) {
                         if (hd.getAlpha() < 1f) hd.setAlpha(1f);
@@ -4558,7 +4684,8 @@ public class MassActivity extends Activity {
                 if (chatSelXIv != null) chatSelXIv.setColorFilter(cGold());
                 if (chatSelDelIv != null) chatSelDelIv.setColorFilter(cGold());
                 if (chatSelPinIv != null) chatSelPinIv.setColorFilter(cGold());
-                if (chatSelBar != null) chatSelBar.setBackgroundColor(cBg());
+                if (chatSelBar != null && !(chatSelBar.getBackground() instanceof HomeBg && ((HomeBg) chatSelBar.getBackground()).isDark() == dark))
+                    Tk.handle("homepat", chatSelBar, null, dark);   // نفس رسمة الهيدر (محاذاة للنافذة) فلا يظهر شريط بلون مختلف
                 if (chatSelPinIv != null) {
                     java.util.List<String> pins = getPins();
                     boolean all = !chatSel.isEmpty();
@@ -4582,8 +4709,8 @@ public class MassActivity extends Activity {
 
                 // الغلاف: يحمل لون الخلفية ويُظهر العدد في منتصف الشريط تماماً (بغض النظر عن أزرار الطرفين)
                 FrameLayout wrap = new FrameLayout(act);
-                wrap.setTag("bg");
-                wrap.setBackgroundColor(cBg());
+                wrap.setTag("homepat");   // شريط التحديد يحل محل الهيدر: نفس الرسمة المحاذاة للنافذة فلا تظهر حدود
+                Tk.handle("homepat", wrap, null, dark);
                 wrap.setVisibility(View.GONE);
 
                 chatSelXIv = noBg(selIcon(R.drawable.ic_mm_x, cGold(), cSf(), "إلغاء التحديد", () -> exitChatSel(true)));
@@ -4814,6 +4941,7 @@ public class MassActivity extends Activity {
                 LinearLayout msgArea = (LinearLayout) v("messagesArea");
                 if (msgArea != null) { msgArea.removeAllViews(); msgArea.animate().cancel(); msgArea.setAlpha(1f); }
                 renderedMsgIds.clear(); lastDayKey = ""; daySeps.clear(); msgViewsById.clear(); msgMeta.clear();
+                hideEmptyChat();   // حالة «لا توجد رسائل» تُقرَّر من جديد بعد تحميل هذه المحادثة
                 olderTok++; olderQ.clear();   // دفعات رسائل قديمة معلّقة لمحادثة سابقة
                 localTok++; localPaging = false; prependBusy = false; chatWinStart = -1L;
                 playingHandle = null;   // فقاعاتها القديمة أُزيلت؛ التشغيل يستمر ويُعاد ربطه عند رسم رسالتها
@@ -4953,7 +5081,7 @@ public class MassActivity extends Activity {
                         if (firstSnap[0] && snapshots.isEmpty() && snapshots.getMetadata().isFromCache()) return;
                         final boolean wasFirst = firstSnap[0];
                         firstSnap[0] = false;
-                        if (wasFirst && chatId.equals(currentChatId)) loadedChatId = chatId;   // اكتمل الرسم الأول: تصلح الجلسة للحفظ
+                        if (wasFirst && chatId.equals(currentChatId)) { loadedChatId = chatId; uiH.postDelayed(() -> syncEmptyChat(), 250); }   // اكتمل الرسم الأول: تصلح الجلسة للحفظ، ويُعرَض «أرسل أول رسالة» إن كانت فارغة
                         final boolean hadCache = !cacheRenderedIds.isEmpty();
                         final java.util.HashSet<String> cacheIdsSnap = new java.util.HashSet<>(cacheRenderedIds);   // reconcile يفرّغ المجموعة قبل الحلقة: نحتفظ بنسخة لمزامنة التفاعلات/القراءة
                         final boolean rebuilt = hadCache && reconcileCachedMsgs(snapshots);
@@ -5755,6 +5883,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 hideKb();
                 clearSel();
                 hideMsgSkeletonNow();
+                hideEmptyChat();
                 uiH.removeCallbacks(olderSkelTick); hideOlderSkelNow(); backfillActive = false;
                 stashSession();   // الرسائل المبنية تبقى ثابتة في الذاكرة حتى الدخول التالي
                 // إعادة بناء قائمة المحادثات والقصص ثقيلة (تُنشئ كل الصفوف من جديد) وكانت تعمل قبل التلاشي فتتجمّد الحركة في منتصفها.

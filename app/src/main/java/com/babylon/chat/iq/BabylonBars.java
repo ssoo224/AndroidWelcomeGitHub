@@ -149,6 +149,28 @@ public final class BabylonBars {
     }
 
     /**
+     * صفحة المحادثات: شريط الحالة شفاف فتظهر الرسمة البابلية خلفه (متصلة بالهيدر)، وأيقوناته تتبع الثيم
+     * (بيضاء في الليلي وداكنة في النهاري). شريط الإيماءات يتبع المنطق المعتاد.
+     */
+    public void syncHome(boolean dark, int bottom) {
+        if (frozen) return;
+        bottom |= 0xFF000000;
+        Window w = act.getWindow();
+        int flags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
+        if (Build.VERSION.SDK_INT >= 23 && !dark) flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+        if (Build.VERSION.SDK_INT >= 26 && lum(bottom) > 0.55f) flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+        w.getDecorView().setSystemUiVisibility(flags);
+
+        if (topAnim != null) topAnim.cancel();
+        if (!hold) w.setStatusBarColor(Color.TRANSPARENT);
+        transparentTop = true;
+        curTop = 0;
+        syncBottom(w, bottom);
+    }
+
+    /**
      * داخل المحادثة: مطابق للـ HTML —
      *  - شريط الحالة شفاف تماماً (الطبقة الزجاجية للرأس تمتد خلفه) وأيقونته تتبع سطوع لون المحادثة؛
      *  - شريط الإيماءات يأخذ لون خلفية المحادثة الصلب (#bbGestureFill) وأيقونته كذلك.
