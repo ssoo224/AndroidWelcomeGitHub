@@ -2227,7 +2227,7 @@ public class MassActivity extends Activity {
                     TextView ic = tv(id + "Ic");
                     TextView tx = tv(id + "Tx");
                     int inactive = dark ? 0xFFE4C45B : 0xFFBF9334;   // نهاري: #BF9334 / ليلي #e4c45b (مطابق للمرجع)
-                    int active = dark ? 0xFFE4C45B : 0xFF9C6901;     // النشط في النهار: #9C6901 (مطابق للمرجع)
+                    int active = dark ? 0xFFFFFFFF : 0xFF9C6901;     // النشط في النهار: #9C6901 (مطابق للمرجع)
                     if (ic != null) {
                         ic.setTag(null);
                         ic.setTextColor(on ? active : inactive);

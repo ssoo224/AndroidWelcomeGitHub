@@ -75,7 +75,7 @@ final class NavBarBg extends Drawable {
 
         Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
         fill.setStyle(Paint.Style.FILL);
-        fill.setColor(home ? (dark ? 0xFF0F1318 : 0xFFFFFFFF) : (dark ? 0xFF1E2A36 : 0xFFFFFFFF));   // الليلي: أفتح بدرجة من #17212B
+        fill.setColor(dark ? 0xFF181818 : (home ? 0xFFFFFFFF : 0xFFFFFFFF));   // الليلي: #181818 كما في اللقطة المرجعية   // الليلي: أفتح بدرجة من #17212B
         fill.setShadowLayer(10f * d, 0f, 3f * d, dark ? 0x66000000 : 0x265A6A8A);   // الظل داخل الصورة (برمجي) فلا يتأثر بالتسريع
         c.drawPath(p, fill);
 
@@ -83,7 +83,7 @@ final class NavBarBg extends Drawable {
             Paint st = new Paint(Paint.ANTI_ALIAS_FLAG);
             st.setStyle(Paint.Style.STROKE);
             st.setStrokeWidth(Math.max(1f, d));
-            st.setColor(home ? (dark ? 0x38E4C45B : 0x4DD9B25E) : 0x1FFFFFFF);
+            st.setColor(dark ? 0x1FFFFFFF : (home ? 0x4DD9B25E : 0x1FFFFFFF));   // الليلي: حدّ رمادي فاتح خافت
             c.drawPath(p, st);
         }
     }
@@ -197,7 +197,7 @@ final class NavBarBg extends Drawable {
             path.computeBounds(pb, true);
             float w = pb.width(), h = pb.height();
             body.setShader(new LinearGradient(0f, pb.top, 0f, pb.bottom,
-                    dark ? new int[]{0x4DF0D27A, 0x40E4C45B, 0x33D9B24A} : new int[]{0xFFFFF3D3, 0xFFFEEAC2, 0xFFFBE4BE},
+                    dark ? new int[]{0xFF463619, 0xFF352B15, 0xFF1E1A12} : new int[]{0xFFFFF3D3, 0xFFFEEAC2, 0xFFFBE4BE},
                     new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP));
             // لمعة ناعمة في الأعلى كما في المرجع
             sheen.setShader(new RadialGradient(pb.centerX(), pb.top + h * 0.22f, w * 0.55f,
@@ -206,8 +206,8 @@ final class NavBarBg extends Drawable {
             glow = Bitmap.createBitmap((int) (w + 2 * g), (int) (h + 2 * g), Bitmap.Config.ARGB_8888);
             Canvas c = new Canvas(glow);
             Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-            p.setColor(dark ? 0x33E4C45B : 0xFFFEEAC4);
-            p.setShadowLayer(8f * d, 0f, 1.5f * d, dark ? 0x40E4C45B : 0x55EBCB8A);
+            p.setColor(dark ? 0xFF352B15 : 0xFFFEEAC4);
+            p.setShadowLayer(8f * d, 0f, 1.5f * d, dark ? 0x30463619 : 0x55EBCB8A);
             Path gp = new Path(path);
             gp.offset(g - pb.left, g - pb.top);
             c.drawPath(gp, p);
