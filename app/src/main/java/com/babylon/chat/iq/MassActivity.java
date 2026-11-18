@@ -1019,7 +1019,7 @@ public class MassActivity extends Activity {
                             else x.setBackground(shape(cSf(), small ? 14 : 20, cBorder()));   // عدسة البحث بلا إطار رمادي حول مربعها
                             if (isQuickBtn(x)) x.setStateListAnimator(null);
                         }
-                        else if (k.equals("row")) { x.setBackground(shape(Tk.homeCard(dark), 18, Tk.homeCardStroke(dark))); }   // صفوف المحادثات: ألوان متناسقة مع الرسمة
+                        else if (k.equals("row")) { x.setBackground(dark ? shape(0xFF181818, 18, 0x1FFFFFFF) : shape(0xFFFFFFFF, 18, 0)); }   // الليلي: نفس لون شريط التنقل #181818 وحدّه الرمادي الخافت؛ النهاري: أبيض #FFFFFF بلا حدّ   // صفوف المحادثات: ألوان متناسقة مع الرسمة
                         else if (k.equals("badge")) {
                             GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE2B83F, 0xFFB8861B});
                             g.setCornerRadius(dp(11));

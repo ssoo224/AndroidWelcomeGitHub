@@ -76,14 +76,14 @@ final class NavBarBg extends Drawable {
         Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
         fill.setStyle(Paint.Style.FILL);
         fill.setColor(dark ? 0xFF181818 : (home ? 0xFFFFFFFF : 0xFFFFFFFF));   // الليلي: #181818 كما في اللقطة المرجعية   // الليلي: أفتح بدرجة من #17212B
-        fill.setShadowLayer(10f * d, 0f, 3f * d, dark ? 0x66000000 : 0x265A6A8A);   // الظل داخل الصورة (برمجي) فلا يتأثر بالتسريع
+        if (dark) fill.setShadowLayer(10f * d, 0f, 3f * d, 0x66000000);   // النهاري: بلا ظل   // الظل داخل الصورة (برمجي) فلا يتأثر بالتسريع
         c.drawPath(p, fill);
 
-        if (dark || home) {
+        if (dark) {   // النهاري: بلا حدّ
             Paint st = new Paint(Paint.ANTI_ALIAS_FLAG);
             st.setStyle(Paint.Style.STROKE);
             st.setStrokeWidth(Math.max(1f, d));
-            st.setColor(dark ? 0x1FFFFFFF : (home ? 0x4DD9B25E : 0x1FFFFFFF));   // الليلي: حدّ رمادي فاتح خافت
+            st.setColor(0x1FFFFFFF);   // الليلي: حدّ رمادي فاتح خافت
             c.drawPath(p, st);
         }
     }
