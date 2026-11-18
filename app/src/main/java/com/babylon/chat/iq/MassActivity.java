@@ -252,11 +252,24 @@ public class MassActivity extends Activity {
             } catch (Throwable ignored) { }
         } catch (Throwable ignored) { }
         if (heldBySplash) binding.getRoot().post(() -> Handoff.ready(this));   // جاهزة: السبلاش تكشفها فور اكتمال اللوگو
+        if (heldBySplash) binding.getRoot().postDelayed(() -> { if (heldBySplash) { heldBySplash = false; flushAfterEntry(); } }, 15000);   // أمان: لو لم تُكشف لأي سبب لا تبقى بلا تحديثات
     }
 
     private boolean heldBySplash = false;
     private android.graphics.drawable.Drawable origWinBg;
     private Runnable revealBarsHook;   // تُسنَد من initializeLogic: تفكّ تجميد الأشرطة وتزامنها
+    private final java.util.ArrayList<Runnable> afterEntryTasks = new java.util.ArrayList<>();
+
+    /** أعمال الشبكة (مستمعو Firebase وجلب الملف الشخصي): تُؤجَّل إلى ما بعد دخول الصفحة المبنية من الخزن المحلي، فتعمل في الخلفية وتحدّث الصفحة عند وصول جديد فقط. */
+    void afterEntry(Runnable r) {
+        if (heldBySplash) afterEntryTasks.add(r); else { try { r.run(); } catch (Throwable ignored) { } }
+    }
+
+    private void flushAfterEntry() {
+        java.util.ArrayList<Runnable> tasks = new java.util.ArrayList<>(afterEntryTasks);
+        afterEntryTasks.clear();
+        for (Runnable r : tasks) { try { r.run(); } catch (Throwable ignored) { } }
+    }
 
     /** تكشف السبلاش الصفحة المبنية مسبقاً بتلاشٍ سريع ثم تُنهي نفسها (done). */
     void revealFromSplash(final Runnable done) {
@@ -267,6 +280,7 @@ public class MassActivity extends Activity {
                 .withEndAction(() -> {
                     heldBySplash = false;
                     try { if (revealBarsHook != null) revealBarsHook.run(); } catch (Throwable ignored) { }   // الآن فقط تُلوَّن الأشرطة بألوان الصفحة
+                    binding.getRoot().postDelayed(this::flushAfterEntry, 60);   // الصفحة ظاهرة الآن: تبدأ مستمعات Firebase في الخلفية
                     try { if (origWinBg != null) getWindow().setBackgroundDrawable(origWinBg); } catch (Throwable ignored) { }
                     if (done != null) done.run();
                 }).start();
@@ -335,7 +349,9 @@ public class MassActivity extends Activity {
     public void onTrimMemory(int level) {
         super.onTrimMemory(level);
         // الجهاز يحتاج ذاكرة: تُفرَّغ الفقاعات المحفوظة (تُبنى من القاعدة المحلية عند الدخول التالي)
-        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) { try { if (dropSessionsHook != null) dropSessionsHook.run(); } catch (Throwable ignored) { } }
+        // لا تُفرَّغ الجلسات (الرسائل المبنية وقياساتها) عند الذهاب لتطبيق آخر (UI_HIDDEN=20 ومستويات الخلفية 40/60/80)،
+        // فتبقى ثابتة عند الرجوع. تُفرَّغ فقط عند ضغط ذاكرة حرج أثناء استخدام التطبيق نفسه (RUNNING_CRITICAL=15).
+        if (level == android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL) { try { if (dropSessionsHook != null) dropSessionsHook.run(); } catch (Throwable ignored) { } }
     }
 
     @Override
@@ -796,7 +812,8 @@ public class MassActivity extends Activity {
             String txt(String n) { EditText e = et(n); return e != null ? e.getText().toString().trim() : ""; }
             /** إشعارات التطبيق: نفس تصميم showToast في الـ HTML (انظر AppToast). */
             void toast(String s) { AppToast.show(act, s, dark); }
-            void vis(String n, boolean on) { View x = v(n); if (x != null) x.setVisibility(on ? View.VISIBLE : View.GONE); }
+            /** صفحة المحادثات تبقى مبنية ومرتّبة (INVISIBLE لا GONE) عند الانتقال لغيرها: تبقى تعمل وتتحدّث في الخلفية، فلا إعادة قياس أو بناء عند الرجوع. */
+            void vis(String n, boolean on) { View x = v(n); if (x != null) x.setVisibility(on ? View.VISIBLE : ("homeView".equals(n) ? View.INVISIBLE : View.GONE)); }
             String now() { return new SimpleDateFormat("h:mm", Locale.getDefault()).format(new Date()); }
             void hideKb() {
                 try {
@@ -1979,7 +1996,7 @@ public class MassActivity extends Activity {
                     fv.setAlpha(1f);
                     fv.setTranslationY(0f);   // التخطيط لا يتغيّر أثناء التلاشي، فتبقى الصفحة الخارجة في مكانها بلا حاجة لتعويض
                     // الصفحة الجديدة والهيدر والزر يبقون مخفيّين (شفافية 0) طوال تلاشي الصفحة الخارجة، ولا يبدأ أي منهم إلا بعد انتهائه
-                    if (toChats) trimChatList();   // أول صفوف فقط الآن: الانتقال يبدأ فوراً بلا تخطيط ثقيل
+                    if (toChats && !to.isLaidOut()) trimChatList();   // الصفحة مرتّبة سلفاً (محفوظة في الخلفية): لا حاجة لتقليم الصفوف   // أول صفوف فقط الآن: الانتقال يبدأ فوراً بلا تخطيط ثقيل
                     to.animate().cancel();
                     to.setVisibility(View.VISIBLE);
                     to.setAlpha(0f);
@@ -1988,7 +2005,7 @@ public class MassActivity extends Activity {
                             .withEndAction(() -> {
                                 if (gen != BabylonFx.tabGenNow()) return;   // حلّ مكانه تبديل أحدث
                                 if (fv.getVisibility() == View.VISIBLE) {
-                                    fv.setVisibility(View.GONE); fv.setAlpha(1f); fv.setTranslationY(0f); fv.setTranslationX(0f);
+                                    fv.setVisibility("homeView".equals(from) ? View.INVISIBLE : View.GONE); fv.setAlpha(1f); fv.setTranslationY(0f); fv.setTranslationX(0f);
                                 }
                                 // 2) الآن فقط (بعد اختفاء الصفحة الخارجة تماماً) يُطبَّق تغيّر الهيدر/شريط الحالة (ظهور الحقل الأبيض) ثم تدخل الصفحة الجديدة
                                 vis("mainHeader", toChats); vis("newGroupFab", home);
@@ -2117,11 +2134,14 @@ public class MassActivity extends Activity {
 
             /** عند فتح التطبيق: الخزن المحلي أولاً؛ السيرفر فقط إن مضى أكثر من 10 دقائق (أو لا يوجد خزن). */
             void loadMyProfileSmart() {
-                boolean had = applyMyProfileCache();
-                long age = Long.MAX_VALUE;
-                try { org.json.JSONObject j = LocalDb.getMyProfile(); if (j != null) age = System.currentTimeMillis() - j.optLong("_t", 0L); } catch (Throwable ignored) { }
-                if (had && age < 10 * 60 * 1000L) fetchMyProfile(com.google.firebase.firestore.Source.CACHE, true);   // نسخة Firestore المحلية (تشمل تعديلاتي) بلا إنترنت
-                else fetchMyProfile(com.google.firebase.firestore.Source.DEFAULT, false);
+                final boolean had = applyMyProfileCache();   // من الخزن المحلي فقط: فوري
+                long age0 = Long.MAX_VALUE;
+                try { org.json.JSONObject j = LocalDb.getMyProfile(); if (j != null) age0 = System.currentTimeMillis() - j.optLong("_t", 0L); } catch (Throwable ignore) { }
+                final long age = age0;
+                afterEntry(() -> {   // الجلب من Firebase بعد الدخول
+                    if (had && age < 10 * 60 * 1000L) fetchMyProfile(com.google.firebase.firestore.Source.CACHE, true);
+                    else fetchMyProfile(com.google.firebase.firestore.Source.DEFAULT, false);
+                });
             }
 
             void loadMyProfile() { fetchMyProfile(com.google.firebase.firestore.Source.DEFAULT, false); }
@@ -2298,8 +2318,14 @@ public class MassActivity extends Activity {
                 return c != null && c.length() > 0 ? c : orig;
             }
 
+            boolean blocksDeferred = false;
             void startBlocksListener() {
                 if (myUid == null || myUid.isEmpty()) return;
+                if (heldBySplash) {   // أثناء الاختباء خلف السبلاش: جهات الاتصال من SQLite فقط، ومستمعا الحظر والجهات يبدآن بعد الدخول
+                    if (contacts.isEmpty()) contacts.putAll(LocalDb.getContacts());
+                    if (!blocksDeferred) { blocksDeferred = true; afterEntry(this::startBlocksListener); }
+                    return;
+                }
                 if (blocksReg == null) {
                     blocksReg = db.collection("users").document(myUid).collection("blocks")
                         .addSnapshotListener((q, e) -> {
@@ -3342,7 +3368,7 @@ public class MassActivity extends Activity {
                         // لقطة الخزن المحلي الناقصة (بعض المحادثات فقط) كانت تستبدل القائمة فتختفي محادثات ثم تعود حين تصل لقطة السيرفر: تُتجاهل وننتظر السيرفر
                         if (snapshots.getMetadata().isFromCache() && !chatData.isEmpty() && snapshots.size() < chatData.size()) return;
                         final boolean wasLoaded = chatsLoadedOnce;
-                        if (!chatsLoadedOnce && (!snapshots.getMetadata().isFromCache() || !snapshots.isEmpty())) { chatsLoadedOnce = true; lastChatsSig = null; }   // لقطة محلية فارغة (بلا إنترنت) لا تُزيل الهيكل؛ يبقى حتى تصل بيانات حقيقية
+                        if (!chatsLoadedOnce && (!snapshots.getMetadata().isFromCache() || !snapshots.isEmpty())) { chatsLoadedOnce = true; if (chatData.isEmpty()) lastChatsSig = null; }   // يوجد نسخة قديمة من الخزن المحلي: لا إعادة بناء قسرية، التحديث يُطبَّق عليها فقط إن تغيّر التوقيع (buildChatsIfChanged)   // لقطة محلية فارغة (بلا إنترنت) لا تُزيل الهيكل؛ يبقى حتى تصل بيانات حقيقية
                         final List<String[]> fresh = new ArrayList<>();
                         final List<Runnable> fetches = new ArrayList<>();
                         for (Map<String, Object> m : temp) {
@@ -10158,8 +10184,8 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                     buildStories();
                 } catch (Throwable ignored) { }
                 loadMyProfileSmart();
-                restoreChatsFromCache();
-                loadChats();
+                restoreChatsFromCache();   // الصفحة تُبنى فوراً من SQLite بلا انتظار الشبكة
+                afterEntry(this::loadChats);   // مستمع المحادثات يبدأ في الخلفية بعد الدخول ويحدّث الصفحة عند التغيّر فقط (buildChatsIfChanged)
                 show("homeView");
                 try {
                     ProfileHero.Palette pal = new ProfileHero.Palette() {
@@ -10188,7 +10214,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                     heroOther.setFullViewListener((nm, st) -> openGallery(otherUid, otherPhotoRaw, otherPhotoBmp, nm, st, heroOther.getCurrentId()));
                     heroMe.setAvatarInset(ringTotalPx());       // الحلقة الذهبية خارج الصورة: المربع المكبّر يبدأ من حدود الصورة نفسها
                     heroOther.setAvatarInset(ringTotalPx());
-                    try { refreshOwnPhotoCount(); } catch (Throwable ignored) { }   // قائمة صوري للتمرير (الهيرو أُنشئ بعد وصول الصورة)
+                    afterEntry(() -> { try { refreshOwnPhotoCount(); } catch (Throwable ignored) { } });   // (شبكة) بعد الدخول
                 } catch (Throwable ignored) { }
                 try {
                     BabylonFx.shine(tv("textview621"));
@@ -10210,12 +10236,14 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
         ui.init();
         final UI uiRef = ui;
         // مزامنة «القصص التي شوهدت» من السحابة (تبقى بعد تسجيل الخروج وإعادة التثبيت)
-        try {
-            StoryViewer.syncSeen(this, db, myUid, () -> runOnUiThread(() -> {
-                try { uiRef.buildStories(); } catch (Throwable ignored) { }
-                try { uiRef.refreshProfileRings(); } catch (Throwable ignored) { }
-            }));
-        } catch (Throwable ignored) { }
+        afterEntry(() -> {   // مزامنة مشاهدات القصص (شبكة): بعد الدخول وفي الخلفية
+            try {
+                StoryViewer.syncSeen(this, db, myUid, () -> runOnUiThread(() -> {
+                    try { uiRef.buildStories(); } catch (Throwable ignored) { }
+                    try { uiRef.refreshProfileRings(); } catch (Throwable ignored) { }
+                }));
+            } catch (Throwable ignored) { }
+        });
         deepOpener = ui::openProfileByUsername;
         if (pendingDeepUser != null) { final String pu = pendingDeepUser; pendingDeepUser = null; getWindow().getDecorView().post(() -> uiRef.openProfileByUsername(pu)); }
         backHook = ui::onBack;
