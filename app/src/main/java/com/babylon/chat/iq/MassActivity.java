@@ -569,6 +569,7 @@ public class MassActivity extends Activity {
             // ---- Skeleton loading للرسائل: طبقة فوق المحادثة (لا داخل messagesArea كي لا تتأثر الجلسات) تزول عند ظهور الرسائل
             View msgSkel = null;
             void showMsgSkeleton() {
+                if (true) return;   // لا هيكل لامع داخل المحادثة إطلاقاً
                 hideMsgSkeletonNow();
                 try {
                     View ms = v("messagesScroll");
@@ -649,6 +650,7 @@ public class MassActivity extends Activity {
                 } catch (Throwable ignored) { }
             }
             void showOlderSkel() {
+                if (true) return;   // لا هيكل لامع داخل المحادثة إطلاقاً
                 try {
                     View ms = v("messagesScroll");
                     if (ms == null || !(ms.getParent() instanceof FrameLayout)) return;
@@ -2004,7 +2006,6 @@ public class MassActivity extends Activity {
                     fv.setAlpha(1f);
                     fv.setTranslationY(0f);   // التخطيط لا يتغيّر أثناء التلاشي، فتبقى الصفحة الخارجة في مكانها بلا حاجة لتعويض
                     // الصفحة الجديدة والهيدر والزر يبقون مخفيّين (شفافية 0) طوال تلاشي الصفحة الخارجة، ولا يبدأ أي منهم إلا بعد انتهائه
-                    if (toChats && !to.isLaidOut()) trimChatList();   // الصفحة مرتّبة سلفاً (محفوظة في الخلفية): لا حاجة لتقليم الصفوف   // أول صفوف فقط الآن: الانتقال يبدأ فوراً بلا تخطيط ثقيل
                     to.animate().cancel();
                     to.setVisibility(View.VISIBLE);
                     to.setAlpha(0f);
@@ -2022,18 +2023,20 @@ public class MassActivity extends Activity {
                                 // صفحة المحادثات: كل تفاصيلها (الهيدر + القصص + الصفوف + الزر) تدخل دفعة واحدة كوحدة واحدة بنفس الحركة والمدة،
                                 // بلا تتابع عناصر (staggerDown) فلا تظهر على أجزاء، ويُتجنَّب جمع/ترتيب العناصر على الخيط الرئيسي في لحظة التبديل.
                                 final long pageMs = 170L;   // نفس زمن دخول/خروج صفحة الإعدادات (خروج 50ms، دخول 170ms)   // ودخول صفحة المحادثات أسرع بالضعف (كان 150ms)
-                                final View[] grp = toChats ? new View[]{to, hdr, fab} : new View[]{to};
-                                if (!toChats) for (View h2 : new View[]{hdr, fab}) {   // (غير المحادثات: لا هيدر/زر أصلاً)
+                                // كل الصفحات (محادثات/إعدادات/ملف) بنفس المسار: الصفحة وحدها تدخل بـ tabIn (طبقة واحدة) ثم staggerDown لعناصرها.
+                                // الهيدر وزر المجموعة (للمحادثات فقط) يظهران بتلاشٍ بسيط بلا طبقة hardware ولا إزاحة، فلا يزيدان حِمل الحركة.
+                                for (View h2 : new View[]{hdr, fab}) {
                                     if (h2 == null) continue;
                                     h2.animate().cancel();
-                                    h2.setAlpha(1f); h2.setTranslationX(0f); h2.setTranslationY(0f); h2.setScaleX(1f); h2.setScaleY(1f);
+                                    h2.setTranslationX(0f); h2.setTranslationY(0f); h2.setScaleX(1f); h2.setScaleY(1f);
+                                    if (toChats && h2.getVisibility() == View.VISIBLE) {
+                                        h2.setAlpha(0f);
+                                        h2.animate().alpha(1f).setStartDelay(0).setDuration(pageMs)
+                                                .setInterpolator(new android.view.animation.DecelerateInterpolator()).start();
+                                    } else h2.setAlpha(1f);
                                 }
-                                for (View g : grp) {
-                                    if (g == null || g.getVisibility() != View.VISIBLE) continue;
-                                    BabylonFx.tabIn(g, -exitDx, pageMs);
-                                }
-                                if (!toChats) BabylonFx.staggerDown(to, 0L);   // الإعدادات والملف الشخصي كما كانا
-                                if (toChats) act.getWindow().getDecorView().postDelayed(() -> { if (gen == BabylonFx.tabGenNow()) restoreChatList(); }, pageMs + 30);   // بقية الصفوف بعد انتهاء الحركة
+                                BabylonFx.tabIn(to, -exitDx, pageMs);
+                                BabylonFx.staggerDown(to, 0L);
                                 act.getWindow().getDecorView().postDelayed(() -> { if (homeAnimOn && gen == BabylonFx.tabGenNow()) endHomeEntry(); }, 600);
                             }).start();
                 } else if (to != null) {

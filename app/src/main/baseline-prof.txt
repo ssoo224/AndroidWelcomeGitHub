@@ -1,0 +1,10 @@
+# Baseline Profile: يُترجَم مسبقاً كود الإقلاع (السبلاش ← صفحة المحادثات) بعد كل تثبيت/تحديث.
+# H = hot, S = startup, P = post-startup. تغطي كل كلاسات التطبيق لأن MassActivity وما يتبعها تعمل كلها عند الدخول.
+HSPLcom/babylon/chat/iq/**;->**(**)**
+Lcom/babylon/chat/iq/**;
+
+# Firebase (Auth + Firestore) المستخدمان أثناء الإقلاع
+HSPLcom/google/firebase/**;->**(**)**
+Lcom/google/firebase/**;
+HSPLcom/google/android/gms/tasks/**;->**(**)**
+Lcom/google/android/gms/tasks/**;

@@ -431,7 +431,7 @@ public final class PhotoViewer {
     public static void saveBitmap(Activity act, Bitmap b) {
         try {
             if (b == null) return;
-            if (Build.VERSION.SDK_INT < 29) { Toast.makeText(act, "الحفظ غير مدعوم على هذا الإصدار", Toast.LENGTH_SHORT).show(); return; }
+            if (Build.VERSION.SDK_INT < 29) { AppToast.show(act, "الحفظ غير مدعوم على هذا الإصدار"); return; }
             ContentValues cv = new ContentValues();
             cv.put(MediaStore.Images.Media.DISPLAY_NAME, "Babylon_" + System.currentTimeMillis() + ".jpg");
             cv.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
@@ -441,9 +441,9 @@ public final class PhotoViewer {
             try (OutputStream os = act.getContentResolver().openOutputStream(u)) {
                 b.compress(Bitmap.CompressFormat.JPEG, 95, os);
             }
-            Toast.makeText(act, "تم حفظ الصورة", Toast.LENGTH_SHORT).show();
+            AppToast.show(act, "تم حفظ الصورة");
         } catch (Throwable t) {
-            Toast.makeText(act, "تعذّر حفظ الصورة", Toast.LENGTH_SHORT).show();
+            AppToast.show(act, "تعذّر حفظ الصورة");
         }
     }
 

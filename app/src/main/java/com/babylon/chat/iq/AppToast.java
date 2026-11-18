@@ -116,23 +116,31 @@ public final class AppToast {
         row.setPadding(dp(act, 16), dp(act, 11), dp(act, 15), dp(act, 13));
         card.addView(row, new FrameLayout.LayoutParams(-1, -2));
 
-        ImageView ic = new ImageView(act);
-        ic.setImageResource(icRes);
-        ic.setScaleType(ImageView.ScaleType.CENTER);
+        // أيقونة متحركة حسب العملية (ToastIcon)؛ «جارٍ…» يبقى بدوّارته
+        final View ic;
+        final boolean loadingKind = kind.equals("loading");
+        if (loadingKind) {
+            ImageView li = new ImageView(act);
+            li.setImageResource(icRes);
+            li.setScaleType(ImageView.ScaleType.CENTER);
+            li.setColorFilter(acc);
+            ic = li;
+        } else {
+            ic = new ToastIcon(act, ToastIcon.motifFor(text, kind), kind.equals("danger") ? 0xFFFFFFFF : acc);
+        }
         GradientDrawable ib;
         if (kind.equals("danger")) {
             ib = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFF87171, 0xFFDC2626});
-            ic.setColorFilter(0xFFFFFFFF);
+            if (ic instanceof ImageView) ((ImageView) ic).setColorFilter(0xFFFFFFFF);
         } else {
             ib = new GradientDrawable();
             ib.setColor((acc & 0x00FFFFFF) | 0x29000000);   // 16% من لون النوع
-            ic.setColorFilter(acc);
         }
         ib.setShape(GradientDrawable.OVAL);
         ic.setBackground(ib);
         final LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(dp(act, 30), dp(act, 30));
         ilp.leftMargin = dp(act, 11);
-        if (kind.equals("loading")) {
+        if (loadingKind) {
             RotateAnimation ra = new RotateAnimation(0, 360, RotateAnimation.RELATIVE_TO_SELF, 0.5f, RotateAnimation.RELATIVE_TO_SELF, 0.5f);
             ra.setDuration(800); ra.setRepeatCount(-1); ra.setInterpolator(new LinearInterpolator());
             ic.startAnimation(ra);

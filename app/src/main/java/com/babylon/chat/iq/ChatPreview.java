@@ -52,7 +52,7 @@ public final class ChatPreview {
         this.act = a; this.host = host; this.d = a.getResources().getDisplayMetrics().density;
         host.removeAllViews();
         host.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        host.setMinimumHeight(dp(260));
+        host.setMinimumHeight(dp(130));   // كان 260: الفراغ أعلى/أسفل المعاينة أقل بـ50%
 
         pattern = new ChatPattern(a).grid(5, 64f, 26f, 30);
         host.addView(pattern, new FrameLayout.LayoutParams(-1, -1));
@@ -60,8 +60,8 @@ public final class ChatPreview {
         LinearLayout col = new LinearLayout(a);
         col.setOrientation(LinearLayout.VERTICAL);
         col.setGravity(Gravity.CENTER_VERTICAL);
-        col.setPadding(dp(14), dp(46), dp(14), dp(46));   // مسافة للتلاشي أعلى وأسفل
-        col.setMinimumHeight(dp(260));
+        col.setPadding(dp(14), dp(38), dp(14), dp(38));   // مسافة للتلاشي أعلى وأسفل (الفراغ الظاهر أقل بـ50%)
+        col.setMinimumHeight(dp(130));
         host.addView(col, new FrameLayout.LayoutParams(-1, -2));
 
         // ---- فقاعة الآخر
@@ -128,8 +128,8 @@ public final class ChatPreview {
         // ---- تلاشي أعلى/أسفل المعاينة: المحادثة «تستمر» ثم تذوب في خلفية الصفحة بلا حافة حادّة
         fadeTop = new View(a);
         fadeBottom = new View(a);
-        host.addView(fadeTop, new FrameLayout.LayoutParams(-1, dp(56), Gravity.TOP));
-        host.addView(fadeBottom, new FrameLayout.LayoutParams(-1, dp(56), Gravity.BOTTOM));
+        host.addView(fadeTop, new FrameLayout.LayoutParams(-1, dp(28), Gravity.TOP));
+        host.addView(fadeBottom, new FrameLayout.LayoutParams(-1, dp(28), Gravity.BOTTOM));
         host.setClipChildren(true);
     }
 
@@ -168,6 +168,7 @@ public final class ChatPreview {
         mineText.setTextColor(dark ? p.textMine : 0xFFFFFFFF);   // الطور النهاري: نص «صباح النور حياك الله» أبيض
         int mineMeta = p.textMine;
         int tickColor = p.tick;
+        if (!dark && "babylon".equals(sp.id)) { mineMeta = 0xFFFFFFFF; tickColor = 0xFFFFFFFF; }   // معاينة بابل نهاراً: الوقت وعلامة ✓ بيضاء
         mineTime.setTextColor(mineMeta);
         tick.setImageDrawable(new MsgViews.TickDrawable(act, MsgViews.READ, 0, tickColor));
     }

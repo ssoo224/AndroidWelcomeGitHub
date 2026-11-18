@@ -694,27 +694,12 @@ public final class BabylonFx {
         title.post(() -> {
             float w = title.getPaint().measureText(title.getText().toString());
             if (w <= 0) return;
-            final float tile = w * 2f;
-            int[] colors = {0xFFB8891A, 0xFFE0BD4A, 0xFFFFF7CF, 0xFFE0BD4A, 0xFFB8891A, 0xFFE0BD4A, 0xFFB8891A};
-            float[] pos = {0f, 0.15f, 0.25f, 0.35f, 0.5f, 0.65f, 1f};
-            final LinearGradient grad = new LinearGradient(0, 0, tile, 0, colors, pos, Shader.TileMode.REPEAT);
-            title.getPaint().setShader(grad);
+            // تدرّج ذهبي ثابت (بلا أنيميشن ولا إعادة رسم مستمرة): الصفحة أخف
+            int[] colors = {0xFFB8891A, 0xFFE0BD4A, 0xFFB8891A};
+            float[] pos = {0f, 0.5f, 1f};
+            title.getPaint().setShader(new LinearGradient(0, 0, w, 0, colors, pos, Shader.TileMode.CLAMP));
             title.setTextColor(Color.WHITE); // اللون الفعلي يأتي من الـ shader
-            final Matrix m = new Matrix();
-            ValueAnimator shine = ValueAnimator.ofFloat(0f, tile);
-            shine.setDuration(15000);
-            shine.setInterpolator(new LinearInterpolator());
-            shine.setRepeatCount(ValueAnimator.INFINITE);
-            shine.addUpdateListener(a -> {
-                m.setTranslate((float) a.getAnimatedValue(), 0f);
-                grad.setLocalMatrix(m);
-                title.invalidate();
-            });
-            shine.start();
-            title.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
-                @Override public void onViewAttachedToWindow(View v) { }
-                @Override public void onViewDetachedFromWindow(View v) { shine.cancel(); }
-            });
+            title.invalidate();
         });
     }
 

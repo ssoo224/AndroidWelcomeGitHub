@@ -174,18 +174,21 @@ final class Skeleton {
         float d = c.getResources().getDisplayMetrics().density;
         LinearLayout col = new LinearLayout(c);
         col.setOrientation(LinearLayout.VERTICAL);
-        col.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        col.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);   // التطبيق بلا supportsRtl فيُتجاهل RTL: الترتيب يدوي (مثل صفوف المحادثات الحقيقية)
         col.setPadding(Math.round(14 * d), Math.round(8 * d), Math.round(14 * d), 0);
         for (int i = 0; i < 8; i++) {
             LinearLayout row = new LinearLayout(c);
-            row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+            row.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setGravity(Gravity.CENTER_VERTICAL);
             row.setPadding(0, Math.round(8 * d), 0, Math.round(8 * d));
-            View av = block(c, dark, 52, 52, 26);
-            row.addView(av);   // أول عنصر في RTL = أقصى اليمين
+            // الترتيب من اليسار: الوقت ← النص ← الصورة في أقصى اليمين
+            LinearLayout.LayoutParams timeP = new LinearLayout.LayoutParams(Math.round(34 * d), Math.round(10 * d));
+            timeP.gravity = Gravity.TOP;
+            row.addView(block(c, dark, 34, 10, 5), timeP);   // وقت آخر رسالة (أقصى اليسار)
             LinearLayout txt = new LinearLayout(c);
             txt.setOrientation(LinearLayout.VERTICAL);
+            txt.setGravity(Gravity.RIGHT);   // السطران ملتصقان بجهة الصورة (يمين)
             View l1 = block(c, dark, 120 + (i % 3) * 30, 14, 7);
             View l2 = block(c, dark, 190 + (i % 2) * 40, 12, 6);
             LinearLayout.LayoutParams p2 = (LinearLayout.LayoutParams) l2.getLayoutParams();
@@ -193,11 +196,10 @@ final class Skeleton {
             txt.addView(l1);
             txt.addView(l2, p2);
             LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, -2, 1f);
-            tp.setMarginStart(Math.round(12 * d));
+            tp.rightMargin = Math.round(12 * d);
             row.addView(txt, tp);
-            LinearLayout.LayoutParams timeP = new LinearLayout.LayoutParams(Math.round(34 * d), Math.round(10 * d));
-            timeP.gravity = Gravity.TOP;
-            row.addView(block(c, dark, 34, 10, 5), timeP);   // وقت آخر رسالة (أقصى اليسار)
+            View av = block(c, dark, 52, 52, 26);
+            row.addView(av);   // آخر عنصر في LTR = أقصى اليمين
             col.addView(row, new LinearLayout.LayoutParams(-1, -2));
         }
         return col;
