@@ -886,7 +886,7 @@
 					android:layout_marginTop="18dp"
 					android:layout_marginBottom="8dp"
 					android:gravity="start"
-					android:text="اسم المستخدم (\@)"
+					android:text="اسم المستخدم (\@) — اختياري"
 					android:textSize="13sp"
 					android:textStyle="bold"
 					android:tag="eplbl" />

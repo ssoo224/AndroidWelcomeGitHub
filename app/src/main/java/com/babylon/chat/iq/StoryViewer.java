@@ -2077,7 +2077,7 @@ public final class StoryViewer {
             String n = u.getString("displayName"); if (n == null || n.isEmpty()) n = u.getString("name"); if (n == null || n.isEmpty()) n = "مستخدم";
             String un = u.getString("username");
             nm.setText(n);
-            sub.setText("@" + (un == null ? "" : un) + " · " + ago(when));
+            sub.setText((un == null || un.isEmpty() ? "لا يوجد معرف" : "@" + un) + " · " + ago(when));
             final String letterV = n.substring(0, 1).toUpperCase();
             av.set(letterV, null, StoryAvatarView.toneBlue(vUid));
             String ph = u.getString("photo"); if (ph == null || ph.isEmpty()) ph = u.getString("avatarUrl"); if (ph == null || ph.isEmpty()) ph = u.getString("photoURL");

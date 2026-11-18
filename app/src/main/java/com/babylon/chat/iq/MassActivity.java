@@ -2237,7 +2237,7 @@ public class MassActivity extends Activity {
                     TextView ic = tv(id + "Ic");
                     TextView tx = tv(id + "Tx");
                     int inactive = dark ? 0xFFE4C45B : 0xFFBF9334;   // نهاري: #BF9334 / ليلي #e4c45b (مطابق للمرجع)
-                    int active = dark ? 0xFFE4C45B : 0xFF9C6901;     // النشط في النهار: #9C6901 (مطابق للمرجع)
+                    int active = dark ? 0xFFFFFFFF : 0xFF9C6901;     // الليلي: أبيض عند التحديد (النص والرمز)؛ النهاري: #9C6901
                     if (ic != null) {
                         ic.setTag(null);
                         ic.setTextColor(on ? active : inactive);
@@ -2273,7 +2273,6 @@ public class MassActivity extends Activity {
                     sp.edit().putString("coverId", cvId).apply();
                     applyCover(true, cvId);
                     if (userName.isEmpty()) userName = "Mohammed";
-                    if (userUsername.isEmpty()) userUsername = "mohamed";
                     if (userBio.isEmpty()) userBio = "الشارع مالتي منو كال ملك عام";
                     if (userGov.isEmpty()) userGov = "المثنى";
                     if (userEmail.isEmpty()) userEmail = "hamodeygame45@gmail.com";
@@ -2326,8 +2325,7 @@ public class MassActivity extends Activity {
 
                             if (userName.isEmpty()) userName = "Mohammed";
                             try { buildStories(); } catch (Throwable ignored) { }   // حرف «قصتي» بعد وصول الاسم
-                            if (userUsername.isEmpty()) userUsername = "mohamed";
-                            if (userBio.isEmpty()) userBio = "الشارع مالتي منو كال ملك عام";
+                                    if (userBio.isEmpty()) userBio = "الشارع مالتي منو كال ملك عام";
                             if (userGov.isEmpty()) userGov = "المثنى";
                             if (userEmail.isEmpty()) userEmail = "hamodeygame45@gmail.com";
                             if (createdAt == null) createdAt = System.currentTimeMillis();
@@ -2438,9 +2436,23 @@ public class MassActivity extends Activity {
                 View govV = v("modalGovInput");
                 String gov = (govV instanceof Spinner) ? govs[((Spinner) govV).getSelectedItemPosition()] : userGov;
                 if (n.length() == 0) { toast("اكتب اسم العرض"); return; }
-                if (u.length() < 5 || !u.matches("[A-Za-z0-9_]+")) {
+                if (u.length() > 0 && (u.length() < 5 || !u.matches("[A-Za-z0-9_]+"))) {   // اسم المستخدم اختياري؛ إن كُتب يجب أن يكون صالحاً
                     TextView err = tv("modalUserError");
                     if (err != null) { err.setText("اسم المستخدم 5 أحرف إنجليزية فأكثر"); err.setVisibility(View.VISIBLE); }
+                    return;
+                }
+                if (u.isEmpty()) {   // بلا اسم مستخدم: لا حاجة لفحص التوفر
+                    Map<String, Object> updates = new HashMap<>();
+                    updates.put("name", n); updates.put("username", com.google.firebase.firestore.FieldValue.delete());
+                    updates.put("bio", bio); updates.put("gov", gov);
+                    db.collection("users").document(myUid).update(updates)
+                        .addOnSuccessListener(a -> {
+                            userName = n; userUsername = ""; userBio = bio; userGov = gov;
+                            try { fillProfile(); } catch (Throwable ignored) { }
+                            toast("تم حفظ التعديلات");
+                            show("profileView");
+                        })
+                        .addOnFailureListener(e -> toast("فشل الحفظ: " + e.getMessage()));
                     return;
                 }
                 db.collection("users").whereEqualTo("username", u).limit(1).get()
@@ -3157,7 +3169,7 @@ public class MassActivity extends Activity {
                 TextView oName = tv("otherHeaderName");
                 if (oName != null) oName.setText(dispName(uid, name));
                 TextView oUser = tv("otherHeaderUser");
-                if (oUser != null) oUser.setText("@" + username);
+                if (oUser != null) oUser.setText(username == null || username.isEmpty() ? "لا يوجد معرف" : "@" + username);
                 otherRow("otherBioRow", "view662", "otherBioDisplay", "");
                 otherRow("otherGovRow", "view664", "otherGovDisplay", "");
                 otherRow("otherJoinRow", "view666", "otherJoinDisplay", "");
@@ -3247,7 +3259,7 @@ public class MassActivity extends Activity {
                 TextView oName = tv("otherHeaderName");
                 if (oName != null) oName.setText(verified ? withVerified(dispName(otherUid, nm)) : dispName(otherUid, nm));
                 TextView oUser = tv("otherHeaderUser");
-                if (oUser != null) oUser.setText("@" + un);
+                if (oUser != null) oUser.setText(un == null || un.isEmpty() ? "لا يوجد معرف" : "@" + un);
                 TextView oAv = tv("otherAvatarText");
                 if (oAv != null && otherPhotoBmp == null) oAv.setText(nm.length() > 0 ? nm.substring(0, 1).toUpperCase() : "?");
 

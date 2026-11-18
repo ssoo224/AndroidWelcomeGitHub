@@ -119,7 +119,9 @@ public class MainActivity extends Activity {
                 AppSettings.init(app);
                 needPerms = Build.VERSION.SDK_INT >= 23 && !AppSettings.prefs(app, "babylon_boot").getBoolean("perms_asked", false) && missingPermissions().length > 0;
             } catch (Throwable ignored) { }
-            earlyOk = loggedIn && !needPerms;
+            boolean pendingVerify = false;
+            try { pendingVerify = AppSettings.prefs(app, VerifyActivity.PREFS).getString(VerifyActivity.KEY_PENDING, null) != null; } catch (Throwable ignored) { }
+            earlyOk = loggedIn && !needPerms && !pendingVerify;   // حساب بانتظار التحقق من البريد: لا إطلاق مبكر لصفحة المحادثات
             if (loggedIn) {   // نفخ تخطيط صفحة المحادثات في هذا الخيط الخاص أثناء الرسم؛ تأخذه MassActivity جاهزاً
                 try {
                     android.view.LayoutInflater pinf = android.view.LayoutInflater.from(new android.view.ContextThemeWrapper(app, R.style.NoActionBar));
@@ -245,6 +247,14 @@ public class MainActivity extends Activity {
         final boolean loggedIn = FirebaseAuth.getInstance().getCurrentUser() != null;
         settleThen(() -> {
             if (isFinishing()) return;
+            if (loggedIn && AppSettings.prefs(this, VerifyActivity.PREFS).getString(VerifyActivity.KEY_PENDING, null) != null) {
+                Intent v = new Intent(this, VerifyActivity.class);   // أُغلق التطبيق قبل إكمال التحقق: نكمل من نفس الشاشة
+                v.putExtra(VerifyActivity.EXTRA_SEND, false);
+                startActivity(v);
+                overridePendingTransition(0, 0);
+                finish();
+                return;
+            }
             if (loggedIn) {
                 startActivity(new Intent(this, MassActivity.class));
                 overridePendingTransition(R.anim.chat_fade_in, R.anim.splash_hold);   // صفحة المحادثات تتلاشى شفافةً فوق السبلاش الثابت
@@ -349,7 +359,7 @@ public class MainActivity extends Activity {
             float h = binding.title.getHeight();
             if (w <= 0) return;
             binding.title.getPaint().setShader(new LinearGradient(0, 0, w, h,
-                    new int[]{0xFFECD176, 0xFFD0A533, 0xFFB4871D}, null, Shader.TileMode.CLAMP));
+                    new int[]{0xFFEDC548, 0xFFD9AE31, 0xFFBF9220}, null, Shader.TileMode.CLAMP));
             binding.title.invalidate();
         });
     }

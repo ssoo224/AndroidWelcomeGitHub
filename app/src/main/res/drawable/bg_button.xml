@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <!-- نفس تدرّج الموجة الذهبية في الخلفية: #FBE282 → #D9AE31 -->
     <gradient
         android:angle="315"
-        android:startColor="#F5D875"
-        android:endColor="#B98B23" />
+        android:startColor="#FBE282"
+        android:endColor="#D9AE31" />
     <corners android:radius="27dp" />
 </shape>

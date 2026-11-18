@@ -166,32 +166,47 @@ public class Main2Activity extends Activity {
 
     private void signIn(String email, String pass) {
         auth.signInWithEmailAndPassword(email, pass)
-                .addOnSuccessListener(r -> goToMass("تم تسجيل الدخول بنجاح"))
+                .addOnSuccessListener(r -> afterLogin(r.getUser()))
                 .addOnFailureListener(e -> {
                     setBusy(binding.btnLogin, false);
                     toast("البريد/اسم المستخدم أو كلمة المرور غير صحيحة");
                 });
     }
 
+    /** بعد الدخول: الحساب غير المتحقَّق منه (emailVerified=false) يُرسل له رمز وتُفتح شاشة التحقق؛ غير ذلك يدخل مباشرة. */
+    private void afterLogin(final FirebaseUser user) {
+        if (user == null) { goToMass("تم تسجيل الدخول بنجاح"); return; }
+        db.collection("users").document(user.getUid()).get()
+                .addOnSuccessListener(doc -> {
+                    if (doc != null && Boolean.FALSE.equals(doc.getBoolean("emailVerified"))) {
+                        goToVerify(user.getEmail(), true);
+                    } else {
+                        goToMass("تم تسجيل الدخول بنجاح");
+                    }
+                })
+                .addOnFailureListener(e -> goToMass("تم تسجيل الدخول بنجاح"));
+    }
+
+    /** يفتح شاشة التحقق؛ هي نفسها ترسل الرمز وتبدأ العدّ التنازلي. */
+    private void goToVerify(String email, boolean sendCode) {
+        Intent i = new Intent(this, VerifyActivity.class);
+        i.putExtra(VerifyActivity.EXTRA_EMAIL, email);
+        i.putExtra(VerifyActivity.EXTRA_SEND, sendCode);
+        startActivity(i);
+        overridePendingTransition(0, 0);
+        finish();
+    }
+
     // ======================= إنشاء حساب =======================
 
     private void doRegister() {
         final String name = binding.editName.getText().toString().trim();
-        String rawUser = binding.editUsername.getText().toString().trim();
-        final String username = rawUser.startsWith("@") ? rawUser.substring(1) : rawUser;
         final String email = binding.editEmail.getText().toString().trim();
         final String pass = binding.editRegPass.getText().toString();
+        final String pass2 = binding.editRegPass2.getText().toString();
 
-        if (name.isEmpty() || username.isEmpty() || email.isEmpty() || pass.isEmpty()) {
+        if (name.isEmpty() || email.isEmpty() || pass.isEmpty() || pass2.isEmpty()) {
             toast("املأ جميع الحقول");
-            return;
-        }
-        if (username.length() < 5) {
-            toast("اسم المستخدم يجب أن يكون 5 أحرف فأكثر");
-            return;
-        }
-        if (username.contains(" ") || username.contains("@")) {
-            toast("اسم المستخدم لا يجب أن يحتوي مسافات أو @");
             return;
         }
         if (email.indexOf('@') <= 0 || !email.contains(".")) {
@@ -200,6 +215,10 @@ public class Main2Activity extends Activity {
         }
         if (pass.length() < 6) {
             toast("كلمة المرور 6 أحرف على الأقل");
+            return;
+        }
+        if (!pass.equals(pass2)) {
+            toast("كلمتا المرور غير متطابقتين");
             return;
         }
 
@@ -215,24 +234,7 @@ public class Main2Activity extends Activity {
                         toast("حدث خطأ، حاول مرة أخرى");
                         return;
                     }
-                    // 2) التحقق من أن اسم المستخدم غير مأخوذ (بعد تسجيل الدخول لتفادي مشاكل القواعد)
-                    db.collection("users").whereEqualTo("username", username).limit(1).get()
-                            .addOnSuccessListener(qs -> {
-                                if (!qs.isEmpty()) {
-                                    // اسم المستخدم مأخوذ: نحذف الحساب الذي أُنشئ للتو
-                                    user.delete().addOnCompleteListener(t -> {
-                                        auth.signOut();
-                                        setBusy(binding.btnRegister, false);
-                                        toast("اسم المستخدم مستخدم من قبل");
-                                    });
-                                } else {
-                                    saveProfile(user, name, username, email);
-                                }
-                            })
-                            .addOnFailureListener(e -> {
-                                // فشل التحقق: نحفظ على أي حال
-                                saveProfile(user, name, username, email);
-                            });
+                    saveProfile(user, name, email);   // اسم المستخدم اختياري: يُضاف لاحقاً من تعديل الملف الشخصي
                 })
                 .addOnFailureListener(e -> {
                     setBusy(binding.btnRegister, false);
@@ -240,19 +242,17 @@ public class Main2Activity extends Activity {
                 });
     }
 
-    private void saveProfile(FirebaseUser user, String name, String username, String email) {
+    private void saveProfile(FirebaseUser user, String name, String email) {
         Map<String, Object> data = new HashMap<>();
         data.put("name", name);
-        data.put("username", username);
         data.put("email", email);
         data.put("bio", "");
         data.put("gov", "");
         data.put("createdAt", System.currentTimeMillis());
+        data.put("emailVerified", false);   // يصبح true فقط من الخادم (Cloud Function) بعد إدخال الرمز الصحيح
 
         db.collection("users").document(user.getUid()).set(data)
-                .addOnSuccessListener(v -> {
-                    goToMass("تم إنشاء الحساب بنجاح");
-                })
+                .addOnSuccessListener(v -> goToVerify(email, true))
                 .addOnFailureListener(e -> {
                     setBusy(binding.btnRegister, false);
                     toast("تم إنشاء الحساب لكن تعذّر حفظ البيانات، تحقق من قواعد Firestore");
@@ -320,7 +320,7 @@ public class Main2Activity extends Activity {
             loginForm.setVisibility(View.VISIBLE);
             registerForm.setVisibility(View.GONE);
             tabLogin.setBackgroundResource(R.drawable.bg_tab_active);
-            tabLogin.setTextColor(0xFFFFFFFF);
+            tabLogin.setTextColor(0xFF5B4208);
             tabRegister.setBackgroundColor(0x00000000);
             tabRegister.setTextColor(dark ? AuthTheme.MUTED : 0xFF475569);
         });
@@ -329,7 +329,7 @@ public class Main2Activity extends Activity {
             loginForm.setVisibility(View.GONE);
             registerForm.setVisibility(View.VISIBLE);
             tabRegister.setBackgroundResource(R.drawable.bg_tab_active);
-            tabRegister.setTextColor(0xFFFFFFFF);
+            tabRegister.setTextColor(0xFF5B4208);
             tabLogin.setBackgroundColor(0x00000000);
             tabLogin.setTextColor(dark ? AuthTheme.MUTED : 0xFF475569);
         });
@@ -344,11 +344,11 @@ public class Main2Activity extends Activity {
         binding.subtitle.setTextColor(AuthTheme.MUTED);
         binding.tabs.setBackground(AuthTheme.box(true, 26 * d, 0, 0, Math.max(1, Math.round(d))));
         binding.tabRegister.setTextColor(AuthTheme.MUTED);   // التبويب النشط (الدخول) يبقى أبيض على الذهبي
-        TextView[] labels = {binding.labelUser, binding.labelPass, binding.labelName, binding.labelUsername,
-                binding.labelEmail, binding.labelRegPass, binding.btnForgot};
+        TextView[] labels = {binding.labelUser, binding.labelPass, binding.labelName,
+                binding.labelEmail, binding.labelRegPass, binding.labelRegPass2, binding.btnForgot};
         for (TextView t : labels) t.setTextColor(AuthTheme.GOLD_LABEL);
         android.widget.EditText[] inputs = {binding.editUser, binding.editPass, binding.editName,
-                binding.editUsername, binding.editEmail, binding.editRegPass};
+                binding.editEmail, binding.editRegPass, binding.editRegPass2};
         for (android.widget.EditText e : inputs) {
             e.setBackground(AuthTheme.box(true, 26 * d, 0, 0, Math.max(1, Math.round(d))));
             e.setTextColor(AuthTheme.TEXT);
@@ -362,15 +362,15 @@ public class Main2Activity extends Activity {
         final int pad = Math.round(12 * getResources().getDisplayMetrics().density);
         final int[][] map = {
             {R.id.edit_user, R.drawable.ic_mail_20}, {R.id.edit_pass, R.drawable.ic_lock_20},
-            {R.id.edit_name, R.drawable.ic_user_22}, {R.id.edit_username, R.drawable.ic_user_add_20},
-            {R.id.edit_email, R.drawable.ic_mail_20}, {R.id.edit_reg_pass, R.drawable.ic_lock_20}};
+            {R.id.edit_name, R.drawable.ic_user_22},
+            {R.id.edit_email, R.drawable.ic_mail_20}, {R.id.edit_reg_pass, R.drawable.ic_lock_20}, {R.id.edit_reg_pass2, R.drawable.ic_lock_20}};
         for (int[] m : map) {
             final android.widget.EditText e = findViewById(m[0]);
             if (e == null) continue;
             e.setCompoundDrawablePadding(pad);
             final android.graphics.drawable.Drawable left = getResources().getDrawable(m[1]).mutate();
             left.setColorFilter(ic, android.graphics.PorterDuff.Mode.SRC_IN);
-            final boolean isPass = m[0] == R.id.edit_pass || m[0] == R.id.edit_reg_pass;
+            final boolean isPass = m[0] == R.id.edit_pass || m[0] == R.id.edit_reg_pass || m[0] == R.id.edit_reg_pass2;
             if (!isPass) { e.setCompoundDrawablesWithIntrinsicBounds(left, null, null, null); continue; }
             final boolean[] shown = {false};
             final Runnable apply = () -> {
@@ -479,9 +479,9 @@ public class Main2Activity extends Activity {
         binding.editUser.setOnFocusChangeListener(focusScroll);
         binding.editPass.setOnFocusChangeListener(focusScroll);
         binding.editName.setOnFocusChangeListener(focusScroll);
-        binding.editUsername.setOnFocusChangeListener(focusScroll);
         binding.editEmail.setOnFocusChangeListener(focusScroll);
         binding.editRegPass.setOnFocusChangeListener(focusScroll);
+        binding.editRegPass2.setOnFocusChangeListener(focusScroll);
     }
 
     private boolean keyboardShown = false;
@@ -537,7 +537,7 @@ public class Main2Activity extends Activity {
             float w = title.getPaint().measureText(title.getText().toString());
             if (w <= 0) return;
             final float tile = w * 2f;
-            int[] colors = {0xFF8F6C10, 0xFFC39A2A, 0xFFFFE58A, 0xFFC39A2A, 0xFF8F6C10, 0xFF8F6C10};
+            int[] colors = {0xFFBF9220, 0xFFD9AE31, 0xFFFBE282, 0xFFD9AE31, 0xFFBF9220, 0xFFBF9220};
             float[] pos = {0f, 0.2f, 0.4f, 0.6f, 0.8f, 1f};
             final LinearGradient grad = new LinearGradient(0, 0, tile, 0, colors, pos, Shader.TileMode.REPEAT);
             title.getPaint().setShader(grad);

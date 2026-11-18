@@ -43,7 +43,7 @@
 			android:text="Babylon Chat"
 			android:textSize="28sp"
 			android:textStyle="bold"
-			android:textColor="#A97F1C" />
+			android:textColor="#C79A1F" />
 		<TextView
 			android:id="@+id/subtitle"
 			android:layout_width="wrap_content"
@@ -69,7 +69,7 @@
 				android:gravity="center_horizontal|center_vertical"
 				android:text="تسجيل الدخول"
 				android:textStyle="bold"
-				android:textColor="#FFFFFF"
+				android:textColor="#5B4208"
 				android:layout_weight="1"
 				android:textSize="13.33sp" />
 			<TextView
@@ -149,7 +149,7 @@
 				android:text="دخول"
 				android:textSize="15sp"
 				android:textStyle="bold"
-				android:textColor="#FFFFFF"
+				android:textColor="#5B4208"
 				android:focusable="true" />
 			<TextView
 				android:id="@+id/btn_forgot"
@@ -197,30 +197,6 @@
 				android:textColorHint="#6B7A8C"
 				android:singleLine="true"
 				android:inputType="textPersonName" />
-			<TextView
-				android:id="@+id/label_username"
-				android:layout_width="match_parent"
-				android:layout_height="wrap_content"
-				android:layout_marginTop="14dp"
-				android:gravity="right"
-				android:text="اسم المستخدم (5 أحرف فأكثر)"
-				android:textSize="12sp"
-				android:textStyle="bold"
-				android:textColor="#6B4F08" />
-			<EditText
-				android:id="@+id/edit_username"
-				android:layout_width="match_parent"
-				android:layout_height="52dp"
-				android:layout_marginTop="5dp"
-				android:paddingLeft="18dp"
-				android:paddingRight="18dp"
-				android:background="@drawable/bg_input"
-				android:gravity="left|center_vertical"
-				android:textSize="14sp"
-				android:textColor="#17212B"
-				android:hint="Username"
-				android:textColorHint="#6B7A8C"
-				android:singleLine="true" />
 			<TextView
 				android:id="@+id/label_email"
 				android:layout_width="match_parent"
@@ -272,6 +248,31 @@
 				android:singleLine="true"
 				android:inputType="textPassword" />
 			<TextView
+				android:id="@+id/label_reg_pass2"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:layout_marginTop="14dp"
+				android:gravity="right"
+				android:text="تأكيد كلمة المرور"
+				android:textSize="12sp"
+				android:textStyle="bold"
+				android:textColor="#6B4F08" />
+			<EditText
+				android:id="@+id/edit_reg_pass2"
+				android:layout_width="match_parent"
+				android:layout_height="52dp"
+				android:layout_marginTop="5dp"
+				android:paddingLeft="18dp"
+				android:paddingRight="18dp"
+				android:background="@drawable/bg_input"
+				android:gravity="left|center_vertical"
+				android:textSize="14sp"
+				android:textColor="#17212B"
+				android:hint="أعد كتابة كلمة المرور"
+				android:textColorHint="#6B7A8C"
+				android:singleLine="true"
+				android:inputType="textPassword" />
+			<TextView
 				android:id="@+id/btn_register"
 				android:layout_width="match_parent"
 				android:layout_height="54dp"
@@ -281,7 +282,7 @@
 				android:text="تسجيل حساب جديد"
 				android:textSize="15sp"
 				android:textStyle="bold"
-				android:textColor="#FFFFFF"
+				android:textColor="#5B4208"
 				android:focusable="true" />
 		</LinearLayout>
 	</LinearLayout>

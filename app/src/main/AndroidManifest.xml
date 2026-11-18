@@ -56,6 +56,14 @@
 			android:theme="@style/NoActionBar" />
 
 		<activity
+			android:name=".VerifyActivity"
+			android:windowSoftInputMode="adjustResize"
+			android:screenOrientation="portrait"
+			android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout"
+			android:hardwareAccelerated="true"
+			android:theme="@style/NoActionBar" />
+
+		<activity
 			android:name=".MassActivity"
 			android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout|uiMode|density|fontScale|layoutDirection|locale|keyboard|navigation"
 			android:hardwareAccelerated="true"

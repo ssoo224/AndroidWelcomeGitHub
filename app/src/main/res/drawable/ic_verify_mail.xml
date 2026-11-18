@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp"
+    android:height="64dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    <!-- مظروف أبيض -->
+    <path
+        android:pathData="M8,14h34a4,4 0,0 1,4 4v22a4,4 0,0 1,-4 4H8a4,4 0,0 1,-4 -4V18a4,4 0,0 1,4 -4z"
+        android:fillColor="#FFFFFF" />
+    <path
+        android:pathData="M8,19l17,12l17,-12"
+        android:strokeColor="#CFA23A"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <!-- درع بعلامة صح -->
+    <path
+        android:pathData="M45,26l11,4v9c0,7 -5,12 -11,15c-6,-3 -11,-8 -11,-15v-9z"
+        android:fillColor="#FFFFFF"
+        android:strokeColor="#C9992F"
+        android:strokeWidth="2"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M40,40l4,4l7,-8"
+        android:strokeColor="#B98B23"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>
