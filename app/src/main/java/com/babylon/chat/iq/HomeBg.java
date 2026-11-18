@@ -24,10 +24,10 @@ import android.view.View;
  */
 final class HomeBg extends Drawable {
     /** ألوان احتياطية (وسط اللقطة) إن تعذّر فكّ الصورة. */
-    static final int BASE_DARK = 0xFF15161A, BASE_LIGHT = 0xFFF8F5F1;
+    static final int BASE_DARK = 0xFF141519, BASE_LIGHT = 0xFFFAF7F2;
 
     // الشريط الأفقي الفارغ من الرسمة (نسبة من ارتفاعها) الذي يتمدد/ينكمش حسب ارتفاع الشاشة
-    private static final float STRETCH_FROM = 0.435f, STRETCH_TO = 0.485f;
+    private static final float STRETCH_FROM = 0.272f, STRETCH_TO = 0.302f;
 
     private static Bitmap artLight, artDark;
 

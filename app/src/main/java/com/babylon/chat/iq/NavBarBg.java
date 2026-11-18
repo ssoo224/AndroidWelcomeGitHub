@@ -75,8 +75,9 @@ final class NavBarBg extends Drawable {
 
         Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
         fill.setStyle(Paint.Style.FILL);
-        fill.setColor(dark ? 0xFF181818 : (home ? 0xFFFFFFFF : 0xFFFFFFFF));   // الليلي: #181818 كما في اللقطة المرجعية   // الليلي: أفتح بدرجة من #17212B
-        if (dark) fill.setShadowLayer(10f * d, 0f, 3f * d, 0x66000000);   // النهاري: بلا ظل   // الظل داخل الصورة (برمجي) فلا يتأثر بالتسريع
+        fill.setColor(dark ? (home ? 0xFF181818 : 0xFF1E2A36) : 0xFFFFFFFF);   // الليلي: #181818 في المحادثات فقط، وفي الإعدادات والملف الشخصي كما كان #1E2A36   // الليلي: #181818 كما في اللقطة المرجعية   // الليلي: أفتح بدرجة من #17212B
+        if (dark) fill.setShadowLayer(10f * d, 0f, 3f * d, 0x66000000);
+        else if (!home) fill.setShadowLayer(10f * d, 0f, 3f * d, 0x265A6A8A);   // النهاري: الظل كما كان في الإعدادات والملف الشخصي، وبلا ظل في المحادثات   // الظل داخل الصورة (برمجي) فلا يتأثر بالتسريع
         c.drawPath(p, fill);
 
         if (dark) {   // النهاري: بلا حدّ
@@ -127,7 +128,7 @@ final class NavBarBg extends Drawable {
         private static final float INSIDE = 3.5f;     // dp — مساحة فاصلة بين حافة الحبّة العلوية (المحادثات) ومنحنى الكبسولة
         private static final int N = 48;              // عدد عيّنات منحنى الانحناء
 
-        private final boolean dark, middle;
+        private final boolean dark, middle, home;
         private final float d;
         private final Paint body = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint sheen = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -136,8 +137,9 @@ final class NavBarBg extends Drawable {
         private final float[] bx = new float[N + 1], bhh = new float[N + 1];   // نفس منحنى NavBarBg.shape (من الحافة إلى القمة)
         private Bitmap glow;
 
-        Sel(boolean dark, float density, boolean middle) {
+        Sel(boolean dark, float density, boolean middle, boolean home) {
             this.dark = dark;
+            this.home = dark && home;   // نمط الليلي الجديد (بني داكن) في المحادثات فقط
             this.d = density;
             this.middle = middle;
             float bw = BUMP_HALF_W * d, bh = BUMP_H * d;
@@ -197,7 +199,7 @@ final class NavBarBg extends Drawable {
             path.computeBounds(pb, true);
             float w = pb.width(), h = pb.height();
             body.setShader(new LinearGradient(0f, pb.top, 0f, pb.bottom,
-                    dark ? new int[]{0xFF463619, 0xFF352B15, 0xFF1E1A12} : new int[]{0xFFFFF3D3, 0xFFFEEAC2, 0xFFFBE4BE},
+                    dark ? (home ? new int[]{0xFF463619, 0xFF352B15, 0xFF1E1A12} : new int[]{0x4DF0D27A, 0x40E4C45B, 0x33D9B24A}) : new int[]{0xFFFFF3D3, 0xFFFEEAC2, 0xFFFBE4BE},
                     new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP));
             // لمعة ناعمة في الأعلى كما في المرجع
             sheen.setShader(new RadialGradient(pb.centerX(), pb.top + h * 0.22f, w * 0.55f,
@@ -206,8 +208,8 @@ final class NavBarBg extends Drawable {
             glow = Bitmap.createBitmap((int) (w + 2 * g), (int) (h + 2 * g), Bitmap.Config.ARGB_8888);
             Canvas c = new Canvas(glow);
             Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-            p.setColor(dark ? 0xFF352B15 : 0xFFFEEAC4);
-            p.setShadowLayer(8f * d, 0f, 1.5f * d, dark ? 0x30463619 : 0x55EBCB8A);
+            p.setColor(dark ? (home ? 0xFF352B15 : 0x33E4C45B) : 0xFFFEEAC4);
+            p.setShadowLayer(8f * d, 0f, 1.5f * d, dark ? (home ? 0x30463619 : 0x40E4C45B) : 0x55EBCB8A);
             Path gp = new Path(path);
             gp.offset(g - pb.left, g - pb.top);
             c.drawPath(gp, p);

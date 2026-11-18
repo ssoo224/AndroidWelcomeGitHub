@@ -17,7 +17,7 @@ public final class Tk {
 
     // ----- الألوان الأساسية (HTML: --bg / --surface / ...)
     /** لون الطبقة الزجاجية لشريط التنقل فوق خلفية المحادثات (أسفل الرسمة البابلية في اللقطتين). */
-    public static int homeGlass(boolean d) { return d ? 0xFF090A0E : 0xFFF5F4F3; }
+    public static int homeGlass(boolean d) { return d ? 0xFF0D0E12 : 0xFFF7F6F5; }
     /** حقول صفحة المحادثات (صفوف، عدسة): رمادي فحمي شبه شفاف بحدّ ذهبي خافت ليتناسق مع الرسمة البابلية (نهاري: أبيض كريمي). */
     public static int homeCard(boolean d)       { return d ? 0xE6101419 : 0xEBFFFFFF; }
     public static int homeCardStroke(boolean d) { return d ? 0x2EE4C45B : 0x40D9B25E; }

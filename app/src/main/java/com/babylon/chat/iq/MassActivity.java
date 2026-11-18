@@ -1015,7 +1015,7 @@ public class MassActivity extends Activity {
                         else if (k.equals("card")) {
                             ViewGroup.LayoutParams clp = x.getLayoutParams();
                             boolean small = clp != null && clp.height > 0 && clp.height <= dp(48);
-                            if (x.getId() == R.id.mainSearchBtn) x.setBackground(shape(Tk.homeCard(dark), 14, Tk.homeCardStroke(dark)));   // العدسة: نفس لون صفوف المحادثات
+                            if (x.getId() == R.id.mainSearchBtn) x.setBackground(shape(Tk.homeCard(dark), 14, dark ? 0x1FFFFFFF : 0));   // العدسة: نفس لون صفوف المحادثات
                             else x.setBackground(shape(cSf(), small ? 14 : 20, cBorder()));   // عدسة البحث بلا إطار رمادي حول مربعها
                             if (isQuickBtn(x)) x.setStateListAnimator(null);
                         }
@@ -2227,7 +2227,7 @@ public class MassActivity extends Activity {
                     TextView ic = tv(id + "Ic");
                     TextView tx = tv(id + "Tx");
                     int inactive = dark ? 0xFFE4C45B : 0xFFBF9334;   // نهاري: #BF9334 / ليلي #e4c45b (مطابق للمرجع)
-                    int active = dark ? 0xFFFFFFFF : 0xFF9C6901;     // النشط في النهار: #9C6901 (مطابق للمرجع)
+                    int active = dark ? (p.equals("homeView") ? 0xFFFFFFFF : 0xFFE4C45B) : 0xFF9C6901;     // النشط في النهار: #9C6901 (مطابق للمرجع)
                     if (ic != null) {
                         ic.setTag(null);
                         ic.setTextColor(on ? active : inactive);
@@ -2241,7 +2241,7 @@ public class MassActivity extends Activity {
                     }
                     View vv = v(id);
                     if (vv != null) {
-                        vv.setBackground(on ? new NavBarBg.Sel(dark, act.getResources().getDisplayMetrics().density, "navChats".equals(id)) : null);
+                        vv.setBackground(on ? new NavBarBg.Sel(dark, act.getResources().getDisplayMetrics().density, "navChats".equals(id), p.equals("homeView")) : null);
                         vv.setAlpha(1f);
                     }
                 }
