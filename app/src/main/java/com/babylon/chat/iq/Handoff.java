@@ -40,4 +40,10 @@ final class Handoff {
     }
 
     static MassActivity mass() { return mass; }
+
+    // تخطيط صفحة المحادثات المنفوخ مسبقاً في الخيط الخلفي أثناء رسم اللوگو (MassBinding)؛ تأخذه MassActivity بدل نفخه على الخيط الرئيسي
+    private static volatile com.babylon.chat.iq.databinding.MassBinding pre;
+    static void putPre(com.babylon.chat.iq.databinding.MassBinding b) { pre = b; }
+    static boolean hasPre() { return pre != null; }
+    static com.babylon.chat.iq.databinding.MassBinding takePre() { com.babylon.chat.iq.databinding.MassBinding b = pre; pre = null; return b; }
 }

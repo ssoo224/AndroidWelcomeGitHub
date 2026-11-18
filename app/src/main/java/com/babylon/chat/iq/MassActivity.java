@@ -176,7 +176,7 @@ public class MassActivity extends Activity {
         showLastCrash();
 
         try {
-            binding = MassBinding.inflate(getLayoutInflater());
+            binding = (heldBySplash && Handoff.hasPre()) ? Handoff.takePre() : MassBinding.inflate(getLayoutInflater());   // المنفوخ مسبقاً في الخلفية إن جهز
             setContentView(binding.getRoot());
             if (heldBySplash) binding.getRoot().setAlpha(0f);
             if (heldBySplash) {   // أشرطة النظام تبقى كما ضبطها السبلاش (شفافة + نفس لون الأيقونات) وإلا ظهر لون الثيم الافتراضي (برتقالي/أبيض)

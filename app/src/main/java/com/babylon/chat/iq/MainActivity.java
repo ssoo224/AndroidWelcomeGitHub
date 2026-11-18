@@ -27,7 +27,7 @@ import java.util.List;
 public class MainActivity extends Activity {
 
     private static final long LOGO_DONE_MS = 2650;   // اكتمال رسم اللوگو وتلوينه واستقراره
-    private static final long HOLD_AFTER_LOGO_MS = 0;   // بعد اكتمال السبلاش تدخل صفحة المحادثات مباشرة (التلاشي 300ms في MassActivity.revealFromSplash)
+    private static final long HOLD_AFTER_LOGO_MS = 0;   // جاهزة عند اكتمال رسم السبلاش فتدخل مباشرة (التلاشي 300ms في MassActivity.revealFromSplash)
     private static final long SPLASH_MS = LOGO_DONE_MS + HOLD_AFTER_LOGO_MS;   // 3150ms
 
     // ===== توقيت حركة الشعار (ms) =====
@@ -66,8 +66,9 @@ public class MainActivity extends Activity {
         handler.postDelayed(this::goNext, SPLASH_MS);
     }
 
-    private static final long EARLY_START_MS = (long) T_COLOR_B;   // بناء الصفحة يبدأ بعد اكتمال الرسم والتلوين (مرحلة الاستقرار الهادئة)، فتكون جاهزة عند اكتمال السبلاش بلا تأخير
+    private static final long EARLY_START_MS = LOGO_DONE_MS;   // الجزء المتبقي من بناء الصفحة يجري في نهاية رسم اللوگو تماماً، ثم تُكشف بتلاشٍ شفاف مباشرة
     private boolean earlyStarted = false;
+    private int preWaits = 0, goWaits = 0;
     private volatile Boolean earlyOk = null;   // null = الفحص الخلفي جارٍ؛ true = مسجّل ولا أذونات معلّقة
 
     private void startMassEarly() {
@@ -75,6 +76,7 @@ public class MainActivity extends Activity {
         Boolean ok = earlyOk;
         if (ok == null) { handler.postDelayed(this::startMassEarly, 25); return; }   // الفحص الخلفي لم ينتهِ بعد
         if (!ok) return;   // غير مسجّل أو أول تشغيل بالأذونات: المسار القديم عند goNext
+        if (!Handoff.hasPre() && preWaits++ < 20) { handler.postDelayed(this::startMassEarly, 25); return; }   // ننتظر (حتى 0.5ث) نفخ التخطيط في الخلفية كي لا يُنفخ على الخيط الرئيسي
         earlyStarted = true;
         Handoff.begin();
         Intent i = new Intent(this, MassActivity.class);
@@ -118,6 +120,12 @@ public class MainActivity extends Activity {
                 needPerms = Build.VERSION.SDK_INT >= 23 && !AppSettings.prefs(app, "babylon_boot").getBoolean("perms_asked", false) && missingPermissions().length > 0;
             } catch (Throwable ignored) { }
             earlyOk = loggedIn && !needPerms;
+            if (loggedIn) {   // نفخ تخطيط صفحة المحادثات في هذا الخيط الخاص أثناء الرسم؛ تأخذه MassActivity جاهزاً
+                try {
+                    android.view.LayoutInflater pinf = android.view.LayoutInflater.from(new android.view.ContextThemeWrapper(app, R.style.NoActionBar));
+                    Handoff.putPre(com.babylon.chat.iq.databinding.MassBinding.inflate(pinf));
+                } catch (Throwable ignored) { }
+            }
             try { com.google.firebase.firestore.FirebaseFirestore.getInstance(); } catch (Throwable ignored) { }
             warmData(app, uid);
             String[] cls = {"MassActivity", "Main2Activity", "MsgViews", "MsgMenu", "ChatThemes", "ChatPreview", "ChatPattern",
@@ -129,7 +137,7 @@ public class MainActivity extends Activity {
             try {   // تضخيم تجريبي يُرمى: يسخّن تحليل الـXML وكاش الموارد وتحميل كلاسات الـViews
                 android.view.LayoutInflater inf = android.view.LayoutInflater.from(new android.view.ContextThemeWrapper(app, R.style.NoActionBar));
                 if (loggedIn) {
-                    com.babylon.chat.iq.databinding.MassBinding.inflate(inf);
+                    // (MassBinding نُفخ أعلاه وحُفظ في Handoff)
                     for (String pf : new String[]{"part_profile", "part_settings"}) {   // MassActivity.init يضخّمها على الخيط الرئيسي أيضاً
                         int lid = app.getResources().getIdentifier(pf, "layout", app.getPackageName());
                         if (lid != 0) inf.inflate(lid, null);
@@ -202,6 +210,9 @@ public class MainActivity extends Activity {
 
     private void goNext() {
         if (navigated || isFinishing()) return;
+        if (!earlyStarted && !navigated && Boolean.TRUE.equals(earlyOk) && goWaits++ < 60) {   // الإطلاق المبكر قيد الانتظار (نفخ/فحص خلفي): نمهله قليلاً بدل المسار القديم
+            handler.postDelayed(this::goNext, 25); return;
+        }
         if (earlyStarted) { revealEarly(); return; }
         android.content.SharedPreferences sp = AppSettings.prefs(this, "babylon_boot");
         if (Build.VERSION.SDK_INT >= 23 && !sp.getBoolean("perms_asked", false)) {   // أول دخول فقط
