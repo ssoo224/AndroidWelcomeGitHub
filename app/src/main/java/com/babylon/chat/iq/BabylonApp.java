@@ -12,6 +12,7 @@ public class BabylonApp extends Application {
         try { AppSettings.init(this); } catch (Throwable ignored) { }
         try { MediaFiles.init(this); } catch (Throwable ignored) { }
         try { LegacyStorage.cleanup(this); } catch (Throwable ignored) { }
+        try { Notifier.ensureChannel(this); } catch (Throwable ignored) { }   // قناة إشعارات الرسائل
         // كاش Firestore على الجهاز بلا حد أقصى (الافتراضي 100MB ويُحذف القديم): الرسائل تبقى محلياً وتُقرأ منه بدل إعادة تنزيلها
         try {
             com.google.firebase.firestore.FirebaseFirestore.getInstance().setFirestoreSettings(
@@ -22,10 +23,10 @@ public class BabylonApp extends Application {
         } catch (Throwable ignored) { }
         registerActivityLifecycleCallbacks(new ActivityLifecycleCallbacks() {
             @Override public void onActivityCreated(Activity a, Bundle b) { }
-            @Override public void onActivityStarted(Activity a) { FontManager.install(a); }
+            @Override public void onActivityStarted(Activity a) { FontManager.install(a); Notifier.activityStarted(); }
             @Override public void onActivityResumed(Activity a) { FontManager.install(a); }
             @Override public void onActivityPaused(Activity a) { }
-            @Override public void onActivityStopped(Activity a) { }
+            @Override public void onActivityStopped(Activity a) { Notifier.activityStopped(); }
             @Override public void onActivitySaveInstanceState(Activity a, Bundle b) { }
             @Override public void onActivityDestroyed(Activity a) { }
         });

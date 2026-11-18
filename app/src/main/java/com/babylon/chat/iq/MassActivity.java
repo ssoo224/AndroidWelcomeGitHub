@@ -117,6 +117,24 @@ public class MassActivity extends Activity {
     private interface DeepCb { void open(String username); }
     private DeepCb deepOpener;
     private String pendingDeepUser;
+    /** فتح محادثة من إشعار (MsgNotifier): تُسنَد من initializeLogic بعد بناء الواجهة. */
+    private interface ChatCb { void open(String name, String uid); }
+    private ChatCb chatOpener;
+    private String pendingChatUid, pendingChatName;
+
+    /** إن حمل الـIntent محادثة من إشعار فتحها (أو أجّلها حتى تجهز الواجهة) ثم أزال الإضافات كي لا تُفتح مرتين. */
+    private void handleNotifIntent(Intent in) {
+        try {
+            if (in == null) return;
+            String u = in.getStringExtra(MsgNotifier.EXTRA_UID);
+            if (u == null || u.isEmpty()) return;
+            String n = in.getStringExtra(MsgNotifier.EXTRA_NAME);
+            in.removeExtra(MsgNotifier.EXTRA_UID); in.removeExtra(MsgNotifier.EXTRA_NAME);
+            if (n == null) n = "";
+            if (chatOpener != null) { final String fu = u, fn = n; getWindow().getDecorView().postDelayed(() -> { try { chatOpener.open(fn, fu); } catch (Throwable ignored) { } }, 350); }
+            else { pendingChatUid = u; pendingChatName = n; }
+        } catch (Throwable ignored) { }
+    }
 
     /** يفتح ملف المستخدم من رابط داخلي babylon://u/username؛ يُرجع true إن كان الرابط من هذا النوع. */
     public boolean handleDeepLink(android.net.Uri u) {
@@ -140,6 +158,7 @@ public class MassActivity extends Activity {
         super.onNewIntent(intent);
         setIntent(intent);
         if (intent != null && intent.getData() != null) handleDeepLink(intent.getData());
+        handleNotifIntent(intent);   // نقر على إشعار رسالة والتطبيق يعمل
     }
 
     private java.util.function.BooleanSupplier backHook;             // زر الرجوع يلغي تحديد الرسائل أولاً
@@ -210,6 +229,15 @@ public class MassActivity extends Activity {
             }
             myUid = currentUser.getUid();
             try { LocalDb.init(this, myUid); } catch (Throwable ignored) { }
+            try { Notifier.register(getApplicationContext(), myUid); } catch (Throwable ignored) { }   // توكن FCM لإشعارات الرسائل
+            try {   // أندرويد 13+: إن لم يُمنح إذن الإشعارات (مستخدم قديم لم يُسأل) نطلبه مرة واحدة
+                if (android.os.Build.VERSION.SDK_INT >= 33 && !heldBySplash
+                        && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                        && !AppSettings.prefs(this, "babylon_boot").getBoolean("notif_perm_asked", false)) {
+                    AppSettings.prefs(this, "babylon_boot").edit().putBoolean("notif_perm_asked", true).apply();
+                    requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 1004);
+                }
+            } catch (Throwable ignored) { }
         } catch (Throwable e) {
             if (heldBySplash) Handoff.failed();
             saveAndDie(e, "firebase_init");
@@ -234,6 +262,8 @@ public class MassActivity extends Activity {
             final android.net.Uri fl = link;
             if (fl != null) getWindow().getDecorView().postDelayed(() -> handleDeepLink(fl), 500);
         } catch (Throwable ignored) { }
+
+        handleNotifIntent(getIntent());   // الإقلاع بنقرة على إشعار رسالة: يفتح محادثتها
 
         // إشعار قادم من شاشة الدخول (تم تسجيل الدخول / تم إنشاء الحساب)
         final String carried = getIntent() != null ? getIntent().getStringExtra("bb_toast") : null;
@@ -4979,6 +5009,7 @@ public class MassActivity extends Activity {
 
                 currentChatId = getChatId(myUid, uid);
                 final String openCid = currentChatId;
+                Notifier.setOpenChat(openCid); Notifier.cancelChat(act, openCid);   // محادثة مفتوحة: لا إشعارات لها، ويُزال إشعارها الظاهر
                 sessionRestored = restoreSession(openCid);   // فقاعاتها المبنية سابقاً تعود كما هي: لا قراءة من القاعدة ولا إعادة بناء
                 // تحميل الرسائل بعد أول إطار: النقر يفتح المحادثة وتبدأ الحركة فوراً دون انتظار قراءة الخزن ورسم الفقاعات
                 // بعد رسم أول إطار فعلاً (Choreographer) لا مجرد post: كان قراءة الخزن ورسم 50 فقاعة يحجبان الخيط الرئيسي فتبقى القائمة معلّقة قبل الدخول
@@ -5931,6 +5962,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 pins = new ArrayList<>(); pinIdx = -1;   // الكبسولة تبقى ظاهرة وتتلاشى مع باقي أجزاء المحادثة (تُحذف عند نهاية الحركة)
                 uiH.postDelayed(() -> { if (currentChatId.isEmpty()) { try { renderPinnedBar(); } catch (Throwable ignored) { } } }, 700);   // احتياط إن أُلغيت الحركة
                 currentChatId = ""; otherUid = "";
+                Notifier.setOpenChat("");
                 olderTok++; olderQ.clear(); localTok++; localPaging = false;
                 renderedMsgIds.clear(); lastDayKey = ""; daySeps.clear(); msgViewsById.clear(); msgMeta.clear();
                 playingHandle = null;   // الصوتية الجارية تستمر خارج المحادثة (الفقاعة تُرسم من جديد عند العودة) ويظهر شريطها العائم
@@ -9980,6 +10012,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 try { LocalDb.clearAll(); } catch (Throwable ignored) { }
                 vpStop();   // تسجيل الخروج يوقف الصوتية (if(cur&&!currentUser) stop() في الـ HTML)
                 try { for (ListenerRegistration ur : unreadRegs.values()) ur.remove(); unreadRegs.clear(); unreadByUid.clear(); lastSeenByUid.clear(); } catch (Throwable ignored) { }
+                try { Notifier.unregister(act, myUid); Notifier.setOpenChat(""); } catch (Throwable ignored) { }   // لا إشعارات للحساب بعد الخروج
                 mAuth.signOut();
                 sp.edit().putBoolean("logged", false).apply();
                 Intent out = new Intent(act, Main2Activity.class);
@@ -10415,6 +10448,8 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
             } catch (Throwable ignored) { }
         });
         deepOpener = ui::openProfileByUsername;
+        chatOpener = ui::openChat;
+        if (pendingChatUid != null) { final String pu2 = pendingChatUid, pn2 = pendingChatName; pendingChatUid = null; pendingChatName = null; getWindow().getDecorView().postDelayed(() -> { try { uiRef.openChat(pn2 == null ? "" : pn2, pu2); } catch (Throwable ignored) { } }, 700); }
         if (pendingDeepUser != null) { final String pu = pendingDeepUser; pendingDeepUser = null; getWindow().getDecorView().post(() -> uiRef.openProfileByUsername(pu)); }
         backHook = ui::onBack;
         touchHook = ev -> { ui.globalTap(ev); ui.dragSelTouch(ev); };
