@@ -39,11 +39,14 @@ final class NavBarBg extends Drawable {
     }
 
     /** لون الطبقة الزجاجية: يتبع خلفية الصفحة الظاهرة خلف الشريط (للمحادثات: لون أسفل الرسمة البابلية). */
-    void setGlass(int color) {
-        if (glassColor == color) return;
-        glassColor = color;
+    void setHome(boolean home, int glass) {
+        if (glassColor == glass && this.home == home) return;
+        glassColor = glass;
+        this.home = home;
         refresh();
     }
+
+    private boolean home;   // صفحة المحادثات: كبسولة بلون يتناسق مع الرسمة البابلية (فحمي بحدّ ذهبي خافت)
 
     /** يُعاد بناء الرسم عند تغيّر ارتفاع الإيماءات. */
     void refresh() {
@@ -72,15 +75,15 @@ final class NavBarBg extends Drawable {
 
         Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
         fill.setStyle(Paint.Style.FILL);
-        fill.setColor(dark ? 0xFF1E2A36 : 0xFFFFFFFF);   // الليلي: أفتح بدرجة من #17212B
+        fill.setColor(home ? (dark ? 0xFF0F1318 : 0xFFFFFFFF) : (dark ? 0xFF1E2A36 : 0xFFFFFFFF));   // الليلي: أفتح بدرجة من #17212B
         fill.setShadowLayer(10f * d, 0f, 3f * d, dark ? 0x66000000 : 0x265A6A8A);   // الظل داخل الصورة (برمجي) فلا يتأثر بالتسريع
         c.drawPath(p, fill);
 
-        if (dark) {
+        if (dark || home) {
             Paint st = new Paint(Paint.ANTI_ALIAS_FLAG);
             st.setStyle(Paint.Style.STROKE);
             st.setStrokeWidth(Math.max(1f, d));
-            st.setColor(0x1FFFFFFF);
+            st.setColor(home ? (dark ? 0x38E4C45B : 0x4DD9B25E) : 0x1FFFFFFF);
             c.drawPath(p, st);
         }
     }

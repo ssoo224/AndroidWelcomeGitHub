@@ -1015,10 +1015,11 @@ public class MassActivity extends Activity {
                         else if (k.equals("card")) {
                             ViewGroup.LayoutParams clp = x.getLayoutParams();
                             boolean small = clp != null && clp.height > 0 && clp.height <= dp(48);
-                            x.setBackground(shape(cSf(), small ? 14 : 20, x.getId() == R.id.mainSearchBtn ? 0 : cBorder()));   // عدسة البحث بلا إطار رمادي حول مربعها
+                            if (x.getId() == R.id.mainSearchBtn) x.setBackground(shape(Tk.homeCard(dark), 14, Tk.homeCardStroke(dark)));   // العدسة: نفس لون صفوف المحادثات
+                            else x.setBackground(shape(cSf(), small ? 14 : 20, cBorder()));   // عدسة البحث بلا إطار رمادي حول مربعها
                             if (isQuickBtn(x)) x.setStateListAnimator(null);
                         }
-                        else if (k.equals("row")) { x.setBackground(shape(cSf(), 18, 0)); }
+                        else if (k.equals("row")) { x.setBackground(shape(Tk.homeCard(dark), 18, Tk.homeCardStroke(dark))); }   // صفوف المحادثات: ألوان متناسقة مع الرسمة
                         else if (k.equals("badge")) {
                             GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE2B83F, 0xFFB8861B});
                             g.setCornerRadius(dp(11));
@@ -1843,7 +1844,7 @@ public class MassActivity extends Activity {
                     NavBarBg.EXTRA_BOTTOM = extra;
                     // الطبقة الزجاجية خلف الكبسولة تتبع خلفية الصفحة الظاهرة: لون الرسمة في المحادثات، ولون الصفحة في غيرها
                     if (bn.getBackground() instanceof NavBarBg)
-                        ((NavBarBg) bn.getBackground()).setGlass("homeView".equals(curPage) ? Tk.homeGlass(dark) : Tk.pageBg(dark));
+                        ((NavBarBg) bn.getBackground()).setHome("homeView".equals(curPage), "homeView".equals(curPage) ? Tk.homeGlass(dark) : Tk.pageBg(dark));
                     if (bn.getPaddingBottom() != dp(5) + extra) bn.setPadding(bn.getPaddingLeft(), bn.getPaddingTop(), bn.getPaddingRight(), dp(5) + extra);
                     if (changed && bn.getBackground() instanceof NavBarBg) ((NavBarBg) bn.getBackground()).refresh();
                     int ov = on ? h : 0;   // مقدار تداخل الشريط فوق الصفحة (الصفحة تمتد خلفه)
@@ -1991,6 +1992,8 @@ public class MassActivity extends Activity {
                                     rt.setBackground(new HomeBg(act, dark, act.getResources().getDisplayMetrics().density));
                             } else rt.setBackgroundColor(srch ? SearchPage.bg(dark) : cBg());
                         }
+                        View mpg = v("mainPage");   // في المحادثات تُترك الصفحة شفافة ليظهر الجذر (الرسمة الثابتة)، وفي غيرها لونها المعتاد
+                        if (mpg != null) { if (homePg) mpg.setBackground(null); else mpg.setBackgroundColor(cBg()); }
                         if (srch) { top = SearchPage.topColor(dark); bottom = SearchPage.bg(dark); }
                         // تعديل البيانات الشخصية (نهاري): شريط الإشعارات بنفس بياض ترويسة الصفحة (.edit-profile-header)
                         if (("editProfileView".equals(curPage) || "chatSettingsView".equals(curPage)) && !dark) top = 0xFFFFFFFF;
@@ -4684,8 +4687,7 @@ public class MassActivity extends Activity {
                 if (chatSelXIv != null) chatSelXIv.setColorFilter(cGold());
                 if (chatSelDelIv != null) chatSelDelIv.setColorFilter(cGold());
                 if (chatSelPinIv != null) chatSelPinIv.setColorFilter(cGold());
-                if (chatSelBar != null && !(chatSelBar.getBackground() instanceof HomeBg && ((HomeBg) chatSelBar.getBackground()).isDark() == dark))
-                    Tk.handle("homepat", chatSelBar, null, dark);   // نفس رسمة الهيدر (محاذاة للنافذة) فلا يظهر شريط بلون مختلف
+                if (chatSelBar != null) chatSelBar.setBackground(null);   // شفاف: تظهر الرسمة الثابتة خلفه
                 if (chatSelPinIv != null) {
                     java.util.List<String> pins = getPins();
                     boolean all = !chatSel.isEmpty();
@@ -4709,8 +4711,8 @@ public class MassActivity extends Activity {
 
                 // الغلاف: يحمل لون الخلفية ويُظهر العدد في منتصف الشريط تماماً (بغض النظر عن أزرار الطرفين)
                 FrameLayout wrap = new FrameLayout(act);
-                wrap.setTag("homepat");   // شريط التحديد يحل محل الهيدر: نفس الرسمة المحاذاة للنافذة فلا تظهر حدود
-                Tk.handle("homepat", wrap, null, dark);
+                wrap.setTag("homepat");   // شريط التحديد يحل محل الهيدر: شفاف فوق الرسمة الثابتة
+                wrap.setBackground(null);
                 wrap.setVisibility(View.GONE);
 
                 chatSelXIv = noBg(selIcon(R.drawable.ic_mm_x, cGold(), cSf(), "إلغاء التحديد", () -> exitChatSel(true)));
