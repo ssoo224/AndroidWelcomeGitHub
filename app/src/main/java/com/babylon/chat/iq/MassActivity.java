@@ -944,9 +944,9 @@ public class MassActivity extends Activity {
                 g.setCornerRadius(dp(composer ? 18 : 15));   // حقل الكتابة الداخلي في الشريط: +3dp
                 // أثناء الكتابة (نهاري، كل الثيمات): الحقل الداخلي أبيض بصبغة خفيفة جداً من لون الثيم
                 final int acc = (Tk.chatPal != null ? Tk.chatPal.accent : 0xFFC29D30) | 0xFF000000;
-                if (composer && focus) {   // أثناء الكتابة (ليلي ونهاري): الحقل الداخلي بنفس لون كبسولة الكتابة الخارجية
+                if (composer && focus && dark) {   // الليلي فقط: عند الكتابة يصير الحقل بلون الكبسولة الخارجية وحدّها تماماً   // أثناء الكتابة (ليلي ونهاري): الحقل الداخلي بنفس لون كبسولة الكتابة الخارجية
                     g.setColor(Tk.composerOuter(dark));
-                    g.setStroke(dp(1), Tk.chatPal != null ? ((Tk.chatPal.accent & 0x00FFFFFF) | 0x99000000) : (dark ? 0xFF8B94A1 : 0xFFD9CDBB));
+                    g.setStroke(dp(1), Tk.chatPal != null ? Tk.chatPal.line : 0x14FFFFFF);
                     return g;
                 }
                 if (Tk.chatPal != null) {   // الطورين الليلي والنهاري: ألوان الثيم (داخل شريط الكتابة --cr-card)
@@ -1018,7 +1018,18 @@ public class MassActivity extends Activity {
                             x.setBackground(shape(cSf(), small ? 14 : 20, cBorder()));   // عدسة البحث بلا إطار رمادي حول مربعها
                             if (isQuickBtn(x)) x.setStateListAnimator(null);
                         }
-                        else if (k.equals("row")) { x.setBackground(shape(cSf(), 18, cBorder())); }   // الليلي: نفس لون شريط التنقل #181818 وحدّه الرمادي الخافت؛ النهاري: أبيض #FFFFFF بلا حدّ   // صفوف المحادثات: ألوان متناسقة مع الرسمة
+                        else if (k.equals("row")) { x.setBackground(shape(cSf(), 18, 0));   // بلا حدّ: ظل فقط مثل ظل شريط التنقل
+                            if (Build.VERSION.SDK_INT >= 21) {
+                                x.setElevation(dp(5));
+                                if (Build.VERSION.SDK_INT >= 28) {
+                                    x.setOutlineSpotShadowColor(dark ? 0xFF000000 : 0xFF5A6A8A);
+                                    x.setOutlineAmbientShadowColor(dark ? 0xFF000000 : 0xFF5A6A8A);
+                                }
+                                if (x.getParent() instanceof ViewGroup) {   // لا يُقصّ الظل عند حواف الصف
+                                    ViewGroup pg = (ViewGroup) x.getParent();
+                                    pg.setClipChildren(false); pg.setClipToPadding(false);
+                                }
+                            } }   // الليلي: نفس لون شريط التنقل #181818 وحدّه الرمادي الخافت؛ النهاري: أبيض #FFFFFF بلا حدّ   // صفوف المحادثات: ألوان متناسقة مع الرسمة
                         else if (k.equals("badge")) {
                             GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE2B83F, 0xFFB8861B});
                             g.setCornerRadius(dp(11));

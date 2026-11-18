@@ -691,15 +691,26 @@ public final class BabylonFx {
      */
     public static void shine(final TextView title) {
         if (title == null) return;
-        title.post(() -> {
+        final Runnable apply = () -> {
             float w = title.getPaint().measureText(title.getText().toString());
-            if (w <= 0) return;
-            // تدرّج ذهبي ثابت (بلا أنيميشن) بنفس ألوان واتجاه عنوان السبلاش
-            float h = title.getHeight();
-            title.getPaint().setShader(new LinearGradient(0, 0, w, h,
+            float vw = title.getWidth(), h = title.getHeight();
+            if (w <= 0 || vw <= 0) return;
+            // التدرّج يتبع موضع النص الفعلي داخل الـ View (يمين/وسط/يسار) فيظهر كاملاً مثل السبلاش، لا لوناً واحداً
+            int g = title.getGravity() & android.view.Gravity.HORIZONTAL_GRAVITY_MASK;
+            boolean rtl = title.getLayoutDirection() == View.LAYOUT_DIRECTION_RTL;
+            float x0;
+            if (g == android.view.Gravity.CENTER_HORIZONTAL) x0 = (vw - w) / 2f;
+            else if (g == android.view.Gravity.RIGHT || (rtl && g == android.view.Gravity.START) || (!rtl && g == android.view.Gravity.END))
+                x0 = vw - title.getPaddingRight() - w;
+            else x0 = title.getPaddingLeft();
+            title.getPaint().setShader(new LinearGradient(x0, 0, x0 + w, h,
                     new int[]{0xFFECD176, 0xFFD0A533, 0xFFB4871D}, null, Shader.TileMode.CLAMP));
-            title.setTextColor(Color.WHITE); // اللون الفعلي يأتي من الـ shader
+            title.setTextColor(Color.WHITE); // اللون الظاهر يأتي من الـ shader
             title.invalidate();
+        };
+        title.post(apply);
+        title.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or2, ob) -> {
+            if (r - l != or2 - ol || b - t != ob - ot) apply.run();
         });
     }
 
