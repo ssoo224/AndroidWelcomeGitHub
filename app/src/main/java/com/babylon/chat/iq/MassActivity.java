@@ -1015,11 +1015,10 @@ public class MassActivity extends Activity {
                         else if (k.equals("card")) {
                             ViewGroup.LayoutParams clp = x.getLayoutParams();
                             boolean small = clp != null && clp.height > 0 && clp.height <= dp(48);
-                            if (x.getId() == R.id.mainSearchBtn) x.setBackground(shape(Tk.homeCard(dark), 14, dark ? 0x1FFFFFFF : 0));   // العدسة: نفس لون صفوف المحادثات
-                            else x.setBackground(shape(cSf(), small ? 14 : 20, cBorder()));   // عدسة البحث بلا إطار رمادي حول مربعها
+                            x.setBackground(shape(cSf(), small ? 14 : 20, cBorder()));   // عدسة البحث بلا إطار رمادي حول مربعها
                             if (isQuickBtn(x)) x.setStateListAnimator(null);
                         }
-                        else if (k.equals("row")) { x.setBackground(dark ? shape(0xFF181818, 18, 0x1FFFFFFF) : shape(0xFFFFFFFF, 18, 0)); }   // الليلي: نفس لون شريط التنقل #181818 وحدّه الرمادي الخافت؛ النهاري: أبيض #FFFFFF بلا حدّ   // صفوف المحادثات: ألوان متناسقة مع الرسمة
+                        else if (k.equals("row")) { x.setBackground(shape(cSf(), 18, cBorder())); }   // الليلي: نفس لون شريط التنقل #181818 وحدّه الرمادي الخافت؛ النهاري: أبيض #FFFFFF بلا حدّ   // صفوف المحادثات: ألوان متناسقة مع الرسمة
                         else if (k.equals("badge")) {
                             GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE2B83F, 0xFFB8861B});
                             g.setCornerRadius(dp(11));
@@ -1844,7 +1843,7 @@ public class MassActivity extends Activity {
                     NavBarBg.EXTRA_BOTTOM = extra;
                     // الطبقة الزجاجية خلف الكبسولة تتبع خلفية الصفحة الظاهرة: لون الرسمة في المحادثات، ولون الصفحة في غيرها
                     if (bn.getBackground() instanceof NavBarBg)
-                        ((NavBarBg) bn.getBackground()).setHome("homeView".equals(curPage), "homeView".equals(curPage) ? Tk.homeGlass(dark) : Tk.pageBg(dark));
+                        ((NavBarBg) bn.getBackground()).setHome(false, Tk.pageBg(dark));
                     if (bn.getPaddingBottom() != dp(5) + extra) bn.setPadding(bn.getPaddingLeft(), bn.getPaddingTop(), bn.getPaddingRight(), dp(5) + extra);
                     if (changed && bn.getBackground() instanceof NavBarBg) ((NavBarBg) bn.getBackground()).refresh();
                     int ov = on ? h : 0;   // مقدار تداخل الشريط فوق الصفحة (الصفحة تمتد خلفه)
@@ -1984,7 +1983,7 @@ public class MassActivity extends Activity {
                         // صفحة البحث: خلفية --sr-bg وشريط الحالة بلون بداية تدرّج الهيدر (مثل الـ HTML)
                         boolean srch = "searchView".equals(curPage);
                         View rt = v("root");
-                        boolean homePg = "homeView".equals(curPage);
+                        boolean homePg = false;   // المحادثات بنفس خلفية الإعدادات (لون الصفحة المعتاد)
                         if (rt != null) {
                             if (homePg) {   // المحادثات: الرسمة البابلية تمتد خلف شريط الحالة أيضاً (متصلة بالهيدر والصفحة)
                                 Drawable cb = rt.getBackground();
@@ -1998,7 +1997,7 @@ public class MassActivity extends Activity {
                         // تعديل البيانات الشخصية (نهاري): شريط الإشعارات بنفس بياض ترويسة الصفحة (.edit-profile-header)
                         if (("editProfileView".equals(curPage) || "chatSettingsView".equals(curPage)) && !dark) top = 0xFFFFFFFF;
                     }
-                    if (!inChat && "homeView".equals(curPage)) bars.syncHome(dark, Tk.homeGlass(dark));   // شريط حالة شفاف فوق الرسمة، أيقوناته حسب الثيم
+                    if (false) bars.syncHome(dark, Tk.homeGlass(dark));   // شريط حالة شفاف فوق الرسمة، أيقوناته حسب الثيم
                     else if (!inChat && isProfilePage(curPage)) bars.syncProfile(bottom);   // شريط حالة شفاف + أيقونات بيضاء
                     else bars.sync(top, bottom);
                 } catch (Throwable ignored) { }
@@ -2227,7 +2226,7 @@ public class MassActivity extends Activity {
                     TextView ic = tv(id + "Ic");
                     TextView tx = tv(id + "Tx");
                     int inactive = dark ? 0xFFE4C45B : 0xFFBF9334;   // نهاري: #BF9334 / ليلي #e4c45b (مطابق للمرجع)
-                    int active = dark ? (p.equals("homeView") ? 0xFFFFFFFF : 0xFFE4C45B) : 0xFF9C6901;     // النشط في النهار: #9C6901 (مطابق للمرجع)
+                    int active = dark ? 0xFFE4C45B : 0xFF9C6901;     // النشط في النهار: #9C6901 (مطابق للمرجع)
                     if (ic != null) {
                         ic.setTag(null);
                         ic.setTextColor(on ? active : inactive);
@@ -2241,7 +2240,7 @@ public class MassActivity extends Activity {
                     }
                     View vv = v(id);
                     if (vv != null) {
-                        vv.setBackground(on ? new NavBarBg.Sel(dark, act.getResources().getDisplayMetrics().density, "navChats".equals(id), p.equals("homeView")) : null);
+                        vv.setBackground(on ? new NavBarBg.Sel(dark, act.getResources().getDisplayMetrics().density, "navChats".equals(id), false) : null);
                         vv.setAlpha(1f);
                     }
                 }
