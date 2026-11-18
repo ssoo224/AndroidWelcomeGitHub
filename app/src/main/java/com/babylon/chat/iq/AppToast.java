@@ -75,6 +75,31 @@ public final class AppToast {
         if (current != null && "loading".equals(current.getTag())) hide(current, true);
     }
 
+    private static android.view.ViewTreeObserver.OnGlobalLayoutListener kbListener;   // يتابع الكيبورد طوال عمر الإشعار الحالي
+    private static ViewGroup kbDecor;
+
+    /** الهامش السفلي حسب الكيبورد الآن: بلا كيبورد 86dp فوق الحافة، ومعه 4dp فوقه. */
+    private static int bottomMarginNow(Activity act, ViewGroup decor) {
+        try {
+            DisplayMetrics dm = act.getResources().getDisplayMetrics();
+            android.graphics.Rect vis = new android.graphics.Rect();
+            decor.getWindowVisibleDisplayFrame(vis);
+            int[] loc = new int[2];
+            decor.getLocationOnScreen(loc);
+            int decorBottom = loc[1] + decor.getHeight();
+            boolean kb = dm.heightPixels - vis.bottom > dp(act, 160);
+            return Math.max(0, decorBottom - vis.bottom) + dp(act, kb ? 4 : 86);
+        } catch (Throwable t) { return dp(act, 86); }
+    }
+
+    private static void stopKbWatch() {
+        try {
+            if (kbDecor != null && kbListener != null && kbDecor.getViewTreeObserver().isAlive())
+                kbDecor.getViewTreeObserver().removeOnGlobalLayoutListener(kbListener);
+        } catch (Throwable ignored) { }
+        kbListener = null; kbDecor = null;
+    }
+
     private static int dp(Context c, float v) { return (int) (v * c.getResources().getDisplayMetrics().density + 0.5f); }
 
     private static void build(Activity act, String msg, boolean dark, View anchor) {
@@ -175,17 +200,7 @@ public final class AppToast {
         tv.setMaxWidth(cardW - fixedW);
 
         ViewGroup decor = (ViewGroup) act.getWindow().getDecorView();
-        // الموضع من أسفل المساحة المرئية فعلاً: بدون كيبورد 96dp فوق الحافة، ومع الكيبورد 14dp فقط فوقه (لا يرتفع للمنتصف)
-        int bottomMargin;
-        try {
-            android.graphics.Rect vis = new android.graphics.Rect();
-            decor.getWindowVisibleDisplayFrame(vis);
-            int[] loc = new int[2];
-            decor.getLocationOnScreen(loc);
-            int decorBottom = loc[1] + decor.getHeight();
-            boolean kb = dm.heightPixels - vis.bottom > dp(act, 160);
-            bottomMargin = Math.max(0, decorBottom - vis.bottom) + dp(act, kb ? 4 : 86);   // أنزلنا الإشعار 10dp (كان 14/96)
-        } catch (Throwable t) { bottomMargin = dp(act, 86); }
+        int bottomMargin = bottomMarginNow(act, decor);   // من أسفل المساحة المرئية فعلاً (يتبع الكيبورد ويعود لمكانه عند إغلاقه)
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(cardW, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
         lp.bottomMargin = bottomMargin;
         // تحت عنصر محدد (مثل «نسيت كلمة المرور؟»): نضع أعلى الإشعار أسفل العنصر بـ 12dp إن اتسعت المساحة المرئية
@@ -211,6 +226,23 @@ public final class AppToast {
         decor.addView(card, lp);
         current = card;
 
+        // الكيبورد يُفتح/يُغلق والإشعار ظاهر (مثل ضغط «دخول» الذي يُخفيه): يتبعه الإشعار فيعود لمكانه الأصلي بدل البقاء في المنتصف
+        stopKbWatch();
+        if (lp.gravity == (Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL)) {
+            final ViewGroup fd = decor;
+            final Activity fa = act;
+            final FrameLayout.LayoutParams flp = lp;
+            kbDecor = fd;
+            kbListener = () -> {
+                try {
+                    if (card.getParent() == null) { stopKbWatch(); return; }
+                    int nb = bottomMarginNow(fa, fd);
+                    if (nb != flp.bottomMargin) { flp.bottomMargin = nb; card.setLayoutParams(flp); }
+                } catch (Throwable ignored) { }
+            };
+            fd.getViewTreeObserver().addOnGlobalLayoutListener(kbListener);
+        }
+
         card.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f).setDuration(380)
                 .setInterpolator(new OvershootInterpolator(0.9f)).start();
 
@@ -231,6 +263,7 @@ public final class AppToast {
     private static void hide(final View card, boolean animate) {
         if (card == null) return;
         if (card == current) {
+            stopKbWatch();
             current = null;
             if (hideRun != null) { H.removeCallbacks(hideRun); hideRun = null; }
             if (barAnim != null) { barAnim.cancel(); barAnim = null; }

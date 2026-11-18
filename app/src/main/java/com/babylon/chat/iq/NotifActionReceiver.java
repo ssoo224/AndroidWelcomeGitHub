@@ -58,7 +58,7 @@ public class NotifActionReceiver extends BroadcastReceiver {
                     boolean sent = sendReply(db, me.getUid(), chatId, senderId, replyText);
                     if (sent) {
                         markRead(db, chatId, senderId);                                     // الرد يعني أنك قرأت ما قبله
-                        MsgNotifier.appendOwnReply(ctx, chatId, replyText);     // يظهر ردّك داخل الإشعار
+                        MsgNotifier.appendOwnReply(ctx, chatId, senderId, intent.getStringExtra(MsgNotifier.X_NAME), replyText);     // يظهر ردّك داخل الإشعار
                     } else {
                         Notifier.cancelChat(ctx, chatId);                                   // محظور: لا نرسل
                     }

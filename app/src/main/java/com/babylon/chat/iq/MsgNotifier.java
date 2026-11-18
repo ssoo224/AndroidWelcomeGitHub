@@ -157,18 +157,19 @@ final class MsgNotifier {
     }
 
     /** بعد «رد» من الإشعار: يضيف ردّك في الإشعار نفسه (يوقف دوّارة الانتظار) دون إعادة تنبيه. */
-    static void appendOwnReply(Context c, String chatId, String text) {
+    static void appendOwnReply(Context c, String chatId, String senderId, String name, String text) {
         try {
             if (Build.VERSION.SDK_INT < 23) { Notifier.cancelChat(c, chatId); return; }
             NotificationManager m = (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
             for (android.service.notification.StatusBarNotification s : m.getActiveNotifications()) {
                 if (s.getId() == Notifier.idFor(chatId) && Notifier.tagFor(chatId).equals(s.getTag())) {
-                    NotificationCompat.MessagingStyle st = NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(s.getNotification());
+                    Notification old = s.getNotification();
+                    NotificationCompat.MessagingStyle st = NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(old);
                     if (st == null) break;
                     st = trimmed(st);
                     st.addMessage(text, System.currentTimeMillis(), (Person) null);   // null = أنا
-                    Notification n = NotificationCompat.Builder.recoverBuilder(c, s.getNotification())
-                            .setStyle(st).setOnlyAlertOnce(true).setAutoCancel(true).build();
+                    Bitmap av = largeIconOf(c, old, name);
+                    Notification n = base(c, chatId, senderId, name, av, st, System.currentTimeMillis(), true).build();
                     NotificationManagerCompat.from(c).notify(Notifier.tagFor(chatId), Notifier.idFor(chatId), n);
                     return;
                 }
@@ -177,4 +178,23 @@ final class MsgNotifier {
         Notifier.cancelChat(c, chatId);
     }
 
+    /** صورة المرسل من الإشعار الظاهر (EXTRA_LARGE_ICON)، وإلا دائرة الحرف الأول. */
+    private static Bitmap largeIconOf(Context c, Notification n, String name) {
+        final int px = Math.round(c.getResources().getDisplayMetrics().density * 64);
+        try {
+            android.os.Parcelable p = n.extras == null ? null : n.extras.getParcelable(NotificationCompat.EXTRA_LARGE_ICON);
+            if (p instanceof Bitmap) return (Bitmap) p;
+            if (Build.VERSION.SDK_INT >= 23 && p instanceof android.graphics.drawable.Icon) {
+                android.graphics.drawable.Drawable d = ((android.graphics.drawable.Icon) p).loadDrawable(c);
+                if (d != null) {
+                    Bitmap b = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888);
+                    android.graphics.Canvas cv = new android.graphics.Canvas(b);
+                    d.setBounds(0, 0, px, px);
+                    d.draw(cv);
+                    return b;
+                }
+            }
+        } catch (Throwable ignored) { }
+        return Notifier.avatar(null, name, px);
+    }
 }
