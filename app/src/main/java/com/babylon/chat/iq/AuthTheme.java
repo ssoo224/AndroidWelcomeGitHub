@@ -40,7 +40,7 @@ final class AuthTheme {
     static GradientDrawable goldBox(boolean dark, float radiusPx, int strokePx) {
         GradientDrawable g = new GradientDrawable();
         g.setCornerRadius(radiusPx);
-        g.setColor(dark ? SURFACE : 0xFFFFFBF0);
+        g.setColor(dark ? SURFACE : 0xFFFFFAEB);
         g.setStroke(strokePx, GOLD_STROKE);
         return g;
     }
