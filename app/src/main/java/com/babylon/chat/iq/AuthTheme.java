@@ -34,13 +34,13 @@ final class AuthTheme {
         return new AuthBg(dark);
     }
 
-    static final int GOLD_STROKE = 0xFFE2B63A;
+    static final int GOLD_STROKE = 0xFFC8991B;
 
     /** صندوق بإطار ذهبي (الطور الليلي: سطح داكن + إطار ذهبي). */
     static GradientDrawable goldBox(boolean dark, float radiusPx, int strokePx) {
         GradientDrawable g = new GradientDrawable();
         g.setCornerRadius(radiusPx);
-        g.setColor(dark ? SURFACE : 0xFFFFFBF0);
+        g.setColor(dark ? SURFACE : 0xFFFFFCF5);
         g.setStroke(strokePx, GOLD_STROKE);
         return g;
     }
