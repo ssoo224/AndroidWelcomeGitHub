@@ -1079,7 +1079,7 @@
 				android:tag="t" />
 		</LinearLayout>
 		<ScrollView
- android:scrollbars="none"
+			android:scrollbars="none"
 			android:id="@+id/vscroll47"
 			android:layout_width="match_parent"
 			android:layout_height="match_parent">
@@ -1089,21 +1089,83 @@
 				android:layout_height="wrap_content"
 				android:paddingBottom="32dp"
 				android:orientation="vertical">
-
+				<LinearLayout
+					android:id="@+id/nfHero"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:orientation="vertical"
+					android:gravity="center_horizontal"
+					android:layout_marginTop="22dp">
+					<FrameLayout
+						android:id="@+id/nfHeroFrame"
+						android:layout_width="96dp"
+						android:layout_height="96dp">
+						<TextView
+							android:id="@+id/nf01"
+							android:layout_width="96dp"
+							android:layout_height="96dp"
+							android:textSize="12sp"
+							android:tag="ring"
+							android:layout_gravity="center" />
+						<TextView
+							android:id="@+id/nfHeroBell"
+							android:layout_width="74dp"
+							android:layout_height="74dp"
+							android:layout_gravity="center"
+							android:gravity="center"
+							android:text=""
+							android:drawableStart="@drawable/ic_bell_30"
+							android:textSize="18sp"
+							android:textColor="#FFFFFF"
+							android:tag="circ" />
+					</FrameLayout>
+					<TextView
+						android:id="@+id/nfHeroTitle"
+						android:layout_width="wrap_content"
+						android:layout_height="wrap_content"
+						android:text="إشعارات Babylon Chat"
+						android:textSize="19sp"
+						android:textStyle="bold"
+						android:tag="t"
+						android:layout_marginTop="14dp" />
+					<TextView
+						android:id="@+id/nfHeroSub"
+						android:layout_width="wrap_content"
+						android:layout_height="wrap_content"
+						android:text="تنبيهات الرسائل تصلك فور وصولها، حتى والتطبيق مغلق، بصورة المرسل واسمه ونص الرسالة."
+						android:textSize="12.5sp"
+						android:tag="m"
+						android:gravity="center"
+						android:layout_marginTop="6dp"
+						android:layout_marginStart="36dp"
+						android:layout_marginEnd="36dp"
+						android:lineSpacingExtra="3dp" />
+					<TextView
+						android:id="@+id/notifSysStatus"
+						android:layout_width="wrap_content"
+						android:layout_height="34dp"
+						android:text="جارٍ التحقق من إذن الهاتف…"
+						android:textSize="12sp"
+						android:textStyle="bold"
+						android:tag="card m"
+						android:gravity="center"
+						android:layout_marginTop="14dp"
+						android:paddingStart="16dp"
+						android:paddingEnd="16dp" />
+				</LinearLayout>
 				<TextView
-					android:id="@+id/textview803"
+					android:id="@+id/nf02"
 					android:layout_width="wrap_content"
 					android:layout_height="wrap_content"
-					android:layout_marginTop="16dp"
-					android:layout_marginBottom="6dp"
-					android:layout_marginStart="24dp"
-					android:text="إشعارات الرسائل"
+					android:text="معاينة الإشعار"
 					android:textSize="12sp"
 					android:textStyle="bold"
-					android:tag="m" />
-
+					android:tag="m"
+					android:layout_marginTop="22dp"
+					android:layout_marginBottom="6dp"
+					android:layout_marginStart="24dp" />
 				<LinearLayout
-					android:id="@+id/linear774"
+					android:id="@+id/nfPreview"
 					android:layout_width="match_parent"
 					android:layout_height="wrap_content"
 					android:orientation="vertical"
@@ -1112,14 +1174,127 @@
 					android:layout_marginStart="14dp"
 					android:layout_marginEnd="14dp">
 					<LinearLayout
-						android:id="@+id/linear774row"
+						android:id="@+id/nf05"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:orientation="horizontal"
+						android:gravity="top"
+						android:padding="14dp">
+							<TextView
+								android:id="@+id/nfPrevAvatar"
+								android:layout_width="46dp"
+								android:layout_height="46dp"
+								android:text="س"
+								android:textSize="19sp"
+								android:textStyle="bold"
+								android:tag="avatar"
+								android:gravity="center"
+								android:textColor="#FFFFFF" />
+						<LinearLayout
+							android:id="@+id/nf04"
+							android:layout_width="0dp"
+							android:layout_height="wrap_content"
+							android:orientation="vertical"
+							android:layout_weight="1"
+							android:layout_marginStart="12dp">
+							<LinearLayout
+								android:id="@+id/nf03"
+								android:layout_width="match_parent"
+								android:layout_height="wrap_content"
+								android:orientation="horizontal"
+								android:gravity="center_vertical">
+								<TextView
+									android:id="@+id/nfPrevName"
+									android:layout_width="0dp"
+									android:layout_height="wrap_content"
+									android:text="سارة"
+									android:textSize="14.5sp"
+									android:textStyle="bold"
+									android:tag="t"
+									android:layout_weight="1" />
+								<TextView
+									android:id="@+id/nfPrevTime"
+									android:layout_width="wrap_content"
+									android:layout_height="wrap_content"
+									android:text="الآن"
+									android:textSize="11sp"
+									android:tag="m" />
+							</LinearLayout>
+							<TextView
+								android:id="@+id/nfPrevMsg"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:text="مرحباً! هل وصلتك الصور التي أرسلتها لك؟"
+								android:textSize="13sp"
+								android:tag="m"
+								android:layout_marginTop="3dp"
+								android:maxLines="2" />
+						</LinearLayout>
+					</LinearLayout>
+					<LinearLayout
+						android:id="@+id/nf06"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:orientation="horizontal"
+						android:layout_marginStart="14dp"
+						android:layout_marginEnd="14dp"
+						android:layout_marginBottom="14dp">
+						<TextView
+							android:id="@+id/nfPrevReply"
+							android:layout_width="0dp"
+							android:layout_height="34dp"
+							android:layout_weight="1"
+							android:gravity="center"
+							android:text="رد"
+							android:drawableStart="@drawable/ic_reply_16"
+							android:drawablePadding="6dp"
+							android:textSize="12.5sp"
+							android:textStyle="bold"
+							android:tag="goldo" />
+						<TextView
+							android:id="@+id/nfPrevRead"
+							android:layout_width="0dp"
+							android:layout_height="34dp"
+							android:layout_weight="1"
+							android:gravity="center"
+							android:text="اعتبارها مقروءة"
+							android:drawableStart="@drawable/ic_check_double_16"
+							android:drawablePadding="6dp"
+							android:textSize="12.5sp"
+							android:textStyle="bold"
+							android:tag="goldo"
+							android:layout_marginStart="10dp" />
+					</LinearLayout>
+				</LinearLayout>
+				<TextView
+					android:id="@+id/nf07"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:text="إشعارات الرسائل"
+					android:textSize="12sp"
+					android:textStyle="bold"
+					android:tag="m"
+					android:layout_marginTop="18dp"
+					android:layout_marginBottom="6dp"
+					android:layout_marginStart="24dp" />
+				<LinearLayout
+					android:id="@+id/nfCardPush"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:orientation="vertical"
+					android:tag="card"
+					android:elevation="0dp"
+					android:layout_marginStart="14dp"
+					android:layout_marginEnd="14dp">
+					<LinearLayout
+						android:id="@+id/nf11"
 						android:layout_width="match_parent"
 						android:layout_height="wrap_content"
 						android:padding="14dp"
 						android:gravity="center_vertical"
 						android:orientation="horizontal">
 						<TextView
-							android:id="@+id/linear774icon"
+							android:id="@+id/nf08"
 							android:layout_width="40dp"
 							android:layout_height="40dp"
 							android:gravity="center"
@@ -1129,7 +1304,7 @@
 							android:textColor="#FFFFFF"
 							android:tag="ic:#EF4444" />
 						<LinearLayout
-							android:id="@+id/linear774txt"
+							android:id="@+id/nf10"
 							android:layout_width="0dp"
 							android:layout_height="wrap_content"
 							android:orientation="vertical"
@@ -1137,7 +1312,7 @@
 							android:layout_marginStart="14dp"
 							android:layout_marginEnd="8dp">
 							<TextView
-								android:id="@+id/textview804"
+								android:id="@+id/nf09"
 								android:layout_width="wrap_content"
 								android:layout_height="wrap_content"
 								android:text="إشعارات الجهاز"
@@ -1148,49 +1323,117 @@
 								android:id="@+id/pushNotificationDescription"
 								android:layout_width="wrap_content"
 								android:layout_height="wrap_content"
-								android:text="استقبال تنبيهات الجهاز عند السماح بها."
+								android:text="استقبال تنبيهات الرسائل على هاتفك عند السماح بها."
 								android:textSize="11.5sp"
 								android:textStyle="bold"
-								android:tag="m" />
+								android:tag="m"
+								android:layout_marginTop="2dp" />
 						</LinearLayout>
+					</LinearLayout>
+					<LinearLayout
+						android:id="@+id/nf12"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:orientation="horizontal"
+						android:layout_marginStart="14dp"
+						android:layout_marginEnd="14dp"
+						android:layout_marginBottom="14dp">
 						<TextView
 							android:id="@+id/pushOnBtn"
-							android:layout_width="wrap_content"
-							android:layout_height="36dp"
-							android:gravity="center"
+							android:layout_width="0dp"
+							android:layout_height="40dp"
 							android:text="تشغيل"
-							android:textSize="13sp"
+							android:textSize="13.5sp"
 							android:textStyle="bold"
-							android:minWidth="60dp"
-							android:tag="goldo" />
+							android:tag="goldo"
+							android:gravity="center"
+							android:layout_weight="1" />
 						<TextView
 							android:id="@+id/pushOffBtn"
-							android:layout_width="wrap_content"
-							android:layout_height="36dp"
-							android:gravity="center"
+							android:layout_width="0dp"
+							android:layout_height="40dp"
 							android:text="تعطيل"
-							android:textSize="13sp"
+							android:textSize="13.5sp"
 							android:textStyle="bold"
-							android:minWidth="60dp"
-							android:layout_marginStart="6dp"
-							android:tag="goldo" />
+							android:tag="goldo"
+							android:gravity="center"
+							android:layout_weight="1"
+							android:layout_marginStart="10dp" />
+					</LinearLayout>
+					<View
+						android:id="@+id/nf13"
+						android:layout_width="match_parent"
+						android:layout_height="1dp"
+						android:tag="line"
+						android:layout_marginStart="14dp" />
+					<LinearLayout
+						android:id="@+id/notifSysRow"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:padding="14dp"
+						android:gravity="center_vertical"
+						android:orientation="horizontal"
+						android:clickable="true"
+						android:focusable="true">
+						<TextView
+							android:id="@+id/nf14"
+							android:layout_width="40dp"
+							android:layout_height="40dp"
+							android:gravity="center"
+							android:text=""
+							android:drawableStart="@drawable/ic_settings_22"
+							android:textSize="18sp"
+							android:textColor="#FFFFFF"
+							android:tag="ic:#3B82F6" />
+						<LinearLayout
+							android:id="@+id/nf17"
+							android:layout_width="0dp"
+							android:layout_height="wrap_content"
+							android:orientation="vertical"
+							android:layout_weight="1"
+							android:layout_marginStart="14dp"
+							android:layout_marginEnd="8dp">
+							<TextView
+								android:id="@+id/nf15"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:text="إعدادات الهاتف"
+								android:textSize="15.5sp"
+								android:textStyle="bold"
+								android:tag="t" />
+							<TextView
+								android:id="@+id/nf16"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:text="فتح صفحة إشعارات Babylon Chat في النظام."
+								android:textSize="11.5sp"
+								android:textStyle="bold"
+								android:tag="m"
+								android:layout_marginTop="2dp" />
+						</LinearLayout>
+						<TextView
+							android:id="@+id/nfSysChevron"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="‹"
+							android:textSize="22sp"
+							android:textStyle="bold"
+							android:tag="m" />
 					</LinearLayout>
 				</LinearLayout>
-
 				<TextView
-					android:id="@+id/textview805"
+					android:id="@+id/nf18"
 					android:layout_width="wrap_content"
 					android:layout_height="wrap_content"
-					android:layout_marginTop="16dp"
-					android:layout_marginBottom="6dp"
-					android:layout_marginStart="24dp"
 					android:text="الأصوات"
 					android:textSize="12sp"
 					android:textStyle="bold"
-					android:tag="m" />
-
+					android:tag="m"
+					android:layout_marginTop="18dp"
+					android:layout_marginBottom="6dp"
+					android:layout_marginStart="24dp" />
 				<LinearLayout
-					android:id="@+id/linear777"
+					android:id="@+id/nfCardSound"
 					android:layout_width="match_parent"
 					android:layout_height="wrap_content"
 					android:orientation="vertical"
@@ -1199,14 +1442,14 @@
 					android:layout_marginStart="14dp"
 					android:layout_marginEnd="14dp">
 					<LinearLayout
-						android:id="@+id/linear777row"
+						android:id="@+id/nf23"
 						android:layout_width="match_parent"
 						android:layout_height="wrap_content"
 						android:padding="14dp"
 						android:gravity="center_vertical"
 						android:orientation="horizontal">
 						<TextView
-							android:id="@+id/linear777icon"
+							android:id="@+id/nf19"
 							android:layout_width="40dp"
 							android:layout_height="40dp"
 							android:gravity="center"
@@ -1216,7 +1459,7 @@
 							android:textColor="#FFFFFF"
 							android:tag="ic:#F59E0B" />
 						<LinearLayout
-							android:id="@+id/linear777txt"
+							android:id="@+id/nf22"
 							android:layout_width="0dp"
 							android:layout_height="wrap_content"
 							android:orientation="vertical"
@@ -1224,7 +1467,7 @@
 							android:layout_marginStart="14dp"
 							android:layout_marginEnd="8dp">
 							<TextView
-								android:id="@+id/textview806"
+								android:id="@+id/nf20"
 								android:layout_width="wrap_content"
 								android:layout_height="wrap_content"
 								android:text="صوت الرسائل الجديدة"
@@ -1232,49 +1475,301 @@
 								android:textStyle="bold"
 								android:tag="t" />
 							<TextView
-								android:id="@+id/textview807"
+								android:id="@+id/nf21"
 								android:layout_width="wrap_content"
 								android:layout_height="wrap_content"
 								android:text="تشغيل صوت قصير عند وصول رسالة جديدة داخل التطبيق."
 								android:textSize="11.5sp"
 								android:textStyle="bold"
-								android:tag="m" />
+								android:tag="m"
+								android:layout_marginTop="2dp" />
 						</LinearLayout>
+					</LinearLayout>
+					<LinearLayout
+						android:id="@+id/nf24"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:orientation="horizontal"
+						android:layout_marginStart="14dp"
+						android:layout_marginEnd="14dp"
+						android:layout_marginBottom="14dp">
 						<TextView
 							android:id="@+id/soundOnBtn"
-							android:layout_width="wrap_content"
-							android:layout_height="36dp"
-							android:gravity="center"
+							android:layout_width="0dp"
+							android:layout_height="40dp"
 							android:text="تشغيل"
-							android:textSize="13sp"
+							android:textSize="13.5sp"
 							android:textStyle="bold"
-							android:minWidth="60dp"
-							android:tag="goldo" />
+							android:tag="goldo"
+							android:gravity="center"
+							android:layout_weight="1" />
 						<TextView
 							android:id="@+id/soundOffBtn"
-							android:layout_width="wrap_content"
-							android:layout_height="36dp"
-							android:gravity="center"
+							android:layout_width="0dp"
+							android:layout_height="40dp"
 							android:text="تعطيل"
-							android:textSize="13sp"
+							android:textSize="13.5sp"
 							android:textStyle="bold"
-							android:minWidth="60dp"
-							android:layout_marginStart="6dp"
-							android:tag="goldo" />
+							android:tag="goldo"
+							android:gravity="center"
+							android:layout_weight="1"
+							android:layout_marginStart="10dp" />
 					</LinearLayout>
 				</LinearLayout>
-
+				<TextView
+					android:id="@+id/nf25"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:text="كيف تعمل الإشعارات"
+					android:textSize="12sp"
+					android:textStyle="bold"
+					android:tag="m"
+					android:layout_marginTop="18dp"
+					android:layout_marginBottom="6dp"
+					android:layout_marginStart="24dp" />
+				<LinearLayout
+					android:id="@+id/nfCardInfo"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:orientation="vertical"
+					android:tag="card"
+					android:elevation="0dp"
+					android:layout_marginStart="14dp"
+					android:layout_marginEnd="14dp">
+					<LinearLayout
+						android:id="@+id/nf30"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:paddingStart="14dp"
+						android:paddingEnd="14dp"
+						android:paddingTop="12dp"
+						android:paddingBottom="12dp"
+						android:gravity="top"
+						android:orientation="horizontal">
+						<TextView
+							android:id="@+id/nf26"
+							android:layout_width="36dp"
+							android:layout_height="36dp"
+							android:gravity="center"
+							android:text=""
+							android:drawableStart="@drawable/ic_chat_16"
+							android:textSize="18sp"
+							android:textColor="#FFFFFF"
+							android:tag="ic:#10B981" />
+						<LinearLayout
+							android:id="@+id/nf29"
+							android:layout_width="0dp"
+							android:layout_height="wrap_content"
+							android:orientation="vertical"
+							android:layout_weight="1"
+							android:layout_marginStart="14dp"
+							android:layout_marginEnd="8dp">
+							<TextView
+								android:id="@+id/nf27"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:text="تجميع ذكي"
+								android:textSize="14sp"
+								android:textStyle="bold"
+								android:tag="t" />
+							<TextView
+								android:id="@+id/nf28"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:text="الرسائل المتتالية من المحادثة نفسها تُجمَّع في إشعار واحد، وعدة محادثات تظهر تحت ملخّص واحد."
+								android:textSize="11.5sp"
+								android:textStyle="bold"
+								android:tag="m"
+								android:layout_marginTop="2dp" />
+						</LinearLayout>
+					</LinearLayout>
+					<View
+						android:id="@+id/nf31"
+						android:layout_width="match_parent"
+						android:layout_height="1dp"
+						android:tag="line"
+						android:layout_marginStart="62dp" />
+					<LinearLayout
+						android:id="@+id/nf36"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:paddingStart="14dp"
+						android:paddingEnd="14dp"
+						android:paddingTop="12dp"
+						android:paddingBottom="12dp"
+						android:gravity="top"
+						android:orientation="horizontal">
+						<TextView
+							android:id="@+id/nf32"
+							android:layout_width="36dp"
+							android:layout_height="36dp"
+							android:gravity="center"
+							android:text=""
+							android:drawableStart="@drawable/ic_reply_16"
+							android:textSize="18sp"
+							android:textColor="#FFFFFF"
+							android:tag="ic:#3B82F6" />
+						<LinearLayout
+							android:id="@+id/nf35"
+							android:layout_width="0dp"
+							android:layout_height="wrap_content"
+							android:orientation="vertical"
+							android:layout_weight="1"
+							android:layout_marginStart="14dp"
+							android:layout_marginEnd="8dp">
+							<TextView
+								android:id="@+id/nf33"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:text="رد سريع من الإشعار"
+								android:textSize="14sp"
+								android:textStyle="bold"
+								android:tag="t" />
+							<TextView
+								android:id="@+id/nf34"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:text="اكتب ردّك مباشرة دون فتح التطبيق، أو اعتبر الرسالة مقروءة بنقرة واحدة."
+								android:textSize="11.5sp"
+								android:textStyle="bold"
+								android:tag="m"
+								android:layout_marginTop="2dp" />
+						</LinearLayout>
+					</LinearLayout>
+					<View
+						android:id="@+id/nf37"
+						android:layout_width="match_parent"
+						android:layout_height="1dp"
+						android:tag="line"
+						android:layout_marginStart="62dp" />
+					<LinearLayout
+						android:id="@+id/nf42"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:paddingStart="14dp"
+						android:paddingEnd="14dp"
+						android:paddingTop="12dp"
+						android:paddingBottom="12dp"
+						android:gravity="top"
+						android:orientation="horizontal">
+						<TextView
+							android:id="@+id/nf38"
+							android:layout_width="36dp"
+							android:layout_height="36dp"
+							android:gravity="center"
+							android:text=""
+							android:drawableStart="@drawable/ic_menu_bell_off"
+							android:textSize="18sp"
+							android:textColor="#FFFFFF"
+							android:tag="ic:#8B5CF6" />
+						<LinearLayout
+							android:id="@+id/nf41"
+							android:layout_width="0dp"
+							android:layout_height="wrap_content"
+							android:orientation="vertical"
+							android:layout_weight="1"
+							android:layout_marginStart="14dp"
+							android:layout_marginEnd="8dp">
+							<TextView
+								android:id="@+id/nf39"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:text="متى لا يصلك إشعار"
+								android:textSize="14sp"
+								android:textStyle="bold"
+								android:tag="t" />
+							<TextView
+								android:id="@+id/nf40"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:text="للمحادثة المفتوحة أمامك، وللمحادثات المكتومة، وللمستخدمين المحظورين."
+								android:textSize="11.5sp"
+								android:textStyle="bold"
+								android:tag="m"
+								android:layout_marginTop="2dp" />
+						</LinearLayout>
+					</LinearLayout>
+				</LinearLayout>
+				<TextView
+					android:id="@+id/nf43"
+					android:layout_width="wrap_content"
+					android:layout_height="wrap_content"
+					android:text="إن تأخرت الإشعارات"
+					android:textSize="12sp"
+					android:textStyle="bold"
+					android:tag="m"
+					android:layout_marginTop="18dp"
+					android:layout_marginBottom="6dp"
+					android:layout_marginStart="24dp" />
+				<LinearLayout
+					android:id="@+id/nfCardTip"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:orientation="vertical"
+					android:tag="card"
+					android:elevation="0dp"
+					android:layout_marginStart="14dp"
+					android:layout_marginEnd="14dp">
+					<LinearLayout
+						android:id="@+id/nf48"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:paddingStart="14dp"
+						android:paddingEnd="14dp"
+						android:paddingTop="12dp"
+						android:paddingBottom="12dp"
+						android:gravity="top"
+						android:orientation="horizontal">
+						<TextView
+							android:id="@+id/nf44"
+							android:layout_width="36dp"
+							android:layout_height="36dp"
+							android:gravity="center"
+							android:text=""
+							android:drawableStart="@drawable/ic_sp_clock"
+							android:textSize="18sp"
+							android:textColor="#FFFFFF"
+							android:tag="ic:#F59E0B" />
+						<LinearLayout
+							android:id="@+id/nf47"
+							android:layout_width="0dp"
+							android:layout_height="wrap_content"
+							android:orientation="vertical"
+							android:layout_weight="1"
+							android:layout_marginStart="14dp"
+							android:layout_marginEnd="8dp">
+							<TextView
+								android:id="@+id/nf45"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:text="فعّل التشغيل في الخلفية"
+								android:textSize="14sp"
+								android:textStyle="bold"
+								android:tag="t" />
+							<TextView
+								android:id="@+id/nf46"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:text="بعض الهواتف (Xiaomi / Huawei / Oppo / Samsung) توقف الخدمات الخلفية؛ فعّل «بدء تلقائي» وأوقف «توفير البطارية» لـ Babylon Chat. يظهر إشعار صامت صغير دائم باسم التطبيق ليبقى الاستقبال يعمل."
+								android:textSize="11.5sp"
+								android:textStyle="bold"
+								android:tag="m"
+								android:layout_marginTop="2dp" />
+						</LinearLayout>
+					</LinearLayout>
+				</LinearLayout>
 				<TextView
 					android:id="@+id/textview808"
 					android:layout_width="match_parent"
 					android:layout_height="wrap_content"
-					android:layout_marginTop="12dp"
-					android:layout_marginStart="24dp"
-					android:layout_marginEnd="24dp"
 					android:text="قد تحتاج إلى السماح بإشعارات Babylon Chat من إعدادات الهاتف حتى تظهر تنبيهات الجهاز."
 					android:textSize="11.5sp"
 					android:textStyle="bold"
-					android:tag="m" />
+					android:tag="m"
+					android:layout_marginTop="14dp"
+					android:layout_marginStart="24dp"
+					android:layout_marginEnd="24dp"
+					android:lineSpacingExtra="2dp" />
 			</LinearLayout>
 		</ScrollView>
 	</LinearLayout>

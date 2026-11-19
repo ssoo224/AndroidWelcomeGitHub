@@ -2136,6 +2136,7 @@ public class MassActivity extends Activity {
                 final boolean hdrOld = v("mainHeader") != null && v("mainHeader").getVisibility() == View.VISIBLE;
                 final int topOld = (isProfilePage(curPage) ? 0 : sbTop) + (hdrOld ? dp(62) : 0);
                 prevPage = curPage; curPage = p;
+                if ("notificationSettingsView".equals(p)) refreshNotifStatus();   // حالة إذن إشعارات الهاتف في صفحة الإشعارات
                 if (stories != null && !p.equals("homeView")) stories.collapseNow();   // الانتقال لصفحة/قسم آخر يطوي القصص
                 if (heroMe != null && !p.equals("profileView")) heroMe.reset();
                 if (heroOther != null && !p.equals("otherUserProfileView")) heroOther.reset();
@@ -10497,6 +10498,44 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 setOn(v(id + "_show"), !hidden, "goldo");
                 setOn(v(id + "_hide"), hidden, "goldo");
             }
+            // ============ صفحة الإشعارات: حالة إذن الهاتف + فتح إعدادات النظام ============
+            boolean notifFocusHooked = false;
+
+            /** شريحة الحالة أعلى صفحة الإشعارات: خضراء إن كانت إشعارات التطبيق مسموحة في الهاتف، وحمراء إن كانت معطّلة. */
+            void refreshNotifStatus() {
+                try {
+                    TextView st = tv("notifSysStatus");
+                    if (st == null) return;
+                    boolean on = androidx.core.app.NotificationManagerCompat.from(act).areNotificationsEnabled();
+                    st.setText(on ? "إشعارات الهاتف مفعّلة" : "إشعارات الهاتف معطّلة — اضغط «إعدادات الهاتف»");
+                    st.setTag(on ? "card green" : "card red");
+                    style(st);
+                    if (!notifFocusHooked) {   // العودة من إعدادات النظام تحدّث الحالة فوراً
+                        View pg = v("notificationSettingsView");
+                        if (pg != null) {
+                            notifFocusHooked = true;
+                            pg.getViewTreeObserver().addOnWindowFocusChangeListener(hasFocus -> {
+                                if (hasFocus && "notificationSettingsView".equals(curPage)) refreshNotifStatus();
+                            });
+                        }
+                    }
+                } catch (Throwable ignored) { }
+            }
+
+            /** يفتح صفحة إشعارات التطبيق في إعدادات النظام (أو تفاصيل التطبيق إن لم تتوفر). */
+            void openSysNotifSettings() {
+                try {
+                    Intent i = new Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                            .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, act.getPackageName());
+                    act.startActivity(i);
+                } catch (Throwable t) {
+                    try {
+                        act.startActivity(new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                Uri.parse("package:" + act.getPackageName())));
+                    } catch (Throwable ignored) { }
+                }
+            }
+
             void setOnOff(String id, boolean on) {
                 setOn(v(id + "OnBtn"), on, "goldo");
                 setOn(v(id + "OffBtn"), !on, "goldo");
@@ -10709,6 +10748,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 else if (id.equals("itemAbout")) new AlertDialog.Builder(act).setTitle("حول Babylon Chat")
                     .setMessage("تطبيق المحادثات العربي\nمحادثات، مكالمات، قصص.")
                     .setPositiveButton("حسناً", null).show();
+                else if (id.equals("notifSysRow")) openSysNotifSettings();
                 else if (id.equals("pushOnBtn")) { sp.edit().putBoolean("push", true).apply(); setOnOff("push", true); }
                 else if (id.equals("pushOffBtn")) { sp.edit().putBoolean("push", false).apply(); setOnOff("push", false); }
                 else if (id.equals("soundOnBtn")) { sp.edit().putBoolean("sound", true).apply(); setOnOff("sound", true); }
@@ -10805,7 +10845,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                         "chatSetBack", "itemShare", "itemLogout", "itemDelete", "itemChangePass",
                         "itemChangeEmail", "itemBlocked", "segLastSeen_show", "segLastSeen_hide",
                         "segAvatar_show", "segAvatar_hide", "itemClearCache", "itemWipe", "itemAbout",
-                        "pushOnBtn", "pushOffBtn", "soundOnBtn", "soundOffBtn", "chatBack", "chatUserInfo",
+                        "pushOnBtn", "pushOffBtn", "soundOnBtn", "soundOffBtn", "notifSysRow", "chatBack", "chatUserInfo",
                         "chatMore", "csX", "csClear", "csUp", "csDown", "replyCancel", "btnSend", "btnMic", "btnAttach", "recSend", "recCancel", "recStop", "recPlay"};
                 for (String id : ids) {
                     View x = v(id);
