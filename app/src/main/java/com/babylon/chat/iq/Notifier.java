@@ -36,7 +36,7 @@ import java.util.Map;
 final class Notifier {
     private Notifier() { }
 
-    static final String CHANNEL_ID = "babylon_messages";
+    static final String CHANNEL_ID = "babylon_messages_v2";   // v2: قناة بصوت التطبيق الخاص (صوت القناة لا يتغير بعد إنشائها)
     static final String GROUP_KEY = "babylon_msgs_group";
     static final int SUMMARY_ID = 1;
     static final int GOLD = 0xFFC99A1C;
@@ -85,6 +85,7 @@ final class Notifier {
                 sc.setShowBadge(false);
                 nm.createNotificationChannel(sc);
             }
+            try { nm.deleteNotificationChannel("babylon_messages"); } catch (Throwable ignored) { }   // القناة القديمة بصوت الهاتف
             if (nm.getNotificationChannel(CHANNEL_ID) != null) return;
             NotificationChannel ch = new NotificationChannel(CHANNEL_ID, "الرسائل", NotificationManager.IMPORTANCE_HIGH);
             ch.setDescription("إشعارات الرسائل الجديدة");
@@ -94,12 +95,17 @@ final class Notifier {
             ch.setLightColor(GOLD);
             ch.setLockscreenVisibility(android.app.Notification.VISIBILITY_PRIVATE);
             ch.setShowBadge(true);
-            Uri snd = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+            Uri snd = soundUri(c);
             ch.setSound(snd, new AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_NOTIFICATION)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
             nm.createNotificationChannel(ch);
         } catch (Throwable ignored) { }
+    }
+
+    /** صوت إشعار الرسائل الخاص بالتطبيق (res/raw/notif_babylon). */
+    static Uri soundUri(Context c) {
+        return Uri.parse("android.resource://" + c.getPackageName() + "/" + R.raw.notif_babylon);
     }
 
     // ------------------------------------------------------------------ خدمة الاستماع (بدون سيرفر)

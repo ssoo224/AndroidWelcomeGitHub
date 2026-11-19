@@ -1167,12 +1167,12 @@ public class MassActivity extends Activity {
                                     new int[]{dark ? 0xFFF0D77A : 0xFFE8C25A, dark ? 0xFFC9A227 : 0xFFB88A1C});
                             ig.setCornerRadius(dp(15));
                             x.setBackground(ig);
-                            if (Build.VERSION.SDK_INT >= 21) x.setElevation(dp(3));
+                            if (Build.VERSION.SDK_INT >= 21) x.setElevation(0f);   // بلا ظل أسفل الأيقونة
                             if (T != null) T.setTextColor(0xFFFFFFFF);
                         }
                         else if (k.equals("icw")) {
                             x.setBackground(shape(cSf(), 15, cBorder()));
-                            if (Build.VERSION.SDK_INT >= 21) x.setElevation(dp(2));
+                            if (Build.VERSION.SDK_INT >= 21) x.setElevation(0f);   // بلا ظل أسفل الأيقونة
                             if (T != null) T.setTextColor(cGold());
                         }
                         else if (k.equals("nfchev")) { if (T != null) T.setTextColor(cGold()); }
@@ -5226,6 +5226,15 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                                 if (!doc.exists()) continue;
                                 String id = doc.getId();
                                 if (renderedMsgIds.contains(id)) { if (cacheIdsSnap.contains(id) || cacheRenderedIds.contains(id)) syncRenderedMsg(id, doc); continue; }
+                                if (!wasFirst) {   // رسالة حيّة جديدة: نقرة خفيفة عند الإرسال وأخرى عند الاستقبال
+                                    try {
+                                        Long sts = doc.getLong("timestamp");
+                                        if (sts == null || Math.abs(System.currentTimeMillis() - sts) < 20000) {
+                                            if (myUid.equals(doc.getString("sender"))) { if (doc.getMetadata().hasPendingWrites()) ClickSfx.send(act, sp); }
+                                            else if (!doc.getMetadata().isFromCache()) ClickSfx.receive(act, sp);
+                                        }
+                                    } catch (Throwable ignored) { }
+                                }
                                 if (wasFirst) fresh.add(doc);
                                 else renderMsgData(chatId, id, doc.getData(), doc.getMetadata().hasPendingWrites(), liveBatch, doc.getReference());
                             }
@@ -10600,14 +10609,6 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
             void setOnOff(String id, boolean on) {
                 setOn(v(id + "OnBtn"), on, "goldo");
                 setOn(v(id + "OffBtn"), !on, "goldo");
-                if ("push".equals(id) || "sound".equals(id)) {   // علامة ✓ على زر «تفعيل» وهو نشط (صفحة الإشعارات)
-                    TextView ob = tv(id + "OnBtn");
-                    if (ob != null) {
-                        ob.setCompoundDrawablePadding(dp(8));
-                        ob.setCompoundDrawablesRelativeWithIntrinsicBounds(on ? R.drawable.ic_check_16 : 0, 0, 0, 0);
-                        tintIcons(ob);
-                    }
-                }
             }
             void confirm(String title, String msg, final Runnable ok) { confirm(title, msg, "تأكيد", ok); }
             /** نافذة التأكيد بنفس بطاقة باقي النوافذ (cardDialog) بدل نافذة النظام. */
