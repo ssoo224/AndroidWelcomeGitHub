@@ -1128,6 +1128,54 @@ public class MassActivity extends Activity {
                             } else { x.setBackground(shape(0, rad(x), cGold())); if (T != null) T.setTextColor(cGold()); }
                         }
                         else if (k.equals("redo")) { x.setBackground(shape(0, 12, cRed())); if (T != null) T.setTextColor(cRed()); }
+                        // ---- صفحة الإشعارات: جرس بموجات + بطاقات مدوّرة + شارات الأقسام + أيقونات ذهبية (بألوان التطبيق)
+                        else if (k.equals("nfbell")) {
+                            if (x instanceof android.widget.ImageView) ((android.widget.ImageView) x).setColorFilter(cGold(), android.graphics.PorterDuff.Mode.SRC_IN);
+                        }
+                        else if (k.equals("nfbar")) {
+                            GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                                    new int[]{cGold(), Tk.goldDeep(dark)});
+                            g.setCornerRadius(dp(3));
+                            x.setBackground(g);
+                        }
+                        else if (k.equals("nfpill")) {
+                            x.setBackground(shape(androidx_blend(cSf(), cGold(), dark ? 0.14f : 0.12f), 20, 0));
+                            if (T != null) {
+                                T.setTextColor(cText());
+                                GradientDrawable bar = new GradientDrawable();
+                                bar.setColor(cGold()); bar.setCornerRadius(dp(2)); bar.setSize(dp(3), dp(14));
+                                T.setCompoundDrawablePadding(dp(8));
+                                T.setCompoundDrawablesWithIntrinsicBounds(null, null, bar, null);   // الشريط الذهبي عند طرف الشارة الأيمن
+                            }
+                        }
+                        else if (k.equals("nfcard")) {
+                            x.setBackground(shape(cSf(), 24, cBorder()));
+                            if (Build.VERSION.SDK_INT >= 21) {
+                                x.setElevation(dp(4));
+                                if (Build.VERSION.SDK_INT >= 28) {
+                                    x.setOutlineSpotShadowColor(dark ? 0xFF000000 : 0xFF5A6A8A);
+                                    x.setOutlineAmbientShadowColor(dark ? 0xFF000000 : 0xFF5A6A8A);
+                                }
+                                if (x.getParent() instanceof ViewGroup) {
+                                    ViewGroup pg = (ViewGroup) x.getParent();
+                                    pg.setClipChildren(false); pg.setClipToPadding(false);
+                                }
+                            }
+                        }
+                        else if (k.equals("icg")) {
+                            GradientDrawable ig = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                                    new int[]{dark ? 0xFFF0D77A : 0xFFE8C25A, dark ? 0xFFC9A227 : 0xFFB88A1C});
+                            ig.setCornerRadius(dp(15));
+                            x.setBackground(ig);
+                            if (Build.VERSION.SDK_INT >= 21) x.setElevation(dp(3));
+                            if (T != null) T.setTextColor(0xFFFFFFFF);
+                        }
+                        else if (k.equals("icw")) {
+                            x.setBackground(shape(cSf(), 15, cBorder()));
+                            if (Build.VERSION.SDK_INT >= 21) x.setElevation(dp(2));
+                            if (T != null) T.setTextColor(cGold());
+                        }
+                        else if (k.equals("nfchev")) { if (T != null) T.setTextColor(cGold()); }
                         else if (k.equals("circ")) {
                             GradientDrawable g = new GradientDrawable();
                             g.setShape(GradientDrawable.OVAL); g.setColor(cGold()); x.setBackground(g);
@@ -10522,6 +10570,19 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 } catch (Throwable ignored) { }
             }
 
+            /** يفتح إعدادات قناة «التشغيل في الخلفية» ليعطّلها المستخدم فيختفي الإشعار الدائم والخدمة تبقى تعمل. */
+            void openServiceChannelSettings() {
+                try {
+                    if (Build.VERSION.SDK_INT >= 26) {
+                        act.startActivity(new Intent(android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                                .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, act.getPackageName())
+                                .putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, Notifier.SERVICE_CHANNEL));
+                        return;
+                    }
+                } catch (Throwable ignored) { }
+                openSysNotifSettings();
+            }
+
             /** يفتح صفحة إشعارات التطبيق في إعدادات النظام (أو تفاصيل التطبيق إن لم تتوفر). */
             void openSysNotifSettings() {
                 try {
@@ -10539,6 +10600,14 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
             void setOnOff(String id, boolean on) {
                 setOn(v(id + "OnBtn"), on, "goldo");
                 setOn(v(id + "OffBtn"), !on, "goldo");
+                if ("push".equals(id) || "sound".equals(id)) {   // علامة ✓ على زر «تفعيل» وهو نشط (صفحة الإشعارات)
+                    TextView ob = tv(id + "OnBtn");
+                    if (ob != null) {
+                        ob.setCompoundDrawablePadding(dp(8));
+                        ob.setCompoundDrawablesRelativeWithIntrinsicBounds(on ? R.drawable.ic_check_16 : 0, 0, 0, 0);
+                        tintIcons(ob);
+                    }
+                }
             }
             void confirm(String title, String msg, final Runnable ok) { confirm(title, msg, "تأكيد", ok); }
             /** نافذة التأكيد بنفس بطاقة باقي النوافذ (cardDialog) بدل نافذة النظام. */
@@ -10749,6 +10818,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                     .setMessage("تطبيق المحادثات العربي\nمحادثات، مكالمات، قصص.")
                     .setPositiveButton("حسناً", null).show();
                 else if (id.equals("notifSysRow")) openSysNotifSettings();
+                else if (id.equals("notifHideRow")) openServiceChannelSettings();
                 else if (id.equals("pushOnBtn")) { sp.edit().putBoolean("push", true).apply(); setOnOff("push", true); }
                 else if (id.equals("pushOffBtn")) { sp.edit().putBoolean("push", false).apply(); setOnOff("push", false); }
                 else if (id.equals("soundOnBtn")) { sp.edit().putBoolean("sound", true).apply(); setOnOff("sound", true); }
@@ -10845,7 +10915,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                         "chatSetBack", "itemShare", "itemLogout", "itemDelete", "itemChangePass",
                         "itemChangeEmail", "itemBlocked", "segLastSeen_show", "segLastSeen_hide",
                         "segAvatar_show", "segAvatar_hide", "itemClearCache", "itemWipe", "itemAbout",
-                        "pushOnBtn", "pushOffBtn", "soundOnBtn", "soundOffBtn", "notifSysRow", "chatBack", "chatUserInfo",
+                        "pushOnBtn", "pushOffBtn", "soundOnBtn", "soundOffBtn", "notifSysRow", "notifHideRow", "chatBack", "chatUserInfo",
                         "chatMore", "csX", "csClear", "csUp", "csDown", "replyCancel", "btnSend", "btnMic", "btnAttach", "recSend", "recCancel", "recStop", "recPlay"};
                 for (String id : ids) {
                     View x = v(id);

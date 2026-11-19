@@ -73,12 +73,20 @@ public class MessageListenerService extends Service {
         PendingIntent pi = PendingIntent.getActivity(this, 0,
                 new Intent(this, MassActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP),
                 PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
+        // زر «إخفاء»: أندرويد لا يسمح للتطبيق بإخفاء إشعار الخدمة بنفسه، فيفتح إعدادات هذه القناة ليعطّلها المستخدم (الاستقبال يبقى شغّالاً)
+        Intent hide = Build.VERSION.SDK_INT >= 26
+                ? new Intent(android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                        .putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, Notifier.SERVICE_CHANNEL)
+                : new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:" + getPackageName()));
+        hide.putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, getPackageName()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        PendingIntent hidePi = PendingIntent.getActivity(this, 1, hide,
+                PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
         Notification n = new NotificationCompat.Builder(this, Notifier.SERVICE_CHANNEL)
                 .setSmallIcon(R.drawable.ic_stat_message)
-                .setContentTitle("Babylon Chat")
                 .setContentText("متصل لاستقبال الرسائل")
                 .setPriority(NotificationCompat.PRIORITY_MIN)
                 .setOngoing(true).setShowWhen(false)
+                .addAction(0, "إخفاء", hidePi)
                 .setContentIntent(pi).build();
         try {
             if (Build.VERSION.SDK_INT >= 34)
