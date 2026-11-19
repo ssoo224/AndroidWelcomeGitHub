@@ -387,6 +387,12 @@ public class MassActivity extends Activity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        try { if (!loggedOut && myUid != null && !myUid.isEmpty()) Sessions.touch(this, myUid); } catch (Throwable ignored) { }   // آخر نشاط للجلسة
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
         if (messagesListener != null) messagesListener.remove();
@@ -897,7 +903,7 @@ public class MassActivity extends Activity {
 
             String[] pages = {"homeView", "searchView", "profileView", "otherUserProfileView",
                     "settingsView", "privacySettingsView", "notificationSettingsView",
-                    "chatSettingsView", "editProfileView"};
+                    "chatSettingsView", "editProfileView", "sessionsView"};
             String[] govs = {"بغداد", "البصرة", "نينوى", "أربيل", "النجف", "كربلاء", "السليمانية", "دهوك",
                     "كركوك", "الأنبار", "ديالى", "صلاح الدين", "بابل", "واسط", "ذي قار", "ميسان", "المثنى", "القادسية"};
 
@@ -1862,7 +1868,7 @@ public class MassActivity extends Activity {
             /** صفحات لا يظهر فيها شريط الصوتية العائم: أقسام الإعدادات الداخلية وتعديل المعلومات الشخصية (صفحة الإعدادات الرئيسية تعرضه؛ التشغيل يستمر في الخلفية). */
             boolean vpHiddenPage(String p) {
                 return "privacySettingsView".equals(p) || "notificationSettingsView".equals(p)
-                        || "chatSettingsView".equals(p) || "editProfileView".equals(p);
+                        || "chatSettingsView".equals(p) || "editProfileView".equals(p) || "sessionsView".equals(p);
             }
 
             boolean chatOpen() {
@@ -2093,7 +2099,7 @@ public class MassActivity extends Activity {
                         if (mpg != null) { if (homePg) mpg.setBackground(null); else mpg.setBackgroundColor(cBg()); }
                         if (srch) { top = SearchPage.topColor(dark); bottom = SearchPage.bg(dark); }
                         // تعديل البيانات الشخصية (نهاري): شريط الإشعارات بنفس بياض ترويسة الصفحة (.edit-profile-header)
-                        if (("editProfileView".equals(curPage) || "chatSettingsView".equals(curPage) || "notificationSettingsView".equals(curPage)) && !dark) top = 0xFFFFFFFF;
+                        if (("editProfileView".equals(curPage) || "chatSettingsView".equals(curPage) || "notificationSettingsView".equals(curPage) || "sessionsView".equals(curPage)) && !dark) top = 0xFFFFFFFF;
                     }
                     if (false) bars.syncHome(dark, Tk.homeGlass(dark));   // شريط حالة شفاف فوق الرسمة، أيقوناته حسب الثيم
                     else if (!inChat && isProfilePage(curPage)) bars.syncProfile(bottom);   // شريط حالة شفاف + أيقونات بيضاء
@@ -2185,6 +2191,7 @@ public class MassActivity extends Activity {
                 final boolean hdrOld = v("mainHeader") != null && v("mainHeader").getVisibility() == View.VISIBLE;
                 final int topOld = (isProfilePage(curPage) ? 0 : sbTop) + (hdrOld ? dp(62) : 0);
                 prevPage = curPage; curPage = p;
+                if ("sessionsView".equals(p)) loadSessions();
                 if ("notificationSettingsView".equals(p)) refreshNotifStatus();   // حالة إذن إشعارات الهاتف في صفحة الإشعارات
                 if (stories != null && !p.equals("homeView")) stories.collapseNow();   // الانتقال لصفحة/قسم آخر يطوي القصص
                 if (heroMe != null && !p.equals("profileView")) heroMe.reset();
@@ -6905,6 +6912,8 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                             return true;
                         case "editProfileView":
                             show("profileView"); return true;
+                        case "sessionsView":
+                            show("privacySettingsView"); return true;
                         case "privacySettingsView":
                         case "notificationSettingsView":
                         case "chatSettingsView":
@@ -10560,6 +10569,115 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
             // ============ صفحة الإشعارات: حالة إذن الهاتف + فتح إعدادات النظام ============
             boolean notifFocusHooked = false;
 
+            // ============ الجلسات: الأجهزة التي يعمل عليها الحساب (حد أقصى Sessions.MAX) ============
+            com.google.firebase.firestore.ListenerRegistration sessWatch = null;
+            String sessEndedMsg = null;
+
+            /** يسجّل هذا الجهاز ويراقب جلسته: إن أُنهيت من جهاز آخر أو بسبب الحد يخرج الحساب من هذا الجهاز. */
+            void startSessions() {
+                if (myUid == null || myUid.isEmpty()) return;
+                Sessions.register(act, myUid, ok -> {
+                    if (!ok || loggedOut) return;
+                    try { if (sessWatch != null) sessWatch.remove(); } catch (Throwable ignored) { }
+                    sessWatch = Sessions.watchSelf(act, myUid, () -> {
+                        if (loggedOut) return;
+                        sessEndedMsg = "تم إنهاء هذه الجلسة من جهاز آخر";
+                        logout();
+                    });
+                });
+            }
+
+            TextView sessText(String t, float sp, int color, boolean bold) {
+                TextView x = new TextView(act);
+                x.setText(t); x.setTextSize(sp); x.setTextColor(color);
+                if (bold) x.setTypeface(null, android.graphics.Typeface.BOLD);
+                return x;
+            }
+
+            /** يبني قائمة الأجهزة في صفحة الجلسات. */
+            void loadSessions() {
+                final LinearLayout box = (LinearLayout) v("sessionsList");
+                if (box == null) return;
+                box.removeAllViews();
+                box.addView(sessText("جارٍ التحميل…", 13f, cMuted(), false));
+                Sessions.list(act, myUid, rows -> {
+                    if (!"sessionsView".equals(curPage) && box.getChildCount() == 0) return;
+                    box.removeAllViews();
+                    TextView info = sessText("يمكن أن يعمل حسابك على " + Sessions.MAX + " أجهزة كحدّ أقصى في الوقت نفسه. الجهاز الرئيسي هو الجلسة الأقدم، وهو وحده يستطيع إنهاء الجلسات الأخرى. عند الدخول من جهاز جديد والحدّ ممتلئ تُنهى الجلسة الأقل نشاطاً (عدا الرئيسي) تلقائياً.", 12.5f, cMuted(), true);
+                    info.setLineSpacing(0, 1.25f);
+                    LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(-1, -2);
+                    ip.setMargins(dp(6), 0, dp(6), dp(14));
+                    box.addView(info, ip);
+                    if (rows == null) { box.addView(sessText("تعذّر تحميل الجلسات، تحقق من الاتصال وقواعد Firestore", 13.5f, cRed(), true)); return; }
+                    TextView cnt = sessText("الأجهزة النشطة: " + rows.size() + " / " + Sessions.MAX, 12.5f, cGold(), true);
+                    LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-2, -2);
+                    cp.setMargins(dp(6), 0, dp(6), dp(8));
+                    box.addView(cnt, cp);
+                    boolean adm0 = false;
+                    for (Sessions.Row r0 : rows) if (r0.current && r0.admin) adm0 = true;
+                    final boolean iAmAdmin = adm0;
+                    if (!iAmAdmin && rows.size() > 1) {
+                        TextView note = sessText("الجهاز الرئيسي (الأقدم) وحده يستطيع إنهاء الجلسات الأخرى.", 12.5f, cMuted(), true);
+                        LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(-2, -2);
+                        np.setMargins(dp(6), 0, dp(6), dp(10));
+                        box.addView(note, np);
+                    }
+                    int others = 0;
+                    for (final Sessions.Row r : rows) {
+                        LinearLayout card = new LinearLayout(act);
+                        card.setOrientation(LinearLayout.VERTICAL);
+                        card.setPadding(dp(16), dp(14), dp(16), dp(14));
+                        card.setBackground(shape(cSf(), 20, cBorder()));
+                        LinearLayout top = new LinearLayout(act);
+                        top.setOrientation(LinearLayout.HORIZONTAL);
+                        top.setGravity(Gravity.CENTER_VERTICAL);
+                        TextView nm = sessText(r.name, 15.5f, cText(), true);
+                        top.addView(nm, new LinearLayout.LayoutParams(0, -2, 1f));
+                        if (r.current) {
+                            TextView b = sessText(r.admin ? "هذا الجهاز · الرئيسي" : "هذا الجهاز", 11.5f, cGold(), true);
+                            b.setBackground(shape(androidx_blend(cSf(), cGold(), dark ? 0.16f : 0.14f), 12, 0));
+                            b.setPadding(dp(10), dp(3), dp(10), dp(3));
+                            top.addView(b);
+                        }
+                        card.addView(top);
+                        TextView sub = sessText((r.platform.isEmpty() ? "" : r.platform + " · ") + Sessions.ago(r.lastActive), 12.5f, cMuted(), false);
+                        LinearLayout.LayoutParams sp0 = new LinearLayout.LayoutParams(-2, -2);
+                        sp0.topMargin = dp(4);
+                        card.addView(sub, sp0);
+                        if (r.admin && !r.current) {
+                            TextView b2 = sessText("الجهاز الرئيسي", 11.5f, cGold(), true);
+                            b2.setBackground(shape(androidx_blend(cSf(), cGold(), dark ? 0.16f : 0.14f), 12, 0));
+                            b2.setPadding(dp(10), dp(3), dp(10), dp(3));
+                            top.addView(b2);
+                        }
+                        if (!r.current && iAmAdmin) {
+                            others++;
+                            TextView end = sessText("إنهاء الجلسة", 13f, cRed(), true);
+                            end.setGravity(Gravity.CENTER);
+                            end.setBackground(shape(0, 14, cRed()));
+                            LinearLayout.LayoutParams ep = new LinearLayout.LayoutParams(-1, dp(40));
+                            ep.topMargin = dp(12);
+                            end.setOnClickListener(x -> confirm("إنهاء الجلسة", "سيُسجَّل خروج «" + r.name + "» من حسابك.", "إنهاء", () ->
+                                    Sessions.end(myUid, r.id, ok -> { toast(ok ? "تم إنهاء الجلسة" : "تعذّر إنهاء الجلسة"); loadSessions(); })));
+                            card.addView(end, ep);
+                        }
+                        LinearLayout.LayoutParams cardP = new LinearLayout.LayoutParams(-1, -2);
+                        cardP.bottomMargin = dp(10);
+                        box.addView(card, cardP);
+                    }
+                    if (others > 0) {
+                        TextView all = sessText("إنهاء جميع الجلسات الأخرى", 14f, 0xFFFFFFFF, true);
+                        all.setGravity(Gravity.CENTER);
+                        all.setBackground(shape(cRed(), 16, 0));
+                        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, dp(46));
+                        ap.topMargin = dp(8);
+                        all.setOnClickListener(x -> confirm("إنهاء الجلسات الأخرى", "سيُسجَّل خروج كل الأجهزة الأخرى ويبقى هذا الجهاز فقط.", "إنهاء الكل", () ->
+                                Sessions.endOthers(act, myUid, ok -> { toast(ok ? "تم إنهاء الجلسات الأخرى" : "تعذّر إنهاء الجلسات"); loadSessions(); })));
+                        box.addView(all, ap);
+                    }
+                });
+            }
+
             /** شريحة الحالة أعلى صفحة الإشعارات: خضراء إن كانت إشعارات التطبيق مسموحة في الهاتف، وحمراء إن كانت معطّلة. */
             void refreshNotifStatus() {
                 try {
@@ -10626,9 +10744,12 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 vpStop();   // تسجيل الخروج يوقف الصوتية (if(cur&&!currentUser) stop() في الـ HTML)
                 try { for (ListenerRegistration ur : unreadRegs.values()) ur.remove(); unreadRegs.clear(); unreadByUid.clear(); lastSeenByUid.clear(); } catch (Throwable ignored) { }
                 try { Notifier.unregister(act, myUid); Notifier.setOpenChat(""); } catch (Throwable ignored) { }   // لا إشعارات للحساب بعد الخروج
+                try { if (sessWatch != null) { sessWatch.remove(); sessWatch = null; } } catch (Throwable ignored) { }
+                try { Sessions.removeSelf(act, myUid); } catch (Throwable ignored) { }   // جلسة هذا الجهاز تُحذف عند الخروج
                 mAuth.signOut();
                 sp.edit().putBoolean("logged", false).apply();
                 Intent out = new Intent(act, Main2Activity.class);
+                if (sessEndedMsg != null) out.putExtra("bb_toast", sessEndedMsg);
                 startActivity(out);
                 act.finish();
             }
@@ -10783,6 +10904,8 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 else if (id.equals("itemChatSettings")) show("chatSettingsView");
                 else if (id.equals("itemNotif")) show("notificationSettingsView");
                 else if (id.equals("itemPrivacy")) show("privacySettingsView");
+                else if (id.equals("itemSessions")) show("sessionsView");
+                else if (id.equals("sessBack")) show("privacySettingsView");
                 else if (id.equals("privacyBack") || id.equals("notifBack") || id.equals("chatSetBack")) show("settingsView");
                 else if (id.equals("itemShare")) {
                     Intent i = new Intent(Intent.ACTION_SEND);
@@ -10920,7 +11043,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                         "chatSetBack", "itemShare", "itemLogout", "itemDelete", "itemChangePass",
                         "itemChangeEmail", "itemBlocked", "segLastSeen_show", "segLastSeen_hide",
                         "segAvatar_show", "segAvatar_hide", "itemClearCache", "itemWipe", "itemAbout",
-                        "pushOnBtn", "pushOffBtn", "soundOnBtn", "soundOffBtn", "ntfSoundOnBtn", "ntfSoundOffBtn", "notifSysRow", "notifHideRow", "chatBack", "chatUserInfo",
+                        "itemSessions", "sessBack", "pushOnBtn", "pushOffBtn", "soundOnBtn", "soundOffBtn", "ntfSoundOnBtn", "ntfSoundOffBtn", "notifSysRow", "notifHideRow", "chatBack", "chatUserInfo",
                         "chatMore", "csX", "csClear", "csUp", "csDown", "replyCancel", "btnSend", "btnMic", "btnAttach", "recSend", "recCancel", "recStop", "recPlay"};
                 for (String id : ids) {
                     View x = v(id);
@@ -11056,6 +11179,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
 
         UI ui = new UI();
         ui.init();
+        try { ui.startSessions(); } catch (Throwable ignored) { }
         final UI uiRef = ui;
         // مزامنة «القصص التي شوهدت» من السحابة (تبقى بعد تسجيل الخروج وإعادة التثبيت)
         afterEntry(() -> {   // مزامنة مشاهدات القصص (شبكة): بعد الدخول وفي الخلفية

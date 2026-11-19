@@ -693,6 +693,54 @@
 						android:layout_marginStart="68dp" />
 
 					<LinearLayout
+						android:id="@+id/itemSessions"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:padding="14dp"
+						android:gravity="center_vertical"
+						android:orientation="horizontal">
+						<TextView
+							android:id="@+id/sessIcon"
+							android:layout_width="40dp"
+							android:layout_height="40dp"
+							android:gravity="center"
+							android:text=""
+							android:drawableStart="@drawable/ic_shield_20"
+							android:textSize="18sp"
+							android:textColor="#FFFFFF"
+							android:tag="ic:#0EA5E9" />
+						<LinearLayout
+							android:layout_width="0dp"
+							android:layout_height="wrap_content"
+							android:orientation="vertical"
+							android:layout_weight="1"
+							android:layout_marginStart="14dp">
+							<TextView
+								android:id="@+id/sessLabel"
+								android:layout_width="wrap_content"
+								android:layout_height="wrap_content"
+								android:text="الجلسات"
+								android:textSize="15.5sp"
+								android:textStyle="bold"
+								android:tag="t" />
+						</LinearLayout>
+						<TextView
+							android:id="@+id/sessChev"
+							android:layout_width="wrap_content"
+							android:layout_height="wrap_content"
+							android:text="‹"
+							android:textSize="22sp"
+							android:textStyle="bold"
+							android:tag="m" />
+					</LinearLayout>
+					<View
+						android:id="@+id/sessLine"
+						android:layout_width="match_parent"
+						android:layout_height="1dp"
+						android:tag="line"
+						android:layout_marginStart="68dp" />
+
+					<LinearLayout
 						android:id="@+id/itemBlocked"
 						android:layout_width="match_parent"
 						android:layout_height="wrap_content"
@@ -1882,6 +1930,70 @@
 					</HorizontalScrollView>
 				</LinearLayout>
 			</LinearLayout>
+		</ScrollView>
+	</LinearLayout>
+
+	<!-- ==================== صفحة الجلسات ==================== -->
+	<LinearLayout
+		android:id="@+id/sessionsView"
+		android:layout_width="match_parent"
+		android:layout_height="match_parent"
+		android:orientation="vertical"
+		android:visibility="gone"
+		android:tag="bg">
+		<LinearLayout
+			android:id="@+id/sessHeader"
+			android:layout_width="match_parent"
+			android:layout_height="wrap_content"
+			android:gravity="center_vertical"
+			android:orientation="horizontal"
+			android:paddingStart="18dp"
+			android:paddingEnd="18dp"
+			android:paddingTop="17dp"
+			android:paddingBottom="17dp"
+			android:layoutDirection="ltr"
+			android:tag="ephdr">
+			<LinearLayout
+				android:layout_width="0dp"
+				android:layout_height="wrap_content"
+				android:layout_weight="1"
+				android:orientation="vertical"
+				android:gravity="right">
+				<TextView
+					android:id="@+id/sessTitle"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:text="الجلسات"
+					android:textSize="18sp"
+					android:gravity="right"
+					android:textStyle="bold"
+					android:tag="t" />
+			</LinearLayout>
+			<TextView
+				android:id="@+id/sessBack"
+				android:layout_width="42dp"
+				android:layout_height="42dp"
+				android:layout_marginStart="12dp"
+				android:gravity="center"
+				android:text=""
+				android:drawableStart="@drawable/ic_arrow_back_24"
+				android:contentDescription="رجوع"
+				android:tag="epback" />
+		</LinearLayout>
+		<ScrollView
+			android:scrollbars="none"
+			android:id="@+id/sessScroll"
+			android:layout_width="match_parent"
+			android:layout_height="match_parent">
+			<LinearLayout
+				android:id="@+id/sessionsList"
+				android:layout_width="match_parent"
+				android:layout_height="wrap_content"
+				android:orientation="vertical"
+				android:paddingStart="14dp"
+				android:paddingEnd="14dp"
+				android:paddingTop="16dp"
+				android:paddingBottom="32dp" />
 		</ScrollView>
 	</LinearLayout>
 </FrameLayout>
