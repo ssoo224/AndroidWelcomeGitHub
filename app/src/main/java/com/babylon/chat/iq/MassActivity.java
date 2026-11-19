@@ -1130,7 +1130,7 @@ public class MassActivity extends Activity {
                         else if (k.equals("redo")) { x.setBackground(shape(0, 12, cRed())); if (T != null) T.setTextColor(cRed()); }
                         // ---- صفحة الإشعارات: جرس بموجات + بطاقات مدوّرة + شارات الأقسام + أيقونات ذهبية (بألوان التطبيق)
                         else if (k.equals("nfbell")) {
-                            if (x instanceof android.widget.ImageView) ((android.widget.ImageView) x).setColorFilter(cGold(), android.graphics.PorterDuff.Mode.SRC_IN);
+                            if (x instanceof android.widget.ImageView) ((android.widget.ImageView) x).clearColorFilter();   // الجرس بتدرّج ذهبي من الرسمة نفسها
                         }
                         else if (k.equals("nfbar")) {
                             GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
@@ -2092,7 +2092,7 @@ public class MassActivity extends Activity {
                         if (mpg != null) { if (homePg) mpg.setBackground(null); else mpg.setBackgroundColor(cBg()); }
                         if (srch) { top = SearchPage.topColor(dark); bottom = SearchPage.bg(dark); }
                         // تعديل البيانات الشخصية (نهاري): شريط الإشعارات بنفس بياض ترويسة الصفحة (.edit-profile-header)
-                        if (("editProfileView".equals(curPage) || "chatSettingsView".equals(curPage)) && !dark) top = 0xFFFFFFFF;
+                        if (("editProfileView".equals(curPage) || "chatSettingsView".equals(curPage) || "notificationSettingsView".equals(curPage)) && !dark) top = 0xFFFFFFFF;
                     }
                     if (false) bars.syncHome(dark, Tk.homeGlass(dark));   // شريط حالة شفاف فوق الرسمة، أيقوناته حسب الثيم
                     else if (!inChat && isProfilePage(curPage)) bars.syncProfile(bottom);   // شريط حالة شفاف + أيقونات بيضاء

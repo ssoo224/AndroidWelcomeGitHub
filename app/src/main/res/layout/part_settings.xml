@@ -1055,28 +1055,41 @@
 		<LinearLayout
 			android:id="@+id/linear769"
 			android:layout_width="match_parent"
-			android:layout_height="60dp"
+			android:layout_height="wrap_content"
 			android:gravity="center_vertical"
 			android:orientation="horizontal"
-			android:tag="sf"
-			android:elevation="0dp">
+			android:paddingStart="18dp"
+			android:paddingEnd="18dp"
+			android:paddingTop="17dp"
+			android:paddingBottom="17dp"
+			android:layoutDirection="ltr"
+			android:tag="ephdr">
+			<LinearLayout
+				android:layout_width="0dp"
+				android:layout_height="wrap_content"
+				android:layout_weight="1"
+				android:orientation="vertical"
+				android:gravity="right">
+				<TextView
+					android:id="@+id/textview799"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:text="إعدادات الإشعارات"
+					android:textSize="18sp"
+					android:gravity="right"
+					android:textStyle="bold"
+					android:tag="t" />
+			</LinearLayout>
 			<TextView
 				android:id="@+id/notifBack"
-				android:layout_width="56dp"
-				android:layout_height="match_parent"
+				android:layout_width="42dp"
+				android:layout_height="42dp"
+				android:layout_marginStart="12dp"
 				android:gravity="center"
 				android:text=""
 				android:drawableStart="@drawable/ic_arrow_back_24"
-				android:textSize="24sp"
-				android:tag="t" />
-			<TextView
-				android:id="@+id/textview799"
-				android:layout_width="wrap_content"
-				android:layout_height="wrap_content"
-				android:text="إعدادات الإشعارات"
-				android:textSize="18sp"
-				android:textStyle="bold"
-				android:tag="t" />
+				android:contentDescription="رجوع"
+				android:tag="epback" />
 		</LinearLayout>
 		<ScrollView
 			android:scrollbars="none"
@@ -1194,20 +1207,10 @@
 						android:layout_width="match_parent"
 						android:layout_height="wrap_content"
 						android:orientation="horizontal"
-						android:layoutDirection="rtl"
+						android:layoutDirection="ltr"
 						android:layout_marginStart="14dp"
 						android:layout_marginEnd="14dp"
 						android:layout_marginBottom="14dp">
-						<TextView
-							android:id="@+id/pushOnBtn"
-							android:layout_width="0dp"
-							android:layout_height="40dp"
-							android:text="تفعيل"
-							android:textSize="13.5sp"
-							android:textStyle="bold"
-							android:tag="goldo"
-							android:gravity="center"
-							android:layout_weight="1" />
 						<TextView
 							android:id="@+id/pushOffBtn"
 							android:layout_width="0dp"
@@ -1218,7 +1221,17 @@
 							android:tag="goldo"
 							android:gravity="center"
 							android:layout_weight="1"
-							android:layout_marginStart="10dp" />
+							android:layout_marginEnd="10dp" />
+						<TextView
+							android:id="@+id/pushOnBtn"
+							android:layout_width="0dp"
+							android:layout_height="40dp"
+							android:text="تفعيل"
+							android:textSize="13.5sp"
+							android:textStyle="bold"
+							android:tag="goldo"
+							android:gravity="center"
+							android:layout_weight="1" />
 					</LinearLayout>
 					<View
 						android:id="@+id/nf13"
@@ -1359,20 +1372,10 @@
 						android:layout_width="match_parent"
 						android:layout_height="wrap_content"
 						android:orientation="horizontal"
-						android:layoutDirection="rtl"
+						android:layoutDirection="ltr"
 						android:layout_marginStart="14dp"
 						android:layout_marginEnd="14dp"
 						android:layout_marginBottom="14dp">
-						<TextView
-							android:id="@+id/soundOnBtn"
-							android:layout_width="0dp"
-							android:layout_height="40dp"
-							android:text="تفعيل"
-							android:textSize="13.5sp"
-							android:textStyle="bold"
-							android:tag="goldo"
-							android:gravity="center"
-							android:layout_weight="1" />
 						<TextView
 							android:id="@+id/soundOffBtn"
 							android:layout_width="0dp"
@@ -1383,7 +1386,17 @@
 							android:tag="goldo"
 							android:gravity="center"
 							android:layout_weight="1"
-							android:layout_marginStart="10dp" />
+							android:layout_marginEnd="10dp" />
+						<TextView
+							android:id="@+id/soundOnBtn"
+							android:layout_width="0dp"
+							android:layout_height="40dp"
+							android:text="تفعيل"
+							android:textSize="13.5sp"
+							android:textStyle="bold"
+							android:tag="goldo"
+							android:gravity="center"
+							android:layout_weight="1" />
 					</LinearLayout>
 				</LinearLayout>
 				<TextView
