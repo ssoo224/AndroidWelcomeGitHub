@@ -2426,9 +2426,9 @@ public class MassActivity extends Activity {
                 TextView sxName = tv("sxName");
                 if (sxName != null) sxName.setText(userName);
                 TextView pUser = tv("pHeaderUser");
-                if (pUser != null) pUser.setText(userUsername.length() > 0 ? "@" + userUsername : "");
+                if (pUser != null) pUser.setText(userUsername.length() > 0 ? "@" + userUsername : "لا يوجد مُعرف");
                 TextView sxUser = tv("sxUser");
-                if (sxUser != null) sxUser.setText(userUsername.length() > 0 ? "@" + userUsername : "");
+                if (sxUser != null) sxUser.setText(userUsername.length() > 0 ? "@" + userUsername : "لا يوجد مُعرف");
                 TextView pBio = tv("pBioDisplay");
                 if (pBio != null) pBio.setText(userBio.length() > 0 ? userBio : "أضف نبذة عن نفسك");
                 TextView sxBio = tv("sxBio");
@@ -3207,7 +3207,7 @@ public class MassActivity extends Activity {
                 TextView oName = tv("otherHeaderName");
                 if (oName != null) oName.setText(dispName(uid, name));
                 TextView oUser = tv("otherHeaderUser");
-                if (oUser != null) oUser.setText(username == null || username.isEmpty() ? "لا يوجد معرف" : "@" + username);
+                if (oUser != null) oUser.setText(username == null || username.isEmpty() ? "لا يوجد مُعرف" : "@" + username);
                 otherRow("otherBioRow", "view662", "otherBioDisplay", "");
                 otherRow("otherGovRow", "view664", "otherGovDisplay", "");
                 otherRow("otherJoinRow", "view666", "otherJoinDisplay", "");
@@ -3297,7 +3297,7 @@ public class MassActivity extends Activity {
                 TextView oName = tv("otherHeaderName");
                 if (oName != null) oName.setText(verified ? withVerified(dispName(otherUid, nm)) : dispName(otherUid, nm));
                 TextView oUser = tv("otherHeaderUser");
-                if (oUser != null) oUser.setText(un == null || un.isEmpty() ? "لا يوجد معرف" : "@" + un);
+                if (oUser != null) oUser.setText(un == null || un.isEmpty() ? "لا يوجد مُعرف" : "@" + un);
                 TextView oAv = tv("otherAvatarText");
                 if (oAv != null && otherPhotoBmp == null) oAv.setText(nm.length() > 0 ? nm.substring(0, 1).toUpperCase() : "?");
 
@@ -10640,6 +10640,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 else if (id.equals("pPhoto")) pickProfilePhoto();
                 else if (id.equals("pCover")) openCoverPicker();
                 else if (id.equals("pUserRow")) {
+                    if (userUsername == null || userUsername.length() == 0) return;   // لا اسم مستخدم: لا شيء يُنسخ
                     ClipboardManager cm = (ClipboardManager) act.getSystemService(Context.CLIPBOARD_SERVICE);
                     TextView pu = tv("pHeaderUser");
                     if (pu != null) cm.setPrimaryClip(ClipData.newPlainText("u", pu.getText().toString()));

@@ -53,6 +53,7 @@ public class Main2Activity extends Activity {
         binding.btnLogin.setOnClickListener(v -> doLogin());
         binding.btnRegister.setOnClickListener(v -> doRegister());
         binding.btnForgot.setOnClickListener(v -> doForgot());
+        binding.btnForgot.setVisibility(View.INVISIBLE);   // تظهر «نسيت كلمة المرور؟» فقط بعد إدخال كلمة مرور خاطئة (يبقى مكانها محجوزاً فلا يقفز التصميم)
         // لا شريط تبويبات: الدخول هو الواجهة الأولى، ومنها رابط «إنشاء حساب جديد» (وفي التسجيل رابط العودة)
         binding.btnNewAccount.setOnClickListener(v -> showRegister());
         binding.btnHaveAccount.setOnClickListener(v -> showLogin());
@@ -171,6 +172,10 @@ public class Main2Activity extends Activity {
                 .addOnSuccessListener(r -> afterLogin(r.getUser()))
                 .addOnFailureListener(e -> {
                     setBusy(binding.btnLogin, false);
+                    if (e instanceof com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+                            || e instanceof com.google.firebase.auth.FirebaseAuthInvalidUserException) {
+                        binding.btnForgot.setVisibility(View.VISIBLE);
+                    }
                     toast("البريد/اسم المستخدم أو كلمة المرور غير صحيحة");
                 });
     }
