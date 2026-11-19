@@ -53,7 +53,7 @@ public class Main2Activity extends Activity {
         binding.btnLogin.setOnClickListener(v -> doLogin());
         binding.btnRegister.setOnClickListener(v -> doRegister());
         binding.btnForgot.setOnClickListener(v -> doForgot());
-        binding.btnForgot.setVisibility(View.INVISIBLE);   // تظهر «نسيت كلمة المرور؟» فقط بعد إدخال كلمة مرور خاطئة (يبقى مكانها محجوزاً فلا يقفز التصميم)
+        binding.btnForgot.setVisibility(View.GONE);   // تظهر «نسيت كلمة المرور؟» فقط بعد كلمة مرور خاطئة؛ ولا تحجز مكاناً فيبقى «إنشاء حساب جديد» قريباً من زر الدخول، ثم ينزلق للأسفل بحركة ناعمة عند ظهورها
         // لا شريط تبويبات: الدخول هو الواجهة الأولى، ومنها رابط «إنشاء حساب جديد» (وفي التسجيل رابط العودة)
         binding.btnNewAccount.setOnClickListener(v -> showRegister());
         binding.btnHaveAccount.setOnClickListener(v -> showLogin());
@@ -174,7 +174,12 @@ public class Main2Activity extends Activity {
                     setBusy(binding.btnLogin, false);
                     if (e instanceof com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
                             || e instanceof com.google.firebase.auth.FirebaseAuthInvalidUserException) {
-                        binding.btnForgot.setVisibility(View.VISIBLE);
+                        boolean first = binding.btnForgot.getVisibility() != View.VISIBLE;
+                        showForgot();
+                        if (first) {   // ننتظر انتهاء انزلاق «إنشاء حساب جديد» كي يظهر الإشعار تحته في مكانه النهائي
+                            binding.getRoot().postDelayed(() -> toast("البريد/اسم المستخدم أو كلمة المرور غير صحيحة"), 280);
+                            return;
+                        }
                     }
                     toast("البريد/اسم المستخدم أو كلمة المرور غير صحيحة");
                 });
@@ -298,14 +303,23 @@ public class Main2Activity extends Activity {
         finish();
     }
 
+    /** يُظهر «نسيت كلمة المرور؟» بين زر الدخول و«إنشاء حساب جديد» فينزلق الأخير للأسفل بحركة ناعمة. */
+    private void showForgot() {
+        if (binding.btnForgot.getVisibility() == View.VISIBLE) return;
+        android.transition.AutoTransition t = new android.transition.AutoTransition();
+        t.setDuration(260);
+        android.transition.TransitionManager.beginDelayedTransition(binding.loginForm, t);
+        binding.btnForgot.setVisibility(View.VISIBLE);
+    }
+
     private void setBusy(TextView btn, boolean busy) {
         btn.setEnabled(!busy);
         btn.setAlpha(busy ? 0.6f : 1f);
     }
 
     private void toast(String s) {
-        // يظهر الإشعار تحت «نسيت كلمة المرور؟» (أو تحت زر التسجيل في تبويب إنشاء الحساب)
-        final View anchor = binding.loginForm.getVisibility() == View.VISIBLE ? binding.btnForgot : binding.btnRegister;
+        // يظهر الإشعار تحت «إنشاء حساب جديد» (آخر عنصر في نموذج الدخول) أو تحت زر التسجيل في نموذج إنشاء الحساب
+        final View anchor = binding.loginForm.getVisibility() == View.VISIBLE ? binding.btnNewAccount : binding.btnRegister;
         AppToast.show(this, s, dark, anchor);
     }
 

@@ -1,5 +1,7 @@
 package com.babylon.chat.iq;
 
+import android.util.Log;
+
 import com.google.firebase.functions.FirebaseFunctions;
 import com.google.firebase.functions.FirebaseFunctionsException;
 
@@ -18,7 +20,7 @@ final class EmailOtp {
     static void send(final Callback cb) {
         FirebaseFunctions.getInstance().getHttpsCallable("sendEmailOtp").call()
                 .addOnSuccessListener(r -> cb.done(true, null))
-                .addOnFailureListener(e -> cb.done(false, error(e, "تعذّر إرسال الرمز، حاول مرة أخرى")));
+                .addOnFailureListener(e -> { Log.e("EmailOtp", "send failed", e); cb.done(false, error(e, "تعذّر إرسال الرمز، حاول مرة أخرى")); });
     }
 
     static void verify(String code, final Callback cb) {
@@ -37,6 +39,9 @@ final class EmailOtp {
                 case RESOURCE_EXHAUSTED:  return "محاولات كثيرة، انتظر قليلاً ثم أعد المحاولة";
                 case UNAUTHENTICATED:     return "سجّل الدخول أولاً";
                 case UNAVAILABLE:         return "تعذّر الاتصال، تحقق من الإنترنت";
+                case NOT_FOUND:           return "خدمة الرمز غير منشورة على الخادم بعد";
+                case FAILED_PRECONDITION: return "خدمة البريد غير مهيّأة على الخادم";
+                case INTERNAL:            return "تعذّر إرسال البريد من الخادم، حاول لاحقاً";
                 default: break;
             }
         }

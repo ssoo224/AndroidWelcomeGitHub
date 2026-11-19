@@ -14,3 +14,11 @@
 5. ملاحظة: خطة Firebase Blaze (الدفع حسب الاستخدام) مطلوبة لنشر Cloud Functions؛ الاستهلاك الصغير يبقى ضمن الحصة المجانية.
 
 الحسابات القديمة التي لا تحتوي حقل `emailVerified` تدخل كما هي بلا طلب رمز.
+
+---
+## تحديث: إصلاح عدم وصول الرمز
+- أُضيف `firebase.json` و`.firebaserc` (المشروع fatr-60785) فيكفي بعد ضبط `.env`:
+  `cd functions && npm install && cd .. && firebase deploy --only functions`
+- كلمة SMTP_PASS (App Password) تُكتب متصلة بدون مسافات.
+- لمعرفة سبب أي فشل: `firebase functions:log` أو Firebase Console ← Functions ← Logs.
+- لا ترفع `functions/.env` إلى GitHub.

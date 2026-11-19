@@ -4,6 +4,7 @@
  *  - verifyEmailOtp: يفحص الرمز (5 محاولات كحدّ أقصى، صلاحية 10 دقائق) ثم يضع users/{uid}.emailVerified = true.
  */
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
@@ -27,7 +28,9 @@ function mailer() {
   });
 }
 
-exports.sendEmailOtp = onCall(async (req) => {
+const REGION = "us-central1";   // يجب أن يطابق منطقة FirebaseFunctions.getInstance() في التطبيق (الافتراضية us-central1)
+
+exports.sendEmailOtp = onCall({ region: REGION }, async (req) => {
   if (!req.auth) throw new HttpsError("unauthenticated", "login required");
   const uid = req.auth.uid;
   const email = req.auth.token.email;
@@ -40,25 +43,37 @@ exports.sendEmailOtp = onCall(async (req) => {
     throw new HttpsError("resource-exhausted", "too soon");
   }
 
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    logger.error("SMTP غير مهيّأ: تأكد من وجود functions/.env ثم أعد النشر");
+    throw new HttpsError("failed-precondition", "smtp not configured");
+  }
+
   const code = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
   await ref.set({ h: hash(uid, code), sentAt: now, expiresAt: now + TTL_MS, attempts: 0 });
 
-  await mailer().sendMail({
-    from: process.env.MAIL_FROM || process.env.SMTP_USER,
-    to: email,
-    subject: "رمز التحقق - Babylon Chat",
-    text: `رمز التحقق الخاص بك: ${code}\nصالح لمدة 10 دقائق. إن لم تطلبه فتجاهل هذه الرسالة.`,
-    html: `<div dir="rtl" style="font-family:Arial,sans-serif;text-align:center">
-             <h2 style="color:#B8892A">Babylon Chat</h2>
-             <p>رمز التحقق الخاص بك:</p>
-             <p style="font-size:34px;letter-spacing:8px;font-weight:bold;color:#8F6C10">${code}</p>
-             <p style="color:#667">صالح لمدة 10 دقائق. إن لم تطلبه فتجاهل هذه الرسالة.</p>
-           </div>`,
-  });
+  try {
+    await mailer().sendMail({
+      from: process.env.MAIL_FROM || process.env.SMTP_USER,
+      to: email,
+      subject: "رمز التحقق - Babylon Chat",
+      text: `رمز التحقق الخاص بك: ${code}\nصالح لمدة 10 دقائق. إن لم تطلبه فتجاهل هذه الرسالة.`,
+      html: `<div dir="rtl" style="font-family:Arial,sans-serif;text-align:center">
+               <h2 style="color:#B8892A">Babylon Chat</h2>
+               <p>رمز التحقق الخاص بك:</p>
+               <p style="font-size:34px;letter-spacing:8px;font-weight:bold;color:#8F6C10">${code}</p>
+               <p style="color:#667">صالح لمدة 10 دقائق. إن لم تطلبه فتجاهل هذه الرسالة.</p>
+             </div>`,
+    });
+  } catch (e) {
+    // فشل الإرسال: نحذف السجل كي لا يُمنع المستخدم من إعادة المحاولة فوراً
+    logger.error("sendMail failed", { code: e.code, responseCode: e.responseCode, message: e.message });
+    await ref.delete().catch(() => {});
+    throw new HttpsError("internal", "mail send failed");
+  }
   return { ok: true };
 });
 
-exports.verifyEmailOtp = onCall(async (req) => {
+exports.verifyEmailOtp = onCall({ region: REGION }, async (req) => {
   if (!req.auth) throw new HttpsError("unauthenticated", "login required");
   const uid = req.auth.uid;
   const code = String((req.data && req.data.code) || "");
