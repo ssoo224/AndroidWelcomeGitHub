@@ -1650,7 +1650,7 @@ public final class MsgViews {
     private static final String[][] GLYPHS = {
         {"📷", "i"}, {"🖼", "i"}, {"▧", "i"}, {"▨", "i"}, {"🎞", "i"},
         {"🎤", "m"}, {"🎙", "m"}, {"♬", "m"},
-        {"🎬", "v"}, {"📹", "v"}, {"🎥", "v"},
+        {"🎬", "v"}, {"📹", "v"}, {"🎥", "v"}, {"▶", "v"},
         {"📎", "f"}
     };
     /** رقم أيقونة الرمز النصي في بداية النص (0 = لا رمز). small = نسخة 14dp للاقتباس. */
@@ -1707,7 +1707,7 @@ public final class MsgViews {
         if (t.equals("📷 صورة") || t.equals("صورة") || t.equals("▧ صورة")) return 1;
         if (t.equals("🎤 رسالة صوتية") || t.equals("رسالة صوتية") || t.equals("♬ بصمة صوتية") || t.equals("بصمة صوتية")) return 2;
         if (t.equals("🎬 مقطع مرئي") || t.equals("📹 مقطع مرئي") || t.equals("🎥 مقطع مرئي")
-                || t.equals("مقطع مرئي") || t.equals("🎬 فيديو") || t.equals("📹 فيديو") || t.equals("فيديو")) return 3;
+                || t.equals("مقطع مرئي") || t.equals("▶ فيديو") || t.equals("🎬 فيديو") || t.equals("📹 فيديو") || t.equals("فيديو")) return 3;
         return 0;
     }
     public static String mediaLabelOf(int kind) {

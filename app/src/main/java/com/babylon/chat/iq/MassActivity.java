@@ -171,6 +171,8 @@ public class MassActivity extends Activity {
     private static final int REQ_PICK_IMAGE = 1001;
     private static final int REQ_MIC_PERM = 1002;
     private static final int REQ_PICK_FILE = 1003;
+    private static final int REQ_PICK_MEDIA = 1010;   // معرض الصور والفيديو ← نافذة التجهيز
+    private java.util.function.Consumer<Uri> pendingMediaCallback = null;
 
     /** مستمع تقدّم رفع الملف (بدل LongConsumer لأن minSdk 21). */
     interface LongCb { void on(long v); }
@@ -416,6 +418,12 @@ public class MassActivity extends Activity {
             java.util.function.Consumer<Uri> fcb = pendingFileCallback;
             pendingFileCallback = null;
             if (resultCode == RESULT_OK && data != null && data.getData() != null && fcb != null) fcb.accept(data.getData());
+            return;
+        }
+        if (requestCode == REQ_PICK_MEDIA) {
+            java.util.function.Consumer<Uri> mcb = pendingMediaCallback;
+            pendingMediaCallback = null;
+            if (resultCode == RESULT_OK && data != null && data.getData() != null && mcb != null) mcb.accept(data.getData());
             return;
         }
         if (requestCode == REQ_PICK_IMAGE && resultCode == RESULT_OK && data != null && data.getData() != null) {
@@ -5157,6 +5165,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                                 // MetadataChanges.INCLUDE يُصدر MODIFIED لكل الرسائل عند وصول تأكيد السيرفر: أعِد الرسم فقط إن تغيّر المحتوى فعلاً (وإلا ترمش التفاعلات والعلامات)
                                 if (mv == null && olderQ.containsKey(md.getId())) olderQ.put(md.getId(), OlderItem.of(md));   // رسالة قديمة لم تُرسم بعد: احتفظ بأحدث بياناتها
                                 if (mv != null && !reactSame(md.getId(), md.get("reactions"))) applyReactions(md.getId(), mv, md.get("reactions"));
+                                if (mv != null) { Object[] mm0 = msgMeta.get(md.getId()); if (mm0 != null && ("image".equals(mm0[0]) || "video".equals(mm0[0]))) refreshMediaCaption(md.getId(), md.getString("caption")); }   // تعديل وصف الصورة/الفيديو
                                 if (mv != null && myUid.equals(md.getString("sender"))) {
                                     boolean rd = Boolean.TRUE.equals(md.getBoolean("read"));
                                     setTickIfChanged(md.getId(), mv, rd ? MsgViews.READ : (md.getMetadata().hasPendingWrites() ? MsgViews.WAIT : MsgViews.SENT));
@@ -5426,6 +5435,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                         if (o.has("text")) d.put("text", o.optString("text"));
                         if (o.has("data")) d.put("data", o.optString("data"));
                         if (o.has("url")) d.put("url", o.optString("url"));
+                        for (String xk : new String[]{"caption", "videoUrl", "posterUrl", "thumb"}) if (o.has(xk)) d.put(xk, o.optString(xk));
                         if (o.has("duration")) d.put("duration", o.optLong("duration", 0L));
                         if (o.has("fileUrl")) {
                             d.put("fileUrl", o.optString("fileUrl"));
@@ -5488,7 +5498,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 String fUrl = gStr(m, "fileUrl");
                 boolean fileMsg = "file".equals(ty) || (fUrl != null && fUrl.length() > 0);
                 if (fileMsg && fUrl == null) return null;
-                boolean media = !fileMsg && ("image".equals(ty) || "audio".equals(ty)) && pay != null;
+                boolean media = !fileMsg && ("image".equals(ty) || "audio".equals(ty) || "video".equals(ty)) && pay != null;
                 if (!fileMsg && !media && !"text".equals(ty)) return null;
                 if (!fileMsg && !media && text == null) return null;
                 Long ts = gLong(m, "timestamp");
@@ -5502,6 +5512,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                     o.put("data", pay);
                     Long du = gLong(m, "duration");
                     if (du != null) o.put("duration", du.longValue());
+                    if (!"audio".equals(ty)) for (String xk : new String[]{"caption", "videoUrl", "posterUrl", "thumb"}) { String xv = gStr(m, xk); if (xv != null && xv.length() > 0) o.put(xk, xv); }
                 }
                 if (fileMsg) {
                     o.put("fileUrl", fUrl);
@@ -5673,14 +5684,17 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                         String fUrl = gStr(m, "fileUrl");
                         String pay = gStr(m, "data"); if (pay == null) pay = gStr(m, "url");
                         boolean fileMsg = "file".equals(ty) || (fUrl != null && fUrl.length() > 0);
-                        boolean media = !fileMsg && ("image".equals(ty) || "audio".equals(ty)) && pay != null && pay.length() <= CACHE_MAX_PAYLOAD;
+                        boolean media = !fileMsg && ("image".equals(ty) || "audio".equals(ty) || "video".equals(ty)) && pay != null && pay.length() <= CACHE_MAX_PAYLOAD;
                         boolean plain = !fileMsg && !media && "text".equals(ty) && text != null;
                         if ((fileMsg && fUrl == null) || (!fileMsg && !media && !plain)) { others.add(dd.getId()); continue; }   // غير مدعوم/كبير: يُحفظ عند فتح المحادثة
                         org.json.JSONObject o = new org.json.JSONObject();
                         o.put("id", dd.getId());
                         o.put("type", ty);
                         if (text != null) o.put("text", text);
-                        if (media) { o.put("data", pay); Long du = gLong(m, "duration"); if (du != null) o.put("duration", du.longValue()); }
+                        if (media) {
+                            o.put("data", pay); Long du = gLong(m, "duration"); if (du != null) o.put("duration", du.longValue());
+                            if (!"audio".equals(ty)) for (String xk : new String[]{"caption", "videoUrl", "posterUrl", "thumb"}) { String xv = gStr(m, xk); if (xv != null && xv.length() > 0) o.put(xk, xv); }
+                        }
                         if (fileMsg) {
                             o.put("fileUrl", fUrl);
                             String fnm = gStr(m, "fileName"); if (fnm != null) o.put("fileName", fnm);
@@ -5841,7 +5855,11 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                                 mediaQuote = null;
                                 final String fileUrl = gStr(d, "fileUrl");
                                 if (fileUrl != null && fileUrl.length() > 0 && !"file".equals(type)) type = "file";   // رسالة ملف من نسخة الويب (بلا type)
-                                if (rTo != null && rTo.length() > 0 && ("image".equals(type) || "audio".equals(type) || "file".equals(type))) {
+                                final String videoUrlM = gStr(d, "videoUrl");
+                                if (videoUrlM != null && videoUrlM.length() > 0 && !"video".equals(type)) type = "video";   // فيديو من نسخة الويب (بلا type)
+                                final String posterM = gStr(d, "posterUrl");
+                                final String capM = gStr(d, "caption");
+                                if (rTo != null && rTo.length() > 0 && ("image".equals(type) || "audio".equals(type) || "file".equals(type) || "video".equals(type))) {
                                     String qSid = gStr(d, "replyToSenderId");
                                     String qNm = qSid == null || qSid.isEmpty() ? "" : replyOwner(qSid.equals(myUid));
                                     String qId = gStr(d, "replyToId"), qTy = gStr(d, "replyToType");
@@ -5850,6 +5868,10 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                                 }
                                 String url = gStr(d, "data");
                                 if (url == null) url = gStr(d, "url");
+                                if (url == null && "text".equals(type) && text == null) {   // صورة من نسخة الويب (imageUrl بلا type)
+                                    String iu = gStr(d, "imageUrl");
+                                    if (iu != null && iu.length() > 0) { url = iu; type = "image"; }
+                                }
                                 String sender = gStr(d, "sender");
                                 if (sender == null) sender = gStr(d, "senderId");
                                 Long time = gLong(d, "timestamp");
@@ -5868,7 +5890,8 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                                 try {
                                     addDaySep(ts);
                                     if (type.equals("file") && fileUrl != null) addFileMsg(fileUrl, fileName == null ? "ملف" : fileName, fileSizeL == null ? 0L : fileSizeL, mine, timeStr, state, false);
-                                    else if (type.equals("image") && url != null) addImageMsg(url, mine, timeStr);
+                                    else if (type.equals("image") && url != null) addMediaMsg(false, url, "", capM == null ? "" : capM, mine, timeStr, state);
+                                    else if (type.equals("video") && videoUrlM != null) addMediaMsg(true, videoUrlM, posterM != null ? posterM : (url == null ? "" : url), capM == null ? "" : capM, mine, timeStr, state);
                                     else if (type.equals("audio") && url != null) addAudioMsg(url, dur != null ? dur : 0, mine, timeStr);
                                     else if (text != null) addMsg(text, mine, timeStr, state);
                                     LinearLayout ma0 = (LinearLayout) v("messagesArea");
@@ -5876,8 +5899,9 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                                         View last = ma0.getChildAt(ma0.getChildCount() - 1);
                                         msgViewsById.put(id, last);
                                         vpRebind(id, last);
-                                        msgMeta.put(id, new Object[]{type, text, "file".equals(type) ? fileUrl : url, dur != null ? dur : 0L, mine, ts,
-                                                "file".equals(type) ? (fileName == null ? "ملف" : fileName) : null, "file".equals(type) ? (fileSizeL == null ? 0L : fileSizeL) : 0L});
+                                        msgMeta.put(id, new Object[]{type, ("image".equals(type) || "video".equals(type)) ? (capM == null ? "" : capM) : text, "file".equals(type) ? fileUrl : "video".equals(type) ? videoUrlM : url, dur != null ? dur : 0L, mine, ts,
+                                                "file".equals(type) ? (fileName == null ? "ملف" : fileName) : null, "file".equals(type) ? (fileSizeL == null ? 0L : fileSizeL) : 0L,
+                                                "video".equals(type) ? (posterM != null ? posterM : url) : null, mediaQuote});
                                         if (Boolean.TRUE.equals(gBool(d, "forwarded")) && last instanceof LinearLayout && !(last instanceof MsgViews.VoiceBubble)) {
                                             TextView fl = new TextView(act);
                                             fl.setText("↪ معاد توجيهها"); fl.setTextSize(11); fl.setTypeface(null, android.graphics.Typeface.BOLD_ITALIC);
@@ -6578,9 +6602,9 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 final String raw = kind == 0 ? bodyOf(String.valueOf(b.getContentDescription())) : "";
                 MsgMenu.Spec sp0 = new MsgMenu.Spec();
                 sp0.canCopy = kind == 0 && raw.trim().length() > 0;
-                sp0.canEdit = kind == 0 && mine;
-                sp0.canDownload = (kind == 1 || kind == 3) && url != null;
-                sp0.downloadLabel = kind == 3 ? "تحميل الملف" : "تحميل الصورة";
+                sp0.canEdit = (kind == 0 || kind == 1 || kind == 4) && mine;   // الصورة/الفيديو: تعديل الوصف (actionEdit في الـ HTML)
+                sp0.canDownload = (kind == 1 || kind == 3 || kind == 4) && url != null;
+                sp0.downloadLabel = kind == 3 ? "تحميل الملف" : kind == 4 ? "تحميل الفيديو" : "تحميل الصورة";
                 sp0.myReaction = id != null && myReact.get(id) != null ? myReact.get(id) : "";
                 sp0.canPin = id != null && !currentChatId.isEmpty();
                 sp0.pinned = id != null && pinIndexOf(id) >= 0;
@@ -6633,7 +6657,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 String id = idOfView(b);
                 Object[] m = id != null ? msgMeta.get(id) : null;
                 String type = m != null ? (String) m[0] : "text";
-                int kind = "image".equals(type) ? 1 : "audio".equals(type) ? 2 : "file".equals(type) ? 3 : 0;
+                int kind = "image".equals(type) ? 1 : "audio".equals(type) ? 2 : "file".equals(type) ? 3 : "video".equals(type) ? 4 : 0;
                 String raw = kind == 0 && m != null && m[1] != null ? bodyOf(String.valueOf(m[1])) : "";
                 msgCb(b, mine, kind, m != null ? (String) m[2] : null, raw).reply();
             }
@@ -6735,9 +6759,9 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                     @Override public void reply() {
                         String fnm = "ملف";
                         if (kind == 3) { Object[] fm = msgMeta.get(idOfView(b)); if (fm != null && fm.length > 6 && fm[6] != null) fnm = String.valueOf(fm[6]); }
-                        String r = kind == 0 ? raw : (kind == 1 ? "صورة" : kind == 3 ? "\uD83D\uDCCE " + fnm : "بصمة صوتية");
+                        String r = kind == 0 ? raw : (kind == 1 ? "صورة" : kind == 4 ? "فيديو" : kind == 3 ? "\uD83D\uDCCE " + fnm : "بصمة صوتية");
                         replyText = r.length() > 40 ? r.substring(0, 40) + "…" : r;
-                        replyId = idOfView(b); replyMine = mine; replyKind = kind == 1 ? "image" : kind == 2 ? "audio" : kind == 3 ? "file" : "text";
+                        replyId = idOfView(b); replyMine = mine; replyKind = kind == 1 ? "image" : kind == 2 ? "audio" : kind == 3 ? "file" : kind == 4 ? "video" : "text";
                         String ownerNm = replyOwner(mine);
                         setLabel("replyLabel", ownerNm.isEmpty() ? "الرد على الرسالة" : "الرد على " + ownerNm, icon("ic_reply", 16));
                         { TextView rl_ = tv("replyLabel"); if (rl_ != null) { rl_.setCompoundDrawablePadding(dp(5)); rl_.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, icon("ic_reply", 16), 0); style(rl_); } }
@@ -6756,9 +6780,11 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                         if (kind == 3) {
                             Object[] fm = msgMeta.get(idOfView(b));
                             saveFileMsg(url, fm != null && fm.length > 6 && fm[6] != null ? String.valueOf(fm[6]) : "file");
-                        } else saveImageMsg(url);
+                        } else if (kind == 4) saveVideoMsg(url);
+                        else saveImageMsg(url);
                     }
                     @Override public void edit() {
+                        if (kind == 1 || kind == 4) { editMediaFromMenu(b, kind, url); return; }
                         editing = b; replyText = null;
                         setLabel("replyLabel", "تعديل الرسالة", icon("ic_edit", 16));
                         { TextView rl_ = tv("replyLabel"); if (rl_ != null) { rl_.setCompoundDrawablePadding(dp(5)); rl_.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, icon("ic_edit", 16), 0); style(rl_); } }
@@ -6957,7 +6983,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 if (one && mv != null) {
                     Object[] m = msgMeta.get(fid);
                     final String type = m != null ? (String) m[0] : "text";
-                    final int kind = "image".equals(type) ? 1 : "audio".equals(type) ? 2 : "file".equals(type) ? 3 : 0;
+                    final int kind = "image".equals(type) ? 1 : "audio".equals(type) ? 2 : "file".equals(type) ? 3 : "video".equals(type) ? 4 : 0;
                     final String url = m != null ? (String) m[2] : null;
                     final boolean mine = m != null && Boolean.TRUE.equals(m[4]);
                     final String raw = kind == 0 && m != null && m[1] != null ? bodyOf(String.valueOf(m[1])) : "";
@@ -7275,9 +7301,16 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                         msg.put("fileSize", m.length > 7 ? m[7] : 0L); msg.put("fileType", fileMimeOf(fnm));
                         msg.put("senderId", myUid); msg.put("createdAt", base + sent);
                         last = "\uD83D\uDCCE " + fnm;
+                    } else if ("video".equals(type)) {
+                        if (m[2] == null) continue;
+                        String fp = m.length > 8 && m[8] != null ? String.valueOf(m[8]) : "";
+                        msg.put("videoUrl", m[2]); msg.put("posterUrl", fp); msg.put("data", fp); msg.put("duration", m[3]);
+                        if (m[1] != null && !String.valueOf(m[1]).isEmpty()) msg.put("caption", String.valueOf(m[1]));
+                        last = "▶ فيديو";
                     } else if ("image".equals(type) || "audio".equals(type)) {
                         if (m[2] == null) continue;
                         msg.put("data", m[2]); msg.put("duration", m[3]);
+                        if ("image".equals(type) && m[1] != null && !String.valueOf(m[1]).isEmpty()) msg.put("caption", String.valueOf(m[1]));
                         last = "image".equals(type) ? "📷 صورة" : "🎤 رسالة صوتية";
                     } else {
                         String body = m[1] == null ? "" : bodyOf(String.valueOf(m[1]));
@@ -7346,7 +7379,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                     if (np.size() >= 10) { toast("الحد الأقصى 10 رسائل مثبتة"); return; }
                     Object[] m = msgMeta.get(id);
                     String type = m != null ? (String) m[0] : "text";
-                    String txt = "audio".equals(type) ? "♬ بصمة صوتية" : "image".equals(type) ? "▧ صورة"
+                    String txt = "audio".equals(type) ? "♬ بصمة صوتية" : "image".equals(type) ? "▧ صورة" : "video".equals(type) ? "▶ فيديو"
                             : "file".equals(type) ? "\uD83D\uDCCE " + (m != null && m.length > 6 && m[6] != null ? String.valueOf(m[6]) : "ملف")
                             : (m != null && m[1] != null ? bodyOf(String.valueOf(m[1])).trim() : "");
                     if (txt.length() > 90) txt = txt.substring(0, 90);
@@ -7679,6 +7712,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                     String type = String.valueOf(m[0]), pv;
                     if ("file".equals(type)) pv = "\uD83D\uDCCE " + (m.length > 6 && m[6] != null ? m[6] : "ملف");
                     else if ("image".equals(type)) pv = "📷 صورة";
+                    else if ("video".equals(type)) pv = "▶ فيديو";
                     else if ("audio".equals(type)) pv = "🎤 رسالة صوتية";
                     else pv = m[1] == null ? "" : String.valueOf(m[1]);
                     bt = ts; best = new Object[]{pv, ts, Boolean.TRUE.equals(m[4])};
@@ -8322,6 +8356,472 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
 
 
             // =====================================================================
+            //  إرسال الصور والفيديو (منقول من openMediaComposer / sendImage / sendChatVideo / bbAddSwap في الـ HTML):
+            //  المعرض ← نافذة التجهيز (قص/مدة/دقة/وصف) ← بطاقة «قيد الإرسال» (معاينة مموّهة + حلقة + إلغاء) ← رسالة الوسائط.
+            // =====================================================================
+            final MediaComposer.Host mediaHost = new MediaComposer.Host() {
+                @Override public void onSend(MediaComposer.Req r) { if (r.video) sendChatVideo(r); else sendChatImage(r); }
+                @Override public void onEditCaption(String id, String caption) { editMediaCaption(id, caption); }
+            };
+
+            Map<String, Object> replyFields() {
+                Map<String, Object> rf = new HashMap<>();
+                if (replyText != null) {
+                    rf.put("replyTo", replyText);
+                    rf.put("replyToId", replyId == null ? "" : replyId);
+                    rf.put("replyToSenderId", replyMine ? myUid : otherUid);
+                    rf.put("replyToType", replyKind);
+                }
+                return rf;
+            }
+
+            /** ينسخ الملف المختار إلى الذاكرة فور اختياره (snapshotFile في الـ HTML) ثم يفتح نافذة التجهيز. */
+            void prepareMedia(final Uri uri) {
+                if (uri == null || currentChatId.isEmpty() || otherUid.isEmpty() || blocked) return;
+                String mm = null, nm = null; long sz = -1;
+                try {
+                    mm = act.getContentResolver().getType(uri);
+                    android.database.Cursor c = act.getContentResolver().query(uri, new String[]{android.provider.OpenableColumns.DISPLAY_NAME, android.provider.OpenableColumns.SIZE}, null, null, null);
+                    if (c != null) {
+                        try { if (c.moveToFirst()) { if (!c.isNull(0)) nm = c.getString(0); if (!c.isNull(1)) sz = c.getLong(1); } } finally { c.close(); }
+                    }
+                } catch (Throwable ignored) { }
+                final String name = nm == null ? "" : nm;
+                if (mm == null || mm.isEmpty()) mm = fileMimeOf(name);
+                final String mime = mm;
+                final boolean isVid = mime.startsWith("video/"), isImg = mime.startsWith("image/");
+                if (!isVid && !isImg) { toast("اختر صورة أو فيديو فقط"); return; }
+                if (isVid && sz > ChatMediaUp.MAX_VIDEO_MB * 1048576L) { toast("حجم المقطع كبير (الأقصى " + ChatMediaUp.MAX_VIDEO_MB + " ميجا)"); return; }
+                if (isImg && sz > 15L * 1048576L) { toast("الصورة كبيرة جداً"); return; }
+                if (sz > 20L * 1048576L) toast("جاري تجهيز الملف…");
+                int di = name.lastIndexOf('.');
+                final String ext = di >= 0 && name.length() - di <= 6 ? name.substring(di) : (isVid ? ".mp4" : ".jpg");
+                new Thread(() -> {
+                    try {
+                        File dir = new File(act.getCacheDir(), "chat_pick");
+                        dir.mkdirs();
+                        File[] old = dir.listFiles();
+                        if (old != null) for (File of : old) { if (System.currentTimeMillis() - of.lastModified() > 3600000L) of.delete(); }
+                        final File f = new File(dir, "pick_" + System.currentTimeMillis() + ext);
+                        java.io.InputStream in = act.getContentResolver().openInputStream(uri);
+                        if (in == null) throw new Exception("open");
+                        java.io.FileOutputStream fo = new java.io.FileOutputStream(f);
+                        byte[] buf = new byte[65536]; int n;
+                        while ((n = in.read(buf)) > 0) fo.write(buf, 0, n);
+                        fo.close(); in.close();
+                        if (f.length() == 0) throw new Exception("empty");
+                        act.runOnUiThread(() -> {
+                            if (isVid && f.length() > ChatMediaUp.MAX_VIDEO_MB * 1048576L) { toast("حجم المقطع كبير (الأقصى " + ChatMediaUp.MAX_VIDEO_MB + " ميجا)"); return; }
+                            if (isImg && f.length() > 15L * 1048576L) { toast("الصورة كبيرة جداً"); return; }
+                            if (currentChatId.isEmpty()) return;
+                            MediaComposer.open(act, dark, f, mime, mediaHost);
+                        });
+                    } catch (Throwable t) {
+                        act.runOnUiThread(() -> toast("تعذر قراءة الملف من الجهاز، اختره مرة أخرى"));
+                    }
+                }).start();
+            }
+
+            /** بطاقة «قيد الإرسال» في آخر المحادثة (يمين). */
+            View addPendingView(ChatMediaUp.Pending p) {
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ChatMediaUp.mediaWidth(act), -2);
+                lp.gravity = Gravity.RIGHT;
+                lp.setMargins(0, dp(4), 0, dp(4));
+                p.view.setLayoutParams(lp);
+                LinearLayout msgArea = (LinearLayout) v("messagesArea");
+                if (msgArea != null) msgArea.addView(p.view);
+                return p.view;
+            }
+
+            void removePendingView(View pv) {
+                if (pv != null && pv.getParent() instanceof ViewGroup) ((ViewGroup) pv.getParent()).removeView(pv);
+            }
+
+            void finishMediaSend(final String chatId, final String peer, boolean ghost, Map<String, Object> msg, String preview) {
+                if (ghost) {
+                    if (chatId.equals(currentChatId)) sendGhost(msg);
+                    return;
+                }
+                db.collection("chats").document(chatId).collection("messages").add(msg);
+                Map<String, Object> chatDoc = new HashMap<>();
+                chatDoc.put("participants", Arrays.asList(myUid, peer));
+                chatDoc.put("lastMessage", preview);
+                chatDoc.put("lastMessageAt", System.currentTimeMillis());
+                chatDoc.put("lastSender", myUid);
+                chatDoc.put("lastStoryReply", false);
+                db.collection("chats").document(chatId).set(chatDoc, com.google.firebase.firestore.SetOptions.merge());
+            }
+
+            /** sendImage: أعلى دقة (الأصلية إلى Cloudinary)، وإن فشل الرفع: ضغط + إرسالها داخل الرسالة. تنتظر ثانيتين على الأقل كما في الـ HTML. */
+            void sendChatImage(final MediaComposer.Req r) {
+                if (currentChatId.isEmpty() || otherUid.isEmpty() || blocked) return;
+                final File file = r.cropped != null ? r.cropped : r.file;
+                if (file == null || !file.exists()) { toast("تعذر تجهيز الصورة"); return; }
+                final String chatId = currentChatId, peer = otherUid;
+                final boolean ghost = blockedByThem;
+                final Map<String, Object> rf = replyFields();
+                cancelReply();
+                mediaQuote = null;
+                final String caption = r.caption == null ? "" : r.caption;
+                final String srcMime = r.cropped != null ? "image/jpeg" : (r.mime == null ? "" : r.mime);
+                final ChatMediaUp.Cancel cancel = new ChatMediaUp.Cancel();
+                final ChatMediaUp.Pending ph = ChatMediaUp.pending(act, timeLabel(System.currentTimeMillis()), "", false);
+                final View phv = addPendingView(ph);
+                ph.cancelBtn.setOnClickListener(x -> { cancel.cancel(); removePendingView(phv); toast("تم إلغاء الإرسال"); });
+                scrollDown();
+                new Thread(() -> {
+                    final long t0 = android.os.SystemClock.uptimeMillis();
+                    final Bitmap pv = ChatMediaUp.decodeSmall(file, 96);
+                    if (pv != null) act.runOnUiThread(() -> ph.img.setImageBitmap(pv));
+                    String data = null, outMime = srcMime;
+                    String thumb = ChatMediaUp.tinyThumb(file, false);
+                    try {
+                        try {
+                            org.json.JSONObject js = ChatMediaUp.upload(file, "image", "chat", cancel, null);
+                            String u = js.getString("secure_url");
+                            if (!srcMime.matches("(?i)image/(jpeg|png|gif|webp)")) { u = u.replaceAll("\\.[^/.]+$", ".jpg"); outMime = "image/jpeg"; }
+                            data = u;
+                        } catch (Throwable e) {
+                            if (cancel.cancelled) return;
+                            data = null;
+                        }
+                        if (data == null) {
+                            if (("image/gif".equals(srcMime) || "image/webp".equals(srcMime)) && file.length() <= 650000) {
+                                java.io.FileInputStream fi = new java.io.FileInputStream(file);
+                                java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+                                byte[] buf = new byte[16384]; int n;
+                                while ((n = fi.read(buf)) > 0) bo.write(buf, 0, n);
+                                fi.close();
+                                data = android.util.Base64.encodeToString(bo.toByteArray(), android.util.Base64.NO_WRAP);
+                            } else {
+                                Bitmap b = MediaComposer.decodeFile(file, 2048, true);
+                                if (b != null) {
+                                    int dim = 1024; float q = 0.72f; String out = "";
+                                    for (int i = 0; i < 6; i++) {
+                                        float sc = Math.min(1f, dim / (float) Math.max(b.getWidth(), b.getHeight()));
+                                        Bitmap s = Bitmap.createScaledBitmap(b, Math.max(1, Math.round(b.getWidth() * sc)), Math.max(1, Math.round(b.getHeight() * sc)), true);
+                                        java.io.ByteArrayOutputStream bo2 = new java.io.ByteArrayOutputStream();
+                                        s.compress(Bitmap.CompressFormat.JPEG, Math.round(q * 100), bo2);
+                                        out = android.util.Base64.encodeToString(bo2.toByteArray(), android.util.Base64.NO_WRAP);
+                                        if (out.length() < 850000) break;
+                                        dim = Math.round(dim * 0.8f); q = Math.max(0.5f, q - 0.08f);
+                                    }
+                                    if (out.length() < 900000) { data = out; outMime = "image/jpeg"; }
+                                }
+                            }
+                        }
+                        long wait = 2000L - (android.os.SystemClock.uptimeMillis() - t0);
+                        if (wait > 0) { try { Thread.sleep(wait); } catch (InterruptedException ignored) { } }
+                        if (cancel.cancelled) return;
+                        final String fData = data, fMime = outMime, fThumb = thumb;
+                        act.runOnUiThread(() -> {
+                            if (cancel.cancelled) return;
+                            removePendingView(phv);
+                            if (fData == null) { toast("تعذر تجهيز الصورة، جرب صورة أخرى (" + (srcMime.isEmpty() ? "نوع غير معروف" : srcMime) + " " + (file.length() / 1024) + "KB)"); return; }
+                            long nowT = System.currentTimeMillis();
+                            Map<String, Object> msg = new HashMap<>();
+                            msg.put("type", "image");
+                            msg.put("data", fData);
+                            msg.put("mime", fMime);
+                            msg.put("duration", 0L);
+                            if (fData.startsWith("http")) { msg.put("imageUrl", fData); if (!fThumb.isEmpty()) msg.put("thumb", fThumb); }
+                            if (!caption.isEmpty()) msg.put("caption", caption);
+                            msg.put("sender", myUid); msg.put("senderId", myUid);
+                            msg.put("timestamp", nowT); msg.put("createdAt", nowT);
+                            msg.put("read", false);
+                            msg.putAll(rf);
+                            finishMediaSend(chatId, peer, ghost, msg, "image/gif".equals(fMime) ? "🎞 GIF" : "📷 صورة");
+                        });
+                    } catch (Throwable t) {
+                        if (cancel.cancelled) return;
+                        act.runOnUiThread(() -> { removePendingView(phv); toast("تعذر إرسال الصورة"); });
+                    }
+                }).start();
+            }
+
+            /** sendChatVideo: رفع إلى Cloudinary مع «الحجم | المرفوع»، ثم رابط معدّل (قص/دقة) وانتظار جاهزيته، ثم الرسالة. */
+            void sendChatVideo(final MediaComposer.Req r) {
+                if (currentChatId.isEmpty() || otherUid.isEmpty() || blocked) return;
+                final File file = r.file;
+                if (file == null || !file.exists()) { toast("تعذر قراءة الملف من الجهاز، اختره مرة أخرى"); return; }
+                if (file.length() > ChatMediaUp.MAX_VIDEO_MB * 1048576L) { toast("حجم المقطع كبير (الأقصى " + ChatMediaUp.MAX_VIDEO_MB + " ميجا)"); return; }
+                final String chatId = currentChatId, peer = otherUid;
+                final boolean ghost = blockedByThem;
+                final Map<String, Object> rf = replyFields();
+                cancelReply();
+                mediaQuote = null;
+                final String caption = r.caption == null ? "" : r.caption;
+                final long total = file.length();
+                final ChatMediaUp.Cancel cancel = new ChatMediaUp.Cancel();
+                final ChatMediaUp.Pending ph = ChatMediaUp.pending(act, timeLabel(System.currentTimeMillis()), ChatMediaUp.fmtVP(total) + " | 0 KB", true);
+                final View phv = addPendingView(ph);
+                ph.cancelBtn.setOnClickListener(x -> { cancel.cancel(); removePendingView(phv); toast("تم إلغاء الإرسال"); });
+                scrollDown();
+                new Thread(() -> {
+                    final Bitmap fr = ChatMediaUp.frame(file, 100000L);
+                    if (fr != null) {
+                        final Bitmap sm = Bitmap.createScaledBitmap(fr, Math.max(1, fr.getWidth() / 8), Math.max(1, fr.getHeight() / 8), true);
+                        act.runOnUiThread(() -> ph.img.setImageBitmap(sm));
+                    }
+                    final String thumb = ChatMediaUp.tinyThumb(file, true);
+                    try {
+                        final long[] last = {0};
+                        org.json.JSONObject js = ChatMediaUp.upload(file, "video", "chat", cancel, (sent, tot) -> {
+                            long nowMs = System.currentTimeMillis();
+                            if (nowMs - last[0] < 120 && sent < tot) return;
+                            last[0] = nowMs;
+                            final long s2 = sent;
+                            act.runOnUiThread(() -> ph.pct.setText(ChatMediaUp.fmtVP(total) + " | " + ChatMediaUp.fmtVP(s2)));
+                        });
+                        if (cancel.cancelled) return;
+                        String secure = js.getString("secure_url");
+                        double jdur = js.optDouble("duration", 0);
+                        String plainPoster = secure.replace("/video/upload/", "/video/upload/so_0,w_480,c_limit/").replaceAll("\\.[^/.]+$", ".jpg");
+                        ChatMediaUp.VideoEdit ed = ChatMediaUp.videoEdit(secure, r, r.dur > 0 ? r.dur : jdur);
+                        String videoUrl, posterUrl; int durSec;
+                        if (ed.edited) {
+                            act.runOnUiThread(() -> ph.pct.setText("معالجة…"));
+                            String st = ChatMediaUp.waitVideoReady(ed.url, cancel);
+                            if (cancel.cancelled) return;
+                            if ("bad".equals(st)) {
+                                act.runOnUiThread(() -> toast("تعذر تطبيق التعديلات، تم إرسال الفيديو الأصلي"));
+                                videoUrl = secure; posterUrl = plainPoster; durSec = (int) Math.round(jdur);
+                            } else {
+                                videoUrl = ed.url; posterUrl = ed.poster; durSec = ed.duration > 0 ? ed.duration : (int) Math.round(jdur);
+                            }
+                        } else {
+                            videoUrl = secure; posterUrl = ed.poster != null ? ed.poster : plainPoster; durSec = ed.duration > 0 ? ed.duration : (int) Math.round(jdur);
+                        }
+                        final String fVideo = videoUrl, fPoster = posterUrl; final int fDur = durSec;
+                        act.runOnUiThread(() -> {
+                            if (cancel.cancelled) return;
+                            removePendingView(phv);
+                            long nowT = System.currentTimeMillis();
+                            Map<String, Object> msg = new HashMap<>();
+                            msg.put("type", "video");
+                            msg.put("videoUrl", fVideo);
+                            msg.put("posterUrl", fPoster);
+                            msg.put("data", fPoster);
+                            msg.put("duration", (long) fDur);
+                            if (!thumb.isEmpty()) msg.put("thumb", thumb);
+                            if (!caption.isEmpty()) msg.put("caption", caption);
+                            msg.put("sender", myUid); msg.put("senderId", myUid);
+                            msg.put("timestamp", nowT); msg.put("createdAt", nowT);
+                            msg.put("read", false);
+                            msg.putAll(rf);
+                            finishMediaSend(chatId, peer, ghost, msg, "▶ فيديو");
+                        });
+                    } catch (final Throwable t) {
+                        if (cancel.cancelled) return;
+                        act.runOnUiThread(() -> {
+                            removePendingView(phv);
+                            String em = t.getMessage();
+                            toast("تعذر رفع الفيديو" + (em == null || em.isEmpty() ? "" : ": " + em));
+                        });
+                    }
+                }).start();
+            }
+
+            /** تعديل وصف صورة/فيديو مرسلة (doSend في وضع التعديل). */
+            void editMediaCaption(final String id, final String caption) {
+                if (id == null || currentChatId.isEmpty()) return;
+                final String cid = currentChatId;
+                Object val = caption == null || caption.isEmpty() ? com.google.firebase.firestore.FieldValue.delete() : caption;
+                db.collection("chats").document(cid).collection("messages").document(id).update("caption", val)
+                    .addOnSuccessListener(x -> { toast("تم تعديل الرسالة بنجاح"); if (cid.equals(currentChatId)) refreshMediaCaption(id, caption); })
+                    .addOnFailureListener(e -> toast("تعذر تعديل الرسالة"));
+            }
+
+            /** يعيد بناء فقاعة الوسائط في مكانها عند تغيّر الوصف (إضافة/تعديل/حذف). */
+            void refreshMediaCaption(String id, String caption) {
+                try {
+                    View old = msgViewsById.get(id);
+                    Object[] m = msgMeta.get(id);
+                    if (old == null || m == null || !(old.getParent() instanceof ViewGroup)) return;
+                    String type = String.valueOf(m[0]);
+                    if (!"image".equals(type) && !"video".equals(type)) return;
+                    String cap = caption == null ? "" : caption;
+                    if (cap.equals(m[1] == null ? "" : String.valueOf(m[1]))) return;
+                    m[1] = cap;
+                    ViewGroup par = (ViewGroup) old.getParent();
+                    int idx = par.indexOfChild(old);
+                    boolean mine = Boolean.TRUE.equals(m[4]);
+                    long ts = m[5] instanceof Number ? ((Number) m[5]).longValue() : System.currentTimeMillis();
+                    Integer st = tickState.get(id);
+                    mediaQuote = m.length > 9 && m[9] != null ? String.valueOf(m[9]) : null;
+                    View nv = buildMediaMsg("video".equals(type), String.valueOf(m[2]), m.length > 8 && m[8] != null ? String.valueOf(m[8]) : "", cap, mine, timeLabel(ts), st == null ? MsgViews.SENT : st.intValue());
+                    mediaQuote = null;
+                    par.removeViewAt(idx);
+                    par.addView(nv, idx);
+                    if (nv instanceof LinearLayout) style(nv);
+                    msgViewsById.put(id, nv);
+                    if (selRings != null) selRings.remove(old);
+                } catch (Throwable ignored) { }
+            }
+
+            /** فقاعة صورة/فيديو: بلا وصف = إطار بلا فقاعة (عرض min(72%,280dp)، حواف 16، الوقت فوق الوسائط)، ومع وصف = فقاعة عادية بحشوة 2dp والوصف تحت الوسائط. */
+            View buildMediaMsg(final boolean video, final String src, final String poster, final String caption, final boolean mine, String time, int state) {
+                final boolean hasCap = caption != null && !caption.isEmpty();
+                final int W = ChatMediaUp.mediaWidth(act);
+                final float bsc = ChatMediaUp.bs(act);
+                final int kind = video ? 4 : 1;
+                final FrameLayout mf = new FrameLayout(act);
+                final float rTop = dp(hasCap ? 18 : 16), rBot = dp(hasCap ? 8 : 16);
+                final float[] radii = {rTop, rTop, rTop, rTop, rBot, rBot, rBot, rBot};
+                mf.setClipToOutline(true);
+                mf.setBackgroundColor(video ? 0xFF000000 : (dark ? 0xFF202C33 : 0xFFF0F0F0));
+                mf.setOutlineProvider(new ViewOutlineProvider() {
+                    @Override public void getOutline(View vw, Outline o) {
+                        android.graphics.Path p = new android.graphics.Path();
+                        p.addRoundRect(new android.graphics.RectF(0, 0, vw.getWidth(), vw.getHeight()), radii, android.graphics.Path.Direction.CW);
+                        o.setConvexPath(p);
+                    }
+                });
+                ChatMediaUp.AspectImageView iv = video
+                        ? new ChatMediaUp.AspectImageView(act, Math.round(120 * act.getResources().getDisplayMetrics().density * bsc), Math.round(120 * act.getResources().getDisplayMetrics().density * bsc), dp(360))
+                        : new ChatMediaUp.AspectImageView(act, dp(150), 0, 0);
+                mf.addView(iv, new FrameLayout.LayoutParams(-1, -2));
+                String imgSrc = video ? poster : src;
+                if (imgSrc != null && !imgSrc.isEmpty()) {
+                    iv.setImageDrawable(Skeleton.shimmer(dark, 0f));   // هيكل لامع حتى تصل الصورة
+                    loadImageAsync(iv, imgSrc);
+                }
+                final FrameLayout play;
+                if (video) {
+                    play = new FrameLayout(act);
+                    GradientDrawable pg = new GradientDrawable();
+                    pg.setShape(GradientDrawable.OVAL); pg.setColor(0x80000000);
+                    play.setBackground(pg);
+                    ImageView pi = new ImageView(act);
+                    pi.setImageResource(R.drawable.ic_mc_play);
+                    pi.setColorFilter(0xFFFFFFFF, android.graphics.PorterDuff.Mode.SRC_IN);
+                    play.addView(pi, new FrameLayout.LayoutParams(dp(26), dp(26), Gravity.CENTER));
+                    int ps = Math.round(52 * act.getResources().getDisplayMetrics().density * bsc);
+                    mf.addView(play, new FrameLayout.LayoutParams(ps, ps, Gravity.CENTER));
+                } else play = null;
+
+                final View ov;
+                if (!hasCap) {
+                    LinearLayout chip = ChatMediaUp.timeChip(act, mine, time, state);
+                    FrameLayout.LayoutParams tlp = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.LEFT);
+                    tlp.bottomMargin = dp(7); tlp.leftMargin = dp(8);
+                    mf.addView(chip, tlp);
+                    if (mediaQuote != null) {   // اقتباس الرد فوق الوسائط
+                        View qv = MsgViews.quoteView(act, mediaQuote, true);
+                        FrameLayout.LayoutParams qlp = new FrameLayout.LayoutParams(-1, -2, Gravity.TOP);
+                        qlp.setMargins(dp(6), dp(6), dp(6), 0);
+                        mf.addView(qv, qlp);
+                        style(qv);
+                        GradientDrawable qg = new GradientDrawable();
+                        qg.setColor(0xB3000000); qg.setCornerRadius(dp(10));
+                        qv.setBackground(qg);
+                    }
+                    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(W, -2);
+                    lp.gravity = mine ? Gravity.RIGHT : Gravity.LEFT;
+                    lp.setMargins(0, dp(4), 0, dp(4));
+                    mf.setLayoutParams(lp);
+                    ov = mf;
+                } else {
+                    final LinearLayout bub = MsgViews.textBubble(act, caption, mine, time, state, fontSp);
+                    bub.setPadding(dp(2), dp(2), dp(2), dp(5));
+                    int at = 0;
+                    if (mediaQuote != null) { MsgViews.addQuote(act, bub, mediaQuote, mine); at = 1; }
+                    bub.addView(mf, at, new LinearLayout.LayoutParams(-1, -2));
+                    try {
+                        View cv = bub.getChildAt(at + 1);
+                        if (cv instanceof TextView) cv.setPadding(dp(11), dp(6), dp(11), dp(4));
+                        View tm = bub.getChildAt(at + 2);
+                        if (tm != null) tm.setPadding(dp(9), 0, dp(9), 0);
+                    } catch (Throwable ignored) { }
+                    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(W, -2);
+                    lp.gravity = mine ? Gravity.RIGHT : Gravity.LEFT;
+                    lp.setMargins(0, dp(4), 0, dp(4));
+                    bub.setLayoutParams(lp);
+                    ov = bub;
+                }
+                ov.setOnClickListener(x -> {
+                    if (selecting) { toggleSel(ov); return; }
+                    boolean onMedia = true;
+                    if (hasCap) onMedia = rawIn(mf, tapX, tapY);
+                    if (!onMedia) { msgMenu(ov, mine, kind, src); return; }
+                    if (video) {
+                        boolean onPlay = false;
+                        if (play != null) {
+                            int[] pl = new int[2]; play.getLocationOnScreen(pl);
+                            int pad = dp(10);
+                            onPlay = tapX >= pl[0] - pad && tapX <= pl[0] + play.getWidth() + pad && tapY >= pl[1] - pad && tapY <= pl[1] + play.getHeight() + pad;
+                        }
+                        if (onPlay) openMediaViewer(ov, true, src, poster, mine); else msgMenu(ov, mine, kind, src);
+                    } else openMediaViewer(ov, false, src, "", mine);
+                });
+                ov.setOnLongClickListener(x -> { msgSelect(ov, mine, kind, src); return true; });
+                attachSwipeReply(ov, mine);
+                return ov;
+            }
+
+            View addMediaMsg(boolean video, String src, String poster, String caption, boolean mine, String time, int state) {
+                View ov = buildMediaMsg(video, src, poster, caption, mine, time, state);
+                LinearLayout msgArea = (LinearLayout) v("messagesArea");
+                if (msgArea != null) msgArea.addView(ov);
+                if (ov instanceof LinearLayout) style(ov);
+                return ov;
+            }
+
+            /** عارض الصورة/الفيديو (openImageViewer / openVideoViewer في الـ HTML). */
+            void openMediaViewer(final View bubble, final boolean video, final String src, String poster, final boolean mine) {
+                final String id = idOfView(bubble);
+                MediaViewer.Cb cb = new MediaViewer.Cb() {
+                    @Override public void download() { if (video) saveVideoMsg(src); else saveImageMsg(src); }
+                    @Override public void delete() { View b = id == null ? null : msgViewsById.get(id); if (b != null) msgDeleteDialog(b); }
+                };
+                if (video) MediaViewer.showVideo(act, src, poster, mine, id != null, cb);
+                else MediaViewer.showImage(act, src, mine, id != null, cb);
+            }
+
+            /** تحميل الفيديو إلى معرض الهاتف (Movies/Babylon). */
+            void saveVideoMsg(final String url) {
+                if (url == null || url.isEmpty()) return;
+                toast("جارٍ تحميل الفيديو…");
+                new Thread(() -> {
+                    try {
+                        String name = "babylon-video-" + System.currentTimeMillis() + ".mp4";
+                        java.net.HttpURLConnection conn = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
+                        conn.setConnectTimeout(20000); conn.setReadTimeout(60000); conn.connect();
+                        if (conn.getResponseCode() / 100 != 2) throw new Exception("http " + conn.getResponseCode());
+                        java.io.InputStream is = conn.getInputStream();
+                        java.io.OutputStream os; File legacy = null;
+                        if (Build.VERSION.SDK_INT >= 29) {
+                            android.content.ContentValues cv = new android.content.ContentValues();
+                            cv.put(android.provider.MediaStore.Video.Media.DISPLAY_NAME, name);
+                            cv.put(android.provider.MediaStore.Video.Media.MIME_TYPE, "video/mp4");
+                            cv.put(android.provider.MediaStore.Video.Media.RELATIVE_PATH, "Movies/Babylon");
+                            Uri u = act.getContentResolver().insert(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI, cv);
+                            os = act.getContentResolver().openOutputStream(u);
+                        } else {
+                            File dir = new File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MOVIES), "Babylon");
+                            dir.mkdirs();
+                            legacy = new File(dir, name);
+                            os = new java.io.FileOutputStream(legacy);
+                        }
+                        byte[] buf = new byte[16384]; int n;
+                        while ((n = is.read(buf)) > 0) os.write(buf, 0, n);
+                        os.close(); is.close(); conn.disconnect();
+                        if (legacy != null) android.media.MediaScannerConnection.scanFile(act, new String[]{legacy.getAbsolutePath()}, new String[]{"video/mp4"}, null);
+                        act.runOnUiThread(() -> toast("تم تحميل الفيديو في المعرض"));
+                    } catch (Throwable t) { act.runOnUiThread(() -> toast("تعذر تنزيل الفيديو")); }
+                }).start();
+            }
+
+            void editMediaFromMenu(View b, int kind, String url) {
+                String id = idOfView(b);
+                if (id == null) return;
+                Object[] m = msgMeta.get(id);
+                String cap = m != null && m[1] != null ? String.valueOf(m[1]) : "";
+                String poster = m != null && m.length > 8 && m[8] != null ? String.valueOf(m[8]) : "";
+                MediaComposer.openEdit(act, dark, id, kind == 4, url, poster, cap, mediaHost);
+            }
+
+            // =====================================================================
             //  إرسال الملفات (مطابق لـ sendChatFile / bbFileCardHtml في الـ HTML): رفع إلى Cloudinary (raw) ثم رسالة فيها
             //  fileUrl / fileName / fileSize / fileType. الحد الأقصى 25 ميجا. بطاقة الملف: مربع الامتداد + الاسم + الحجم.
             // =====================================================================
@@ -8587,11 +9087,13 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
 
             void pickImage() {
                 if (blocked) return;
-                pendingImageCallback = uri -> uploadImage(uri);
+                pendingMediaCallback = uri -> prepareMedia(uri);
                 Intent i = new Intent(Intent.ACTION_GET_CONTENT);
-                i.setType("image/*");
+                i.setType("*/*");
+                i.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"image/*", "video/*"});   // accept="image/*,video/*" في الـ HTML
+                i.addCategory(Intent.CATEGORY_OPENABLE);
                 try {
-                    act.startActivityForResult(Intent.createChooser(i, "اختر صورة"), REQ_PICK_IMAGE);
+                    act.startActivityForResult(Intent.createChooser(i, "اختر صورة أو فيديو"), REQ_PICK_MEDIA);
                 } catch (Exception e) { toast("لا توجد تطبيقات لعرض الصور"); }
             }
 

@@ -610,7 +610,7 @@ final class LocalDb {
             if (!c.moveToFirst()) return null;
             String t = c.isNull(0) ? "text" : c.getString(0);
             String mime = c.isNull(1) ? "" : c.getString(1);
-            String pv = "image".equals(t) ? ("image/gif".equals(mime) ? "🎞 GIF" : "📷 صورة") : "audio".equals(t) ? "🎤 رسالة صوتية" : (c.isNull(2) ? "" : c.getString(2));
+            String pv = "image".equals(t) ? ("image/gif".equals(mime) ? "🎞 GIF" : "📷 صورة") : "video".equals(t) ? "▶ فيديو" : "audio".equals(t) ? "🎤 رسالة صوتية" : (c.isNull(2) ? "" : c.getString(2));
             return new String[]{pv, String.valueOf(c.getLong(3))};
         } catch (Throwable t) { return null; }
     }
