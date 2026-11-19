@@ -119,9 +119,7 @@ public class MainActivity extends Activity {
                 AppSettings.init(app);
                 needPerms = Build.VERSION.SDK_INT >= 23 && !AppSettings.prefs(app, "babylon_boot").getBoolean("perms_asked", false) && missingPermissions().length > 0;
             } catch (Throwable ignored) { }
-            boolean pendingVerify = false;
-            try { pendingVerify = AppSettings.prefs(app, VerifyActivity.PREFS).getString(VerifyActivity.KEY_PENDING, null) != null; } catch (Throwable ignored) { }
-            earlyOk = loggedIn && !needPerms && !pendingVerify;   // حساب بانتظار التحقق من البريد: لا إطلاق مبكر لصفحة المحادثات
+            earlyOk = loggedIn && !needPerms;
             if (loggedIn) {   // نفخ تخطيط صفحة المحادثات في هذا الخيط الخاص أثناء الرسم؛ تأخذه MassActivity جاهزاً
                 try {
                     android.view.LayoutInflater pinf = android.view.LayoutInflater.from(new android.view.ContextThemeWrapper(app, R.style.NoActionBar));
@@ -247,14 +245,6 @@ public class MainActivity extends Activity {
         final boolean loggedIn = FirebaseAuth.getInstance().getCurrentUser() != null;
         settleThen(() -> {
             if (isFinishing()) return;
-            if (loggedIn && AppSettings.prefs(this, VerifyActivity.PREFS).getString(VerifyActivity.KEY_PENDING, null) != null) {
-                Intent v = new Intent(this, VerifyActivity.class);   // أُغلق التطبيق قبل إكمال التحقق: نكمل من نفس الشاشة
-                v.putExtra(VerifyActivity.EXTRA_SEND, false);
-                startActivity(v);
-                overridePendingTransition(0, 0);
-                finish();
-                return;
-            }
             if (loggedIn) {
                 startActivity(new Intent(this, MassActivity.class));
                 overridePendingTransition(R.anim.chat_fade_in, R.anim.splash_hold);   // صفحة المحادثات تتلاشى شفافةً فوق السبلاش الثابت

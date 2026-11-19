@@ -185,28 +185,9 @@ public class Main2Activity extends Activity {
                 });
     }
 
-    /** بعد الدخول: الحساب غير المتحقَّق منه (emailVerified=false) يُرسل له رمز وتُفتح شاشة التحقق؛ غير ذلك يدخل مباشرة. */
+    /** بعد الدخول: الانتقال مباشرة إلى التطبيق. */
     private void afterLogin(final FirebaseUser user) {
-        if (user == null) { goToMass("تم تسجيل الدخول بنجاح"); return; }
-        db.collection("users").document(user.getUid()).get()
-                .addOnSuccessListener(doc -> {
-                    if (doc != null && Boolean.FALSE.equals(doc.getBoolean("emailVerified"))) {
-                        goToVerify(user.getEmail(), true);
-                    } else {
-                        goToMass("تم تسجيل الدخول بنجاح");
-                    }
-                })
-                .addOnFailureListener(e -> goToMass("تم تسجيل الدخول بنجاح"));
-    }
-
-    /** يفتح شاشة التحقق؛ هي نفسها ترسل الرمز وتبدأ العدّ التنازلي. */
-    private void goToVerify(String email, boolean sendCode) {
-        Intent i = new Intent(this, VerifyActivity.class);
-        i.putExtra(VerifyActivity.EXTRA_EMAIL, email);
-        i.putExtra(VerifyActivity.EXTRA_SEND, sendCode);
-        startActivity(i);
-        overridePendingTransition(0, 0);
-        finish();
+        goToMass("تم تسجيل الدخول بنجاح");
     }
 
     // ======================= إنشاء حساب =======================
@@ -261,10 +242,9 @@ public class Main2Activity extends Activity {
         data.put("bio", "");
         data.put("gov", "");
         data.put("createdAt", System.currentTimeMillis());
-        data.put("emailVerified", false);   // يصبح true فقط من الخادم (Cloud Function) بعد إدخال الرمز الصحيح
 
         db.collection("users").document(user.getUid()).set(data)
-                .addOnSuccessListener(v -> goToVerify(email, true))
+                .addOnSuccessListener(v -> goToMass("تم إنشاء الحساب بنجاح"))
                 .addOnFailureListener(e -> {
                     setBusy(binding.btnRegister, false);
                     toast("تم إنشاء الحساب لكن تعذّر حفظ البيانات، تحقق من قواعد Firestore");
@@ -332,14 +312,53 @@ public class Main2Activity extends Activity {
     // ======================= الواجهة =======================
 
     /** الواجهة الأولى هي الدخول؛ «إنشاء حساب جديد» يعرض نموذج التسجيل، ورابط «لديك حساب؟» يرجع للدخول. */
-    private void showLogin() {
-        binding.loginForm.setVisibility(View.VISIBLE);
-        binding.registerForm.setVisibility(View.GONE);
-    }
+    private void showLogin() { switchForm(false); }
 
-    private void showRegister() {
-        binding.loginForm.setVisibility(View.GONE);
-        binding.registerForm.setVisibility(View.VISIBLE);
+    private void showRegister() { switchForm(true); }
+
+    private boolean switching = false;
+
+    /**
+     * انتقال بين الدخول والتسجيل: تنطوي الصفحة الحالية للأعلى (scaleY→0) واللوغو مع الاسم ينزلان معها،
+     * ثم يرتفعان وتنفتح الصفحة الأخرى من الأعلى.
+     */
+    private void switchForm(final boolean toRegister) {
+        final View outF = toRegister ? binding.loginForm : binding.registerForm;
+        final View inF = toRegister ? binding.registerForm : binding.loginForm;
+        if (switching || inF.getVisibility() == View.VISIBLE) return;
+        if (outF.getHeight() == 0) { outF.setVisibility(View.GONE); inF.setVisibility(View.VISIBLE); return; }
+        switching = true;
+        try { android.view.inputmethod.InputMethodManager im = (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE); if (im != null) im.hideSoftInputFromWindow(binding.root.getWindowToken(), 0); } catch (Throwable ignored) { }
+        final View[] head = {binding.logoCircle, binding.title, binding.subtitle};
+        final float dy = outF.getHeight() * 0.5f;
+        outF.setPivotY(0f);
+        // 1) الطيّ + نزول الرأس
+        outF.animate().scaleY(0f).alpha(0f).setDuration(300)
+                .setInterpolator(new android.view.animation.AccelerateInterpolator(1.3f)).start();
+        for (View h : head) h.animate().translationY(dy).setDuration(300)
+                .setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator()).start();
+        binding.root.postDelayed(() -> {
+            final float topBefore = binding.logoCircle.getTop() + binding.logoCircle.getTranslationY();
+            outF.setVisibility(View.GONE);
+            outF.setScaleY(1f); outF.setAlpha(1f);
+            inF.setPivotY(0f); inF.setScaleY(0f); inF.setAlpha(0f);
+            inF.setVisibility(View.VISIBLE);
+            final View lay = binding.linear26;
+            lay.getViewTreeObserver().addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
+                @Override public boolean onPreDraw() {
+                    lay.getViewTreeObserver().removeOnPreDrawListener(this);
+                    // الرأس يبقى بصرياً في مكانه رغم تغيّر التخطيط، ثم يرتفع إلى موضعه الأصلي
+                    float shift = topBefore - binding.logoCircle.getTop();
+                    for (View h : head) h.setTranslationY(shift);
+                    for (View h : head) h.animate().translationY(0f).setDuration(380)
+                            .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f)).start();
+                    inF.animate().scaleY(1f).alpha(1f).setDuration(380).setStartDelay(60)
+                            .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f))
+                            .withEndAction(() -> switching = false).start();
+                    return true;
+                }
+            });
+        }, 300);
     }
 
     /** الطور الليلي: الخلفية، الحقول، التسميات والنصوص. */

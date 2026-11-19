@@ -1398,6 +1398,89 @@
 							android:gravity="center"
 							android:layout_weight="1" />
 					</LinearLayout>
+					<View
+						android:id="@+id/nf25"
+						android:layout_width="match_parent"
+						android:layout_height="1dp"
+						android:tag="line"
+						android:layout_marginStart="14dp"
+						android:layout_marginEnd="14dp" />
+					<LinearLayout
+						android:id="@+id/nfSnd1"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:padding="14dp"
+						android:gravity="center_vertical"
+						android:orientation="horizontal">
+						<TextView
+							android:id="@+id/nfSnd2"
+							android:layout_width="46dp"
+							android:layout_height="46dp"
+							android:gravity="center"
+							android:text=""
+							android:drawableStart="@drawable/ic_sv_volume"
+							android:textSize="18sp"
+							android:textColor="#FFFFFF"
+							android:tag="icg" />
+						<LinearLayout
+							android:layout_width="0dp"
+							android:layout_height="wrap_content"
+							android:orientation="vertical"
+							android:layout_weight="1"
+							android:layout_marginStart="14dp"
+							android:layout_marginEnd="8dp">
+							<TextView
+								android:id="@+id/nfSnd3"
+								android:layout_width="match_parent"
+								android:layout_height="wrap_content"
+								android:text="صوت إشعار الهاتف"
+								android:textSize="16sp"
+								android:gravity="right"
+								android:textStyle="bold"
+								android:tag="t" />
+							<TextView
+								android:id="@+id/nfSnd4"
+								android:layout_width="match_parent"
+								android:layout_height="wrap_content"
+								android:text="نغمة Babylon Chat عند وصول إشعار على الهاتف. عند التعطيل يصل الإشعار بلا صوت."
+								android:textSize="12sp"
+								android:gravity="right"
+								android:textStyle="bold"
+								android:tag="m"
+								android:layout_marginTop="2dp" />
+						</LinearLayout>
+					</LinearLayout>
+					<LinearLayout
+						android:id="@+id/nfSnd5"
+						android:layout_width="match_parent"
+						android:layout_height="wrap_content"
+						android:orientation="horizontal"
+						android:layoutDirection="ltr"
+						android:layout_marginStart="14dp"
+						android:layout_marginEnd="14dp"
+						android:layout_marginBottom="14dp">
+						<TextView
+							android:id="@+id/ntfSoundOffBtn"
+							android:layout_width="0dp"
+							android:layout_height="40dp"
+							android:text="تعطيل"
+							android:textSize="13.5sp"
+							android:textStyle="bold"
+							android:tag="goldo"
+							android:gravity="center"
+							android:layout_weight="1"
+							android:layout_marginEnd="10dp" />
+						<TextView
+							android:id="@+id/ntfSoundOnBtn"
+							android:layout_width="0dp"
+							android:layout_height="40dp"
+							android:text="تفعيل"
+							android:textSize="13.5sp"
+							android:textStyle="bold"
+							android:tag="goldo"
+							android:gravity="center"
+							android:layout_weight="1" />
+					</LinearLayout>
 				</LinearLayout>
 				<TextView
 					android:id="@+id/nf43"

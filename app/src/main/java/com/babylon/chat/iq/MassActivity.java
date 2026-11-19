@@ -506,6 +506,7 @@ public class MassActivity extends Activity {
             // ============ جلسات المحادثات: الرسائل ثابتة ============
             // الفقاعات المبنية تبقى حيّة في الذاكرة عند الخروج وتعود كما هي عند الدخول: لا قراءة من SQLite، لا إعادة بناء، ولا تنزيل من Firebase.
             // Firebase يُستعمل فقط لـ: (1) الرسائل الجديدة/تحديث القراءة والتفاعلات، (2) إعادة التنزيل واحتياطها في القاعدة إن مُسحت البيانات.
+            final java.util.Set<String> sfxPendingSend = new java.util.HashSet<>();   // رسائلي بانتظار ✓ (الصوت عند وصولها للسيرفر)
             final class ChatSession {
                 final ArrayList<View> views = new ArrayList<>();
                 final java.util.HashSet<String> rendered = new java.util.HashSet<>();
@@ -5215,6 +5216,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                                 if (mv == null && olderQ.containsKey(md.getId())) olderQ.put(md.getId(), OlderItem.of(md));   // رسالة قديمة لم تُرسم بعد: احتفظ بأحدث بياناتها
                                 if (mv != null && !reactSame(md.getId(), md.get("reactions"))) applyReactions(md.getId(), mv, md.get("reactions"));
                                 if (mv != null) { Object[] mm0 = msgMeta.get(md.getId()); if (mm0 != null && ("image".equals(mm0[0]) || "video".equals(mm0[0]))) refreshMediaCaption(md.getId(), md.getString("caption")); }   // تعديل وصف الصورة/الفيديو
+                                if (sfxPendingSend.contains(md.getId()) && !md.getMetadata().hasPendingWrites()) { sfxPendingSend.remove(md.getId()); ClickSfx.send(act, sp); }   // الصوت عند ظهور ✓ فقط
                                 if (mv != null && myUid.equals(md.getString("sender"))) {
                                     boolean rd = Boolean.TRUE.equals(md.getBoolean("read"));
                                     setTickIfChanged(md.getId(), mv, rd ? MsgViews.READ : (md.getMetadata().hasPendingWrites() ? MsgViews.WAIT : MsgViews.SENT));
@@ -5230,7 +5232,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                                     try {
                                         Long sts = doc.getLong("timestamp");
                                         if (sts == null || Math.abs(System.currentTimeMillis() - sts) < 20000) {
-                                            if (myUid.equals(doc.getString("sender"))) { if (doc.getMetadata().hasPendingWrites()) ClickSfx.send(act, sp); }
+                                            if (myUid.equals(doc.getString("sender"))) { if (doc.getMetadata().hasPendingWrites()) sfxPendingSend.add(doc.getId()); else ClickSfx.send(act, sp); }
                                             else if (!doc.getMetadata().isFromCache()) ClickSfx.receive(act, sp);
                                         }
                                     } catch (Throwable ignored) { }
@@ -10824,6 +10826,8 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 else if (id.equals("pushOffBtn")) { sp.edit().putBoolean("push", false).apply(); setOnOff("push", false); }
                 else if (id.equals("soundOnBtn")) { sp.edit().putBoolean("sound", true).apply(); setOnOff("sound", true); }
                 else if (id.equals("soundOffBtn")) { sp.edit().putBoolean("sound", false).apply(); setOnOff("sound", false); }
+                else if (id.equals("ntfSoundOnBtn")) { sp.edit().putBoolean("notifSound", true).apply(); setOnOff("ntfSound", true); }
+                else if (id.equals("ntfSoundOffBtn")) { sp.edit().putBoolean("notifSound", false).apply(); setOnOff("ntfSound", false); }
                 else if (id.equals("chatBack")) closeChat();
                 else if (id.equals("chatUserInfo")) { hideKb(); vis("chatView", false); openOther(curChat, otherUser, otherUid); profileFromChat = true; }
                 else if (id.equals("chatMore")) chatMenu();
@@ -10916,7 +10920,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                         "chatSetBack", "itemShare", "itemLogout", "itemDelete", "itemChangePass",
                         "itemChangeEmail", "itemBlocked", "segLastSeen_show", "segLastSeen_hide",
                         "segAvatar_show", "segAvatar_hide", "itemClearCache", "itemWipe", "itemAbout",
-                        "pushOnBtn", "pushOffBtn", "soundOnBtn", "soundOffBtn", "notifSysRow", "notifHideRow", "chatBack", "chatUserInfo",
+                        "pushOnBtn", "pushOffBtn", "soundOnBtn", "soundOffBtn", "ntfSoundOnBtn", "ntfSoundOffBtn", "notifSysRow", "notifHideRow", "chatBack", "chatUserInfo",
                         "chatMore", "csX", "csClear", "csUp", "csDown", "replyCancel", "btnSend", "btnMic", "btnAttach", "recSend", "recCancel", "recStop", "recPlay"};
                 for (String id : ids) {
                     View x = v(id);
@@ -10987,6 +10991,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 setSeg("segAvatar", sp.getBoolean("hideAv", false));
                 setOnOff("push", sp.getBoolean("push", true));
                 setOnOff("sound", sp.getBoolean("sound", true));
+                setOnOff("ntfSound", sp.getBoolean("notifSound", true));
                 applyBubbles();
                 applyTheme();
 

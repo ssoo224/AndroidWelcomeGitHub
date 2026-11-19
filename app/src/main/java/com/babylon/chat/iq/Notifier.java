@@ -36,7 +36,8 @@ import java.util.Map;
 final class Notifier {
     private Notifier() { }
 
-    static final String CHANNEL_ID = "babylon_messages_v2";   // v2: قناة بصوت التطبيق الخاص (صوت القناة لا يتغير بعد إنشائها)
+    static final String CHANNEL_SILENT = "babylon_messages_v3_silent";   // نفس القناة بلا صوت (خيار «صوت إشعار الهاتف» معطّل)
+    static final String CHANNEL_ID = "babylon_messages_v3";   // v2: قناة بصوت التطبيق الخاص (صوت القناة لا يتغير بعد إنشائها)
     static final String GROUP_KEY = "babylon_msgs_group";
     static final int SUMMARY_ID = 1;
     static final int GOLD = 0xFFC99A1C;
@@ -85,22 +86,39 @@ final class Notifier {
                 sc.setShowBadge(false);
                 nm.createNotificationChannel(sc);
             }
-            try { nm.deleteNotificationChannel("babylon_messages"); } catch (Throwable ignored) { }   // القناة القديمة بصوت الهاتف
+            try { nm.deleteNotificationChannel("babylon_messages"); nm.deleteNotificationChannel("babylon_messages_v2"); } catch (Throwable ignored) { }   // القناة القديمة بصوت الهاتف
+            if (nm.getNotificationChannel(CHANNEL_SILENT) == null) {
+                NotificationChannel q = new NotificationChannel(CHANNEL_SILENT, "الرسائل (بلا صوت)", NotificationManager.IMPORTANCE_HIGH);
+                q.setDescription("إشعارات الرسائل الجديدة بلا نغمة");
+                q.setSound(null, null);
+                q.enableVibration(true);
+                q.enableLights(true);
+                q.setLightColor(GOLD);
+                q.setLockscreenVisibility(android.app.Notification.VISIBILITY_PRIVATE);
+                q.setShowBadge(true);
+                nm.createNotificationChannel(q);
+            }
             if (nm.getNotificationChannel(CHANNEL_ID) != null) return;
             NotificationChannel ch = new NotificationChannel(CHANNEL_ID, "الرسائل", NotificationManager.IMPORTANCE_HIGH);
             ch.setDescription("إشعارات الرسائل الجديدة");
-            ch.enableVibration(true);
-            ch.setVibrationPattern(new long[]{0, 220, 120, 220});
+            ch.enableVibration(true);   // اهتزاز النظام الافتراضي: يتبع وضع الهاتف (صامت/اهتزاز) وخيارات المستخدم، وبلا نمط مفروض
             ch.enableLights(true);
             ch.setLightColor(GOLD);
             ch.setLockscreenVisibility(android.app.Notification.VISIBILITY_PRIVATE);
             ch.setShowBadge(true);
             Uri snd = soundUri(c);
             ch.setSound(snd, new AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION_COMMUNICATION_INSTANT)   // تيار «الإشعارات» لا المنبّه ولا الرنين
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
             nm.createNotificationChannel(ch);
         } catch (Throwable ignored) { }
+    }
+
+    /** القناة المستخدمة حسب خيار المستخدم: بصوت التطبيق أو صامتة. */
+    static String channelFor(Context c) {
+        boolean on = true;
+        try { on = AppSettings.prefs(c.getApplicationContext(), "babylon_ui").getBoolean("notifSound", true); } catch (Throwable ignored) { }
+        return on ? CHANNEL_ID : CHANNEL_SILENT;
     }
 
     /** صوت إشعار الرسائل الخاص بالتطبيق (res/raw/notif_babylon). */

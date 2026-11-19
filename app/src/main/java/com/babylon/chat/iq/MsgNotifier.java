@@ -85,11 +85,11 @@ final class MsgNotifier {
                 .setShowsUserInterface(false)
                 .build();
 
-        Notification pub = new NotificationCompat.Builder(c, Notifier.CHANNEL_ID)
+        Notification pub = new NotificationCompat.Builder(c, Notifier.channelFor(c))
                 .setSmallIcon(R.drawable.ic_stat_message).setColor(Notifier.GOLD)
                 .setContentTitle("Babylon Chat").setContentText("رسالة جديدة").build();
 
-        return new NotificationCompat.Builder(c, Notifier.CHANNEL_ID)
+        return new NotificationCompat.Builder(c, Notifier.channelFor(c))
                 .setSmallIcon(R.drawable.ic_stat_message)
                 .setColor(Notifier.GOLD)
                 .setLargeIcon(av)
@@ -97,7 +97,7 @@ final class MsgNotifier {
                 .setContentTitle(name)
                 .setCategory(NotificationCompat.CATEGORY_MESSAGE)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setSound(Notifier.soundUri(c))                       // صوت التطبيق الخاص على أندرويد 7 وأقل (الأحدث يتبع القناة)
+                .setSound(Notifier.channelFor(c).equals(Notifier.CHANNEL_ID) ? Notifier.soundUri(c) : null)   // صوت التطبيق الخاص على أندرويد 7 وأقل (الأحدث يتبع القناة)
                 .setDefaults(NotificationCompat.DEFAULT_VIBRATE | NotificationCompat.DEFAULT_LIGHTS)
                 .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
                 .setPublicVersion(pub)
@@ -118,7 +118,7 @@ final class MsgNotifier {
 
     /** ملخّص المجموعة: يجمع إشعارات عدة محادثات تحت إشعار واحد (مثل تيليجرام). */
     private static Notification summary(Context c) {
-        return new NotificationCompat.Builder(c, Notifier.CHANNEL_ID)
+        return new NotificationCompat.Builder(c, Notifier.channelFor(c))
                 .setSmallIcon(R.drawable.ic_stat_message)
                 .setColor(Notifier.GOLD)
                 .setContentTitle("Babylon Chat")
