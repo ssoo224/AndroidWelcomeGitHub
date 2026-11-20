@@ -240,7 +240,7 @@ public class GroupRoomActivity extends Activity {
         final String[] arr = items.toArray(new String[0]);
         new AlertDialog.Builder(this).setItems(arr, (dg, w) -> {
             String it = arr[w];
-            if (it.equals("نسخ")) { ((ClipboardManager) getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("m", text)); }
+            if (it.equals("نسخ")) { ((android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("m", text)); }
             else if (it.equals("حذف")) new AlertDialog.Builder(this).setTitle("حذف الرسالة").setMessage("حذف هذه الرسالة لدى الجميع؟").setPositiveButton("حذف", (a, b) -> d.getReference().delete()).setNegativeButton("إلغاء", null).show();
             else togglePin(d.getId(), text, fp);
         }).show();
