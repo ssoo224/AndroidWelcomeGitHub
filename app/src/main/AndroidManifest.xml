@@ -81,6 +81,26 @@
 			android:theme="@style/NoActionBar" />
 
 
+		<activity
+			android:name=".GroupListActivity"
+			android:windowSoftInputMode="stateHidden"
+			android:theme="@style/NoActionBar" />
+
+		<activity
+			android:name=".GroupPickerActivity"
+			android:windowSoftInputMode="stateHidden"
+			android:theme="@style/NoActionBar" />
+
+		<activity
+			android:name=".GroupRoomActivity"
+			android:windowSoftInputMode="adjustResize"
+			android:theme="@style/NoActionBar" />
+
+		<activity
+			android:name=".GroupInfoActivity"
+			android:windowSoftInputMode="stateHidden"
+			android:theme="@style/NoActionBar" />
+
 		<!-- إشعارات الرسائل بدون سيرفر: خدمة أمامية تستمع لـ Firestore -->
 		<service
 			android:name=".MessageListenerService"

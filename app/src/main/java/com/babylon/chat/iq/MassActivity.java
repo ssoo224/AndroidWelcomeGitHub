@@ -3635,6 +3635,7 @@ public class MassActivity extends Activity {
                         final List<String[]> fresh = new ArrayList<>();
                         final List<Runnable> fetches = new ArrayList<>();
                         for (Map<String, Object> m : temp) {
+                            if ("group".equals(m.get("type"))) continue;   // المجموعات لها شاشاتها (GroupListActivity)
                             Object po = m.get("participants");
                             if (!(po instanceof List)) continue;
                             List<Object> parts = (List<Object>) po;
@@ -10862,11 +10863,12 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 else if (id.equals("fltAll")) setFilter(false);
                 else if (id.equals("fltUnread")) setFilter(true);
                 else if (id.equals("newGroupFab")) {
-                    final EditText e = new EditText(act);
-                    e.setHint("اسم المجموعة");
-                    new AlertDialog.Builder(act).setTitle("مجموعة جديدة").setView(e)
-                        .setPositiveButton("إنشاء", (d, w) -> toast("إنشاء المجموعات قيد التطوير"))
-                        .setNegativeButton("إلغاء", null).show();
+                    new AlertDialog.Builder(act).setTitle("المجموعات")
+                        .setItems(new String[]{"مجموعة جديدة", "مجموعاتي"}, (d, w) -> {
+                            Intent gi = new Intent(act, w == 0 ? GroupPickerActivity.class : GroupListActivity.class);
+                            if (w == 0) gi.putExtra("mode", "create");
+                            act.startActivity(gi);
+                        }).show();
                 }
                 else if (id.equals("pEdit") || id.equals("pBioRow")) openEdit();
                 else if (id.equals("pPhoto")) pickProfilePhoto();
