@@ -1,107 +1,128 @@
 package com.babylon.chat.iq;
 
+import android.Manifest;
 import android.app.Activity;
-import android.app.AlertDialog;
-import android.content.*;
+import android.app.Dialog;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
+import android.media.MediaPlayer;
+import android.media.MediaRecorder;
 import android.os.Bundle;
 import android.text.*;
+import android.util.Base64;
 import android.view.*;
-import android.view.inputmethod.InputMethodManager;
 import android.widget.*;
 
 import com.google.firebase.firestore.*;
 
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.util.*;
 
 import static com.babylon.chat.iq.GroupsKit.*;
 
-/** غرفة المجموعة: رسائل بأسماء المرسلين والألقاب، رسائل النظام، شريط التثبيت، المنشن، قيود الكتابة. */
+/** غرفة المجموعة بتصميم #chatView: هيدر عائم، فقاعات متتالية بأسماء وألقاب، صور، بصمات صوتية، تفاعلات، رد، تثبيت، منشن. */
 public class GroupRoomActivity extends Activity {
-    private String chatId; private Map<String, Object> meta = new HashMap<>();
-    private final List<DocumentSnapshot> msgs = new ArrayList<>();
-    private ListenerRegistration chatReg, msgReg; private int limit = 50; private int pinIdx = -1; private boolean metaReady;
-    private ListView list; private BaseAdapter adapter; private Av hdAv; private TextView hdName, hdSub;
-    private LinearLayout pinBar, composer, lockBar, mentionPop; private EditText input; private View sendBtn;
-    private long lastReadWrite; private final android.os.Handler h = new android.os.Handler(); private boolean typingOn; private Runnable typingOff;
+    private String chatId; private Map<String, Object> meta = new HashMap<>(); private Th t;
+    private final List<DocumentSnapshot> msgs = new ArrayList<>(); private ListenerRegistration chatReg, msgReg; private int limit = 50, pinIdx = -1;
+    private boolean metaReady, loadingOlder; private long lastReadWrite; private String flashId = "";
+    private FrameLayout rootFrame; private ListView list; private BaseAdapter adapter; private Av hdAv; private TextView hdName, hdSub; private LinearLayout pinBar, bottom, inputBar, recBar, lockBar, replyBar, mentionPop;
+    private EditText input; private FrameLayout actBtn; private Ic actIc; private TextView recTimer;
+    private String replyId = "", replyText = "", replySid = ""; private boolean typingOn; private final android.os.Handler h = new android.os.Handler(); private Runnable typingOff;
+    private MediaRecorder rec; private File recFile; private long recStart; private Runnable recTick; private boolean recording;
+    private static MediaPlayer player; private static String playingId = "";
+    private static final String[] EMOJIS = {"❤️", "👍", "😂", "😮", "😢", "🙏"};
 
     @Override protected void onCreate(Bundle b) {
-        super.onCreate(b); style(this); getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        super.onCreate(b); t = th(this); window(this, t, t.crSurface); getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         chatId = getIntent().getStringExtra("chatId"); if (chatId == null) { finish(); return; }
-        build();
+        build(); loadUsers(Collections.singletonList(me()), () -> { });
         chatReg = db().collection("chats").document(chatId).addSnapshotListener((doc, e) -> {
-            if (doc == null) return;
-            if (!doc.exists() || !parts(doc.getData()).contains(me())) { if (metaReady || doc.exists()) { toast(this, "لم تعد عضواً في هذه المجموعة"); finish(); } return; }
-            meta = doc.getData(); final List<String> ps = parts(meta);
-            loadUsers(ps, () -> { metaReady = true; refreshHeader(); adapter.notifyDataSetChanged(); });
+            if (doc == null) return; if (!doc.exists() || !parts(doc.getData()).contains(me())) { if (metaReady || doc.exists()) { toast(this, "لم تعد عضواً في هذه المجموعة"); finish(); } return; }
+            meta = doc.getData(); loadUsers(parts(meta), () -> { metaReady = true; refreshHeader(); adapter.notifyDataSetChanged(); });
         });
         listenMessages();
     }
-    @Override protected void onDestroy() { super.onDestroy(); if (chatReg != null) chatReg.remove(); if (msgReg != null) msgReg.remove(); setTyping(false); }
+    @Override protected void onDestroy() { super.onDestroy(); if (chatReg != null) chatReg.remove(); if (msgReg != null) msgReg.remove(); setTyping(false); stopRec(false); stopPlayer(); }
+    @Override protected void onNewIntent(Intent i) { super.onNewIntent(i); }
 
     private void listenMessages() {
         if (msgReg != null) msgReg.remove();
         msgReg = db().collection("chats").document(chatId).collection("messages").orderBy("createdAt", Query.Direction.DESCENDING).limit(limit).addSnapshotListener((snap, e) -> {
-            if (snap == null) return;
-            msgs.clear(); List<DocumentSnapshot> d = new ArrayList<>(snap.getDocuments()); Collections.reverse(d); msgs.addAll(d);
-            adapter.notifyDataSetChanged();
-            if (!loadingOlder) list.setSelection(adapter.getCount() - 1); loadingOlder = false;
+            if (snap == null) return; msgs.clear(); List<DocumentSnapshot> d = new ArrayList<>(snap.getDocuments()); Collections.reverse(d); msgs.addAll(d);
+            List<String> ids = new ArrayList<>(); for (DocumentSnapshot m : d) { String sid = s(m.getData(), "senderId"); if (!sid.isEmpty()) ids.add(sid); }
+            loadUsers(ids, () -> { adapter.notifyDataSetChanged(); });
+            adapter.notifyDataSetChanged(); if (!loadingOlder) list.setSelection(adapter.getCount() - 1); loadingOlder = false;
             if (!d.isEmpty()) markRead(l(d.get(d.size() - 1).get("createdAt")));
         });
     }
-    private boolean loadingOlder;
-    private void markRead(long newest) {
-        long mine = l(map(meta, "readAt").get(me()));
-        if (newest <= mine || System.currentTimeMillis() - lastReadWrite < 1200) return;
-        lastReadWrite = System.currentTimeMillis();
-        db().collection("chats").document(chatId).update("readAt." + me(), Math.max(System.currentTimeMillis(), newest));
-    }
+    private void markRead(long newest) { long mine = l(map(meta, "readAt").get(me())); if (newest <= mine || System.currentTimeMillis() - lastReadWrite < 1200) return; lastReadWrite = System.currentTimeMillis(); db().collection("chats").document(chatId).update("readAt." + me(), Math.max(System.currentTimeMillis(), newest)); }
 
     // ---------- بناء الواجهة ----------
-    private void build() {
-        LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(BG); rtl(root); root.setFitsSystemWindows(true);
-        LinearLayout top = new LinearLayout(this); top.setGravity(Gravity.CENTER_VERTICAL); top.setBackgroundColor(CARD); top.setPadding(dp(this, 6), dp(this, 8), dp(this, 10), dp(this, 8));
-        FrameLayout bk = new FrameLayout(this); bk.addView(icon(this, IC_BACK, TEXT, 22), new FrameLayout.LayoutParams(dp(this, 22), dp(this, 22), Gravity.CENTER)); bk.setOnClickListener(v -> finish());
-        top.addView(bk, new LinearLayout.LayoutParams(dp(this, 42), dp(this, 42)));
-        LinearLayout hit = new LinearLayout(this); hit.setGravity(Gravity.CENTER_VERTICAL); hit.setOnClickListener(v -> openInfo());
-        hdAv = new Av(this, 40); hit.addView(hdAv);
-        LinearLayout tt = new LinearLayout(this); tt.setOrientation(LinearLayout.VERTICAL); tt.setPadding(dp(this, 11), 0, 0, 0);
-        hdName = tv(this, "مجموعة", 16.5f, TEXT, true); hdName.setSingleLine(true); hdName.setEllipsize(TextUtils.TruncateAt.END);
-        hdSub = tv(this, "", 12.5f, SUB, false); tt.addView(hdName); tt.addView(hdSub); hit.addView(tt, new LinearLayout.LayoutParams(0, -2, 1));
-        top.addView(hit, new LinearLayout.LayoutParams(0, -2, 1));
-        FrameLayout inf = new FrameLayout(this); inf.addView(icon(this, IC_USERS, GOLD, 22), new FrameLayout.LayoutParams(dp(this, 22), dp(this, 22), Gravity.CENTER)); inf.setOnClickListener(v -> openInfo());
-        top.addView(inf, new LinearLayout.LayoutParams(dp(this, 42), dp(this, 42)));
-        root.addView(top);
-        pinBar = new LinearLayout(this); pinBar.setGravity(Gravity.CENTER_VERTICAL); pinBar.setBackgroundColor(CARD); pinBar.setPadding(dp(this, 8), dp(this, 7), dp(this, 14), dp(this, 7)); pinBar.setVisibility(View.GONE);
-        root.addView(pinBar);
-        list = new ListView(this); list.setDivider(null); list.setBackgroundColor(BG); list.setClipToPadding(false); list.setPadding(dp(this, 8), dp(this, 6), dp(this, 8), dp(this, 6));
-        list.setTranscriptMode(ListView.TRANSCRIPT_MODE_NORMAL); list.setSelector(android.R.color.transparent);
-        adapter = new MsgAdapter(); list.setAdapter(adapter);
-        root.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
-        // أسفل: شريط المنشن + الكتابة + القفل
-        FrameLayout bottom = new FrameLayout(this);
-        composer = new LinearLayout(this); composer.setGravity(Gravity.CENTER_VERTICAL); composer.setBackgroundColor(CARD); composer.setPadding(dp(this, 10), dp(this, 8), dp(this, 10), dp(this, 8));
-        input = new EditText(this); input.setHint("رسالة"); input.setHintTextColor(SUB); input.setTextColor(TEXT); input.setTextSize(15.5f); input.setMaxLines(5);
-        input.setBackground(round(CHIP, 22, this)); input.setPadding(dp(this, 16), dp(this, 10), dp(this, 16), dp(this, 10));
-        composer.addView(input, new LinearLayout.LayoutParams(0, -2, 1));
-        FrameLayout sb = new FrameLayout(this); sb.setBackground(round(GOLD, 22, this)); ((android.graphics.drawable.GradientDrawable) sb.getBackground()).setShape(android.graphics.drawable.GradientDrawable.OVAL);
-        sb.addView(icon(this, IC_SEND, 0xFF1A1A1A, 22), new FrameLayout.LayoutParams(dp(this, 22), dp(this, 22), Gravity.CENTER)); sendBtn = sb; sb.setOnClickListener(v -> send());
-        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(dp(this, 44), dp(this, 44)); sp.setMargins(dp(this, 8), 0, 0, 0); composer.addView(sb, sp);
-        bottom.addView(composer);
-        lockBar = new LinearLayout(this); lockBar.setGravity(Gravity.CENTER); lockBar.setBackgroundColor(CARD); lockBar.setPadding(0, dp(this, 14), 0, dp(this, 14)); lockBar.setVisibility(View.GONE);
-        lockBar.addView(icon(this, IC_LOCK, SUB, 18)); TextView lt = tv(this, "", 13.5f, SUB, false); lt.setPadding(dp(this, 8), 0, 0, 0); lockBar.addView(lt); lockBar.setTag(lt);
-        bottom.addView(lockBar);
-        root.addView(bottom);
-        mentionPop = new LinearLayout(this); mentionPop.setOrientation(LinearLayout.VERTICAL); mentionPop.setBackground(round(CARD, 16, this)); mentionPop.setVisibility(View.GONE); mentionPop.setElevation(dp(this, 10));
-        FrameLayout wrap = new FrameLayout(this); wrap.addView(root, new FrameLayout.LayoutParams(-1, -1));
-        FrameLayout.LayoutParams mp = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM); mp.setMargins(dp(this, 10), 0, dp(this, 10), dp(this, 68)); wrap.addView(mentionPop, mp);
-        setContentView(wrap);
-        input.addTextChangedListener(new TextWatcher() { public void beforeTextChanged(CharSequence a, int b, int c, int d) { } public void onTextChanged(CharSequence a, int b, int c, int d) { }
-            public void afterTextChanged(Editable e) { checkMention(); if (e.length() > 0) { setTyping(true); if (typingOff != null) h.removeCallbacks(typingOff); typingOff = () -> setTyping(false); h.postDelayed(typingOff, 3000); } } });
-        list.setOnScrollListener(new AbsListView.OnScrollListener() { public void onScrollStateChanged(AbsListView v, int s) { }
-            public void onScroll(AbsListView v, int f, int c, int t) { if (f == 0 && msgs.size() >= limit && !loadingOlder) { loadingOlder = true; limit += 50; listenMessages(); } } });
+    private FrameLayout circleBtn(String ic) {
+        FrameLayout f = new FrameLayout(this); GradientDrawable g = oval(t.crCard); g.setStroke(Math.max(1, t.u(1)), t.crLine); f.setBackground(g); f.setElevation(t.u(3)); f.addView(icon(this, ic, t.crInk, 22), center(this, 22)); return f;
     }
-    private void openInfo() { Intent i = new Intent(this, GroupInfoActivity.class); i.putExtra("chatId", chatId); startActivity(i); }
+    private void build() {
+        rootFrame = new FrameLayout(this); rootFrame.setBackgroundColor(t.crSurface); rtl(rootFrame); rootFrame.setFitsSystemWindows(true);
+        LinearLayout col = new LinearLayout(this); col.setOrientation(LinearLayout.VERTICAL);
+        // الهيدر العائم
+        LinearLayout hd = new LinearLayout(this); hd.setGravity(Gravity.CENTER_VERTICAL); hd.setPadding(t.u(10), t.u(8), t.u(10), t.u(6));
+        FrameLayout bk = circleBtn(IC_BACK); bk.setOnClickListener(v -> finish()); hd.addView(bk, lp(t.k(44), t.k(44)));
+        LinearLayout pill = new LinearLayout(this); pill.setGravity(Gravity.CENTER_VERTICAL); GradientDrawable pg = round(t.crCard, t.u(24)); pg.setStroke(Math.max(1, t.u(1)), t.crLine); pill.setBackground(pg); pill.setElevation(t.u(3)); pill.setPadding(t.u(8), t.u(6), t.u(14), t.u(6)); pill.setOnClickListener(v -> openInfo(null));
+        hdAv = new Av(this, 44 * t.s); hdAv.ring(0xA6D4AF37, t.u(2), t.u(2), t.crCard); pill.addView(hdAv, lp(t.k(44), t.k(44)));
+        LinearLayout tt = new LinearLayout(this); tt.setOrientation(LinearLayout.VERTICAL); tt.setPadding(t.u(11), 0, 0, 0);
+        hdName = tv(this, t, "مجموعة", 16.5f, t.crInk, true); hdName.setSingleLine(true); hdName.setEllipsize(TextUtils.TruncateAt.END); hdSub = tv(this, t, "", 12, t.crMuted, false); LinearLayout.LayoutParams sp = lp(-2, -2); sp.topMargin = t.u(2); tt.addView(hdName); tt.addView(hdSub, sp);
+        pill.addView(tt, lpw(0, -2, 1)); LinearLayout.LayoutParams pp = lpw(0, -2, 1); pp.setMargins(t.u(8), 0, t.u(8), 0); hd.addView(pill, pp);
+        FrameLayout more = circleBtn(IC_MORE); ((Ic) more.getChildAt(0)).width(3.2f); more.setOnClickListener(v -> moreMenu()); hd.addView(more, lp(t.k(44), t.k(44))); col.addView(hd);
+        // شريط التثبيت
+        pinBar = new LinearLayout(this); pinBar.setGravity(Gravity.CENTER_VERTICAL); GradientDrawable pbg = round(t.crCard, t.u(18)); pbg.setStroke(Math.max(1, t.u(1)), t.crLine); pinBar.setBackground(pbg); pinBar.setElevation(t.u(3)); pinBar.setPadding(t.u(8), t.u(7), t.u(14), t.u(7)); pinBar.setVisibility(View.GONE);
+        LinearLayout.LayoutParams pbp = lp(-1, -2); pbp.setMargins(t.u(10), t.u(4), t.u(10), t.u(2)); col.addView(pinBar, pbp);
+        // الرسائل
+        list = new ListView(this); list.setDivider(null); list.setClipToPadding(false); list.setPadding(t.u(14), t.u(16), t.u(14), t.u(12)); list.setSelector(android.R.color.transparent); list.setOverScrollMode(View.OVER_SCROLL_NEVER); list.setTranscriptMode(ListView.TRANSCRIPT_MODE_NORMAL);
+        adapter = new MsgAdapter(); list.setAdapter(adapter); col.addView(list, lpw(-1, 0, 1));
+        list.setOnScrollListener(new AbsListView.OnScrollListener() { public void onScrollStateChanged(AbsListView v, int s) { } public void onScroll(AbsListView v, int f, int c, int tt2) { if (f == 0 && msgs.size() >= limit && !loadingOlder) { loadingOlder = true; limit += 50; listenMessages(); } } });
+        // الأسفل
+        bottom = new LinearLayout(this); bottom.setOrientation(LinearLayout.VERTICAL); col.addView(bottom);
+        replyBar = new LinearLayout(this); replyBar.setGravity(Gravity.CENTER_VERTICAL); GradientDrawable rbg = round(t.crCard, t.u(14)); rbg.setStroke(Math.max(1, t.u(1)), t.crLine); replyBar.setBackground(rbg); replyBar.setPadding(t.u(12), t.u(8), t.u(8), t.u(8)); replyBar.setVisibility(View.GONE);
+        LinearLayout.LayoutParams rbp = lp(-1, -2); rbp.setMargins(t.u(10), t.u(4), t.u(10), 0); bottom.addView(replyBar, rbp);
+        FrameLayout inWrap = new FrameLayout(this); inWrap.setPadding(t.u(10), t.u(8), t.u(10), t.u(10)); bottom.addView(inWrap);
+        inputBar = new LinearLayout(this); inputBar.setGravity(Gravity.CENTER_VERTICAL); GradientDrawable ibg = round(t.crCard, t.u(14)); ibg.setStroke(Math.max(1, t.u(1)), t.crLine); inputBar.setBackground(ibg); inputBar.setElevation(t.u(3)); inputBar.setPadding(t.u(8), t.u(6), t.u(8), t.u(6));
+        FrameLayout img = new FrameLayout(this); img.addView(icon(this, IC_IMAGE, t.crMuted, 24), center(this, 24)); img.setOnClickListener(v -> pickImage()); inputBar.addView(img, lp(t.k(40), t.k(40)));
+        input = new EditText(this); input.setHint("رسالة"); input.setHintTextColor(t.crMuted); input.setTextColor(t.crInk); input.setTextSize(15.5f * t.s); input.setMaxLines(5); input.setMinHeight(t.k(42)); input.setBackground(round(0x1A7F8CA0, t.u(10))); input.setPadding(t.u(12), t.u(10), t.u(12), t.u(10)); input.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
+        LinearLayout.LayoutParams ip = lpw(0, -2, 1); ip.setMargins(t.u(6), 0, t.u(6), 0); inputBar.addView(input, ip);
+        actBtn = new FrameLayout(this); actBtn.setBackground(goldGrad(t.u(12), false)); actIc = icon(this, IC_MIC, 0xFFFFFFFF, 22); actBtn.addView(actIc, center(this, 22)); actBtn.setOnClickListener(v -> onAction()); inputBar.addView(actBtn, lp(t.k(40), t.k(40)));
+        inWrap.addView(inputBar);
+        recBar = new LinearLayout(this); recBar.setGravity(Gravity.CENTER_VERTICAL); GradientDrawable rg = round(t.crCard, t.u(14)); rg.setStroke(Math.max(1, t.u(1)), t.crLine); recBar.setBackground(rg); recBar.setPadding(t.u(8), t.u(6), t.u(8), t.u(6)); recBar.setVisibility(View.GONE);
+        TextView cx = tv(this, t, "×", 24, t.crMuted, false); cx.setGravity(Gravity.CENTER); cx.setOnClickListener(v -> stopRec(false)); recBar.addView(cx, lp(t.k(40), t.k(40)));
+        View dot = new View(this); dot.setBackground(oval(0xFFF87171)); LinearLayout.LayoutParams dp2 = lp(t.u(10), t.u(10)); dp2.setMargins(t.u(8), 0, t.u(8), 0); recBar.addView(dot, dp2);
+        TextView rl = tv(this, t, "جاري التسجيل", 14, 0xFFF87171, true); recBar.addView(rl); recTimer = tv(this, t, "00:00", 14, t.crInk, true); recTimer.setPadding(t.u(10), 0, 0, 0); recBar.addView(recTimer, lpw(0, -2, 1));
+        FrameLayout rs = new FrameLayout(this); rs.setBackground(goldGrad(t.u(12), false)); rs.addView(icon(this, IC_SEND, 0xFFFFFFFF, 22), center(this, 22)); rs.setOnClickListener(v -> stopRec(true)); recBar.addView(rs, lp(t.k(40), t.k(40))); inWrap.addView(recBar);
+        lockBar = new LinearLayout(this); lockBar.setGravity(Gravity.CENTER); lockBar.setBackground(round(t.card, t.u(16))); lockBar.setPadding(t.u(16), t.u(13), t.u(16), t.u(13)); lockBar.setVisibility(View.GONE);
+        lockBar.addView(icon(this, IC_LOCK, t.sub, 18)); TextView lt = tv(this, t, "", 14, t.sub, false); lt.setPadding(t.u(9), 0, 0, 0); lockBar.addView(lt); lockBar.setTag(lt);
+        LinearLayout.LayoutParams lkp = lp(-1, -2); lkp.setMargins(t.u(12), t.u(8), t.u(12), t.u(10)); bottom.addView(lockBar, lkp);
+        rootFrame.addView(col, new FrameLayout.LayoutParams(-1, -1));
+        mentionPop = new LinearLayout(this); mentionPop.setOrientation(LinearLayout.VERTICAL); GradientDrawable mg = round(t.card, t.u(16)); mg.setStroke(Math.max(1, t.u(1)), t.sep); mentionPop.setBackground(mg); mentionPop.setElevation(t.u(12)); mentionPop.setVisibility(View.GONE);
+        FrameLayout.LayoutParams mp = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM); mp.setMargins(t.u(10), 0, t.u(10), t.u(68)); rootFrame.addView(mentionPop, mp); setContentView(rootFrame);
+        input.addTextChangedListener(new TextWatcher() { public void beforeTextChanged(CharSequence a, int b2, int c, int d) { } public void onTextChanged(CharSequence a, int b2, int c, int d) { }
+            public void afterTextChanged(Editable e) { checkMention(); updateAction(); if (e.length() > 0) { setTyping(true); if (typingOff != null) h.removeCallbacks(typingOff); typingOff = () -> setTyping(false); h.postDelayed(typingOff, 3000); } } });
+        updateAction();
+    }
+    private void updateAction() { boolean has = input.getText().toString().trim().length() > 0; actIc.setVisibility(View.VISIBLE); actBtn.removeAllViews(); actIc = icon(this, has ? IC_SEND : IC_MIC, 0xFFFFFFFF, 22); actBtn.addView(actIc, center(this, 22)); }
+    private void onAction() { if (input.getText().toString().trim().length() > 0) send(); else startRec(); }
+    private void openInfo(String popupUid) { Intent i = new Intent(this, GroupInfoActivity.class); i.putExtra("chatId", chatId); if (popupUid != null) i.putExtra("popupUid", popupUid); startActivityForResult(i, 9); }
+    @Override protected void onActivityResult(int rc, int res, Intent d) {
+        super.onActivityResult(rc, res, d);
+        if (rc == 9 && res == RESULT_OK && d != null && d.getStringExtra("mention") != null) { String un = d.getStringExtra("mention"); String v = input.getText().toString(); if (!v.isEmpty() && !v.endsWith(" ")) v += " "; input.setText(v + "@" + un + ", "); input.setSelection(input.length()); input.requestFocus(); }
+        if (rc == 11 && res == RESULT_OK && d != null && d.getData() != null) sendImage(d.getData());
+    }
     private void setTyping(boolean on) { if (typingOn == on || chatId == null) return; typingOn = on; try { db().collection("chats").document(chatId).update("typing_" + me(), on); } catch (Throwable ignored) { } }
 
     // ---------- الرأس والصلاحيات ----------
@@ -109,148 +130,211 @@ public class GroupRoomActivity extends Activity {
         hdName.setText(s(meta, "name").isEmpty() ? "مجموعة" : s(meta, "name")); hdAv.setGroup(meta);
         List<String> names = new ArrayList<>(); for (String u : parts(meta)) if (!u.equals(me()) && isTrue(meta.get("typing_" + u))) names.add(userName(u));
         if (!names.isEmpty()) { hdSub.setText(names.size() == 1 ? names.get(0) + " يكتب..." : join(names.subList(0, Math.min(2, names.size())), " و") + (names.size() > 2 ? " وآخرون" : "") + " يكتبون..."); hdSub.setTextColor(0xFF4ADE80); }
-        else { hdSub.setText(memberWord(parts(meta).size())); hdSub.setTextColor(SUB); }
-        boolean canText = canSend("text", me(), meta);
-        composer.setVisibility(canText ? View.VISIBLE : View.GONE); lockBar.setVisibility(canText ? View.GONE : View.VISIBLE);
+        else { hdSub.setText(memberWord(parts(meta).size())); hdSub.setTextColor(t.crMuted); }
+        boolean canText = canSend("text", me(), meta); inputBar.setVisibility(canText && !recording ? View.VISIBLE : View.GONE); lockBar.setVisibility(canText ? View.GONE : View.VISIBLE);
         if (!canText) ((TextView) lockBar.getTag()).setText(role(me(), meta).equals("member") && isTrue(map(meta, "muted").get(me())) ? "تم تقييدك من الكتابة في هذه المجموعة" : "الكتابة مقيّدة في هذه المجموعة");
         renderPinned();
     }
     @SuppressWarnings("unchecked") private List<Map<String, Object>> pins() { Object o = meta.get("pins"); return o instanceof List ? (List<Map<String, Object>>) o : new ArrayList<Map<String, Object>>(); }
     private void renderPinned() {
-        List<Map<String, Object>> pins = pins();
-        if (pins.isEmpty()) { pinBar.setVisibility(View.GONE); pinIdx = -1; return; }
-        if (pinIdx < 0 || pinIdx >= pins.size()) pinIdx = pins.size() - 1;
+        List<Map<String, Object>> pins = pins(); if (pins.isEmpty()) { pinBar.setVisibility(View.GONE); pinIdx = -1; return; } if (pinIdx < 0 || pinIdx >= pins.size()) pinIdx = pins.size() - 1;
         final Map<String, Object> p = pins.get(pinIdx); pinBar.setVisibility(View.VISIBLE); pinBar.removeAllViews();
         LinearLayout line = new LinearLayout(this); line.setOrientation(LinearLayout.VERTICAL);
-        for (int i = 0; i < pins.size(); i++) { View seg = new View(this); seg.setBackgroundColor(GOLD); seg.setAlpha(i == pinIdx ? 1f : .3f); LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(this, 3), 0, 1); lp.setMargins(0, dp(this, 1), 0, dp(this, 1)); line.addView(seg, lp); }
-        pinBar.addView(line, new LinearLayout.LayoutParams(dp(this, 3), dp(this, 34)));
-        LinearLayout t = new LinearLayout(this); t.setOrientation(LinearLayout.VERTICAL); t.setPadding(dp(this, 11), 0, dp(this, 8), 0);
-        t.addView(tv(this, "رسالة مثبتة" + (pins.size() > 1 ? " #" + (pinIdx + 1) : ""), 13, GOLD2, true));
-        TextView pt = tv(this, s(p, "text"), 13.5f, TEXT, false); pt.setSingleLine(true); pt.setEllipsize(TextUtils.TruncateAt.END); t.addView(pt);
-        pinBar.addView(t, new LinearLayout.LayoutParams(0, -2, 1));
+        for (int i = 0; i < pins.size(); i++) { View seg = new View(this); seg.setBackground(round(t.gold, t.u(2))); seg.setAlpha(i == pinIdx ? 1f : .3f); LinearLayout.LayoutParams lp = lpw(t.u(3), 0, 1); lp.setMargins(0, i == 0 ? 0 : t.u(2), 0, 0); line.addView(seg, lp); }
+        pinBar.addView(line, lp(t.u(3), t.k(34))); LinearLayout tx = new LinearLayout(this); tx.setOrientation(LinearLayout.VERTICAL); tx.setPadding(t.u(11), 0, t.u(8), 0);
+        tx.addView(tv(this, t, "رسالة مثبتة" + (pins.size() > 1 ? " #" + (pinIdx + 1) : ""), 13, t.gold, true)); TextView pt = tv(this, t, s(p, "text"), 13.5f, t.text, false); pt.setAlpha(.85f); pt.setSingleLine(true); pt.setEllipsize(TextUtils.TruncateAt.END); tx.addView(pt); pinBar.addView(tx, lpw(0, -2, 1));
         pinBar.setOnClickListener(v -> { jumpTo(s(p, "id")); if (pins().size() > 1) { pinIdx = (pinIdx - 1 + pins().size()) % pins().size(); renderPinned(); } });
-        if (right("pin", me(), meta)) {
-            FrameLayout x = new FrameLayout(this); x.addView(icon(this, IC_PIN, SUB, 19), new FrameLayout.LayoutParams(dp(this, 19), dp(this, 19), Gravity.CENTER));
-            x.setOnClickListener(v -> new AlertDialog.Builder(this).setTitle("إلغاء التثبيت").setMessage("هل تريد إلغاء تثبيت هذه الرسالة؟")
-                .setPositiveButton("إلغاء التثبيت", (d, w) -> { List<Map<String, Object>> np = new ArrayList<>(pins()); if (pinIdx >= 0 && pinIdx < np.size()) np.remove(pinIdx); pinIdx = -1; db().collection("chats").document(chatId).update("pins", np); })
-                .setNegativeButton("تراجع", null).show());
-            pinBar.addView(x, new LinearLayout.LayoutParams(dp(this, 36), dp(this, 36)));
-        }
+        if (right("pin", me(), meta)) { FrameLayout x = new FrameLayout(this); x.addView(icon(this, IC_PIN, t.sub, 19), center(this, 19)); pinBar.addView(x, lp(t.k(36), t.k(36))); x.setOnClickListener(v -> confirm(this, t, "إلغاء التثبيت", "هل تريد إلغاء تثبيت هذه الرسالة؟", "إلغاء التثبيت", (ok, y) -> { if (!ok) return; togglePin(s(p, "id"), "", true); })); }
     }
-    private void jumpTo(String id) {
-        for (int i = 0; i < msgs.size(); i++) if (msgs.get(i).getId().equals(id)) { list.smoothScrollToPosition(i); return; }
-        toast(this, "الرسالة بعيدة، مرّر للأعلى لتحميل رسائل أقدم");
+    private void jumpTo(String id) { for (int i = 0; i < msgs.size(); i++) if (msgs.get(i).getId().equals(id)) { flashId = id; list.smoothScrollToPosition(i); adapter.notifyDataSetChanged(); h.postDelayed(() -> { flashId = ""; }, 1400); return; } toast(this, "الرسالة بعيدة، مرّر للأعلى لتحميل رسائل أقدم"); }
+
+    private void moreMenu() {
+        List<String[]> it = new ArrayList<>(); it.add(new String[]{"info", "معلومات المجموعة", IC_USERS}); it.add(new String[]{"search", "بحث في المحادثة", IC_SEARCH}); it.add(new String[]{"mute", isMuted(this, chatId) ? "إلغاء كتم المحادثة" : "كتم المحادثة", isMuted(this, chatId) ? IC_BELL : IC_BELL_OFF});
+        sheet(null, it, key -> { switch (key) { case "info": openInfo(null); break; case "search": searchDialog(); break; case "mute": setMuted(this, chatId, !isMuted(this, chatId)); toast(this, isMuted(this, chatId) ? "تم كتم هذه المجموعة على جهازك" : "تم إلغاء كتم المحادثة"); break; } });
+    }
+    private void searchDialog() {
+        ask(this, t, "بحث في المحادثة", null, "", "اكتب كلمة أو حرفين", 60, false, "بحث", "إلغاء", (ok, q) -> { if (!ok) return; if (q.length() < 2) { toast(this, "اكتب حرفين على الأقل"); return; } String ql = q.toLowerCase();
+            for (int i = msgs.size() - 1; i >= 0; i--) { Map<String, Object> m = msgs.get(i).getData(); if (!isTrue(m.get("system")) && s(m, "text").toLowerCase().contains(ql)) { jumpTo(msgs.get(i).getId()); return; } } toast(this, "لا توجد نتائج في الرسائل المحمّلة"); });
+    }
+    /** قائمة بنفس صندوق .up-box (تُستعمل للقائمة والرسائل). extraTop: صف تفاعلات اختياري. */
+    private void sheet(View extraTop, List<String[]> items, final PopCb cb) {
+        final Dialog dg = new Dialog(this); dg.requestWindowFeature(Window.FEATURE_NO_TITLE); LinearLayout wrap = new LinearLayout(this); wrap.setOrientation(LinearLayout.VERTICAL); rtl(wrap);
+        if (extraTop != null) { LinearLayout.LayoutParams ep = lp(-1, -2); ep.bottomMargin = t.u(4); wrap.addView(extraTop, ep); }
+        LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setBackground(round(t.card, t.u(20))); wrap.addView(box, lp(-1, -2)); boolean first = true;
+        for (final String[] b : items) { box.addView(popRow(this, t, b[1], b.length > 2 && !"danger".equals(b[2]) ? b[2] : IC_PIN, b.length > 3 && "danger".equals(b[3]), !first, () -> { dg.dismiss(); cb.pick(b[0]); })); first = false; }
+        dg.setContentView(wrap); Window w = dg.getWindow(); w.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0)); w.setDimAmount(.52f); w.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND); w.setLayout(Math.min(t.u(340), getResources().getDisplayMetrics().widthPixels - t.u(44)), ViewGroup.LayoutParams.WRAP_CONTENT); dg.show();
+        if (extraTop != null) extraTop.setTag(dg);
     }
 
     // ---------- المنشن ----------
     private void checkMention() {
-        String t = input.getText().toString(); java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?:^|\\s)@([A-Za-z0-9_.]*)$").matcher(t);
-        mentionPop.removeAllViews();
-        if (!m.find()) { mentionPop.setVisibility(View.GONE); return; }
+        String tx = input.getText().toString(); java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?:^|\\s)@([A-Za-z0-9_.]*)$").matcher(tx); mentionPop.removeAllViews(); if (!m.find()) { mentionPop.setVisibility(View.GONE); return; }
         String q = m.group(1).toLowerCase(); int n = 0;
-        for (final String u : parts(meta)) {
-            if (u.equals(me())) continue; final U g = user(u); if (g.username.isEmpty()) continue;
-            if (!q.isEmpty() && !g.username.toLowerCase().startsWith(q) && !g.name.toLowerCase().contains(q)) continue;
-            if (n++ >= 6) break;
-            LinearLayout r = new LinearLayout(this); r.setGravity(Gravity.CENTER_VERTICAL); r.setPadding(dp(this, 14), dp(this, 8), dp(this, 14), dp(this, 8));
-            Av av = new Av(this, 36); av.setUser(u); r.addView(av);
-            LinearLayout c = new LinearLayout(this); c.setOrientation(LinearLayout.VERTICAL); c.setPadding(dp(this, 10), 0, 0, 0);
-            c.addView(tv(this, g.name, 14.5f, TEXT, true)); c.addView(tv(this, "@" + g.username, 12.5f, SUB, false)); r.addView(c);
-            r.setOnClickListener(v -> { String cur = input.getText().toString(); input.setText(cur.replaceAll("(^|\\s)@[A-Za-z0-9_.]*$", "$1@" + g.username + " ")); input.setSelection(input.length()); mentionPop.setVisibility(View.GONE); });
-            mentionPop.addView(r);
-        }
+        for (final String u : parts(meta)) { if (u.equals(me())) continue; final U g = user(u); if (g.username.isEmpty()) continue; if (!q.isEmpty() && !g.username.toLowerCase().startsWith(q) && !g.name.toLowerCase().contains(q)) continue; if (n++ >= 6) break;
+            LinearLayout r = new LinearLayout(this); r.setGravity(Gravity.CENTER_VERTICAL); r.setPadding(t.u(14), t.u(8), t.u(14), t.u(8)); Av av = new Av(this, 36 * t.s); av.setUser(u); r.addView(av, lp(t.k(36), t.k(36)));
+            LinearLayout c = new LinearLayout(this); c.setOrientation(LinearLayout.VERTICAL); c.setPadding(t.u(10), 0, 0, 0); c.addView(tv(this, t, g.name, 14.5f, t.text, true)); TextView us = tv(this, t, "@" + g.username, 12.5f, t.sub, false); c.addView(us); r.addView(c);
+            r.setOnClickListener(v -> { String cur = input.getText().toString(); input.setText(cur.replaceAll("(^|\\s)@[A-Za-z0-9_.]*$", "$1@" + g.username + " ")); input.setSelection(input.length()); mentionPop.setVisibility(View.GONE); }); mentionPop.addView(r); }
         mentionPop.setVisibility(n > 0 ? View.VISIBLE : View.GONE);
     }
     private List<String> extractMentions(String text) {
-        Map<String, String> names = new HashMap<>(); for (String u : parts(meta)) { String un = user(u).username; if (!un.isEmpty()) names.put(un.toLowerCase(), u); }
-        List<String> out = new ArrayList<>(); java.util.regex.Matcher m = java.util.regex.Pattern.compile("(^|[^A-Za-z0-9_.@])@([A-Za-z][A-Za-z0-9_.]{2,})").matcher(text);
-        while (m.find()) { String u = names.get(m.group(2).replaceAll("\\.+$", "").toLowerCase()); if (u != null && !u.equals(me()) && !out.contains(u)) out.add(u); }
-        return out;
+        Map<String, String> names = new HashMap<>(); for (String u : parts(meta)) { String un = user(u).username; if (!un.isEmpty()) names.put(un.toLowerCase(), u); } List<String> out = new ArrayList<>();
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(^|[^A-Za-z0-9_.@])@([A-Za-z][A-Za-z0-9_.]{2,})").matcher(text); while (m.find()) { String u = names.get(m.group(2).replaceAll("\\.+$", "").toLowerCase()); if (u != null && !u.equals(me()) && !out.contains(u)) out.add(u); } return out;
     }
 
     // ---------- الإرسال ----------
+    private Map<String, Object> baseMsg(String type) {
+        Map<String, Object> m = new HashMap<>(); long now = System.currentTimeMillis(); m.put("type", type); m.put("senderId", me()); m.put("sender", me()); m.put("createdAt", now); m.put("timestamp", now);
+        if (!replyId.isEmpty()) { m.put("replyTo", replyText); m.put("replyToId", replyId); m.put("replyToSenderId", replySid); } return m;
+    }
+    private void pushMsg(Map<String, Object> m, String preview) {
+        db().collection("chats").document(chatId).collection("messages").add(m); long now = l(m.get("createdAt"));
+        Map<String, Object> lm = new HashMap<>(); lm.put("text", preview); lm.put("senderId", me()); lm.put("senderName", myName()); lm.put("at", now); String ty = s(m, "type"); if (!ty.equals("text")) lm.put("type", ty);
+        Map<String, Object> up = new HashMap<>(); up.put("lastMsg", lm); up.put("updatedAt", now); up.put("readAt." + me(), now); db().collection("chats").document(chatId).update(up); clearReply();
+    }
     private void send() {
         String text = input.getText().toString().trim(); if (text.isEmpty() || !canSend("text", me(), meta)) return;
-        long now = System.currentTimeMillis();
-        Map<String, Object> m = new HashMap<>(); m.put("senderId", me()); m.put("text", text); m.put("createdAt", now);
-        List<String> mn = extractMentions(text); if (!mn.isEmpty()) m.put("mentions", mn);
-        input.setText(""); setTyping(false);
-        db().collection("chats").document(chatId).collection("messages").add(m);
-        Map<String, Object> lm = new HashMap<>(); lm.put("text", text.length() > 120 ? text.substring(0, 120) : text); lm.put("senderId", me()); lm.put("senderName", myName()); lm.put("at", now);
-        Map<String, Object> up = new HashMap<>(); up.put("lastMsg", lm); up.put("updatedAt", now); up.put("readAt." + me(), now);
-        db().collection("chats").document(chatId).update(up);
+        Map<String, Object> m = baseMsg("text"); m.put("text", text); List<String> mn = extractMentions(text); if (!mn.isEmpty()) m.put("mentions", mn); input.setText(""); setTyping(false); pushMsg(m, text.length() > 120 ? text.substring(0, 120) : text);
+    }
+    private void pickImage() { if (!canSend("media", me(), meta)) { toast(this, "إرسال الصور غير مسموح لك في هذه المجموعة"); return; } Intent i = new Intent(Intent.ACTION_GET_CONTENT); i.setType("image/*"); startActivityForResult(i, 11); }
+    private void sendImage(final android.net.Uri uri) {
+        toast(this, "جاري إرسال الصورة…");
+        new Thread(() -> {
+            try {
+                Bitmap b = BitmapFactory.decodeStream(getContentResolver().openInputStream(uri)); if (b == null) { runOnUiThread(() -> toast(this, "تعذر تجهيز الصورة")); return; }
+                int mx = 1280; float sc = Math.min(1f, mx / (float) Math.max(b.getWidth(), b.getHeight())); if (sc < 1f) b = Bitmap.createScaledBitmap(b, Math.round(b.getWidth() * sc), Math.round(b.getHeight() * sc), true);
+                File f = new File(getCacheDir(), "grp_" + System.currentTimeMillis() + ".jpg"); FileOutputStream o = new FileOutputStream(f); b.compress(Bitmap.CompressFormat.JPEG, 82, o); o.close(); String url = "";
+                try { url = ChatMediaUp.upload(f, "image", "chat", new ChatMediaUp.Cancel(), null).optString("secure_url", ""); } catch (Throwable ignored) { }
+                final Map<String, Object> m = baseMsg("image");
+                if (!url.isEmpty()) { m.put("data", url); m.put("imageUrl", url); } else { ByteArrayOutputStream bo = new ByteArrayOutputStream(); Bitmap sm = Bitmap.createScaledBitmap(b, Math.max(1, b.getWidth() / 2), Math.max(1, b.getHeight() / 2), true); sm.compress(Bitmap.CompressFormat.JPEG, 60, bo); if (bo.size() > 700000) { runOnUiThread(() -> toast(this, "تعذر رفع الصورة")); return; } m.put("data", "data:image/jpeg;base64," + Base64.encodeToString(bo.toByteArray(), Base64.NO_WRAP)); }
+                m.put("mime", "image/jpeg"); m.put("duration", 0L); m.put("w", b.getWidth()); m.put("h", b.getHeight()); runOnUiThread(() -> pushMsg(m, "📷 صورة"));
+            } catch (Throwable e) { runOnUiThread(() -> toast(this, "تعذر إرسال الصورة")); }
+        }).start();
     }
 
-    // ---------- قائمة الرسائل ----------
-    private boolean readByAll(long created) {
-        Map<String, Object> ra = map(meta, "readAt"); int others = 0;
-        for (String u : parts(meta)) if (!u.equals(me())) { others++; if (l(ra.get(u)) < created) return false; }
-        return others > 0;
+    // ---------- البصمات الصوتية ----------
+    private void startRec() {
+        if (!canSend("voice", me(), meta)) { toast(this, "إرسال البصمات الصوتية غير مسموح لك"); return; }
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) { requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 21); return; }
+        try {
+            recFile = new File(getCacheDir(), "grp_rec_" + System.currentTimeMillis() + ".m4a"); rec = android.os.Build.VERSION.SDK_INT >= 31 ? new MediaRecorder(this) : new MediaRecorder();
+            rec.setAudioSource(MediaRecorder.AudioSource.MIC); rec.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4); rec.setAudioEncoder(MediaRecorder.AudioEncoder.AAC); rec.setAudioEncodingBitRate(64000); rec.setAudioChannels(1); rec.setAudioSamplingRate(44100); rec.setOutputFile(recFile.getAbsolutePath()); rec.prepare(); rec.start();
+            recording = true; recStart = System.currentTimeMillis(); inputBar.setVisibility(View.GONE); recBar.setVisibility(View.VISIBLE);
+            recTick = new Runnable() { public void run() { if (!recording) return; long s = (System.currentTimeMillis() - recStart) / 1000; recTimer.setText(String.format(Locale.US, "%02d:%02d", s / 60, s % 60)); if (s >= 60) { stopRec(true); return; } h.postDelayed(this, 250); } }; h.post(recTick);
+        } catch (Throwable e) { recording = false; try { if (rec != null) rec.release(); } catch (Throwable ignored) { } rec = null; toast(this, "تعذر بدء التسجيل"); }
     }
-    private String keyOf(DocumentSnapshot d) { if (isTrue(d.get("system"))) return null; return String.valueOf(d.get("senderId")); }
-
-    private final class MsgAdapter extends BaseAdapter {
-        public int getCount() { return msgs.size(); } public Object getItem(int i) { return msgs.get(i); } public long getItemId(int i) { return i; }
-        public View getView(int pos, View cv, ViewGroup parent) {
-            final DocumentSnapshot d = msgs.get(pos); final Map<String, Object> m = d.getData();
-            LinearLayout row = new LinearLayout(GroupRoomActivity.this); row.setOrientation(LinearLayout.HORIZONTAL); row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-            if (isTrue(m.get("system"))) {
-                TextView t = tv(GroupRoomActivity.this, sysText(m), 12.5f, 0xFFFFFFFF, false); t.setGravity(Gravity.CENTER); t.setBackground(round(0x4D000000, 14, GroupRoomActivity.this)); t.setPadding(dp(GroupRoomActivity.this, 13), dp(GroupRoomActivity.this, 5), dp(GroupRoomActivity.this, 13), dp(GroupRoomActivity.this, 5));
-                row.setGravity(Gravity.CENTER); LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2); lp.setMargins(0, dp(GroupRoomActivity.this, 7), 0, dp(GroupRoomActivity.this, 7)); row.addView(t, lp); return row;
-            }
-            final String sid = s(m, "senderId"); final boolean mine = sid.equals(me());
-            String prevK = pos > 0 ? keyOf(msgs.get(pos - 1)) : null, nextK = pos + 1 < msgs.size() ? keyOf(msgs.get(pos + 1)) : null;
-            boolean first = !sid.equals(prevK), last = !sid.equals(nextK);
-            LinearLayout bub = new LinearLayout(GroupRoomActivity.this); bub.setOrientation(LinearLayout.VERTICAL);
-            bub.setBackground(round(mine ? 0xFF2B5278 : CARD, 16, GroupRoomActivity.this)); bub.setPadding(dp(GroupRoomActivity.this, 12), dp(GroupRoomActivity.this, 7), dp(GroupRoomActivity.this, 12), dp(GroupRoomActivity.this, 6));
-            if (!mine && first) {
-                LinearLayout hd = new LinearLayout(GroupRoomActivity.this); hd.setGravity(Gravity.CENTER_VERTICAL);
-                TextView sn = tv(GroupRoomActivity.this, userName(sid), 13.5f, colorOf(sid), true); sn.setSingleLine(true); sn.setEllipsize(TextUtils.TruncateAt.END); sn.setMaxWidth(dp(GroupRoomActivity.this, 180)); hd.addView(sn);
-                String tt = title(sid, meta);
-                if (!tt.isEmpty()) { TextView rl = tv(GroupRoomActivity.this, tt, 11.5f, role(sid, meta).equals("member") ? SUB : GOLD, true); rl.setPadding(dp(GroupRoomActivity.this, 10), 0, 0, 0); hd.addView(rl); }
-                bub.addView(hd);
-            }
-            SpannableString sp = new SpannableString(s(m, "text"));
-            java.util.regex.Matcher mm = java.util.regex.Pattern.compile("@[A-Za-z][A-Za-z0-9_.]{2,}").matcher(sp);
-            while (mm.find()) sp.setSpan(new android.text.style.ForegroundColorSpan(GOLD), mm.start(), mm.end(), 0);
-            TextView body = tv(GroupRoomActivity.this, "", 15.5f, TEXT, false); body.setText(sp); body.setMaxWidth(dp(GroupRoomActivity.this, 250)); bub.addView(body);
-            long ct = l(m.get("createdAt")); LinearLayout meta2 = new LinearLayout(GroupRoomActivity.this); meta2.setGravity(Gravity.END);
-            TextView tm = tv(GroupRoomActivity.this, fmtTime(ct) + (mine ? (readByAll(ct) ? "  ✓✓" : "  ✓") : ""), 11, mine && readByAll(ct) ? GOLD : SUB, false); meta2.addView(tm); bub.addView(meta2);
-            bub.setOnLongClickListener(v -> { menu(d); return true; });
-            LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(-2, -2);
-            int topGap = first ? 6 : 1; LinearLayout.LayoutParams rl = new LinearLayout.LayoutParams(-1, -2); rl.setMargins(0, dp(GroupRoomActivity.this, topGap), 0, 0); row.setLayoutParams(rl);
-            row.setLayoutParams(new AbsListView.LayoutParams(-1, -2)); row.setPadding(0, dp(GroupRoomActivity.this, topGap), 0, 0);
-            if (mine) { row.setGravity(Gravity.START); row.addView(bub, bl); }
-            else {
-                row.setGravity(Gravity.END);
-                Av av = new Av(GroupRoomActivity.this, 32); av.setUser(sid); av.setVisibility(last ? View.VISIBLE : View.INVISIBLE);
-                LinearLayout.LayoutParams al = new LinearLayout.LayoutParams(dp(GroupRoomActivity.this, 32), dp(GroupRoomActivity.this, 32)); al.setMargins(dp(GroupRoomActivity.this, 7), 0, 0, 0); al.gravity = Gravity.BOTTOM;
-                row.addView(bub, bl); row.addView(av, al);
-            }
-            return row;
-        }
+    @Override public void onRequestPermissionsResult(int rc, String[] p, int[] g) { super.onRequestPermissionsResult(rc, p, g); if (rc == 21 && g.length > 0 && g[0] == PackageManager.PERMISSION_GRANTED) startRec(); }
+    private void stopRec(boolean send) {
+        if (!recording || rec == null) return; recording = false; h.removeCallbacks(recTick); long dur = Math.max(1, (System.currentTimeMillis() - recStart) / 1000);
+        try { rec.stop(); } catch (Throwable e) { send = false; } try { rec.release(); } catch (Throwable ignored) { } rec = null; recBar.setVisibility(View.GONE); boolean canText = canSend("text", me(), meta); inputBar.setVisibility(canText ? View.VISIBLE : View.GONE);
+        if (!send || recFile == null) { if (recFile != null) recFile.delete(); return; }
+        if (dur < 1) { toast(this, "التسجيل قصير جداً"); recFile.delete(); return; }
+        try { byte[] raw = new byte[(int) recFile.length()]; FileInputStream in = new FileInputStream(recFile); int off = 0, n; while (off < raw.length && (n = in.read(raw, off, raw.length - off)) > 0) off += n; in.close(); recFile.delete();
+            if (raw.length > 650000) { toast(this, "التسجيل طويل جداً"); return; }
+            Map<String, Object> m = baseMsg("audio"); m.put("data", "data:audio/mp4;base64," + Base64.encodeToString(raw, Base64.NO_WRAP)); m.put("mime", "audio/mp4"); m.put("duration", dur); pushMsg(m, "🎤 رسالة صوتية");
+        } catch (Throwable e) { toast(this, "تعذر إرسال التسجيل"); }
+    }
+    private static void stopPlayer() { try { if (player != null) { player.stop(); player.release(); } } catch (Throwable ignored) { } player = null; playingId = ""; }
+    private void togglePlay(final String id, String data) {
+        if (playingId.equals(id)) { stopPlayer(); adapter.notifyDataSetChanged(); return; } stopPlayer();
+        try { byte[] raw = Base64.decode(data.substring(data.indexOf(',') + 1), Base64.DEFAULT); File f = new File(getCacheDir(), "grp_play.m4a"); FileOutputStream o = new FileOutputStream(f); o.write(raw); o.close();
+            player = new MediaPlayer(); player.setDataSource(f.getAbsolutePath()); player.prepare(); player.start(); playingId = id; player.setOnCompletionListener(mp -> { stopPlayer(); adapter.notifyDataSetChanged(); }); adapter.notifyDataSetChanged();
+        } catch (Throwable e) { stopPlayer(); toast(this, "تعذر تشغيل التسجيل"); }
     }
 
-    private void menu(final DocumentSnapshot d) {
-        final Map<String, Object> m = d.getData(); final String sid = s(m, "senderId"); final String text = s(m, "text");
-        final boolean canPin = right("pin", me(), meta), pinned = false; boolean isPinned = false;
-        for (Map<String, Object> p : pins()) if (d.getId().equals(s(p, "id"))) isPinned = true;
-        final boolean fp = isPinned; final boolean canDel = sid.equals(me()) || right("delete", me(), meta);
-        List<String> items = new ArrayList<>(); items.add("نسخ"); if (canPin) items.add(fp ? "إلغاء تثبيت الرسالة" : "تثبيت الرسالة"); if (canDel) items.add("حذف");
-        final String[] arr = items.toArray(new String[0]);
-        new AlertDialog.Builder(this).setItems(arr, (dg, w) -> {
-            String it = arr[w];
-            if (it.equals("نسخ")) { ((android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("m", text)); }
-            else if (it.equals("حذف")) new AlertDialog.Builder(this).setTitle("حذف الرسالة").setMessage("حذف هذه الرسالة لدى الجميع؟").setPositiveButton("حذف", (a, b) -> d.getReference().delete()).setNegativeButton("إلغاء", null).show();
-            else togglePin(d.getId(), text, fp);
-        }).show();
+    // ---------- الرد والتفاعلات والقائمة ----------
+    private void clearReply() { replyId = ""; replyText = ""; replySid = ""; replyBar.setVisibility(View.GONE); }
+    private void setReply(DocumentSnapshot d) {
+        Map<String, Object> m = d.getData(); replyId = d.getId(); replySid = s(m, "senderId"); String ty = s(m, "type"); replyText = ty.equals("image") ? "📷 صورة" : ty.equals("audio") ? "🎤 رسالة صوتية" : s(m, "text");
+        replyBar.removeAllViews(); View ln = new View(this); ln.setBackground(round(t.gold, t.u(2))); replyBar.addView(ln, lp(t.u(3), t.k(34))); LinearLayout tx = new LinearLayout(this); tx.setOrientation(LinearLayout.VERTICAL); tx.setPadding(t.u(10), 0, t.u(8), 0);
+        tx.addView(tv(this, t, userName(replySid), 13, t.gold, true)); TextView rt = tv(this, t, replyText, 13.5f, t.crInk, false); rt.setSingleLine(true); rt.setEllipsize(TextUtils.TruncateAt.END); tx.addView(rt); replyBar.addView(tx, lpw(0, -2, 1));
+        FrameLayout x = new FrameLayout(this); x.addView(icon(this, IC_CLOSE, t.crMuted, 18), center(this, 18)); x.setOnClickListener(v -> clearReply()); replyBar.addView(x, lp(t.k(34), t.k(34))); replyBar.setVisibility(View.VISIBLE); input.requestFocus();
     }
+    private void msgMenu(final DocumentSnapshot d) {
+        final Map<String, Object> m = d.getData(); final String sid = s(m, "senderId"); final String text = s(m, "text"); final boolean canPin = right("pin", me(), meta); boolean ip = false; for (Map<String, Object> p : pins()) if (d.getId().equals(s(p, "id"))) ip = true; final boolean fp = ip;
+        final boolean canDel = sid.equals(me()) || right("delete", me(), meta); final String mine = s(map(d.getData(), "reactions"), me());
+        LinearLayout reacts = new LinearLayout(this); reacts.setGravity(Gravity.CENTER); reacts.setBackground(round(t.card, t.u(20))); reacts.setPadding(t.u(8), t.u(8), t.u(8), t.u(8));
+        final Dialog[] holder = new Dialog[1];
+        for (final String e : EMOJIS) { TextView ev = new TextView(this); ev.setText(e); ev.setTextSize(24); ev.setGravity(Gravity.CENTER); if (e.equals(mine)) ev.setBackground(round(0x29E4C45B, t.u(18))); ev.setOnClickListener(v -> { if (holder[0] != null) holder[0].dismiss(); setReaction(d, e.equals(mine) ? null : e); }); reacts.addView(ev, lpw(0, t.k(44), 1)); }
+        List<String[]> it = new ArrayList<>(); it.add(new String[]{"reply", "رد", IC_REPLY}); if (!text.isEmpty()) it.add(new String[]{"copy", "نسخ", IC_COPY}); if (canPin) it.add(new String[]{"pin", fp ? "إلغاء تثبيت الرسالة" : "تثبيت الرسالة", IC_PIN}); if (canDel) it.add(new String[]{"del", "حذف", IC_TRASH, "danger"});
+        sheet(reacts, it, key -> { switch (key) { case "reply": setReply(d); break; case "copy": ((ClipboardManager) getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("m", text)); toast(this, "تم النسخ"); break;
+            case "pin": togglePin(d.getId(), text.isEmpty() ? (s(m, "type").equals("image") ? "📷 صورة" : "🎤 رسالة صوتية") : text, fp); break;
+            case "del": confirm(this, t, "حذف الرسالة", "حذف هذه الرسالة لدى الجميع؟", "حذف", (ok, x) -> { if (ok) d.getReference().delete(); }); break; } });
+        holder[0] = (Dialog) reacts.getTag();
+    }
+    private void setReaction(DocumentSnapshot d, String emoji) { d.getReference().update("reactions." + me(), emoji == null ? FieldValue.delete() : emoji); }
     private void togglePin(String id, String text, boolean isPinned) {
         List<Map<String, Object>> pins = new ArrayList<>(pins());
         if (isPinned) { for (Iterator<Map<String, Object>> it = pins.iterator(); it.hasNext(); ) if (id.equals(s(it.next(), "id"))) it.remove(); pinIdx = -1; db().collection("chats").document(chatId).update("pins", pins); toast(this, "تم إلغاء تثبيت الرسالة"); return; }
-        if (pins.size() >= 10) { toast(this, "الحد الأقصى 10 رسائل مثبتة"); return; }
-        Map<String, Object> p = new HashMap<>(); p.put("id", id); p.put("text", text.length() > 90 ? text.substring(0, 90) : text); p.put("by", me()); p.put("at", System.currentTimeMillis()); pins.add(p); pinIdx = pins.size() - 1;
-        Map<String, Object> up = addSystem(chatId, "pin", null, Collections.<String, Object>singletonMap("ref", id)); up.put("pins", pins);
-        db().collection("chats").document(chatId).update(up); toast(this, "تم تثبيت الرسالة");
+        if (pins.size() >= 10) { toast(this, "الحد الأقصى 10 رسائل مثبتة"); return; } Map<String, Object> p = new HashMap<>(); p.put("id", id); p.put("text", text.length() > 90 ? text.substring(0, 90) : text); p.put("by", me()); p.put("at", System.currentTimeMillis()); pins.add(p); pinIdx = pins.size() - 1;
+        Map<String, Object> up = addSystem(chatId, "pin", null, Collections.<String, Object>singletonMap("ref", id)); up.put("pins", pins); db().collection("chats").document(chatId).update(up); toast(this, "تم تثبيت الرسالة");
+    }
+
+    // ---------- قائمة الرسائل ----------
+    private boolean readByAll(long created) { Map<String, Object> ra = map(meta, "readAt"); int others = 0; for (String u : parts(meta)) if (!u.equals(me())) { others++; if (l(ra.get(u)) < created) return false; } return others > 0; }
+    private String keyOf(DocumentSnapshot d) { return isTrue(d.get("system")) ? null : s(d.getData(), "senderId"); }
+    private GradientDrawable bubbleBg(boolean mine, boolean first, boolean last) {
+        float big = t.u(20), sm = t.u(6), tl, tr, br, bl;
+        if (mine) { tl = big; bl = big; tr = first ? big : sm; br = last ? (first ? sm : big) : sm; }
+        else { tr = big; br = big; tl = first ? big : sm; bl = last ? (first ? sm : big) : sm; }
+        GradientDrawable g;
+        if (mine) g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{t.pal.mineFrom, t.pal.mineTo});
+        else { g = new GradientDrawable(); g.setColor(t.crCard); g.setStroke(Math.max(1, t.u(1)), t.crLine); }
+        g.setCornerRadii(new float[]{tl, tl, tr, tr, br, br, bl, bl}); return g;
+    }
+    private final class MsgAdapter extends BaseAdapter {
+        public int getCount() { return msgs.size(); } public Object getItem(int i) { return msgs.get(i); } public long getItemId(int i) { return i; }
+        public View getView(int pos, View cv, ViewGroup parent) {
+            final Activity A = GroupRoomActivity.this; final DocumentSnapshot d = msgs.get(pos); final Map<String, Object> m = d.getData();
+            LinearLayout row = new LinearLayout(A); row.setOrientation(LinearLayout.HORIZONTAL); rtl(row); row.setLayoutParams(new AbsListView.LayoutParams(-1, -2));
+            if (isTrue(m.get("system"))) {
+                TextView tx = tv(A, t, sysText(m), 12.5f, t.dark ? 0xFFFFFFFF : 0xFF2A3A48, false); tx.setGravity(Gravity.CENTER); tx.setLineSpacing(0, 1.2f); tx.setBackground(round(t.dark ? 0x4D000000 : 0x1A000000, t.u(14))); tx.setPadding(t.u(13), t.u(5), t.u(13), t.u(5)); tx.setMaxWidth(Math.round(getResources().getDisplayMetrics().widthPixels * .88f));
+                row.setGravity(Gravity.CENTER); row.setPadding(0, t.u(7), 0, t.u(7)); row.addView(tx);
+                if ("pin".equals(s(map(m, "sys"), "k")) && !s(map(m, "sys"), "ref").isEmpty()) { final String ref = s(map(m, "sys"), "ref"); tx.setPaintFlags(tx.getPaintFlags() | android.graphics.Paint.UNDERLINE_TEXT_FLAG); tx.setOnClickListener(v -> jumpTo(ref)); } return row;
+            }
+            final String sid = s(m, "senderId"); final boolean mine = sid.equals(me()); String prevK = pos > 0 ? keyOf(msgs.get(pos - 1)) : null, nextK = pos + 1 < msgs.size() ? keyOf(msgs.get(pos + 1)) : null; final boolean first = !sid.equals(prevK), last = !sid.equals(nextK);
+            row.setPadding(0, t.u(first ? 9 : 2), 0, 0); int screen = getResources().getDisplayMetrics().widthPixels; int maxBub = Math.round(screen * .92f) - (mine ? 0 : t.k(32) + t.u(7)) - t.u(28);
+            LinearLayout col = new LinearLayout(A); col.setOrientation(LinearLayout.VERTICAL);
+            final LinearLayout bub = new LinearLayout(A); bub.setOrientation(LinearLayout.VERTICAL); bub.setBackground(bubbleBg(mine, first, last)); bub.setElevation(t.u(2)); bub.setPadding(t.u(13), t.u(8), t.u(13), t.u(6));
+            int txtColor = mine ? t.pal.textMine : t.crInk, metaColor = mine ? (t.pal.textMine & 0x00FFFFFF | 0xE6000000) : t.crMuted;
+            if (!mine && first) {
+                LinearLayout hd = new LinearLayout(A); hd.setLayoutDirection(View.LAYOUT_DIRECTION_LTR); hd.setGravity(Gravity.CENTER_VERTICAL); TextView sn = tv(A, t, userName(sid), 13.5f, colorOf(sid), true); sn.setSingleLine(true); sn.setEllipsize(TextUtils.TruncateAt.END); sn.setMaxWidth(Math.min(t.u(200), Math.round(screen * .46f))); hd.addView(sn);
+                View sp = new View(A); hd.addView(sp, lpw(0, 1, 1)); String tt = title(sid, meta);
+                if (!tt.isEmpty()) { String r = role(sid, meta); TextView rl = tv(A, t, tt, 11.5f, r.equals("owner") ? (t.dark ? 0xFFA78BFA : 0xFF7C3AED) : r.equals("admin") ? (t.dark ? 0xFF4ADE80 : 0xFF16A34A) : t.sub, true); int bg = r.equals("owner") ? (t.dark ? 0x33A78BFA : 0x1F7C3AED) : r.equals("admin") ? (t.dark ? 0x294ADE80 : 0x1F16A34A) : 0x2E8798AA; rl.setBackground(round(bg, t.u(10))); rl.setPadding(t.u(10), t.u(2), t.u(10), t.u(2)); LinearLayout.LayoutParams rp = lp(-2, -2); rp.setMarginStart(t.u(10)); hd.addView(rl, rp); }
+                LinearLayout.LayoutParams hp = lp(-1, -2); hp.bottomMargin = t.u(3); bub.addView(hd, hp); hd.setOnClickListener(v -> openInfo(sid));
+            }
+            String rTo = s(m, "replyTo"); if (!rTo.isEmpty()) {
+                LinearLayout q = new LinearLayout(A); q.setOrientation(LinearLayout.VERTICAL); q.setBackground(round(mine ? 0x1A000000 : 0x247F8CA0, t.u(10))); q.setPadding(t.u(9), t.u(5), t.u(9), t.u(5)); String rs = s(m, "replyToSenderId");
+                q.addView(tv(A, t, rs.isEmpty() ? "" : userName(rs), 12.5f, mine ? txtColor : t.gold, true)); TextView qt = tv(A, t, rTo, 12.5f, txtColor, false); qt.setAlpha(.85f); qt.setSingleLine(true); qt.setEllipsize(TextUtils.TruncateAt.END); q.addView(qt); LinearLayout.LayoutParams qp = lp(-1, -2); qp.bottomMargin = t.u(5); bub.addView(q, qp); final String rid = s(m, "replyToId"); q.setOnClickListener(v -> jumpTo(rid));
+            }
+            String type = s(m, "type"); final String data = s(m, "data");
+            if (type.equals("image") && !data.isEmpty()) {
+                final ImageView iv = new ImageView(A); iv.setScaleType(ImageView.ScaleType.CENTER_CROP); iv.setBackground(round(0x22000000, t.u(14))); int w = Math.min(maxBub - t.u(26), t.u(230)); int hgt = Math.round(w * (l(m.get("w")) > 0 && l(m.get("h")) > 0 ? Math.min(1.4f, Math.max(.6f, l(m.get("h")) / (float) l(m.get("w")))) : .75f)); bub.addView(iv, lp(w, hgt));
+                final String src = !s(m, "imageUrl").isEmpty() ? s(m, "imageUrl") : data; loadBitmap(src, 900, bm -> iv.post(() -> iv.setImageBitmap(bm))); iv.setOnClickListener(v -> viewImage(src));
+            } else if (type.equals("audio") && !data.isEmpty()) {
+                LinearLayout ar = new LinearLayout(A); ar.setGravity(Gravity.CENTER_VERTICAL); final boolean playing = playingId.equals(d.getId()); FrameLayout pb = new FrameLayout(A); pb.setBackground(oval(mine ? 0xFFFFFFFF : t.gold)); pb.addView(icon(A, playing ? IC_PAUSE : IC_PLAY, mine ? 0xFFA9791A : 0xFFFFFFFF, 18), center(A, 18)); ar.addView(pb, lp(t.k(38), t.k(38)));
+                LinearLayout wave = new LinearLayout(A); wave.setGravity(Gravity.CENTER_VERTICAL); wave.setPadding(t.u(10), 0, t.u(10), 0); int[] hs = {8, 14, 10, 18, 12, 20, 9, 16, 11, 19, 8, 14, 10, 17}; for (int hh : hs) { View bar = new View(A); bar.setBackground(round(playing ? (mine ? 0xFFFFFFFF : t.gold) : (txtColor & 0x00FFFFFF | 0x99000000), t.u(2))); LinearLayout.LayoutParams bp = lp(t.u(3), t.u(hh)); bp.setMarginEnd(t.u(3)); wave.addView(bar, bp); }
+                ar.addView(wave); long du = l(m.get("duration")); ar.addView(tv(A, t, String.format(Locale.US, "%d:%02d", du / 60, du % 60), 12.5f, txtColor, false)); bub.addView(ar); ar.setOnClickListener(v -> togglePlay(d.getId(), data));
+            } else {
+                String text = s(m, "text"); SpannableString sp = new SpannableString(text); java.util.regex.Matcher mm = java.util.regex.Pattern.compile("@[A-Za-z][A-Za-z0-9_.]{2,}").matcher(sp);
+                while (mm.find()) sp.setSpan(new android.text.style.ForegroundColorSpan(mine ? (t.dark ? 0xFFA9D4FF : 0xFF0B4F8A) : t.pal.accent), mm.start(), mm.end(), 0);
+                TextView body = tv(A, t, "", 15.5f, txtColor, false); body.setText(sp); body.setLineSpacing(0, 1.25f); body.setMaxWidth(maxBub - t.u(26)); body.setIncludeFontPadding(true); bub.addView(body);
+            }
+            LinearLayout mr = new LinearLayout(A); mr.setLayoutDirection(View.LAYOUT_DIRECTION_LTR); mr.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL); long ct = l(m.get("createdAt")); mr.addView(tv(A, t, fmtTime(ct), 10.5f, metaColor, false));
+            if (mine) { boolean rd = readByAll(ct); TextView tk = tv(A, t, rd ? "✓✓" : "✓", 11, rd ? t.pal.tick : metaColor, true); tk.setPadding(t.u(4), 0, 0, 0); mr.addView(tk); } LinearLayout.LayoutParams mlp = lp(-1, -2); mlp.topMargin = t.u(3); bub.addView(mr, mlp);
+            bub.setOnLongClickListener(v -> { msgMenu(d); return true; }); bub.setOnClickListener(null);
+            col.addView(bub);
+            Map<String, Object> rx = map(m, "reactions"); if (!rx.isEmpty()) { Map<String, Integer> cnt = new LinkedHashMap<>(); for (Object v : rx.values()) { String e = String.valueOf(v); cnt.put(e, cnt.containsKey(e) ? cnt.get(e) + 1 : 1); } LinearLayout rr = new LinearLayout(A);
+                for (final Map.Entry<String, Integer> en : cnt.entrySet()) { TextView c = tv(A, t, en.getKey() + (en.getValue() > 1 ? " " + en.getValue() : ""), 13, t.crInk, false); c.setBackground(round(0x2E7F8CA0, t.u(14))); c.setPadding(t.u(8), t.u(2), t.u(8), t.u(2)); LinearLayout.LayoutParams cp = lp(-2, -2); cp.setMarginEnd(t.u(4)); rr.addView(c, cp); c.setOnClickListener(v -> setReaction(d, en.getKey().equals(mine2(m)) ? null : en.getKey())); }
+                LinearLayout.LayoutParams rlp = lp(-2, -2); rlp.topMargin = t.u(2); col.addView(rr, rlp); }
+            if (d.getId().equals(flashId)) { bub.setAlpha(.35f); bub.animate().alpha(1f).setDuration(1200).start(); }
+            if (mine) { row.setGravity(Gravity.START); row.addView(col); }
+            else { row.setGravity(Gravity.END); row.addView(col); Av av = new Av(A, 32 * t.s); av.setUser(sid); av.setVisibility(last ? View.VISIBLE : View.INVISIBLE); LinearLayout.LayoutParams al = lp(t.k(32), t.k(32)); al.setMarginStart(t.u(7)); al.gravity = Gravity.BOTTOM; al.bottomMargin = t.u(2); row.addView(av, al); av.setOnClickListener(v -> openInfo(sid)); }
+            return row;
+        }
+    }
+    private String mine2(Map<String, Object> m) { return s(map(m, "reactions"), me()); }
+    private void viewImage(String src) {
+        final Dialog dg = new Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen); final ImageView iv = new ImageView(this); iv.setScaleType(ImageView.ScaleType.FIT_CENTER); iv.setBackgroundColor(0xFF000000); iv.setOnClickListener(v -> dg.dismiss()); dg.setContentView(iv); dg.show();
+        loadBitmap(src, 2048, bm -> iv.post(() -> iv.setImageBitmap(bm)));
     }
 }

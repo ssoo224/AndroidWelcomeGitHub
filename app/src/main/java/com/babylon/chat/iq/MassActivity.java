@@ -3610,6 +3610,7 @@ public class MassActivity extends Activity {
             }
 
             void loadChats() {
+                GroupRows.start(act, () -> { try { buildChats(); } catch (Throwable ignored) { } });
                 db.collection("chats")
                     .whereArrayContains("participants", myUid)
                     .addSnapshotListener((snapshots, e) -> {
@@ -4251,6 +4252,7 @@ public class MassActivity extends Activity {
                 final java.util.HashMap<String, String> nextSigs = new java.util.HashMap<>();
                 int unreadChats = 0;
                 for (String[] c : chatData) if (!c[3].equals("0")) unreadChats++;
+                unreadChats += GroupRows.unreadChats();
                 TextView fltUnread = tv("fltUnread");
                 if (fltUnread != null) {
                     fltUnread.setText("غير المقروءة");
@@ -4489,6 +4491,26 @@ public class MassActivity extends Activity {
                         row.setBackground(sg);
                     }
                 }
+                try {   // المجموعات: تُدمج بين المحادثات حسب وقت آخر نشاط (المثبّتة أولاً)
+                    java.util.List<GroupRows.G> gl = GroupRows.all();
+                    if (!gl.isEmpty()) {
+                        java.util.ArrayList<Long> tsl = new java.util.ArrayList<>();
+                        for (String[] c2 : orderedChats()) {
+                            if (unreadOnly && c2[3].equals("0")) continue;
+                            boolean pn = c2.length > 4 && pinsNow.contains(chatIdOf(c2[4]));
+                            Long tv = c2.length > 4 ? chatTsMap.get(c2[4]) : null;
+                            tsl.add(pn ? Long.MAX_VALUE : (tv == null ? 0L : tv));
+                        }
+                        for (GroupRows.G g : gl) {
+                            if (unreadOnly && g.unread == 0) continue;
+                            View gv = GroupRows.row(act, g, dark, cText(), cGold(), unreadOnly);
+                            int at = Math.min(tsl.size(), list.getChildCount());
+                            for (int i = 0; i < Math.min(tsl.size(), list.getChildCount()); i++) if (tsl.get(i) < g.ts) { at = i; break; }
+                            list.addView(gv, at); tsl.add(Math.min(at, tsl.size()), g.ts);
+                            FontManager.applyTo(act, gv); chatRowPress(gv);
+                        }
+                    }
+                } catch (Throwable ignored) { }
                 rowCache = nextCache; rowSigs = nextSigs;   // الصفوف التي زالت من القائمة تُترك للتنظيف
                 if (list.getChildCount() == 0 && !chatsLoadedOnce) {
                     list.addView(Skeleton.chatRows(act, dark));   // لم تصل القائمة بعد (لا خزن ولا سيرفر): هيكل لامع بدل «لا توجد محادثات»
@@ -10863,12 +10885,7 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 else if (id.equals("fltAll")) setFilter(false);
                 else if (id.equals("fltUnread")) setFilter(true);
                 else if (id.equals("newGroupFab")) {
-                    new AlertDialog.Builder(act).setTitle("المجموعات")
-                        .setItems(new String[]{"مجموعة جديدة", "مجموعاتي"}, (d, w) -> {
-                            Intent gi = new Intent(act, w == 0 ? GroupPickerActivity.class : GroupListActivity.class);
-                            if (w == 0) gi.putExtra("mode", "create");
-                            act.startActivity(gi);
-                        }).show();
+                    Intent gi = new Intent(act, GroupPickerActivity.class); gi.putExtra("mode", "create"); act.startActivity(gi);
                 }
                 else if (id.equals("pEdit") || id.equals("pBioRow")) openEdit();
                 else if (id.equals("pPhoto")) pickProfilePhoto();
