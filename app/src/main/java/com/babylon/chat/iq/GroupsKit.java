@@ -272,32 +272,54 @@ final class GroupsKit {
     }
     static String toDataUrl(Bitmap b) { java.io.ByteArrayOutputStream o = new java.io.ByteArrayOutputStream(); b.compress(Bitmap.CompressFormat.JPEG, 82, o); return "data:image/jpeg;base64," + Base64.encodeToString(o.toByteArray(), Base64.NO_WRAP); }
 
-    // ---------- الحوارات (نفس .cl-dlg النهائي: عنوان وسط، أزرار ذهبية متساوية) ----------
+    // ---------- الحوارات (نفس .cl-dlg.cl-del النهائي: أيقونة دائرية، عنوان وسط، أزرار مملوءة) ----------
     interface AskCb { void done(boolean ok, String value); }
+    static final String IC_WARN = "M12 9v4m0 4h.01M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3l-7.5-13.1a2 2 0 0 0-3.4 0Z";
+    static final String IC_EDIT = "m14 5 5 5M4 20l4.5-1 11-11a2.12 2.12 0 0 0-3-3l-11 11L4 20Z";
+    static final String IC_INFO = "M12 11v5M12 8h.01M21 12a9 9 0 1 0-18 0 9 9 0 0 0 18 0";
+    static final String IC_LIST = "M4 7h16M4 12h16M4 17h16";
+    /** مفتاح الذهب المتدرج للأزرار الدائرية (.gx-fab النهائي: 54 × 54، أيقونة بيضاء). */
+    static FrameLayout goldFab(Context c, Th t, String icon, float stroke) {
+        FrameLayout f = new FrameLayout(c); f.setBackground(goldGrad(0, true)); f.addView(new Ic(c, icon, 0xFFFFFFFF, 26, false).width(stroke), center(c, 26)); f.setElevation(t.u(8)); return f;
+    }
     static Dialog ask(Activity a, Th t, String title, String bodyHtml, String inputInit, String hint, int max, boolean multiline, String okText, String cancelText, AskCb cb) {
+        return askX(a, t, title, bodyHtml, inputInit, hint, max, multiline, okText, cancelText, false, inputInit != null ? IC_EDIT : IC_INFO, cb);
+    }
+    static Dialog askX(Activity a, Th t, String title, String bodyHtml, String inputInit, String hint, int max, boolean multiline, String okText, String cancelText, boolean danger, String icon, AskCb cb) {
         final Dialog d = new Dialog(a); d.requestWindowFeature(Window.FEATURE_NO_TITLE);
-        LinearLayout card = new LinearLayout(a); card.setOrientation(LinearLayout.VERTICAL); card.setBackground(round(t.card, t.u(20))); card.setPadding(t.u(18), t.u(20), t.u(18), t.u(16)); rtl(card);
-        TextView h = tv(a, t, title, 17, t.text, true); h.setGravity(Gravity.CENTER); card.addView(h, lp(-1, -2));
-        if (bodyHtml != null && !bodyHtml.isEmpty()) { TextView b = tv(a, t, Html.fromHtml(bodyHtml.replace("<b>", "<b><font color='" + String.format("#%06X", 0xFFFFFF & t.gold) + "'>").replace("</b>", "</font></b>")), 13.5f, t.sub, false); b.setGravity(Gravity.CENTER); b.setLineSpacing(0, 1.35f); LinearLayout.LayoutParams bp = lp(-1, -2); bp.topMargin = t.u(6); card.addView(b, bp); }
+        final int gold = t.dark ? 0xFFE4C45B : 0xFFC99A1C, tone = danger ? (t.dark ? 0xFFF0605D : 0xFFE5484D) : gold;
+        LinearLayout card = new LinearLayout(a); card.setOrientation(LinearLayout.VERTICAL); card.setPadding(t.u(20), t.u(26), t.u(20), t.u(18)); rtl(card);
+        // الخط الذهبي العلوي (3dp)
+        FrameLayout shell = new FrameLayout(a); GradientDrawable sbg = round(t.card, t.u(26)); sbg.setStroke(Math.max(1, t.u(1)), t.dark ? 0x1FFFFFFF : 0x2416202B); shell.setBackground(sbg); shell.setClipToOutline(true); shell.addView(card, new FrameLayout.LayoutParams(-1, -2));
+        View line = new View(a); GradientDrawable lg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{0, gold, gold, 0}); line.setBackground(lg); line.setAlpha(.85f); shell.addView(line, new FrameLayout.LayoutParams(-1, t.u(3), Gravity.TOP));
+        if (icon != null) {
+            FrameLayout ringW = new FrameLayout(a); ringW.setBackground(oval((tone & 0x00FFFFFF) | 0x0D000000)); FrameLayout ic = new FrameLayout(a); ic.setBackground(oval((tone & 0x00FFFFFF) | (danger ? (t.dark ? 0x24000000 : 0x1C000000) : (t.dark ? 0x24000000 : 0x21000000))));
+            ic.addView(new Ic(a, icon, tone, 28 * t.s, false).width(1.9f), center(a, 28 * t.s)); ringW.addView(ic, new FrameLayout.LayoutParams(t.k(62), t.k(62), Gravity.CENTER));
+            LinearLayout.LayoutParams rp = lp(t.k(62) + t.u(16), t.k(62) + t.u(16)); rp.gravity = Gravity.CENTER_HORIZONTAL; rp.bottomMargin = t.u(6); card.addView(ringW, rp);
+        }
+        TextView h = tv(a, t, title, 19, t.text, true); h.setGravity(Gravity.CENTER); card.addView(h, lp(-1, -2));
+        if (bodyHtml != null && !bodyHtml.isEmpty()) { TextView b = tv(a, t, Html.fromHtml(bodyHtml.replace("<b>", "<b><font color='" + String.format("#%06X", 0xFFFFFF & gold) + "'>").replace("</b>", "</font></b>")), 14.5f, t.sub, false); b.setGravity(Gravity.CENTER); b.setLineSpacing(0, 1.5f); LinearLayout.LayoutParams bp = lp(-1, -2); bp.topMargin = t.u(8); card.addView(b, bp); }
         EditText e = null;
         if (inputInit != null) {
-            e = new EditText(a); e.setText(inputInit); e.setHint(hint); e.setHintTextColor(t.sub & 0x66FFFFFF | 0x66000000); e.setTextColor(t.text); e.setTextSize(15.5f * t.s); e.setFilters(new InputFilter[]{new InputFilter.LengthFilter(max)});
-            e.setBackground(round(t.chip, t.u(12))); e.setPadding(t.u(13), t.u(11), t.u(13), t.u(11)); e.setSelection(e.length());
-            if (multiline) { e.setMinLines(3); e.setGravity(Gravity.TOP | Gravity.RIGHT); } else { e.setSingleLine(true); e.setGravity(Gravity.CENTER); e.setTypeface(Typeface.DEFAULT_BOLD); }
-            LinearLayout.LayoutParams ep = lp(-1, -2); ep.topMargin = t.u(12); card.addView(e, ep);
+            e = new EditText(a); e.setText(inputInit); e.setHint(hint); e.setHintTextColor(t.sub & 0x00FFFFFF | 0x80000000); e.setTextColor(t.text); e.setTextSize((multiline ? 16f : 22f) * t.s); e.setFilters(new InputFilter[]{new InputFilter.LengthFilter(max)});
+            GradientDrawable eb = round(t.chip, t.u(16)); eb.setStroke(Math.max(1, t.u(1.5f)), 0); e.setBackground(eb); e.setPadding(t.u(14), t.u(12), t.u(14), t.u(12)); e.setSelection(e.length()); e.setTypeface(Typeface.DEFAULT_BOLD);
+            if (multiline) { e.setMinLines(3); e.setGravity(Gravity.TOP | Gravity.CENTER_HORIZONTAL); } else { e.setSingleLine(true); e.setGravity(Gravity.CENTER); }
+            LinearLayout.LayoutParams ep = lp(-1, -2); ep.topMargin = t.u(16); card.addView(e, ep);
         }
-        LinearLayout row = new LinearLayout(a); row.setOrientation(LinearLayout.HORIZONTAL); LinearLayout.LayoutParams rp = lp(-1, -2); rp.topMargin = t.u(14); card.addView(row, rp);
+        LinearLayout row = new LinearLayout(a); row.setOrientation(LinearLayout.HORIZONTAL); LinearLayout.LayoutParams rp = lp(-1, -2); rp.topMargin = t.u(16); card.addView(row, rp);
         final EditText fe = e;
-        TextView ok = tv(a, t, okText, 14.5f, 0xFFFFFFFF, true); ok.setGravity(Gravity.CENTER); ok.setPadding(0, t.u(11), 0, t.u(11)); ok.setBackground(goldGrad(t.u(12), false)); ok.setShadowLayer(2, 0, 1, 0x73006E48);
+        TextView ok = tv(a, t, okText, 15.5f, danger ? 0xFFFFFFFF : 0xFF16202B, true); ok.setGravity(Gravity.CENTER); ok.setPadding(0, t.u(13), 0, t.u(13));
+        GradientDrawable okBg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, danger ? new int[]{0xFFF0605D, 0xFFD94545} : (t.dark ? new int[]{0xFFE4C45B, 0xFFC99A1C} : new int[]{0xFFE4B93F, 0xFFC99A1C})); okBg.setCornerRadius(t.u(16)); ok.setBackground(okBg); ok.setElevation(t.u(3));
         ok.setOnClickListener(v -> { d.dismiss(); cb.done(true, fe == null ? "" : fe.getText().toString().trim()); });
-        TextView no = tv(a, t, cancelText, 14.5f, t.text, true); no.setGravity(Gravity.CENTER); no.setPadding(0, t.u(11), 0, t.u(11)); no.setBackground(round(t.chip, t.u(12)));
+        TextView no = tv(a, t, cancelText, 15.5f, t.text, true); no.setGravity(Gravity.CENTER); no.setPadding(0, t.u(13), 0, t.u(13)); no.setBackground(round(t.chip, t.u(16)));
         no.setOnClickListener(v -> { d.dismiss(); cb.done(false, ""); });
-        LinearLayout.LayoutParams p1 = lpw(0, -2, 1), p2 = lpw(0, -2, 1); p2.setMarginEnd(t.u(8)); row.addView(ok, p1); row.addView(no, p2);
-        d.setContentView(card); Window w = d.getWindow(); w.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0)); w.setDimAmount(.52f); w.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-        w.setLayout(Math.min(t.u(340), a.getResources().getDisplayMetrics().widthPixels - t.u(44)), ViewGroup.LayoutParams.WRAP_CONTENT); w.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE);
+        LinearLayout.LayoutParams p1 = lpw(0, -2, 1), p2 = lpw(0, -2, 1); p2.setMarginEnd(t.u(10)); row.addView(ok, p1); row.addView(no, p2);
+        d.setContentView(shell); Window w = d.getWindow(); w.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0)); w.setDimAmount(.52f); w.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        w.setLayout(Math.min(t.u(340), a.getResources().getDisplayMetrics().widthPixels - t.u(44)), ViewGroup.LayoutParams.WRAP_CONTENT); if (inputInit != null) w.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE);
         d.show(); return d;
     }
-    static void confirm(Activity a, Th t, String title, String bodyHtml, String ok, AskCb cb) { ask(a, t, title, bodyHtml, null, null, 0, false, ok, "إلغاء", cb); }
+    static void confirm(Activity a, Th t, String title, String bodyHtml, String ok, AskCb cb) { askX(a, t, title, bodyHtml, null, null, 0, false, ok, "إلغاء", true, IC_WARN, cb); }
+    static void confirmGold(Activity a, Th t, String title, String bodyHtml, String ok, String cancel, AskCb cb) { askX(a, t, title, bodyHtml, null, null, 0, false, ok, cancel, false, IC_INFO, cb); }
 
     /** نافذة العضو (.up-wrap): رأس 64 + صندوق أزرار بفاصل 4. */
     interface PopCb { void pick(String key); }

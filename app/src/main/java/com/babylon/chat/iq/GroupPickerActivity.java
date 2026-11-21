@@ -54,16 +54,16 @@ public class GroupPickerActivity extends Activity {
         LinearLayout tt = new LinearLayout(this); tt.setOrientation(LinearLayout.VERTICAL); tt.setPadding(t.u(4), 0, 0, 0); tt.addView(tv(this, t, title, 18, t.text, true));
         subTv = tv(this, t, sub, 12.5f, t.sub, false); LinearLayout.LayoutParams sp = lp(-2, -2); sp.topMargin = t.u(1); tt.addView(subTv, sp); top.addView(tt); return top;
     }
-    private FrameLayout makeFab(String ic) { FrameLayout f = new FrameLayout(this); f.setBackground(oval(t.gold)); f.addView(icon(this, ic, 0xFF1A1A1A, 26).width(2.6f), center(this, 26)); f.setElevation(t.u(8));
-        FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(t.k(58), t.k(58), Gravity.BOTTOM | Gravity.LEFT); p.leftMargin = t.u(18); p.bottomMargin = t.u(22); root.addView(f, p); return f; }
+    private FrameLayout makeFab(String ic) { FrameLayout f = goldFab(this, t, ic, ic.equals(IC_BACK) ? 2.4f : 2.6f);
+        FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(t.k(54), t.k(54), Gravity.BOTTOM | Gravity.LEFT); p.leftMargin = t.u(18); p.bottomMargin = t.u(22); root.addView(f, p); return f; }
 
     // ---------- الخطوة 1 ----------
     private void step1() {
         step = 1; root.removeAllViews(); LinearLayout col = new LinearLayout(this); col.setOrientation(LinearLayout.VERTICAL);
-        col.addView(topBar(mode.equals("add") ? "إضافة أعضاء" : "مجموعة جديدة", "اختر الأعضاء", v -> finish()));
+        col.addView(topBar(mode.equals("add") ? "إضافة أعضاء" : "مجموعة جديدة", "", v -> finish()));
         chipsScroll = new HorizontalScrollView(this); chipsScroll.setHorizontalScrollBarEnabled(false); chipsBox = new LinearLayout(this); chipsBox.setPadding(t.u(14), t.u(4), t.u(14), t.u(8)); chipsScroll.addView(chipsBox); col.addView(chipsScroll);
         LinearLayout sr = new LinearLayout(this); sr.setGravity(Gravity.CENTER_VERTICAL); sr.setPadding(t.u(13), 0, t.u(13), 0); sr.setBackground(round(t.chip, t.u(15))); sr.addView(icon(this, IC_SEARCH, t.sub, 19));
-        EditText se = new EditText(this); se.setHint("بحث أو اكتب اسم المستخدم"); se.setHintTextColor(t.sub); se.setTextColor(t.text); se.setTextSize(15 * t.s); se.setBackground(null); se.setSingleLine(true); se.setText(q); se.setPadding(t.u(9), t.u(12), 0, t.u(12)); sr.addView(se, lpw(0, -2, 1));
+        EditText se = new EditText(this); se.setHint("ابحث بالاسم أو @اليوزر"); se.setHintTextColor(t.sub); se.setTextColor(t.text); se.setTextSize(15 * t.s); se.setBackground(null); se.setSingleLine(true); se.setText(q); se.setPadding(t.u(9), t.u(12), 0, t.u(12)); sr.addView(se, lpw(0, -2, 1));
         LinearLayout.LayoutParams slp = lp(-1, -2); slp.setMargins(t.u(14), t.u(2), t.u(14), t.u(8)); col.addView(sr, slp);
         ScrollView sv = new ScrollView(this); listBox = new LinearLayout(this); listBox.setOrientation(LinearLayout.VERTICAL); listBox.setPadding(0, 0, 0, t.u(110)); sv.addView(listBox); col.addView(sv, lpw(-1, 0, 1));
         root.addView(col, new FrameLayout.LayoutParams(-1, -1)); fab = makeFab(mode.equals("add") ? IC_CHECK : IC_BACK);
@@ -91,15 +91,15 @@ public class GroupPickerActivity extends Activity {
         if (listBox == null) return; listBox.removeAllViews(); String qq = q.trim().replaceFirst("^@", "").toLowerCase();
         List<String> ids = new ArrayList<>(contacts); for (String u : extra) if (!ids.contains(u)) ids.add(u);
         if (!qq.isEmpty()) { List<String> f = new ArrayList<>(); for (String u : ids) { U g = user(u); if (g.name.toLowerCase().contains(qq) || g.username.toLowerCase().contains(qq)) f.add(u); } ids = f; }
-        if (ids.isEmpty()) { TextView e = tv(this, t, qq.isEmpty() ? "ما عندك جهات دردشة بعد. ابدأ محادثة مع شخص أولاً." : "لا توجد نتائج. اكتب اليوزر كاملاً للبحث عن مستخدم جديد.", 14, t.sub, false); e.setGravity(Gravity.CENTER); e.setLineSpacing(0, 1.3f); e.setPadding(t.u(24), t.u(40), t.u(24), 0); listBox.addView(e); return; }
+        if (ids.isEmpty()) { TextView e = tv(this, t, qq.isEmpty() ? "ما عندك جهات دردشة بعد. أضف شخصاً من بروفايله (⋮ ثم إضافة لجهات الدردشة) أو ابحث بيوزره." : "لا توجد نتائج. اكتب اليوزر كاملاً للبحث عن مستخدم جديد.", 14, t.sub, false); e.setGravity(Gravity.CENTER); e.setLineSpacing(0, 1.3f); e.setPadding(t.u(24), t.u(40), t.u(24), 0); listBox.addView(e); return; }
         if (qq.isEmpty()) { TextView sec = tv(this, t, "جهات الدردشة", 13, t.gold, true); sec.setPadding(t.u(18), t.u(12), t.u(18), t.u(6)); listBox.addView(sec); }
         for (final String u : ids) {
             final U g = user(u); boolean on = selected.contains(u); LinearLayout r = new LinearLayout(this); r.setGravity(Gravity.CENTER_VERTICAL); r.setPadding(t.u(16), t.u(9), t.u(16), t.u(9));
             Av av = new Av(this, 48 * t.s); av.setUser(u); r.addView(av, lp(t.k(48), t.k(48))); LinearLayout x = new LinearLayout(this); x.setOrientation(LinearLayout.VERTICAL); x.setPadding(t.u(13), 0, t.u(13), 0);
             x.addView(tv(this, t, g.name, 15.5f, t.text, true)); if (!g.username.isEmpty()) { TextView us = tv(this, t, "@" + g.username, 13, t.sub, false); LinearLayout.LayoutParams up = lp(-2, -2); up.topMargin = t.u(1); x.addView(us, up); } r.addView(x, lpw(0, -2, 1));
-            FrameLayout ck = new FrameLayout(this); android.graphics.drawable.GradientDrawable cd = new android.graphics.drawable.GradientDrawable(); cd.setShape(android.graphics.drawable.GradientDrawable.OVAL);
-            if (on) { cd.setColor(t.gold); cd.setStroke(t.u(2), t.gold); ck.addView(icon(this, IC_CHECK, 0xFF111111, 15).width(3.2f), center(this, 15)); } else { cd.setColor(0); cd.setStroke(t.u(2), t.sub); ck.setAlpha(.55f); }
-            ck.setBackground(cd); r.addView(ck, lp(t.k(24), t.k(24))); r.setOnClickListener(v -> { toggle(u); renderChips(); renderList(); }); listBox.addView(r);
+            FrameLayout ck = new FrameLayout(this); android.graphics.drawable.GradientDrawable cd;
+            if (on) { cd = goldGrad(0, true); cd.setStroke(t.u(2), 0xFFD3A93B); ck.addView(icon(this, IC_CHECK, 0xFFFFFFFF, 15).width(3.2f), center(this, 15)); } else { cd = new android.graphics.drawable.GradientDrawable(); cd.setShape(android.graphics.drawable.GradientDrawable.OVAL); cd.setColor(0); cd.setStroke(t.u(2), t.sub); ck.setAlpha(.55f); }
+            ck.setBackground(cd); r.addView(ck, lp(t.k(20), t.k(20))); r.setOnClickListener(v -> { toggle(u); renderChips(); renderList(); }); listBox.addView(r);
         }
     }
     private void doAdd() {
@@ -111,13 +111,13 @@ public class GroupPickerActivity extends Activity {
     // ---------- الخطوة 2 ----------
     private void step2() {
         step = 2; root.removeAllViews(); chipsBox = null; listBox = null; fab = null; LinearLayout col = new LinearLayout(this); col.setOrientation(LinearLayout.VERTICAL);
-        col.addView(topBar("مجموعة جديدة", "الاسم والصورة", v -> step1())); ScrollView sv = new ScrollView(this); LinearLayout in = new LinearLayout(this); in.setOrientation(LinearLayout.VERTICAL); sv.addView(in); col.addView(sv, lpw(-1, 0, 1));
+        col.addView(topBar("مجموعة جديدة", "أدخل اسم المجموعة", v -> step1())); ScrollView sv = new ScrollView(this); LinearLayout in = new LinearLayout(this); in.setOrientation(LinearLayout.VERTICAL); sv.addView(in); col.addView(sv, lpw(-1, 0, 1));
         LinearLayout hero = new LinearLayout(this); hero.setOrientation(LinearLayout.VERTICAL); hero.setGravity(Gravity.CENTER_HORIZONTAL); hero.setPadding(t.u(18), t.u(22), t.u(18), t.u(4));
         FrameLayout ph = new FrameLayout(this); ph.setClipChildren(false);
         if (!photo.isEmpty()) { Av a = new Av(this, 96 * t.s); Map<String, Object> m = new HashMap<>(); m.put("name", name); m.put("photo", photo); a.setGroup(m); ph.addView(a, new FrameLayout.LayoutParams(t.k(96), t.k(96))); }
-        else { View bgv = new View(this); bgv.setBackground(goldGrad(0, true)); ph.addView(bgv, new FrameLayout.LayoutParams(t.k(96), t.k(96))); ph.addView(icon(this, IC_CAM, 0xFFFFFFFF, 38 * t.s), center(this, 38 * t.s)); }
-        FrameLayout plus = new FrameLayout(this); android.graphics.drawable.GradientDrawable pg = oval(t.card); pg.setStroke(t.u(3), t.bg); plus.setBackground(pg); plus.addView(icon(this, IC_PLUS, t.gold, 14 * t.s).width(2.4f), center(this, 14 * t.s));
-        ph.addView(plus, new FrameLayout.LayoutParams(t.k(30), t.k(30), Gravity.BOTTOM | Gravity.RIGHT)); ph.setElevation(t.u(6));
+        else { View bgv = new View(this); bgv.setBackground(goldGrad(0, true)); ph.addView(bgv, new FrameLayout.LayoutParams(t.k(96), t.k(96))); ph.addView(new Ic(this, IC_CAM_FILL, 0xFFFFFFFF, 38 * t.s, true), center(this, 38 * t.s)); }
+        FrameLayout plus = new FrameLayout(this); android.graphics.drawable.GradientDrawable pg = oval(t.card); pg.setStroke(t.u(3), t.bg); plus.setBackground(pg); plus.addView(icon(this, IC_PLUS, t.gold, 14 * t.s).width(2.6f), center(this, 14 * t.s));
+        FrameLayout.LayoutParams plp = new FrameLayout.LayoutParams(t.k(30), t.k(30), Gravity.BOTTOM | Gravity.RIGHT); plp.rightMargin = -t.u(2); plp.bottomMargin = -t.u(2); ph.addView(plus, plp); ph.setElevation(t.u(8));
         ph.setOnClickListener(v -> { Intent i = new Intent(Intent.ACTION_GET_CONTENT); i.setType("image/*"); startActivityForResult(i, 77); }); hero.addView(ph, lp(t.k(96), t.k(96)));
         TextView hint = tv(this, t, "صورة المجموعة (اختياري)", 12.5f, t.sub, false); hint.setPadding(0, t.u(10), 0, 0); hero.addView(hint); in.addView(hero);
         LinearLayout fld = new LinearLayout(this); fld.setGravity(Gravity.CENTER_VERTICAL); fld.setBackground(round(t.card, t.u(18))); fld.setPadding(t.u(16), 0, t.u(16), 0); fld.addView(icon(this, IC_USERS, t.gold, 22));
@@ -127,7 +127,7 @@ public class GroupPickerActivity extends Activity {
         LinearLayout.LayoutParams flp = lp(-1, t.k(56)); flp.setMargins(t.u(14), t.u(14), t.u(14), 0); in.addView(fld, flp);
         LinearLayout card = new LinearLayout(this); card.setOrientation(LinearLayout.VERTICAL); card.setBackground(round(t.card, t.u(20))); card.setPadding(0, 0, 0, t.u(6));
         LinearLayout hd = new LinearLayout(this); hd.setGravity(Gravity.CENTER_VERTICAL); hd.setPadding(t.u(16), t.u(14), t.u(16), t.u(6)); FrameLayout hic = new FrameLayout(this); hic.setBackground(round(0x24C99A1C, t.u(11))); hic.addView(icon(this, IC_USERS, t.gold, 19), center(this, 19)); hd.addView(hic, lp(t.k(32), t.k(32)));
-        TextView ht = tv(this, t, "الأعضاء: " + (selected.size() + 1), 14.5f, t.text, true); ht.setPadding(t.u(10), 0, 0, 0); hd.addView(ht); card.addView(hd);
+        TextView ht = tv(this, t, memberWord(selected.size() + 1), 14.5f, t.text, true); ht.setPadding(t.u(10), 0, 0, 0); hd.addView(ht); card.addView(hd);
         for (String u : selected) { U g = user(u); LinearLayout r = new LinearLayout(this); r.setGravity(Gravity.CENTER_VERTICAL); r.setPadding(t.u(16), t.u(9), t.u(16), t.u(9)); Av av = new Av(this, 48 * t.s); av.setUser(u); r.addView(av, lp(t.k(48), t.k(48)));
             LinearLayout x = new LinearLayout(this); x.setOrientation(LinearLayout.VERTICAL); x.setPadding(t.u(13), 0, 0, 0); x.addView(tv(this, t, g.name, 15.5f, t.text, true)); if (!g.username.isEmpty()) x.addView(tv(this, t, "@" + g.username, 13, t.sub, false)); r.addView(x); card.addView(r); }
         LinearLayout.LayoutParams clp = lp(-1, -2); clp.setMargins(t.u(14), t.u(12), t.u(14), t.u(96)); in.addView(card, clp);

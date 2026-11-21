@@ -184,12 +184,12 @@ public class GroupInfoActivity extends Activity {
             body.removeAllViews(); List<String> ids = strList(d, "banned");
             if (ids.isEmpty()) { TextView e = tv(this, t, "لا يوجد أعضاء محظورون.", 14, t.sub, false); e.setGravity(Gravity.CENTER); e.setPadding(t.u(24), t.u(40), t.u(24), 0); body.addView(e); return; }
             LinearLayout c = card(body);
-            for (final String u : ids) memberRow(c, u, null, true, "إلغاء الحظر").setOnClickListener(v -> confirm(this, t, "إلغاء الحظر", "السماح لـ <b>" + esc(user(u).name) + "</b> بالانضمام مجدداً؟", "إلغاء الحظر", (ok, x) -> { if (!ok) return; upd("banned", FieldValue.arrayRemove(u)); toast(this, "تم إلغاء الحظر"); }));
+            for (final String u : ids) memberRow(c, u, null, true, "إلغاء الحظر").setOnClickListener(v -> confirmGold(this, t, "إلغاء الحظر", "السماح لـ <b>" + esc(user(u).name) + "</b> بالانضمام مجدداً؟", "إلغاء الحظر", "تراجع", (ok, x) -> { if (!ok) return; upd("banned", FieldValue.arrayRemove(u)); toast(this, "تم إلغاء الحظر"); }));
         };
         loadUsers(strList(d, "banned"), () -> subRefresh.run());
     }
-    private FrameLayout fab(String ic, boolean on) { FrameLayout f = new FrameLayout(this); f.setBackground(oval(t.gold)); f.addView(icon(this, ic, 0xFF1A1A1A, 26).width(2.6f), center(this, 26)); f.setElevation(t.u(8)); f.setAlpha(on ? 1f : .45f); return f; }
-    private FrameLayout.LayoutParams fabLp() { FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(t.k(58), t.k(58), Gravity.BOTTOM | Gravity.LEFT); p.leftMargin = t.u(18); p.bottomMargin = t.u(22); return p; }
+    private FrameLayout fab(String ic, boolean on) { FrameLayout f = goldFab(this, t, ic, 2.6f); f.setAlpha(on ? 1f : .45f); return f; }
+    private FrameLayout.LayoutParams fabLp() { FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(t.k(54), t.k(54), Gravity.BOTTOM | Gravity.LEFT); p.leftMargin = t.u(18); p.bottomMargin = t.u(22); return p; }
     static String esc(String s) { return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"); }
 
     // ---------- إجراءات العضو ----------

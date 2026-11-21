@@ -77,7 +77,7 @@ public class GroupRoomActivity extends Activity {
         LinearLayout hd = new LinearLayout(this); hd.setGravity(Gravity.CENTER_VERTICAL); hd.setPadding(t.u(10), t.u(8), t.u(10), t.u(6));
         FrameLayout bk = circleBtn(IC_BACK); bk.setOnClickListener(v -> finish()); hd.addView(bk, lp(t.k(44), t.k(44)));
         LinearLayout pill = new LinearLayout(this); pill.setGravity(Gravity.CENTER_VERTICAL); GradientDrawable pg = round(t.crCard, t.u(24)); pg.setStroke(Math.max(1, t.u(1)), t.crLine); pill.setBackground(pg); pill.setElevation(t.u(3)); pill.setPadding(t.u(8), t.u(6), t.u(14), t.u(6)); pill.setOnClickListener(v -> openInfo(null));
-        hdAv = new Av(this, 44 * t.s); hdAv.ring(0xA6D4AF37, t.u(2), t.u(2), t.crCard); pill.addView(hdAv, lp(t.k(44), t.k(44)));
+        hdAv = new Av(this, 44 * t.s); hdAv.ring(0xFFD0D5DD, 0, Math.max(1, t.u(1)), t.crCard); pill.addView(hdAv, lp(t.k(44), t.k(44)));
         LinearLayout tt = new LinearLayout(this); tt.setOrientation(LinearLayout.VERTICAL); tt.setPadding(t.u(11), 0, 0, 0);
         hdName = tv(this, t, "مجموعة", 16.5f, t.crInk, true); hdName.setSingleLine(true); hdName.setEllipsize(TextUtils.TruncateAt.END); hdSub = tv(this, t, "", 12, t.crMuted, false); LinearLayout.LayoutParams sp = lp(-2, -2); sp.topMargin = t.u(2); tt.addView(hdName); tt.addView(hdSub, sp);
         pill.addView(tt, lpw(0, -2, 1)); LinearLayout.LayoutParams pp = lpw(0, -2, 1); pp.setMargins(t.u(8), 0, t.u(8), 0); hd.addView(pill, pp);
@@ -144,7 +144,33 @@ public class GroupRoomActivity extends Activity {
         pinBar.addView(line, lp(t.u(3), t.k(34))); LinearLayout tx = new LinearLayout(this); tx.setOrientation(LinearLayout.VERTICAL); tx.setPadding(t.u(11), 0, t.u(8), 0);
         tx.addView(tv(this, t, "رسالة مثبتة" + (pins.size() > 1 ? " #" + (pinIdx + 1) : ""), 13, t.gold, true)); TextView pt = tv(this, t, s(p, "text"), 13.5f, t.text, false); pt.setAlpha(.85f); pt.setSingleLine(true); pt.setEllipsize(TextUtils.TruncateAt.END); tx.addView(pt); pinBar.addView(tx, lpw(0, -2, 1));
         pinBar.setOnClickListener(v -> { jumpTo(s(p, "id")); if (pins().size() > 1) { pinIdx = (pinIdx - 1 + pins().size()) % pins().size(); renderPinned(); } });
-        if (right("pin", me(), meta)) { FrameLayout x = new FrameLayout(this); x.addView(icon(this, IC_PIN, t.sub, 19), center(this, 19)); pinBar.addView(x, lp(t.k(36), t.k(36))); x.setOnClickListener(v -> confirm(this, t, "إلغاء التثبيت", "هل تريد إلغاء تثبيت هذه الرسالة؟", "إلغاء التثبيت", (ok, y) -> { if (!ok) return; togglePin(s(p, "id"), "", true); })); }
+        if (pins.size() > 1) { FrameLayout x = new FrameLayout(this); x.addView(icon(this, IC_LIST, t.sub, 20).width(2.2f), center(this, 20)); pinBar.addView(x, lp(t.k(36), t.k(36))); x.setOnClickListener(v -> pinsSheet()); }
+        else if (right("pin", me(), meta)) { FrameLayout x = new FrameLayout(this); x.addView(icon(this, IC_PIN_OFF, t.sub, 19), center(this, 19)); pinBar.addView(x, lp(t.k(36), t.k(36))); x.setOnClickListener(v -> askX(this, t, "إلغاء التثبيت", "هل تريد إلغاء تثبيت هذه الرسالة؟", null, null, 0, false, "إلغاء التثبيت", "تراجع", true, IC_WARN, (ok, y) -> { if (!ok) return; togglePin(s(p, "id"), "", true); })); }
+    }
+    private static final String IC_PIN_OFF = IC_PIN + "M3 3l18 18";
+    /** قائمة الرسائل المثبتة (.pins-dlg): أرقام ذهبية، وإلغاء تثبيت الكل للمخوّلين. */
+    private void pinsSheet() {
+        final List<Map<String, Object>> pins = new ArrayList<>(pins()); if (pins.isEmpty()) return; final boolean cp = right("pin", me(), meta);
+        final Dialog dg = new Dialog(this); dg.requestWindowFeature(Window.FEATURE_NO_TITLE); final int gold = t.dark ? 0xFFE4C45B : 0xFFC99A1C;
+        LinearLayout card = new LinearLayout(this); card.setOrientation(LinearLayout.VERTICAL); card.setPadding(t.u(20), t.u(26), t.u(20), t.u(10)); rtl(card);
+        FrameLayout shell = new FrameLayout(this); GradientDrawable sbg = round(t.card, t.u(26)); sbg.setStroke(Math.max(1, t.u(1)), t.dark ? 0x1FFFFFFF : 0x2416202B); shell.setBackground(sbg); shell.setClipToOutline(true); shell.addView(card, new FrameLayout.LayoutParams(-1, -2));
+        View line = new View(this); line.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, new int[]{0, gold, gold, 0})); line.setAlpha(.85f); shell.addView(line, new FrameLayout.LayoutParams(-1, t.u(3), Gravity.TOP));
+        TextView h = tv(this, t, "الرسائل المثبتة", 19, t.text, true); h.setGravity(Gravity.CENTER); card.addView(h, lp(-1, -2));
+        TextView sb = tv(this, t, pins.size() + " رسائل مثبتة في هذه المحادثة", 14.5f, t.sub, false); sb.setGravity(Gravity.CENTER); LinearLayout.LayoutParams sbp = lp(-1, -2); sbp.topMargin = t.u(8); sbp.bottomMargin = t.u(14); card.addView(sb, sbp);
+        ScrollView sv = new ScrollView(this); LinearLayout lst = new LinearLayout(this); lst.setOrientation(LinearLayout.VERTICAL); sv.addView(lst);
+        for (int i = 0; i < pins.size(); i++) { final int idx = i; final Map<String, Object> p = pins.get(i);
+            if (i > 0) { View sp = new View(this); sp.setBackgroundColor(t.sep); lst.addView(sp, lp(-1, 1)); }
+            LinearLayout it = new LinearLayout(this); it.setGravity(Gravity.CENTER_VERTICAL); it.setPadding(t.u(8), t.u(11), t.u(8), t.u(11));
+            TextView n = tv(this, t, String.valueOf(i + 1), 13, gold, true); n.setGravity(Gravity.CENTER); n.setBackground(oval((gold & 0x00FFFFFF) | 0x29000000)); it.addView(n, lp(t.k(26), t.k(26)));
+            TextView tx = tv(this, t, s(p, "text"), 14.5f, t.text, false); tx.setSingleLine(true); tx.setEllipsize(TextUtils.TruncateAt.END); tx.setPadding(t.u(12), 0, 0, 0); it.addView(tx, lpw(0, -2, 1));
+            it.setOnClickListener(v -> { dg.dismiss(); pinIdx = idx; renderPinned(); jumpTo(s(p, "id")); }); lst.addView(it); }
+        card.addView(sv, lp(-1, Math.min(t.u(46 * pins.size()), Math.round(getResources().getDisplayMetrics().heightPixels * .46f))));
+        LinearLayout row = new LinearLayout(this); LinearLayout.LayoutParams rp = lp(-1, -2); rp.topMargin = t.u(10); rp.bottomMargin = t.u(8); card.addView(row, rp);
+        if (cp) { TextView all = tv(this, t, "إلغاء تثبيت الكل", 15.5f, 0xFFFFFFFF, true); all.setGravity(Gravity.CENTER); all.setPadding(0, t.u(13), 0, t.u(13)); GradientDrawable ab = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFF0605D, 0xFFD94545}); ab.setCornerRadius(t.u(16)); all.setBackground(ab);
+            all.setOnClickListener(v -> askX(this, t, "إلغاء تثبيت الكل", "هل تريد إلغاء تثبيت جميع الرسائل المثبتة؟", null, null, 0, false, "إلغاء الكل", "تراجع", true, IC_WARN, (ok, y) -> { if (!ok) return; dg.dismiss(); pinIdx = -1; db().collection("chats").document(chatId).update("pins", new ArrayList<Map<String, Object>>()); toast(this, "تم إلغاء تثبيت جميع الرسائل"); }));
+            LinearLayout.LayoutParams ap = lpw(0, -2, 1); ap.setMarginEnd(t.u(10)); row.addView(all, ap); }
+        TextView cl = tv(this, t, "إغلاق", 15.5f, t.text, true); cl.setGravity(Gravity.CENTER); cl.setPadding(0, t.u(13), 0, t.u(13)); cl.setBackground(round(t.chip, t.u(16))); cl.setOnClickListener(v -> dg.dismiss()); row.addView(cl, lpw(0, -2, 1));
+        dg.setContentView(shell); Window w = dg.getWindow(); w.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0)); w.setDimAmount(.52f); w.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND); w.setLayout(Math.min(t.u(340), getResources().getDisplayMetrics().widthPixels - t.u(44)), ViewGroup.LayoutParams.WRAP_CONTENT); dg.show();
     }
     private void jumpTo(String id) { for (int i = 0; i < msgs.size(); i++) if (msgs.get(i).getId().equals(id)) { flashId = id; list.smoothScrollToPosition(i); adapter.notifyDataSetChanged(); h.postDelayed(() -> { flashId = ""; }, 1400); return; } toast(this, "الرسالة بعيدة، مرّر للأعلى لتحميل رسائل أقدم"); }
 
@@ -288,11 +314,11 @@ public class GroupRoomActivity extends Activity {
             LinearLayout row = new LinearLayout(A); row.setOrientation(LinearLayout.HORIZONTAL); rtl(row); row.setLayoutParams(new AbsListView.LayoutParams(-1, -2));
             if (isTrue(m.get("system"))) {
                 TextView tx = tv(A, t, sysText(m), 12.5f, t.dark ? 0xFFFFFFFF : 0xFF2A3A48, false); tx.setGravity(Gravity.CENTER); tx.setLineSpacing(0, 1.2f); tx.setBackground(round(t.dark ? 0x4D000000 : 0x1A000000, t.u(14))); tx.setPadding(t.u(13), t.u(5), t.u(13), t.u(5)); tx.setMaxWidth(Math.round(getResources().getDisplayMetrics().widthPixels * .88f));
-                row.setGravity(Gravity.CENTER); row.setPadding(0, t.u(7), 0, t.u(7)); row.addView(tx);
+                row.setGravity(Gravity.CENTER); row.setPadding(0, t.u(7) + (pos > 0 ? t.u(6) : 0), 0, t.u(7)); row.addView(tx);
                 if ("pin".equals(s(map(m, "sys"), "k")) && !s(map(m, "sys"), "ref").isEmpty()) { final String ref = s(map(m, "sys"), "ref"); tx.setPaintFlags(tx.getPaintFlags() | android.graphics.Paint.UNDERLINE_TEXT_FLAG); tx.setOnClickListener(v -> jumpTo(ref)); } return row;
             }
             final String sid = s(m, "senderId"); final boolean mine = sid.equals(me()); String prevK = pos > 0 ? keyOf(msgs.get(pos - 1)) : null, nextK = pos + 1 < msgs.size() ? keyOf(msgs.get(pos + 1)) : null; final boolean first = !sid.equals(prevK), last = !sid.equals(nextK);
-            row.setPadding(0, t.u(first ? 9 : 2), 0, 0); int screen = getResources().getDisplayMetrics().widthPixels; int maxBub = Math.round(screen * .92f) - (mine ? 0 : t.k(32) + t.u(7)) - t.u(28);
+            row.setPadding(0, pos > 0 ? t.u(6) : 0, 0, 0); int screen = getResources().getDisplayMetrics().widthPixels; int maxBub = Math.round(screen * .92f) - (mine ? 0 : t.k(32) + t.u(7)) - t.u(28);
             LinearLayout col = new LinearLayout(A); col.setOrientation(LinearLayout.VERTICAL);
             final LinearLayout bub = new LinearLayout(A); bub.setOrientation(LinearLayout.VERTICAL); bub.setBackground(bubbleBg(mine, first, last)); bub.setElevation(t.u(2)); bub.setPadding(t.u(13), t.u(8), t.u(13), t.u(6));
             int txtColor = mine ? t.pal.textMine : t.crInk, metaColor = mine ? (t.pal.textMine & 0x00FFFFFF | 0xE6000000) : t.crMuted;
