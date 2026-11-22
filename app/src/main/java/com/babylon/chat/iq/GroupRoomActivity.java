@@ -42,7 +42,7 @@ public class GroupRoomActivity extends Activity {
     private static final String[] EMOJIS = {"❤️", "👍", "😂", "😮", "😢", "🙏"};
 
     @Override protected void onCreate(Bundle b) {
-        super.onCreate(b); t = th(this); window(this, t, t.crSurface); getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        super.onCreate(b); t = th(this); window(this, t, t.crSurface); initChatStyle(); getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         chatId = getIntent().getStringExtra("chatId"); if (chatId == null) { finish(); return; }
         build(); loadUsers(Collections.singletonList(me()), () -> { });
         chatReg = db().collection("chats").document(chatId).addSnapshotListener((doc, e) -> {
@@ -53,6 +53,39 @@ public class GroupRoomActivity extends Activity {
     }
     @Override protected void onDestroy() { super.onDestroy(); if (chatReg != null) chatReg.remove(); if (msgReg != null) msgReg.remove(); setTyping(false); stopRec(false); stopPlayer(); }
     @Override protected void onNewIntent(Intent i) { super.onNewIntent(i); }
+    @Override protected void onResume() { super.onResume(); MsgViews.replyJump = (bv, rid) -> jumpTo(rid); }
+    private int fontSp = ChatThemes.FONT_DEF, radius = ChatThemes.RADIUS_DEF;
+    /** نفس إعدادات الدردشة الخاصة: ثيم المحادثة وحجم الخط وانحناء الفقاعات. */
+    private void initChatStyle() {
+        android.content.SharedPreferences sp = AppSettings.prefs(this, "babylon_ui");
+        Tk.setChatTheme(sp.getString("chatTheme", ChatThemes.DEFAULT_ID), t.dark);
+        fontSp = Math.max(ChatThemes.FONT_MIN, Math.min(ChatThemes.FONT_MAX, sp.getInt("font", ChatThemes.FONT_DEF)));
+        radius = Math.max(ChatThemes.RADIUS_MIN, Math.min(ChatThemes.RADIUS_MAX, sp.getInt("radius", ChatThemes.RADIUS_DEF)));
+        MsgViews.replyJump = (bv, rid) -> jumpTo(rid);
+    }
+    /** يلوّن كل عنصر موسوم داخل الفقاعة بنفس منطق الدردشة الخاصة (Tk.handle). */
+    private void tint(View v) {
+        Object tg = v.getTag();
+        if (tg instanceof String) for (String k : ((String) tg).split(" ")) Tk.handle(k, v, v instanceof TextView ? (TextView) v : null, t.dark);
+        if (v instanceof ViewGroup) { ViewGroup g = (ViewGroup) v; for (int i = 0; i < g.getChildCount(); i++) tint(g.getChildAt(i)); }
+    }
+    private String time12(long ts) { String x = new java.text.SimpleDateFormat("h:mm a", Locale.getDefault()).format(new Date(ts)); return x.startsWith("0") ? x.substring(1) : x; }
+    private String dayLabel(long ts) {
+        Calendar n = Calendar.getInstance(), c = Calendar.getInstance(); c.setTimeInMillis(ts);
+        if (n.get(Calendar.YEAR) == c.get(Calendar.YEAR) && n.get(Calendar.DAY_OF_YEAR) == c.get(Calendar.DAY_OF_YEAR)) return "اليوم";
+        n.add(Calendar.DAY_OF_YEAR, -1); if (n.get(Calendar.YEAR) == c.get(Calendar.YEAR) && n.get(Calendar.DAY_OF_YEAR) == c.get(Calendar.DAY_OF_YEAR)) return "أمس";
+        Calendar a = Calendar.getInstance(), b2 = (Calendar) c.clone(); for (Calendar x : new Calendar[]{a, b2}) { x.set(Calendar.HOUR_OF_DAY, 0); x.set(Calendar.MINUTE, 0); x.set(Calendar.SECOND, 0); x.set(Calendar.MILLISECOND, 0); }
+        long days = Math.round((a.getTimeInMillis() - b2.getTimeInMillis()) / 86400000.0); Locale ar = new Locale("ar");
+        if (days >= 0 && days < 7) return new java.text.SimpleDateFormat("EEEE", ar).format(new Date(ts));
+        Calendar ya = Calendar.getInstance(); ya.add(Calendar.YEAR, -1); return new java.text.SimpleDateFormat(c.before(ya) ? "d MMMM yyyy" : "d MMMM", ar).format(new Date(ts));
+    }
+    private String dayKey(long ts) { return new java.text.SimpleDateFormat("yyyyMMdd", Locale.US).format(new Date(ts)); }
+    private View withDay(int pos, Map<String, Object> m, View row) {
+        long ts = l(m.get("createdAt")); if (ts == 0) return row;
+        boolean need = pos == 0 || !dayKey(ts).equals(dayKey(l(msgs.get(pos - 1).get("createdAt")))); if (!need) return row;
+        LinearLayout w = new LinearLayout(this); w.setOrientation(LinearLayout.VERTICAL); w.setLayoutParams(new AbsListView.LayoutParams(-1, -2));
+        TextView sp = MsgViews.sysPill(this, dayLabel(ts)); tint(sp); w.addView(sp); row.setLayoutParams(new LinearLayout.LayoutParams(-1, -2)); w.addView(row); return w;
+    }
 
     private void listenMessages() {
         if (msgReg != null) msgReg.remove();
@@ -94,9 +127,9 @@ public class GroupRoomActivity extends Activity {
         replyBar = new LinearLayout(this); replyBar.setGravity(Gravity.CENTER_VERTICAL); GradientDrawable rbg = round(t.crCard, t.u(14)); rbg.setStroke(Math.max(1, t.u(1)), t.crLine); replyBar.setBackground(rbg); replyBar.setPadding(t.u(12), t.u(8), t.u(8), t.u(8)); replyBar.setVisibility(View.GONE);
         LinearLayout.LayoutParams rbp = lp(-1, -2); rbp.setMargins(t.u(10), t.u(4), t.u(10), 0); bottom.addView(replyBar, rbp);
         FrameLayout inWrap = new FrameLayout(this); inWrap.setPadding(t.u(10), t.u(8), t.u(10), t.u(10)); bottom.addView(inWrap);
-        inputBar = new LinearLayout(this); inputBar.setGravity(Gravity.CENTER_VERTICAL); GradientDrawable ibg = round(t.crCard, t.u(14)); ibg.setStroke(Math.max(1, t.u(1)), t.crLine); inputBar.setBackground(ibg); inputBar.setElevation(t.u(3)); inputBar.setPadding(t.u(8), t.u(6), t.u(8), t.u(6));
+        inputBar = new LinearLayout(this); inputBar.setGravity(Gravity.CENTER_VERTICAL); GradientDrawable ibg = round(Tk.composerOuter(t.dark) | 0xFF000000, t.u(22)); ibg.setStroke(Math.max(1, t.u(1)), Tk.chatPal != null ? Tk.chatPal.line : t.crLine); inputBar.setBackground(ibg); inputBar.setElevation(t.u(3)); inputBar.setPadding(t.u(8), t.u(6), t.u(8), t.u(6));
         FrameLayout img = new FrameLayout(this); img.addView(icon(this, IC_IMAGE, t.crMuted, 24), center(this, 24)); img.setOnClickListener(v -> pickImage()); inputBar.addView(img, lp(t.k(40), t.k(40)));
-        input = new EditText(this); input.setHint("رسالة"); input.setHintTextColor(t.crMuted); input.setTextColor(t.crInk); input.setTextSize(15.5f * t.s); input.setMaxLines(5); input.setMinHeight(t.k(42)); input.setBackground(round(0x1A7F8CA0, t.u(10))); input.setPadding(t.u(12), t.u(10), t.u(12), t.u(10)); input.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
+        input = new EditText(this); input.setHint("رسالة"); input.setHintTextColor(t.crMuted); input.setTextColor(t.crInk); input.setTextSize(15.5f * t.s); input.setMaxLines(5); input.setMinHeight(t.k(42)); input.setBackground(round(Tk.composerInner(t.dark) | 0xFF000000, t.u(18))); input.setPadding(t.u(12), t.u(10), t.u(12), t.u(10)); input.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
         LinearLayout.LayoutParams ip = lpw(0, -2, 1); ip.setMargins(t.u(6), 0, t.u(6), 0); inputBar.addView(input, ip);
         actBtn = new FrameLayout(this); actBtn.setBackground(goldGrad(t.u(12), false)); actIc = icon(this, IC_MIC, 0xFFFFFFFF, 22); actBtn.addView(actIc, center(this, 22)); actBtn.setOnClickListener(v -> onAction()); inputBar.addView(actBtn, lp(t.k(40), t.k(40)));
         inWrap.addView(inputBar);
@@ -298,14 +331,16 @@ public class GroupRoomActivity extends Activity {
     // ---------- قائمة الرسائل ----------
     private boolean readByAll(long created) { Map<String, Object> ra = map(meta, "readAt"); int others = 0; for (String u : parts(meta)) if (!u.equals(me())) { others++; if (l(ra.get(u)) < created) return false; } return others > 0; }
     private String keyOf(DocumentSnapshot d) { return isTrue(d.get("system")) ? null : s(d.getData(), "senderId"); }
-    private GradientDrawable bubbleBg(boolean mine, boolean first, boolean last) {
-        float big = t.u(20), sm = t.u(6), tl, tr, br, bl;
+    private android.graphics.drawable.Drawable bubbleBg(boolean mine, boolean first, boolean last) {
+        float big = t.u(radius), sm = t.u(6), tl, tr, br, bl;
         if (mine) { tl = big; bl = big; tr = first ? big : sm; br = last ? (first ? sm : big) : sm; }
         else { tr = big; br = big; tl = first ? big : sm; bl = last ? (first ? sm : big) : sm; }
+        float[] r8 = {tl, tl, tr, tr, br, br, bl, bl};
+        if (Tk.chatPal != null) return ChatThemes.bubble(Tk.chatPal, mine, r8, mine ? 0f : t.u(1));
         GradientDrawable g;
-        if (mine) g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{t.pal.mineFrom, t.pal.mineTo});
-        else { g = new GradientDrawable(); g.setColor(t.crCard); g.setStroke(Math.max(1, t.u(1)), t.crLine); }
-        g.setCornerRadii(new float[]{tl, tl, tr, tr, br, br, bl, bl}); return g;
+        if (mine) g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFFE8C85D, 0xFFCBA843});
+        else { g = new GradientDrawable(); g.setColor(t.dark ? 0xFF263746 : 0xFFFFFFFF); }
+        g.setCornerRadii(r8); return g;
     }
     private final class MsgAdapter extends BaseAdapter {
         public int getCount() { return msgs.size(); } public Object getItem(int i) { return msgs.get(i); } public long getItemId(int i) { return i; }
@@ -313,26 +348,31 @@ public class GroupRoomActivity extends Activity {
             final Activity A = GroupRoomActivity.this; final DocumentSnapshot d = msgs.get(pos); final Map<String, Object> m = d.getData();
             LinearLayout row = new LinearLayout(A); row.setOrientation(LinearLayout.HORIZONTAL); rtl(row); row.setLayoutParams(new AbsListView.LayoutParams(-1, -2));
             if (isTrue(m.get("system"))) {
-                TextView tx = tv(A, t, sysText(m), 12.5f, t.dark ? 0xFFFFFFFF : 0xFF2A3A48, false); tx.setGravity(Gravity.CENTER); tx.setLineSpacing(0, 1.2f); tx.setBackground(round(t.dark ? 0x4D000000 : 0x1A000000, t.u(14))); tx.setPadding(t.u(13), t.u(5), t.u(13), t.u(5)); tx.setMaxWidth(Math.round(getResources().getDisplayMetrics().widthPixels * .88f));
-                row.setGravity(Gravity.CENTER); row.setPadding(0, t.u(7) + (pos > 0 ? t.u(6) : 0), 0, t.u(7)); row.addView(tx);
-                if ("pin".equals(s(map(m, "sys"), "k")) && !s(map(m, "sys"), "ref").isEmpty()) { final String ref = s(map(m, "sys"), "ref"); tx.setPaintFlags(tx.getPaintFlags() | android.graphics.Paint.UNDERLINE_TEXT_FLAG); tx.setOnClickListener(v -> jumpTo(ref)); } return row;
+                TextView tx = MsgViews.sysPill(A, sysText(m)); tint(tx); row.setGravity(Gravity.CENTER); row.setPadding(0, pos > 0 ? t.u(6) : 0, 0, 0); row.addView(tx);
+                if ("pin".equals(s(map(m, "sys"), "k")) && !s(map(m, "sys"), "ref").isEmpty()) { final String ref = s(map(m, "sys"), "ref"); tx.setPaintFlags(tx.getPaintFlags() | android.graphics.Paint.UNDERLINE_TEXT_FLAG); tx.setOnClickListener(v -> jumpTo(ref)); } return withDay(pos, m, row);
             }
             final String sid = s(m, "senderId"); final boolean mine = sid.equals(me()); String prevK = pos > 0 ? keyOf(msgs.get(pos - 1)) : null, nextK = pos + 1 < msgs.size() ? keyOf(msgs.get(pos + 1)) : null; final boolean first = !sid.equals(prevK), last = !sid.equals(nextK);
             row.setPadding(0, pos > 0 ? t.u(6) : 0, 0, 0); int screen = getResources().getDisplayMetrics().widthPixels; int maxBub = Math.round(screen * .92f) - (mine ? 0 : t.k(32) + t.u(7)) - t.u(28);
             LinearLayout col = new LinearLayout(A); col.setOrientation(LinearLayout.VERTICAL);
-            final LinearLayout bub = new LinearLayout(A); bub.setOrientation(LinearLayout.VERTICAL); bub.setBackground(bubbleBg(mine, first, last)); bub.setElevation(t.u(2)); bub.setPadding(t.u(13), t.u(8), t.u(13), t.u(6));
+            String type = s(m, "type"); final String data = s(m, "data"); final boolean media = (type.equals("image") || type.equals("audio")) && !data.isEmpty(); final long ct = l(m.get("createdAt"));
+            final LinearLayout bub;
+            if (!media) {
+                String raw = s(m, "text"), rTo0 = s(m, "replyTo");
+                if (!rTo0.isEmpty() && !raw.startsWith("\u21A9 ")) { String rs0 = s(m, "replyToSenderId"); raw = "\u21A9 " + (rs0.isEmpty() ? "" : userName(rs0) + "\u0001") + rTo0.replace('\n', ' ').replace('\u0002', ' ') + "\u0002" + s(m, "replyToId") + "\u0002" + "" + "\n" + raw; }
+                bub = MsgViews.textBubble(A, raw, mine, time12(ct), mine ? (readByAll(ct) ? MsgViews.READ : MsgViews.SENT) : MsgViews.SENT, fontSp);
+            } else { bub = new MsgViews.Bub(A); bub.setOrientation(LinearLayout.VERTICAL); bub.setPadding(t.u(10), t.u(6), t.u(10), t.u(5)); }
+            if (media || "bubMine".equals(bub.getTag()) || "bubOther".equals(bub.getTag())) bub.setBackground(bubbleBg(mine, first, last));   // الإيموجي بلا فقاعة كما في الدردشة الخاصة
             int txtColor = mine ? t.pal.textMine : t.crInk, metaColor = mine ? (t.pal.textMine & 0x00FFFFFF | 0xE6000000) : t.crMuted;
             if (!mine && first) {
                 LinearLayout hd = new LinearLayout(A); hd.setLayoutDirection(View.LAYOUT_DIRECTION_LTR); hd.setGravity(Gravity.CENTER_VERTICAL); TextView sn = tv(A, t, userName(sid), 13.5f, colorOf(sid), true); sn.setSingleLine(true); sn.setEllipsize(TextUtils.TruncateAt.END); sn.setMaxWidth(Math.min(t.u(200), Math.round(screen * .46f))); hd.addView(sn);
                 View sp = new View(A); hd.addView(sp, lpw(0, 1, 1)); String tt = title(sid, meta);
                 if (!tt.isEmpty()) { String r = role(sid, meta); TextView rl = tv(A, t, tt, 11.5f, r.equals("owner") ? (t.dark ? 0xFFA78BFA : 0xFF7C3AED) : r.equals("admin") ? (t.dark ? 0xFF4ADE80 : 0xFF16A34A) : t.sub, true); int bg = r.equals("owner") ? (t.dark ? 0x33A78BFA : 0x1F7C3AED) : r.equals("admin") ? (t.dark ? 0x294ADE80 : 0x1F16A34A) : 0x2E8798AA; rl.setBackground(round(bg, t.u(10))); rl.setPadding(t.u(10), t.u(2), t.u(10), t.u(2)); LinearLayout.LayoutParams rp = lp(-2, -2); rp.setMarginStart(t.u(10)); hd.addView(rl, rp); }
-                LinearLayout.LayoutParams hp = lp(-1, -2); hp.bottomMargin = t.u(3); bub.addView(hd, hp); hd.setOnClickListener(v -> openInfo(sid));
+                LinearLayout.LayoutParams hp = lp(-1, -2); hp.bottomMargin = t.u(3); hp.leftMargin = t.u(2); hp.rightMargin = t.u(2); bub.addView(hd, 0, hp); hd.setOnClickListener(v -> openInfo(sid));
             }
-            String rTo = s(m, "replyTo"); if (!rTo.isEmpty()) {
+            String rTo = s(m, "replyTo"); if (media && !rTo.isEmpty()) {
                 LinearLayout q = new LinearLayout(A); q.setOrientation(LinearLayout.VERTICAL); q.setBackground(round(mine ? 0x1A000000 : 0x247F8CA0, t.u(10))); q.setPadding(t.u(9), t.u(5), t.u(9), t.u(5)); String rs = s(m, "replyToSenderId");
                 q.addView(tv(A, t, rs.isEmpty() ? "" : userName(rs), 12.5f, mine ? txtColor : t.gold, true)); TextView qt = tv(A, t, rTo, 12.5f, txtColor, false); qt.setAlpha(.85f); qt.setSingleLine(true); qt.setEllipsize(TextUtils.TruncateAt.END); q.addView(qt); LinearLayout.LayoutParams qp = lp(-1, -2); qp.bottomMargin = t.u(5); bub.addView(q, qp); final String rid = s(m, "replyToId"); q.setOnClickListener(v -> jumpTo(rid));
             }
-            String type = s(m, "type"); final String data = s(m, "data");
             if (type.equals("image") && !data.isEmpty()) {
                 final ImageView iv = new ImageView(A); iv.setScaleType(ImageView.ScaleType.CENTER_CROP); iv.setBackground(round(0x22000000, t.u(14))); int w = Math.min(maxBub - t.u(26), t.u(230)); int hgt = Math.round(w * (l(m.get("w")) > 0 && l(m.get("h")) > 0 ? Math.min(1.4f, Math.max(.6f, l(m.get("h")) / (float) l(m.get("w")))) : .75f)); bub.addView(iv, lp(w, hgt));
                 final String src = !s(m, "imageUrl").isEmpty() ? s(m, "imageUrl") : data; loadBitmap(src, 900, bm -> iv.post(() -> iv.setImageBitmap(bm))); iv.setOnClickListener(v -> viewImage(src));
@@ -340,13 +380,13 @@ public class GroupRoomActivity extends Activity {
                 LinearLayout ar = new LinearLayout(A); ar.setGravity(Gravity.CENTER_VERTICAL); final boolean playing = playingId.equals(d.getId()); FrameLayout pb = new FrameLayout(A); pb.setBackground(oval(mine ? 0xFFFFFFFF : t.gold)); pb.addView(icon(A, playing ? IC_PAUSE : IC_PLAY, mine ? 0xFFA9791A : 0xFFFFFFFF, 18), center(A, 18)); ar.addView(pb, lp(t.k(38), t.k(38)));
                 LinearLayout wave = new LinearLayout(A); wave.setGravity(Gravity.CENTER_VERTICAL); wave.setPadding(t.u(10), 0, t.u(10), 0); int[] hs = {8, 14, 10, 18, 12, 20, 9, 16, 11, 19, 8, 14, 10, 17}; for (int hh : hs) { View bar = new View(A); bar.setBackground(round(playing ? (mine ? 0xFFFFFFFF : t.gold) : (txtColor & 0x00FFFFFF | 0x99000000), t.u(2))); LinearLayout.LayoutParams bp = lp(t.u(3), t.u(hh)); bp.setMarginEnd(t.u(3)); wave.addView(bar, bp); }
                 ar.addView(wave); long du = l(m.get("duration")); ar.addView(tv(A, t, String.format(Locale.US, "%d:%02d", du / 60, du % 60), 12.5f, txtColor, false)); bub.addView(ar); ar.setOnClickListener(v -> togglePlay(d.getId(), data));
-            } else {
+            } else if (false) {
                 String text = s(m, "text"); SpannableString sp = new SpannableString(text); java.util.regex.Matcher mm = java.util.regex.Pattern.compile("@[A-Za-z][A-Za-z0-9_.]{2,}").matcher(sp);
                 while (mm.find()) sp.setSpan(new android.text.style.ForegroundColorSpan(mine ? (t.dark ? 0xFFA9D4FF : 0xFF0B4F8A) : t.pal.accent), mm.start(), mm.end(), 0);
                 TextView body = tv(A, t, "", 15.5f, txtColor, false); body.setText(sp); body.setLineSpacing(0, 1.25f); body.setMaxWidth(maxBub - t.u(26)); body.setIncludeFontPadding(true); bub.addView(body);
             }
-            LinearLayout mr = new LinearLayout(A); mr.setLayoutDirection(View.LAYOUT_DIRECTION_LTR); mr.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL); long ct = l(m.get("createdAt")); mr.addView(tv(A, t, fmtTime(ct), 10.5f, metaColor, false));
-            if (mine) { boolean rd = readByAll(ct); TextView tk = tv(A, t, rd ? "✓✓" : "✓", 11, rd ? t.pal.tick : metaColor, true); tk.setPadding(t.u(4), 0, 0, 0); mr.addView(tk); } LinearLayout.LayoutParams mlp = lp(-1, -2); mlp.topMargin = t.u(3); bub.addView(mr, mlp);
+            if (media) { bub.addView(MsgViews.metaRow(A, mine, time12(ct), mine ? (readByAll(ct) ? MsgViews.READ : MsgViews.SENT) : MsgViews.SENT)); }
+            tint(bub);
             bub.setOnLongClickListener(v -> { msgMenu(d); return true; }); bub.setOnClickListener(null);
             col.addView(bub);
             Map<String, Object> rx = map(m, "reactions"); if (!rx.isEmpty()) { Map<String, Integer> cnt = new LinkedHashMap<>(); for (Object v : rx.values()) { String e = String.valueOf(v); cnt.put(e, cnt.containsKey(e) ? cnt.get(e) + 1 : 1); } LinearLayout rr = new LinearLayout(A);
@@ -355,7 +395,7 @@ public class GroupRoomActivity extends Activity {
             if (d.getId().equals(flashId)) { bub.setAlpha(.35f); bub.animate().alpha(1f).setDuration(1200).start(); }
             if (mine) { row.setGravity(Gravity.START); row.addView(col); }
             else { row.setGravity(Gravity.END); row.addView(col); Av av = new Av(A, 32 * t.s); av.setUser(sid); av.setVisibility(last ? View.VISIBLE : View.INVISIBLE); LinearLayout.LayoutParams al = lp(t.k(32), t.k(32)); al.setMarginStart(t.u(7)); al.gravity = Gravity.BOTTOM; al.bottomMargin = t.u(2); row.addView(av, al); av.setOnClickListener(v -> openInfo(sid)); }
-            return row;
+            return withDay(pos, m, row);
         }
     }
     private String mine2(Map<String, Object> m) { return s(map(m, "reactions"), me()); }

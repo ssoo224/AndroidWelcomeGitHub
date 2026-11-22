@@ -331,12 +331,13 @@ public class Main2Activity extends Activity {
         try { android.view.inputmethod.InputMethodManager im = (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE); if (im != null) im.hideSoftInputFromWindow(binding.root.getWindowToken(), 0); } catch (Throwable ignored) { }
         final View[] head = {binding.logoCircle, binding.title, binding.subtitle};
         final float dy = outF.getHeight() * 0.5f;
+        // حركة هادئة متماثلة: نفس المدة ونفس المنحنى الناعم (تسارع وتباطؤ لطيفان) للطيّ والفتح معاً
+        final android.view.animation.Interpolator calm = new android.view.animation.PathInterpolator(0.45f, 0f, 0.25f, 1f);
+        final int DUR = 460;
         outF.setPivotY(0f);
         // 1) الطيّ + نزول الرأس
-        outF.animate().scaleY(0f).alpha(0f).setDuration(300)
-                .setInterpolator(new android.view.animation.AccelerateInterpolator(1.3f)).start();
-        for (View h : head) h.animate().translationY(dy).setDuration(300)
-                .setInterpolator(new android.view.animation.AccelerateDecelerateInterpolator()).start();
+        outF.animate().scaleY(0f).alpha(0f).setDuration(DUR).setInterpolator(calm).start();
+        for (View h : head) h.animate().translationY(dy).setDuration(DUR).setInterpolator(calm).start();
         binding.root.postDelayed(() -> {
             final float topBefore = binding.logoCircle.getTop() + binding.logoCircle.getTranslationY();
             outF.setVisibility(View.GONE);
@@ -350,15 +351,14 @@ public class Main2Activity extends Activity {
                     // الرأس يبقى بصرياً في مكانه رغم تغيّر التخطيط، ثم يرتفع إلى موضعه الأصلي
                     float shift = topBefore - binding.logoCircle.getTop();
                     for (View h : head) h.setTranslationY(shift);
-                    for (View h : head) h.animate().translationY(0f).setDuration(380)
-                            .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f)).start();
-                    inF.animate().scaleY(1f).alpha(1f).setDuration(380).setStartDelay(60)
-                            .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f))
+                    for (View h : head) h.animate().translationY(0f).setDuration(DUR).setInterpolator(calm).start();
+                    inF.animate().scaleY(1f).alpha(1f).setDuration(DUR).setStartDelay(0)
+                            .setInterpolator(calm)
                             .withEndAction(() -> switching = false).start();
                     return true;
                 }
             });
-        }, 300);
+        }, DUR);
     }
 
     /** الطور الليلي: الخلفية، الحقول، التسميات والنصوص. */
