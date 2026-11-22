@@ -56,16 +56,35 @@ final class GroupRows {
         LinearLayout mid = new LinearLayout(act); mid.setOrientation(LinearLayout.VERTICAL); LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(0, -2, 1f); mp.setMarginEnd(Math.round(12 * d)); mid.setLayoutParams(mp);
         LinearLayout r1 = new LinearLayout(act); r1.setGravity(Gravity.CENTER_VERTICAL);
         TextView tm = new TextView(act); long at = g.ts; tm.setText(at > 0 ? fmtTimeList(at) : ""); tm.setTextSize(12.5f); tm.setTypeface(null, hasUnread ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL); tm.setTextColor(hasUnread ? cGold : sub); tm.setIncludeFontPadding(false); r1.addView(tm, new LinearLayout.LayoutParams(-2, -2));
+        if (s(map(g.d, "lastMsg"), "senderId").equals(me()) && !isTrue(map(g.d, "lastMsg").get("system"))) {   // آخر رسالة مني: ✓ مرسلة، ✓✓ إن قرأها كل الأعضاء
+            long lat = l(map(g.d, "lastMsg").get("at")); boolean seen = lat > 0; Map<String, Object> ra = map(g.d, "readAt");
+            for (String u : parts(g.d)) if (!u.equals(me()) && l(ra.get(u)) < lat) { seen = false; break; }
+            ImageView tk = new ImageView(act); tk.setImageResource(seen ? R.drawable.ic_check_double_16 : R.drawable.ic_check_16); tk.setColorFilter(seen ? cGold : sub);
+            LinearLayout.LayoutParams tkp = new LinearLayout.LayoutParams(Math.round(17 * d), Math.round(17 * d)); tkp.setMarginStart(Math.round(3 * d)); r1.addView(tk, tkp);
+        }
         LinearLayout nr = new LinearLayout(act); nr.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL); nr.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         Ic gi = icon(act, IC_USERS, t.gold, 15 * t.s); LinearLayout.LayoutParams gp = new LinearLayout.LayoutParams(Math.round(15 * t.s * d), Math.round(15 * t.s * d)); gp.setMarginEnd(Math.round(5 * d)); nr.addView(gi, gp);
-        TextView nm = new TextView(act); nm.setText(s(g.d, "name").isEmpty() ? "مجموعة" : s(g.d, "name")); nm.setTextSize(16.66f); nm.setTypeface(null, android.graphics.Typeface.BOLD); nm.setSingleLine(true); nm.setEllipsize(TextUtils.TruncateAt.END); nm.setTextColor(hasUnread && !dark ? 0xFF000000 : cText); nm.setIncludeFontPadding(false); nm.setMinHeight(Math.round(20 * d)); nr.addView(nm, new LinearLayout.LayoutParams(-2, -2));
+        TextView nm = new TextView(act); nm.setText(s(g.d, "name").isEmpty() ? "مجموعة" : s(g.d, "name")); nm.setTextSize(16.66f); nm.setTypeface(null, android.graphics.Typeface.BOLD); nm.setTextAlignment(View.TEXT_ALIGNMENT_GRAVITY); nm.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL); nm.setSingleLine(true); nm.setEllipsize(TextUtils.TruncateAt.END); nm.setTextColor(hasUnread && !dark ? 0xFF000000 : cText); nm.setIncludeFontPadding(false); nm.setMinHeight(Math.round(20 * d)); if (hasUnread) { nm.setTag("keepbold"); nm.setTypeface((android.os.Build.VERSION.SDK_INT >= 28 ? android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, 900, false) : android.graphics.Typeface.create("sans-serif-black", android.graphics.Typeface.BOLD))); } nr.addView(nm, new LinearLayout.LayoutParams(-2, -2));
         r1.addView(nr, new LinearLayout.LayoutParams(0, -2, 1f));
         LinearLayout r2 = new LinearLayout(act); r2.setGravity(Gravity.CENTER_VERTICAL); r2.setMinimumHeight(Math.round(22.9f * d)); LinearLayout.LayoutParams r2p = new LinearLayout.LayoutParams(-1, -2); r2p.topMargin = Math.round(5 * d);
         Map<String, Object> lm = map(g.d, "lastMsg"); String prev; String ty = s(lm, "type");
         if (lm.isEmpty()) prev = "لا توجد رسائل بعد"; else { boolean sys = isTrue(lm.get("system")); String who = s(lm, "senderId").equals(me()) ? "أنت: " : (s(lm, "senderName").isEmpty() ? "" : s(lm, "senderName") + ": "); prev = sys ? s(lm, "text") : who + s(lm, "text"); }
-        TextView ls = new TextView(act); ls.setText(prev); ls.setTextSize(14.05f); ls.setSingleLine(true); ls.setEllipsize(TextUtils.TruncateAt.END); ls.setIncludeFontPadding(false); ls.setTextAlignment(View.TEXT_ALIGNMENT_GRAVITY); ls.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-        ls.setTextColor(hasUnread ? (dark ? cText : 0xFF000000) : sub); if (hasUnread) ls.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        r2.addView(ls, new LinearLayout.LayoutParams(0, -2, 1f));
+        final int mediaKind = (lm.isEmpty() || isTrue(lm.get("system"))) ? 0 : MsgViews.mediaKindOf(s(lm, "text"));
+        if (mediaKind > 0) { String who2 = s(lm, "senderId").equals(me()) ? "أنت: " : (s(lm, "senderName").isEmpty() ? "" : s(lm, "senderName") + ": "); prev = who2 + MsgViews.mediaLabelOf(mediaKind); }
+        TextView ls = new TextView(act); ls.setText(prev); ls.setTextSize(14.05f);
+        ls.setTypeface(!hasUnread ? android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
+                : android.os.Build.VERSION.SDK_INT >= 28 ? android.graphics.Typeface.create(android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL), 600, false)
+                : android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.BOLD));
+        ls.setSingleLine(true); ls.setEllipsize(TextUtils.TruncateAt.END); ls.setIncludeFontPadding(false); ls.setTextAlignment(View.TEXT_ALIGNMENT_GRAVITY); ls.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        ls.setTextColor(hasUnread ? (dark ? cText : 0xFF000000) : sub);
+        if (mediaKind == 0) ls.setText(MsgViews.iconize(act, prev, ls.getCurrentTextColor(), 15));
+        if (hasUnread) { ls.setTag("keepbold"); ls.setTypeface((android.os.Build.VERSION.SDK_INT >= 28 ? android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, 900, false) : android.graphics.Typeface.create("sans-serif-black", android.graphics.Typeface.BOLD))); }
+        if (mediaKind > 0) {
+            LinearLayout mw = new LinearLayout(act); mw.setLayoutDirection(View.LAYOUT_DIRECTION_LTR); mw.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+            ImageView mi = new ImageView(act); mi.setImageResource(MsgViews.mediaIconOf(mediaKind)); mi.setColorFilter(hasUnread ? cText : sub);
+            LinearLayout.LayoutParams mil = new LinearLayout.LayoutParams(Math.round(16 * d), Math.round(16 * d)); mil.setMarginEnd(Math.round(5 * d)); mw.addView(mi, mil);
+            mw.addView(ls, new LinearLayout.LayoutParams(-2, -2)); r2.addView(mw, new LinearLayout.LayoutParams(0, -2, 1f));
+        } else r2.addView(ls, new LinearLayout.LayoutParams(0, -2, 1f));
         if (hasUnread) {
             LinearLayout bw = new LinearLayout(act); bw.setGravity(Gravity.CENTER_VERTICAL);
             if (g.mention) { TextView at2 = new TextView(act); at2.setText("@"); at2.setTextSize(12.5f); at2.setTypeface(null, android.graphics.Typeface.BOLD); at2.setGravity(Gravity.CENTER); at2.setTextColor(0xFF1A1A1A); at2.setIncludeFontPadding(false); at2.setBackground(round(t.gold, Math.round(11.5f * d))); at2.setMinWidth(Math.round(22.9f * d)); at2.setMinHeight(Math.round(22.9f * d)); LinearLayout.LayoutParams ap2 = new LinearLayout.LayoutParams(-2, -2); ap2.setMarginEnd(Math.round(5 * d)); bw.addView(at2, ap2); }
