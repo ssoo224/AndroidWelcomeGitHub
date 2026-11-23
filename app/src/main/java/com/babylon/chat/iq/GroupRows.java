@@ -49,7 +49,11 @@ final class GroupRows {
     /** يبني صف مجموعة بنفس هندسة صفوف التطبيق (محتوى يساراً والصورة أقصى اليمين). */
     static View row(final Activity act, final G g, boolean dark, int cText, int cGold, boolean selectedUnreadOnly) {
         final Th t = th(act); final float d = t.dens; int sub = dark ? 0xFF8798AA : 0xFF6B7A8C; boolean hasUnread = g.unread > 0;
-        LinearLayout row = new LinearLayout(act); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL); row.setLayoutDirection(View.LAYOUT_DIRECTION_LTR); row.setPadding(Math.round(12 * d), Math.round(6.9f * d), Math.round(12 * d), Math.round(6.9f * d)); row.setMinimumHeight(Math.round(65.8f * d)); row.setTag("grow");
+        LinearLayout row = new LinearLayout(act); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL); row.setLayoutDirection(View.LAYOUT_DIRECTION_LTR); row.setPadding(Math.round(12 * d), Math.round(6.9f * d), Math.round(12 * d), Math.round(6.9f * d)); row.setMinimumHeight(Math.round(65.8f * d)); row.setTag("grow"); row.setClipChildren(false);
+        // نفس حقل صف المحادثة العادية: خلفية بيضاء (ليلي #17212B) بزاوية 18dp وظل بلا حدّ
+        android.graphics.drawable.GradientDrawable card = new android.graphics.drawable.GradientDrawable(); card.setColor(dark ? 0xFF17212B : 0xFFFFFFFF); card.setCornerRadius(18 * d); row.setBackground(card);
+        row.setElevation(5 * d); if (android.os.Build.VERSION.SDK_INT >= 28) { row.setOutlineSpotShadowColor(dark ? 0xFF000000 : 0xFF5A6A8A); row.setOutlineAmbientShadowColor(dark ? 0xFF000000 : 0xFF5A6A8A); }
+        row.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() { @Override public void onViewAttachedToWindow(View v) { if (v.getParent() instanceof android.view.ViewGroup) { android.view.ViewGroup pg = (android.view.ViewGroup) v.getParent(); pg.setClipChildren(false); pg.setClipToPadding(false); } } @Override public void onViewDetachedFromWindow(View v) { } });
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.bottomMargin = Math.round(3 * d); row.setLayoutParams(rp);
         Av av = new Av(act, 46); av.setGroup(g.d); LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(Math.round(52 * d), Math.round(52 * d));
         FrameLayout avw = new FrameLayout(act); avw.addView(av, new FrameLayout.LayoutParams(Math.round(46 * d), Math.round(46 * d), Gravity.CENTER));

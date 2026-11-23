@@ -34,7 +34,7 @@ public class GroupRoomActivity extends Activity {
     private String chatId; private Map<String, Object> meta = new HashMap<>(); private Th t;
     private final List<DocumentSnapshot> msgs = new ArrayList<>(); private ListenerRegistration chatReg, msgReg; private int limit = 50, pinIdx = -1;
     private boolean metaReady, loadingOlder; private long lastReadWrite; private String flashId = "";
-    private FrameLayout rootFrame; private ListView list; private BaseAdapter adapter; private Av hdAv; private TextView hdName, hdSub; private LinearLayout pinBar, bottom, inputBar, recBar, lockBar, replyBar, mentionPop;
+    private FrameLayout rootFrame; private ListView list; private BaseAdapter adapter; private TextView hdAv; private int inkC, mutedC; private TextView hdName, hdSub; private LinearLayout pinBar, bottom, inputBar, recBar, lockBar, replyBar, mentionPop;
     private EditText input; private TextView sendB, micB, attachB; private LinearLayout topBox; private TextView recTimer;
     private String replyId = "", replyText = "", replySid = ""; private boolean typingOn; private final android.os.Handler h = new android.os.Handler(); private Runnable typingOff;
     private MediaRecorder rec; private File recFile; private long recStart; private Runnable recTick; private boolean recording;
@@ -105,15 +105,16 @@ public class GroupRoomActivity extends Activity {
     }
     private void build() {
         rootFrame = new FrameLayout(this); rootFrame.setBackgroundColor(t.crSurface); rtl(rootFrame); rootFrame.setFitsSystemWindows(true);
-                // الهيدر: نفس chatTopBar في mass.xml (طبقة زجاجية + chatBack / chatUserInfo / chatMore بنفس الأبعاد والوسوم)
+                inkC = Tk.crInk(t.dark ? 0xFFF1F5F9 : 0xFF17212B); mutedC = Tk.crMuted(Tk.muted(t.dark));   // نفس ألوان t / m في المحادثة العادية
+        // الهيدر: نفس chatTopBar في mass.xml (طبقة زجاجية + chatBack / chatUserInfo / chatMore بنفس الأبعاد والوسوم)
         topBox = new LinearLayout(this); topBox.setOrientation(LinearLayout.VERTICAL); Tk.handle("glasst", topBox, null, t.dark);
         LinearLayout hd = new LinearLayout(this); hd.setGravity(Gravity.CENTER_VERTICAL); hd.setPadding(t.u(10), 0, t.u(10), t.u(6));
         TextView bk = rbtn(R.drawable.ic_arrow_left_24, 22); bk.setOnClickListener(v -> finish()); hd.addView(bk, lp(t.u(38), t.u(38)));
         LinearLayout pill = new LinearLayout(this); pill.setGravity(Gravity.CENTER_VERTICAL); pill.setPaddingRelative(t.u(8), 0, t.u(14), 0); Tk.handle("pill", pill, null, t.dark); pill.setElevation(0f); pill.setOnClickListener(v -> openInfo(null));
-        hdAv = new Av(this, 40); hdAv.ring(Tk.chatPal != null ? Tk.chatPal.accent : (t.dark ? 0xFFE4C45B : 0xFF9B7410), 0, Math.max(1, t.u(1)), t.crCard); pill.addView(hdAv, lp(t.u(40), t.u(40)));
+        hdAv = new TextView(this); hdAv.setGravity(Gravity.CENTER); hdAv.setTextSize(16); hdAv.setTypeface(null, android.graphics.Typeface.BOLD); hdAv.setText("؟"); hdAv.setTextColor(t.dark ? 0xFF17212B : 0xFFFFFFFF); hdAv.setBackground(Tk.chatAvatar(hdAv, t.dark)); pill.addView(hdAv, lp(t.u(40), t.u(40)));
         LinearLayout tt = new LinearLayout(this); tt.setOrientation(LinearLayout.VERTICAL); tt.setPaddingRelative(t.u(10), 0, 0, 0);
-        hdName = new TextView(this); hdName.setText("مجموعة"); hdName.setTextSize(16); hdName.setTypeface(null, android.graphics.Typeface.BOLD); hdName.setTextColor(t.crInk); hdName.setSingleLine(true); hdName.setEllipsize(TextUtils.TruncateAt.END);
-        hdSub = new TextView(this); hdSub.setTextSize(12); hdSub.setTextColor(t.crMuted); hdSub.setSingleLine(true); tt.addView(hdName); tt.addView(hdSub);
+        hdName = new TextView(this); hdName.setText("مجموعة"); hdName.setTextSize(16); hdName.setTypeface(null, android.graphics.Typeface.BOLD); hdName.setTextColor(inkC); hdName.setSingleLine(true); hdName.setEllipsize(TextUtils.TruncateAt.END);
+        hdSub = new TextView(this); hdSub.setTextSize(12); hdSub.setTextColor(mutedC); hdSub.setSingleLine(true); tt.addView(hdName); tt.addView(hdSub);
         pill.addView(tt, lpw(0, -2, 1)); LinearLayout.LayoutParams pp = lpw(0, t.u(48), 1); pp.setMargins(t.u(8), 0, t.u(8), 0); hd.addView(pill, pp);
         TextView more = rbtn(R.drawable.ic_more_22, 22); more.setOnClickListener(v -> moreMenu()); hd.addView(more, lp(t.u(38), t.u(38))); topBox.addView(hd);
         // شريط التثبيت (داخل الهيدر الزجاجي كما في المحادثة العادية)
@@ -131,18 +132,18 @@ public class GroupRoomActivity extends Activity {
         inputBar = new LinearLayout(this); inputBar.setLayoutDirection(View.LAYOUT_DIRECTION_LTR); inputBar.setGravity(Gravity.BOTTOM); Tk.handle("composer", inputBar, null, t.dark); inputBar.setMinimumHeight(t.u(48)); inputBar.setElevation(0f); inputBar.setPadding(t.u(8), t.u(5), t.u(8), t.u(5));
         sendB = tbtn(R.drawable.ic_send_up_21, 21); Tk.handle("sendbtn", sendB, sendB, t.dark); tintDr(sendB, sendB.getCurrentTextColor()); sendB.setVisibility(View.GONE); sendB.setOnClickListener(v -> send());
         LinearLayout.LayoutParams sbp = lp(t.u(40), t.u(40)); sbp.gravity = Gravity.TOP; sbp.setMarginEnd(t.u(6)); inputBar.addView(sendB, sbp);
-        micB = tbtn(R.drawable.ic_mic_22, 20); tintDr(micB, t.crMuted); micB.setOnClickListener(v -> startRec()); LinearLayout.LayoutParams mbp = lp(t.u(40), t.u(40)); mbp.setMarginEnd(t.u(6)); inputBar.addView(micB, mbp);
-        attachB = tbtn(R.drawable.ic_attach_22, 20); tintDr(attachB, t.crMuted); attachB.setOnClickListener(v -> pickImage()); LinearLayout.LayoutParams abp = lp(t.u(40), t.u(40)); abp.setMarginEnd(t.u(6)); inputBar.addView(attachB, abp);
-        input = new EditText(this); input.setHint("اكتب رسالتك..."); input.setHintTextColor(t.crMuted); input.setTextColor(t.dark ? t.crInk : 0xFF3A404A); input.setTextSize(15); input.setMinHeight(t.u(45)); input.setMaxHeight(t.u(137));
+        micB = tbtn(R.drawable.ic_mic_22, 20); tintDr(micB, mutedC); micB.setOnClickListener(v -> startRec()); LinearLayout.LayoutParams mbp = lp(t.u(40), t.u(40)); mbp.setMarginEnd(t.u(6)); inputBar.addView(micB, mbp);
+        attachB = tbtn(R.drawable.ic_attach_22, 20); tintDr(attachB, mutedC); attachB.setOnClickListener(v -> pickImage()); LinearLayout.LayoutParams abp = lp(t.u(40), t.u(40)); abp.setMarginEnd(t.u(6)); inputBar.addView(attachB, abp);
+        input = new EditText(this); input.setHint("اكتب رسالتك..."); input.setHintTextColor(mutedC); input.setTextColor(t.dark ? inkC : 0xFF3A404A); input.setTextSize(15); input.setMinHeight(t.u(45)); input.setMaxHeight(t.u(137));
         input.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE | android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
         input.setGravity(Gravity.CENTER_VERTICAL | Gravity.START); input.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG); input.setTextAlignment(View.TEXT_ALIGNMENT_TEXT_START); input.setPadding(t.u(12), t.u(9), t.u(12), t.u(9));
         input.setBackground(inpBg(false)); input.setOnFocusChangeListener((v, f) -> input.setBackground(inpBg(f))); Tk.selectionTint(input, Tk.chatPal != null ? Tk.chatPal.accent : (t.dark ? 0xFFE4C45B : 0xFFC29D30));
         inputBar.addView(input, lpw(0, -2, 1));
         FrameLayout.LayoutParams ibp = new FrameLayout.LayoutParams(-1, -2); ibp.setMargins(t.u(4), t.u(4), t.u(4), 0); inWrap.addView(inputBar, ibp);
         recBar = new LinearLayout(this); recBar.setGravity(Gravity.CENTER_VERTICAL); Tk.handle("recbar", recBar, null, t.dark); recBar.setMinimumHeight(t.u(66)); recBar.setPadding(t.u(12), t.u(8), t.u(12), t.u(8)); recBar.setVisibility(View.GONE);
-        TextView cx = tv(this, t, "×", 24, t.crMuted, false); cx.setGravity(Gravity.CENTER); cx.setOnClickListener(v -> stopRec(false)); recBar.addView(cx, lp(t.k(40), t.k(40)));
+        TextView cx = tv(this, t, "×", 24, mutedC, false); cx.setGravity(Gravity.CENTER); cx.setOnClickListener(v -> stopRec(false)); recBar.addView(cx, lp(t.k(40), t.k(40)));
         View dot = new View(this); dot.setBackground(oval(0xFFF87171)); LinearLayout.LayoutParams dp2 = lp(t.u(10), t.u(10)); dp2.setMargins(t.u(8), 0, t.u(8), 0); recBar.addView(dot, dp2);
-        TextView rl = tv(this, t, "جاري التسجيل", 14, 0xFFF87171, true); recBar.addView(rl); recTimer = tv(this, t, "00:00", 14, t.crInk, true); recTimer.setPadding(t.u(10), 0, 0, 0); recBar.addView(recTimer, lpw(0, -2, 1));
+        TextView rl = tv(this, t, "جاري التسجيل", 14, 0xFFF87171, true); recBar.addView(rl); recTimer = tv(this, t, "00:00", 14, inkC, true); recTimer.setPadding(t.u(10), 0, 0, 0); recBar.addView(recTimer, lpw(0, -2, 1));
         FrameLayout rs = new FrameLayout(this); Tk.handle("recbtn", rs, null, t.dark); rs.addView(icon(this, IC_SEND, 0xFFFFFFFF, 22), center(this, 22)); rs.setOnClickListener(v -> stopRec(true)); recBar.addView(rs, lp(t.u(42), t.u(42))); FrameLayout.LayoutParams rbp2 = new FrameLayout.LayoutParams(-1, -2); rbp2.setMargins(t.u(10), t.u(4), t.u(10), 0); inWrap.addView(recBar, rbp2);
         lockBar = new LinearLayout(this); lockBar.setGravity(Gravity.CENTER); lockBar.setBackground(round(t.card, t.u(16))); lockBar.setPadding(t.u(16), t.u(13), t.u(16), t.u(13)); lockBar.setVisibility(View.GONE);
         lockBar.addView(icon(this, IC_LOCK, t.sub, 18)); TextView lt = tv(this, t, "", 14, t.sub, false); lt.setPadding(t.u(9), 0, 0, 0); lockBar.addView(lt); lockBar.setTag(lt);
@@ -156,10 +157,16 @@ public class GroupRoomActivity extends Activity {
             public void afterTextChanged(Editable e) { checkMention(); updateAction(); if (e.length() > 0) { setTyping(true); if (typingOff != null) h.removeCallbacks(typingOff); typingOff = () -> setTyping(false); h.postDelayed(typingOff, 3000); } } });
         updateAction();
     }
+    /** صورة رأس المحادثة: صورة المجموعة دائرية، وإلا الحرف الأول على دائرة الثيم (Tk.chatAvatar) كما في المحادثة العادية. */
+    private void setHdAvatar() {
+        final String nm = s(meta, "name"), ph = s(meta, "photo"); final String ini = nm.isEmpty() ? "؟" : nm.substring(0, nm.offsetByCodePoints(0, 1)).toUpperCase();
+        hdAv.setBackground(Tk.chatAvatar(hdAv, t.dark)); hdAv.setTextColor(t.dark ? 0xFF17212B : 0xFFFFFFFF); hdAv.setText(ini);
+        if (!ph.isEmpty()) loadBitmap(ph, 400, bm -> hdAv.post(() -> { androidx.core.graphics.drawable.RoundedBitmapDrawable rd = androidx.core.graphics.drawable.RoundedBitmapDrawableFactory.create(getResources(), bm); rd.setCircular(true); rd.setAntiAlias(true); hdAv.setBackground(rd); hdAv.setText(""); }));
+    }
     private void updateAction() { boolean has = input.getText().toString().trim().length() > 0; sendB.setVisibility(has ? View.VISIBLE : View.GONE); micB.setVisibility(has ? View.GONE : View.VISIBLE); attachB.setVisibility(has ? View.GONE : View.VISIBLE); }
     private void tintDr(TextView x, int c) { for (android.graphics.drawable.Drawable d : x.getCompoundDrawablesRelative()) if (d != null) d.mutate().setColorFilter(c, android.graphics.PorterDuff.Mode.SRC_IN); }
     private TextView tbtn(int res, float sp) { TextView x = new TextView(this); x.setGravity(Gravity.CENTER); x.setTextSize(sp); x.setCompoundDrawablesRelativeWithIntrinsicBounds(res, 0, 0, 0); return x; }
-    private TextView rbtn(int res, float sp) { TextView x = tbtn(res, sp); x.setElevation(0f); Tk.handle("rbtn", x, x, t.dark); x.setTextColor(t.crInk); tintDr(x, t.crInk); return x; }
+    private TextView rbtn(int res, float sp) { TextView x = tbtn(res, sp); x.setElevation(0f); Tk.handle("rbtn", x, x, t.dark); x.setTextColor(inkC); tintDr(x, inkC); return x; }
     private int blend(int base, int fg, float a) { int r = Math.round(((base >> 16) & 0xFF) * (1 - a) + ((fg >> 16) & 0xFF) * a), g = Math.round(((base >> 8) & 0xFF) * (1 - a) + ((fg >> 8) & 0xFF) * a), b = Math.round((base & 0xFF) * (1 - a) + (fg & 0xFF) * a); return 0xFF000000 | (r << 16) | (g << 8) | b; }
     /** حقل الكتابة: نفس msgInpBg(focus, composer=true) في المحادثة العادية. */
     private GradientDrawable inpBg(boolean focus) {
@@ -179,10 +186,10 @@ public class GroupRoomActivity extends Activity {
 
     // ---------- الرأس والصلاحيات ----------
     private void refreshHeader() {
-        hdName.setText(s(meta, "name").isEmpty() ? "مجموعة" : s(meta, "name")); hdAv.setGroup(meta);
+        hdName.setText(s(meta, "name").isEmpty() ? "مجموعة" : s(meta, "name")); setHdAvatar();
         List<String> names = new ArrayList<>(); for (String u : parts(meta)) if (!u.equals(me()) && isTrue(meta.get("typing_" + u))) names.add(userName(u));
         if (!names.isEmpty()) { hdSub.setText(names.size() == 1 ? names.get(0) + " يكتب..." : join(names.subList(0, Math.min(2, names.size())), " و") + (names.size() > 2 ? " وآخرون" : "") + " يكتبون..."); hdSub.setTextColor(0xFF4ADE80); }
-        else { hdSub.setText(memberWord(parts(meta).size())); hdSub.setTextColor(t.crMuted); }
+        else { hdSub.setText(memberWord(parts(meta).size())); hdSub.setTextColor(mutedC); }
         boolean canText = canSend("text", me(), meta); inputBar.setVisibility(canText && !recording ? View.VISIBLE : View.GONE); lockBar.setVisibility(canText ? View.GONE : View.VISIBLE);
         if (!canText) ((TextView) lockBar.getTag()).setText(role(me(), meta).equals("member") && isTrue(map(meta, "muted").get(me())) ? "تم تقييدك من الكتابة في هذه المجموعة" : "الكتابة مقيّدة في هذه المجموعة");
         renderPinned();
@@ -328,13 +335,13 @@ public class GroupRoomActivity extends Activity {
     private void clearReply() { replyId = ""; replyText = ""; replySid = ""; replyBar.setVisibility(View.GONE); }
     private void setReply(DocumentSnapshot d) {
         Map<String, Object> m = d.getData(); replyId = d.getId(); replySid = s(m, "senderId"); String ty = s(m, "type"); replyText = ty.equals("image") ? "📷 صورة" : ty.equals("audio") ? "🎤 رسالة صوتية" : s(m, "text");
-        replyBar.removeAllViews(); replyBar.setLayoutDirection(View.LAYOUT_DIRECTION_LTR); int accR = Tk.chatPal != null ? Tk.chatPal.accent : (t.dark ? 0xFFC9A45C : 0xFFB58B2A);
-        TextView cancel = new TextView(this); cancel.setGravity(Gravity.CENTER); cancel.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_close_18, 0, 0, 0); tintDr(cancel, t.crMuted); cancel.setOnClickListener(v -> clearReply());
+        replyBar.removeAllViews();   // نفس replyPreviewBar في mass.xml: زر الإغلاق أولاً (30dp) ثم العنوان والنص، بلا خط ذهبي
+        TextView cancel = new TextView(this); cancel.setGravity(Gravity.CENTER); cancel.setTextSize(16); cancel.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_close_18, 0, 0, 0); Tk.handle("rpCancel", cancel, cancel, t.dark); cancel.setOnClickListener(v -> clearReply());
         LinearLayout.LayoutParams cxp = lp(t.u(30), t.u(30)); cxp.setMarginEnd(t.u(10)); replyBar.addView(cancel, cxp);
         LinearLayout tx = new LinearLayout(this); tx.setOrientation(LinearLayout.VERTICAL);
-        TextView lb = new TextView(this); lb.setText("الرد على " + userName(replySid)); lb.setTextSize(11); lb.setTypeface(null, android.graphics.Typeface.BOLD); lb.setTextColor(accR); lb.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL); lb.setCompoundDrawablePadding(t.u(5)); lb.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, R.drawable.ic_reply_16, 0); tintDr(lb, accR); LinearLayout.LayoutParams lbp = lp(-1, -2); lbp.bottomMargin = t.u(2); tx.addView(lb, lbp);
-        TextView rt = new TextView(this); rt.setText(MsgViews.iconize(this, replyText, t.crInk, 14)); rt.setTextSize(13); rt.setTypeface(null, android.graphics.Typeface.BOLD); rt.setTextColor(t.crInk); rt.setGravity(Gravity.RIGHT); rt.setMaxLines(1); rt.setEllipsize(TextUtils.TruncateAt.END); tx.addView(rt, lp(-1, -2));
-        replyBar.addView(tx, lpw(0, -2, 1)); View ln = new View(this); Tk.handle("rpGold", ln, null, t.dark); LinearLayout.LayoutParams lnp = lp(t.u(3), -1); lnp.setMarginStart(t.u(10)); replyBar.addView(ln, lnp);
+        TextView lb = new TextView(this); lb.setText("الرد على " + userName(replySid)); lb.setTextSize(11); lb.setTypeface(null, android.graphics.Typeface.BOLD); lb.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL); lb.setCompoundDrawablePadding(t.u(5)); lb.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, R.drawable.ic_reply_16, 0); Tk.handle("rpLabel", lb, lb, t.dark); LinearLayout.LayoutParams lbp = lp(-1, -2); lbp.bottomMargin = t.u(2); tx.addView(lb, lbp);
+        TextView rt = new TextView(this); rt.setText(MsgViews.iconize(this, replyText, t.dark ? 0xFFF1F5F9 : 0xFF17212B, 14)); rt.setTextSize(13); rt.setTypeface(null, android.graphics.Typeface.BOLD); rt.setGravity(Gravity.RIGHT); rt.setMaxLines(1); rt.setEllipsize(TextUtils.TruncateAt.END); Tk.handle("rpMsg", rt, rt, t.dark); tx.addView(rt, lp(-1, -2));
+        replyBar.addView(tx, lpw(0, -2, 1));
         replyBar.setVisibility(View.VISIBLE); input.requestFocus();
     }
     private void msgMenu(final DocumentSnapshot d, final View anchor) {
@@ -411,11 +418,12 @@ public class GroupRoomActivity extends Activity {
             final Activity A = GroupRoomActivity.this; final DocumentSnapshot d = msgs.get(pos); final Map<String, Object> m = d.getData();
             LinearLayout row = new LinearLayout(A); row.setOrientation(LinearLayout.HORIZONTAL); rtl(row); row.setLayoutParams(new AbsListView.LayoutParams(-1, -2));
             if (isTrue(m.get("system"))) {
-                TextView tx = MsgViews.sysPill(A, sysText(m)); tint(tx); row.setGravity(Gravity.CENTER); row.setPadding(0, pos > 0 ? t.u(6) : 0, 0, 0); row.addView(tx);
+                TextView tx = MsgViews.sysPill(A, sysText(m)); tint(tx); row.setGravity(Gravity.CENTER); row.addView(tx);   // هامش الحبة من MsgViews.sysPill نفسه كما في المحادثة العادية
+                
                 if ("pin".equals(s(map(m, "sys"), "k")) && !s(map(m, "sys"), "ref").isEmpty()) { final String ref = s(map(m, "sys"), "ref"); tx.setPaintFlags(tx.getPaintFlags() | android.graphics.Paint.UNDERLINE_TEXT_FLAG); tx.setOnClickListener(v -> jumpTo(ref)); } return withDay(pos, m, row);
             }
             final String sid = s(m, "senderId"); final boolean mine = sid.equals(me()); String prevK = pos > 0 ? keyOf(msgs.get(pos - 1)) : null, nextK = pos + 1 < msgs.size() ? keyOf(msgs.get(pos + 1)) : null; final boolean first = !sid.equals(prevK), last = !sid.equals(nextK);
-            row.setPadding(0, pos > 0 ? t.u(6) : 0, 0, 0); int screen = getResources().getDisplayMetrics().widthPixels; int maxBub = Math.round(screen * .92f) - (mine ? 0 : t.k(32) + t.u(7)) - t.u(28);
+            row.setPadding(0, t.u(4), 0, t.u(4)); int screen = getResources().getDisplayMetrics().widthPixels; int maxBub = Math.round(screen * .92f) - (mine ? 0 : t.k(32) + t.u(7)) - t.u(28);
             LinearLayout col = new LinearLayout(A); col.setOrientation(LinearLayout.VERTICAL);
             String type = s(m, "type"); final String data = s(m, "data"); final boolean isImg = type.equals("image") && !data.isEmpty(), isAud = type.equals("audio") && !data.isEmpty(), media = isImg || isAud; FrameLayout imgFrame = null; final long ct = l(m.get("createdAt"));
             final LinearLayout bub;
