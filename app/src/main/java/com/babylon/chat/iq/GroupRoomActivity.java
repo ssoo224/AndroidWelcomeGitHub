@@ -13,6 +13,7 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.media.MediaPlayer;
 import android.media.MediaRecorder;
+import android.os.Build;
 import android.os.Bundle;
 import android.text.*;
 import android.util.Base64;
@@ -42,7 +43,7 @@ public class GroupRoomActivity extends Activity {
     private static final String[] EMOJIS = {"❤️", "👍", "😂", "😮", "😢", "🙏"};
 
     @Override protected void onCreate(Bundle b) {
-        super.onCreate(b); t = th(this); window(this, t, t.crSurface); initChatStyle(); getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        super.onCreate(b); t = th(this); chatBars(); initChatStyle(); getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         chatId = getIntent().getStringExtra("chatId"); if (chatId == null) { finish(); return; }
         build(); loadUsers(Collections.singletonList(me()), () -> { });
         chatReg = db().collection("chats").document(chatId).addSnapshotListener((doc, e) -> {
@@ -104,7 +105,9 @@ public class GroupRoomActivity extends Activity {
         FrameLayout f = new FrameLayout(this); GradientDrawable g = oval(t.crCard); g.setStroke(Math.max(1, t.u(1)), t.crLine); f.setBackground(g); f.setElevation(t.u(3)); f.addView(icon(this, ic, t.crInk, 22), center(this, 22)); return f;
     }
     private void build() {
-        rootFrame = new FrameLayout(this); rootFrame.setBackgroundColor(t.crSurface); rtl(rootFrame); rootFrame.setFitsSystemWindows(true);
+        rootFrame = new FrameLayout(this); rootFrame.setBackgroundColor(t.crSurface); rtl(rootFrame); rootFrame.setOnApplyWindowInsetsListener((v, insets) -> {   // نفس applyInsets للمحادثة: الزجاج خلف شريط الإشعارات وشريط الإيماءات
+            int top = insets.getSystemWindowInsetTop(), bot = insets.getSystemWindowInsetBottom(), nav = Math.min(bot, insets.getStableInsetBottom()); boolean kbUp = bot - nav > t.u(100);
+            topBox.setPadding(0, top, 0, 0); bottom.setPadding(0, 0, 0, kbUp ? 0 : nav); rootFrame.setPadding(0, 0, 0, kbUp ? bot : 0); return insets; });
                 inkC = Tk.crInk(t.dark ? 0xFFF1F5F9 : 0xFF17212B); mutedC = Tk.crMuted(Tk.muted(t.dark));   // نفس ألوان t / m في المحادثة العادية
         // الهيدر: نفس chatTopBar في mass.xml (طبقة زجاجية + chatBack / chatUserInfo / chatMore بنفس الأبعاد والوسوم)
         topBox = new LinearLayout(this); topBox.setOrientation(LinearLayout.VERTICAL); Tk.handle("glasst", topBox, null, t.dark);
@@ -162,6 +165,12 @@ public class GroupRoomActivity extends Activity {
         final String nm = s(meta, "name"), ph = s(meta, "photo"); final String ini = nm.isEmpty() ? "؟" : nm.substring(0, nm.offsetByCodePoints(0, 1)).toUpperCase();
         hdAv.setBackground(Tk.chatAvatar(hdAv, t.dark)); hdAv.setTextColor(t.dark ? 0xFF17212B : 0xFFFFFFFF); hdAv.setText(ini);
         if (!ph.isEmpty()) loadBitmap(ph, 400, bm -> hdAv.post(() -> { androidx.core.graphics.drawable.RoundedBitmapDrawable rd = androidx.core.graphics.drawable.RoundedBitmapDrawableFactory.create(getResources(), bm); rd.setCircular(true); rd.setAntiAlias(true); hdAv.setBackground(rd); hdAv.setText(""); }));
+    }
+    /** أشرطة النظام كما في المحادثة العادية: شفافة وبحجم الشاشة كاملاً وأيقونات حسب الثيم. */
+    private void chatBars() {
+        Window w = getWindow(); w.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS | WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION); w.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+        w.setStatusBarColor(0); w.setNavigationBarColor(0); if (Build.VERSION.SDK_INT >= 29) { w.setNavigationBarContrastEnforced(false); w.setStatusBarContrastEnforced(false); }
+        AuthTheme.systemBars(w, t.dark);
     }
     private void updateAction() { boolean has = input.getText().toString().trim().length() > 0; sendB.setVisibility(has ? View.VISIBLE : View.GONE); micB.setVisibility(has ? View.GONE : View.VISIBLE); attachB.setVisibility(has ? View.GONE : View.VISIBLE); }
     private void tintDr(TextView x, int c) { for (android.graphics.drawable.Drawable d : x.getCompoundDrawablesRelative()) if (d != null) d.mutate().setColorFilter(c, android.graphics.PorterDuff.Mode.SRC_IN); }
@@ -416,7 +425,7 @@ public class GroupRoomActivity extends Activity {
         public int getCount() { return msgs.size(); } public Object getItem(int i) { return msgs.get(i); } public long getItemId(int i) { return i; }
         public View getView(int pos, View cv, ViewGroup parent) {
             final Activity A = GroupRoomActivity.this; final DocumentSnapshot d = msgs.get(pos); final Map<String, Object> m = d.getData();
-            LinearLayout row = new LinearLayout(A); row.setOrientation(LinearLayout.HORIZONTAL); rtl(row); row.setLayoutParams(new AbsListView.LayoutParams(-1, -2));
+            LinearLayout row = new LinearLayout(A); row.setOrientation(LinearLayout.HORIZONTAL); row.setLayoutDirection(View.LAYOUT_DIRECTION_LTR); row.setLayoutParams(new AbsListView.LayoutParams(-1, -2));
             if (isTrue(m.get("system"))) {
                 TextView tx = MsgViews.sysPill(A, sysText(m)); tint(tx); row.setGravity(Gravity.CENTER); row.addView(tx);   // هامش الحبة من MsgViews.sysPill نفسه كما في المحادثة العادية
                 
@@ -424,7 +433,7 @@ public class GroupRoomActivity extends Activity {
             }
             final String sid = s(m, "senderId"); final boolean mine = sid.equals(me()); String prevK = pos > 0 ? keyOf(msgs.get(pos - 1)) : null, nextK = pos + 1 < msgs.size() ? keyOf(msgs.get(pos + 1)) : null; final boolean first = !sid.equals(prevK), last = !sid.equals(nextK);
             row.setPadding(0, t.u(4), 0, t.u(4)); int screen = getResources().getDisplayMetrics().widthPixels; int maxBub = Math.round(screen * .92f) - (mine ? 0 : t.k(32) + t.u(7)) - t.u(28);
-            LinearLayout col = new LinearLayout(A); col.setOrientation(LinearLayout.VERTICAL);
+            LinearLayout col = new LinearLayout(A); col.setOrientation(LinearLayout.VERTICAL); rtl(col);
             String type = s(m, "type"); final String data = s(m, "data"); final boolean isImg = type.equals("image") && !data.isEmpty(), isAud = type.equals("audio") && !data.isEmpty(), media = isImg || isAud; FrameLayout imgFrame = null; final long ct = l(m.get("createdAt"));
             final LinearLayout bub;
             if (!media) {
@@ -472,8 +481,8 @@ public class GroupRoomActivity extends Activity {
                 if (imgFrame != null) { FrameLayout.LayoutParams rfl = new FrameLayout.LayoutParams(-2, -2); rfl.gravity = Gravity.BOTTOM | Gravity.LEFT; rfl.setMargins(t.u(8), 0, 0, t.u(8)); imgFrame.addView(rr, rfl); }
                 else { LinearLayout.LayoutParams rlp = lp(-2, -2); rlp.topMargin = t.u(4); col.addView(rr, rlp); } }
             if (d.getId().equals(flashId)) { bub.setAlpha(.35f); bub.animate().alpha(1f).setDuration(1200).start(); }
-            if (mine) { row.setGravity(Gravity.START); row.addView(col); }
-            else { row.setGravity(Gravity.END); row.addView(col); Av av = new Av(A, 32 * t.s); av.setUser(sid); av.setVisibility(last ? View.VISIBLE : View.INVISIBLE); LinearLayout.LayoutParams al = lp(t.k(32), t.k(32)); al.setMarginStart(t.u(7)); al.gravity = Gravity.BOTTOM; al.bottomMargin = t.u(2); row.addView(av, al); av.setOnClickListener(v -> openInfo(sid)); }
+            if (mine) { row.setGravity(Gravity.RIGHT); row.addView(col); }   // المرسَلة يميناً والمستلمة يساراً (مطلق)
+            else { row.setGravity(Gravity.LEFT); Av av = new Av(A, 32 * t.s); av.setUser(sid); av.setVisibility(last ? View.VISIBLE : View.INVISIBLE); LinearLayout.LayoutParams al = lp(t.k(32), t.k(32)); al.setMarginEnd(t.u(7)); al.gravity = Gravity.BOTTOM; al.bottomMargin = t.u(2); row.addView(av, al); row.addView(col); av.setOnClickListener(v -> openInfo(sid)); }
             return withDay(pos, m, row);
         }
     }
