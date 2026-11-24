@@ -319,8 +319,8 @@ public class Main2Activity extends Activity {
     private boolean switching = false;
 
     /**
-     * انتقال بين الدخول والتسجيل: تنطوي الصفحة الحالية للأعلى (scaleY→0) واللوغو مع الاسم ينزلان معها،
-     * ثم يرتفعان وتنفتح الصفحة الأخرى من الأعلى.
+     * انتقال بين الدخول والتسجيل: اللوغو والاسم ينزلان ويمسحان النموذج الحالي أمامهما،
+     * ثم يرتفعان ويكشفان النموذج الجديد تدريجياً (بلا طيّ).
      */
     private void switchForm(final boolean toRegister) {
         final View outF = toRegister ? binding.loginForm : binding.registerForm;
@@ -330,35 +330,40 @@ public class Main2Activity extends Activity {
         switching = true;
         try { android.view.inputmethod.InputMethodManager im = (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE); if (im != null) im.hideSoftInputFromWindow(binding.root.getWindowToken(), 0); } catch (Throwable ignored) { }
         final View[] head = {binding.logoCircle, binding.title, binding.subtitle};
-        final float dy = outF.getHeight() * 0.5f;
-        // حركة هادئة متماثلة: نفس المدة ونفس المنحنى الناعم (تسارع وتباطؤ لطيفان) للطيّ والفتح معاً
+        final View ref = binding.subtitle; final int[] loc = new int[2];
         final android.view.animation.Interpolator calm = new android.view.animation.PathInterpolator(0.45f, 0f, 0.25f, 1f);
-        final int DUR = 460;
-        outF.setPivotY(0f);
-        // 1) الطيّ + نزول الرأس
-        outF.animate().scaleY(0f).alpha(0f).setDuration(DUR).setInterpolator(calm).start();
-        for (View h : head) h.animate().translationY(dy).setDuration(DUR).setInterpolator(calm).start();
-        binding.root.postDelayed(() -> {
+        final int DUR = 520;
+        ref.getLocationOnScreen(loc); final float hb0 = loc[1] + ref.getHeight();
+        outF.getLocationOnScreen(loc); final float dy = Math.max(outF.getHeight() * 0.9f, outF.getTop() + outF.getHeight() - hb0 + 0f);
+        // 1) اللوغو والاسم ينزلان فوق النموذج ويمسحان كل ما يلاقيانه أمامهما (لا طيّ): الجزء الذي مرّا عليه يختفي
+        android.animation.ValueAnimator down = android.animation.ValueAnimator.ofFloat(0f, 1f); down.setDuration(DUR); down.setInterpolator(calm);
+        down.addUpdateListener(a -> { float p = (float) a.getAnimatedValue(); for (View h : head) h.setTranslationY(dy * p); wipe(outF, ref, loc); });
+        down.addListener(new android.animation.AnimatorListenerAdapter() { @Override public void onAnimationEnd(android.animation.Animator an) {
             final float topBefore = binding.logoCircle.getTop() + binding.logoCircle.getTranslationY();
-            outF.setVisibility(View.GONE);
-            outF.setScaleY(1f); outF.setAlpha(1f);
-            inF.setPivotY(0f); inF.setScaleY(0f); inF.setAlpha(0f);
-            inF.setVisibility(View.VISIBLE);
+            outF.setClipBounds(null); outF.setVisibility(View.GONE);
+            inF.setVisibility(View.VISIBLE); inF.setAlpha(1f); inF.setScaleY(1f);
             final View lay = binding.linear26;
             lay.getViewTreeObserver().addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
                 @Override public boolean onPreDraw() {
                     lay.getViewTreeObserver().removeOnPreDrawListener(this);
-                    // الرأس يبقى بصرياً في مكانه رغم تغيّر التخطيط، ثم يرتفع إلى موضعه الأصلي
-                    float shift = topBefore - binding.logoCircle.getTop();
-                    for (View h : head) h.setTranslationY(shift);
-                    for (View h : head) h.animate().translationY(0f).setDuration(DUR).setInterpolator(calm).start();
-                    inF.animate().scaleY(1f).alpha(1f).setDuration(DUR).setStartDelay(0)
-                            .setInterpolator(calm)
-                            .withEndAction(() -> switching = false).start();
-                    return true;
+                    // الرأس يبقى بصرياً في مكانه رغم تغيّر التخطيط (والنموذج الجديد مخفي بالكامل خلفه)، ثم يرتفع ويكشف النموذج الجديد تدريجياً
+                    final float shift = topBefore - binding.logoCircle.getTop();
+                    for (View h : head) h.setTranslationY(shift); wipe(inF, ref, loc);
+                    android.animation.ValueAnimator up = android.animation.ValueAnimator.ofFloat(0f, 1f); up.setDuration(DUR); up.setInterpolator(calm);
+                    up.addUpdateListener(a2 -> { float p = (float) a2.getAnimatedValue(); for (View h : head) h.setTranslationY(shift * (1f - p)); wipe(inF, ref, loc); });
+                    up.addListener(new android.animation.AnimatorListenerAdapter() { @Override public void onAnimationEnd(android.animation.Animator an2) { for (View h : head) h.setTranslationY(0f); inF.setClipBounds(null); switching = false; } });
+                    up.start(); return true;
                 }
             });
-        }, DUR);
+        } });
+        down.start();
+    }
+
+    /** يُظهر من النموذج ما تحت الحافة السفلى للرأس فقط (ما مرّ عليه الرأس يُمسح). */
+    private void wipe(View form, View headRef, int[] loc) {
+        headRef.getLocationOnScreen(loc); float hb = loc[1] + headRef.getHeight(); form.getLocationOnScreen(loc);
+        int w = form.getWidth(), h = form.getHeight(), top = Math.max(0, Math.min(h, Math.round(hb - loc[1])));
+        form.setClipBounds(new android.graphics.Rect(0, top, w, h));
     }
 
     /** الطور الليلي: الخلفية، الحقول، التسميات والنصوص. */

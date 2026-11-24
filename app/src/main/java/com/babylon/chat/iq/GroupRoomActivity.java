@@ -36,6 +36,7 @@ public class GroupRoomActivity extends Activity {
     private final List<DocumentSnapshot> msgs = new ArrayList<>(); private ListenerRegistration chatReg, msgReg; private int limit = 50, pinIdx = -1;
     private boolean metaReady, loadingOlder; private long lastReadWrite; private String flashId = "";
     private FrameLayout rootFrame; private ListView list; private BaseAdapter adapter; private TextView hdAv; private int inkC, mutedC; private TextView hdName, hdSub; private LinearLayout pinBar, bottom, inputBar, recBar, lockBar, replyBar, mentionPop;
+    private boolean sfxReady; private String sfxLastId = "";
     private EditText input; private TextView sendB, micB, attachB; private LinearLayout topBox; private TextView recTimer;
     private String replyId = "", replyText = "", replySid = ""; private boolean typingOn; private final android.os.Handler h = new android.os.Handler(); private Runnable typingOff;
     private MediaRecorder rec; private File recFile; private long recStart; private Runnable recTick; private boolean recording;
@@ -91,7 +92,9 @@ public class GroupRoomActivity extends Activity {
     private void listenMessages() {
         if (msgReg != null) msgReg.remove();
         msgReg = db().collection("chats").document(chatId).collection("messages").orderBy("createdAt", Query.Direction.DESCENDING).limit(limit).addSnapshotListener((snap, e) -> {
-            if (snap == null) return; msgs.clear(); List<DocumentSnapshot> d = new ArrayList<>(snap.getDocuments()); Collections.reverse(d); msgs.addAll(d);
+            if (snap == null) return;
+            try { List<DocumentSnapshot> nd = snap.getDocuments(); if (!nd.isEmpty()) { DocumentSnapshot top = nd.get(0); if (sfxReady && !top.getId().equals(sfxLastId) && !snap.getMetadata().isFromCache() && !me().equals(s(top.getData(), "senderId")) && !isTrue(top.getData().get("system"))) ClickSfx.receive(this, AppSettings.prefs(this, "babylon_ui")); sfxLastId = top.getId(); sfxReady = true; } } catch (Throwable ignored) { }
+            msgs.clear(); List<DocumentSnapshot> d = new ArrayList<>(snap.getDocuments()); Collections.reverse(d); msgs.addAll(d);
             List<String> ids = new ArrayList<>(); for (DocumentSnapshot m : d) { String sid = s(m.getData(), "senderId"); if (!sid.isEmpty()) ids.add(sid); }
             loadUsers(ids, () -> { adapter.notifyDataSetChanged(); });
             adapter.notifyDataSetChanged(); if (!loadingOlder) list.setSelection(adapter.getCount() - 1); loadingOlder = false;
@@ -156,6 +159,8 @@ public class GroupRoomActivity extends Activity {
         topBox.addOnLayoutChangeListener(lc); bottom.addOnLayoutChangeListener(lc);
         mentionPop = new LinearLayout(this); mentionPop.setOrientation(LinearLayout.VERTICAL); GradientDrawable mg = round(t.card, t.u(16)); mg.setStroke(Math.max(1, t.u(1)), t.sep); mentionPop.setBackground(mg); mentionPop.setElevation(t.u(12)); mentionPop.setVisibility(View.GONE);
         FrameLayout.LayoutParams mp = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM); mp.setMargins(t.u(10), 0, t.u(10), t.u(68)); rootFrame.addView(mentionPop, mp); setContentView(rootFrame);
+        FontManager.applyTo(this, rootFrame);
+        BabylonFx.press(sendB, 0.9f); BabylonFx.press(micB, 0.9f); BabylonFx.press(attachB, 0.9f);   // نفس حركة نقر أزرار المحادثة العادية
         input.addTextChangedListener(new TextWatcher() { public void beforeTextChanged(CharSequence a, int b2, int c, int d) { } public void onTextChanged(CharSequence a, int b2, int c, int d) { }
             public void afterTextChanged(Editable e) { checkMention(); updateAction(); if (e.length() > 0) { setTyping(true); if (typingOff != null) h.removeCallbacks(typingOff); typingOff = () -> setTyping(false); h.postDelayed(typingOff, 3000); } } });
         updateAction();
@@ -189,7 +194,7 @@ public class GroupRoomActivity extends Activity {
     @Override protected void onActivityResult(int rc, int res, Intent d) {
         super.onActivityResult(rc, res, d);
         if (rc == 9 && res == RESULT_OK && d != null && d.getStringExtra("mention") != null) { String un = d.getStringExtra("mention"); String v = input.getText().toString(); if (!v.isEmpty() && !v.endsWith(" ")) v += " "; input.setText(v + "@" + un + ", "); input.setSelection(input.length()); input.requestFocus(); }
-        if (rc == 11 && res == RESULT_OK && d != null && d.getData() != null) sendImage(d.getData());
+        if (rc == 11 && res == RESULT_OK && d != null && d.getData() != null) prepareMedia(d.getData());
     }
     private void setTyping(boolean on) { if (typingOn == on || chatId == null) return; typingOn = on; try { db().collection("chats").document(chatId).update("typing_" + me(), on); } catch (Throwable ignored) { } }
 
@@ -288,8 +293,9 @@ public class GroupRoomActivity extends Activity {
     private void send() {
         String text = input.getText().toString().trim(); if (text.isEmpty() || !canSend("text", me(), meta)) return;
         Map<String, Object> m = baseMsg("text"); m.put("text", text); List<String> mn = extractMentions(text); if (!mn.isEmpty()) m.put("mentions", mn); input.setText(""); setTyping(false); pushMsg(m, text.length() > 120 ? text.substring(0, 120) : text);
+        try { ClickSfx.send(this, AppSettings.prefs(this, "babylon_ui")); } catch (Throwable ignored) { }
     }
-    private void pickImage() { if (!canSend("media", me(), meta)) { toast(this, "إرسال الصور غير مسموح لك في هذه المجموعة"); return; } Intent i = new Intent(Intent.ACTION_GET_CONTENT); i.setType("image/*"); startActivityForResult(i, 11); }
+    private void pickImage() { if (!canSend("media", me(), meta)) { toast(this, "إرسال الصور غير مسموح لك في هذه المجموعة"); return; } Intent i = new Intent(Intent.ACTION_GET_CONTENT); i.setType("*/*"); i.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"image/*", "video/*"}); startActivityForResult(i, 11); }
     private void sendImage(final android.net.Uri uri) {
         toast(this, "جاري إرسال الصورة…");
         new Thread(() -> {
@@ -434,7 +440,7 @@ public class GroupRoomActivity extends Activity {
             final String sid = s(m, "senderId"); final boolean mine = sid.equals(me()); String prevK = pos > 0 ? keyOf(msgs.get(pos - 1)) : null, nextK = pos + 1 < msgs.size() ? keyOf(msgs.get(pos + 1)) : null; final boolean first = !sid.equals(prevK), last = !sid.equals(nextK);
             row.setPadding(0, t.u(4), 0, t.u(4)); int screen = getResources().getDisplayMetrics().widthPixels; int maxBub = Math.round(screen * .92f) - (mine ? 0 : t.k(32) + t.u(7)) - t.u(28);
             LinearLayout col = new LinearLayout(A); col.setOrientation(LinearLayout.VERTICAL); rtl(col);
-            String type = s(m, "type"); final String data = s(m, "data"); final boolean isImg = type.equals("image") && !data.isEmpty(), isAud = type.equals("audio") && !data.isEmpty(), media = isImg || isAud; FrameLayout imgFrame = null; final long ct = l(m.get("createdAt"));
+            String type = s(m, "type"); final String data = s(m, "data"); final boolean isVid = type.equals("video") && !s(m, "videoUrl").isEmpty(); final boolean isImg = (type.equals("image") && !data.isEmpty()) || isVid, isAud = type.equals("audio") && !data.isEmpty(), media = isImg || isAud; FrameLayout imgFrame = null; final long ct = l(m.get("createdAt"));
             final LinearLayout bub;
             if (!media) {
                 String raw = s(m, "text"), rTo0 = s(m, "replyTo");
@@ -453,18 +459,21 @@ public class GroupRoomActivity extends Activity {
             String rTo = s(m, "replyTo"); final String qEnc = rTo.isEmpty() ? "" : (s(m, "replyToSenderId").isEmpty() ? "" : userName(s(m, "replyToSenderId"))) + "\u0001" + rTo.replace('\n', ' ').replace('\u0002', ' ') + "\u0002" + s(m, "replyToId") + "\u0002";
             if (isAud && !qEnc.isEmpty()) { View qv = MsgViews.quoteView(A, qEnc, mine); bub.addView(qv, (!mine && first) ? 1 : 0); }
             if (isImg) {
-                final String src = !s(m, "imageUrl").isEmpty() ? s(m, "imageUrl") : data; int size = Math.min(t.u(220), (int) (screen * 0.68f));
+                final String src = isVid ? (!s(m, "posterUrl").isEmpty() ? s(m, "posterUrl") : data) : (!s(m, "imageUrl").isEmpty() ? s(m, "imageUrl") : data); final String vidUrl = s(m, "videoUrl"); int size = Math.min(t.u(220), (int) (screen * 0.68f));
                 final FrameLayout fr = new FrameLayout(A); imgFrame = fr; fr.setClipToOutline(true); GradientDrawable fbg = new GradientDrawable(); fbg.setColor(t.dark ? 0xFF202C33 : 0xFFF0F0F0); fbg.setCornerRadius(t.u(12)); fr.setBackground(fbg);
                 fr.setOutlineProvider(new android.view.ViewOutlineProvider() { @Override public void getOutline(View v, android.graphics.Outline o) { o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), t.u(12)); } });
                 final ImageView iv = new ImageView(A); iv.setScaleType(ImageView.ScaleType.CENTER_CROP); iv.setImageDrawable(Skeleton.shimmer(t.dark, 0f)); fr.addView(iv, new FrameLayout.LayoutParams(-1, -1));
-                loadBitmap(src, 900, bm -> iv.post(() -> iv.setImageBitmap(bm))); fr.setOnClickListener(v -> viewImage(src)); fr.setOnLongClickListener(v -> { msgMenu(d, bub); return true; });
+                loadBitmap(src, 900, bm -> iv.post(() -> iv.setImageBitmap(bm))); fr.setOnClickListener(v -> openMedia(d, isVid, isVid ? vidUrl : src, src, mine)); fr.setOnLongClickListener(v -> { msgMenu(d, bub); return true; });
                 LinearLayout tm = new LinearLayout(A); tm.setGravity(Gravity.CENTER_VERTICAL); tm.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
                 TextView tt2 = new TextView(A); tt2.setText(time12(ct)); tt2.setTextSize(10); tt2.setTextColor(0xFFFFFFFF); tt2.setTypeface(null, android.graphics.Typeface.BOLD); tt2.setIncludeFontPadding(false); tm.addView(tt2);
                 if (mine) { int stt = readByAll(ct) ? MsgViews.READ : MsgViews.SENT; ImageView tick = new ImageView(A); tick.setTag("tick"); tick.setImageDrawable(new MsgViews.TickDrawable(A, stt, 0, Tk.tickColor(stt))); LinearLayout.LayoutParams tkl = new LinearLayout.LayoutParams(-2, -2); tkl.setMarginStart(t.u(3)); tm.addView(tick, tkl); }
                 tm.setPadding(t.u(6), t.u(2), t.u(6), t.u(2)); GradientDrawable tg = new GradientDrawable(); tg.setColor(0x99000000); tg.setCornerRadius(t.u(8)); tm.setBackground(tg);
                 FrameLayout.LayoutParams tlp = new FrameLayout.LayoutParams(-2, -2); tlp.gravity = Gravity.BOTTOM | Gravity.END; tlp.setMargins(0, 0, t.u(6), t.u(6)); fr.addView(tm, tlp);
                 if (!qEnc.isEmpty()) { View qv = MsgViews.quoteView(A, qEnc, true); FrameLayout.LayoutParams qlp = new FrameLayout.LayoutParams(-1, -2, Gravity.TOP); qlp.setMargins(t.u(6), t.u(6), t.u(6), 0); fr.addView(qv, qlp); tint(qv); GradientDrawable qg = new GradientDrawable(); qg.setColor(0xB3000000); qg.setCornerRadius(t.u(10)); qv.setBackground(qg); }
-                bub.addView(fr, lp(size, size));
+                if (isVid) { ImageView pl = new ImageView(A); pl.setImageResource(R.drawable.ic_mc_play); pl.setPadding(t.u(10), t.u(10), t.u(10), t.u(10)); GradientDrawable pg = new GradientDrawable(); pg.setShape(GradientDrawable.OVAL); pg.setColor(0x99000000); pl.setBackground(pg); FrameLayout.LayoutParams plp = new FrameLayout.LayoutParams(t.u(52), t.u(52), Gravity.CENTER); fr.addView(pl, plp); }
+                final String capTxt = s(m, "caption");
+                if (!capTxt.isEmpty()) { bub.setBackground(bubbleBg(mine, first, last)); LinearLayout.LayoutParams flp = lp(size, size); flp.setMargins(t.u(3), t.u(3), t.u(3), 0); bub.addView(fr, flp); TextView cp = new TextView(A); cp.setText(capTxt); cp.setTextSize(fontSp); cp.setTextColor(txtColor); cp.setPadding(t.u(9), t.u(6), t.u(9), t.u(6)); cp.setMaxWidth(size); bub.addView(cp); }
+                else bub.addView(fr, lp(size, size));
             } else if (isAud) {
                 final MsgViews.VoiceBubble vb = (MsgViews.VoiceBubble) bub; final boolean playing = playingId.equals(d.getId());
                 vb.playBtn.setOnClickListener(v -> togglePlay(d.getId(), data));
@@ -483,10 +492,127 @@ public class GroupRoomActivity extends Activity {
             if (d.getId().equals(flashId)) { bub.setAlpha(.35f); bub.animate().alpha(1f).setDuration(1200).start(); }
             if (mine) { row.setGravity(Gravity.RIGHT); row.addView(col); }   // المرسَلة يميناً والمستلمة يساراً (مطلق)
             else { row.setGravity(Gravity.LEFT); Av av = new Av(A, 32 * t.s); av.setUser(sid); av.setVisibility(last ? View.VISIBLE : View.INVISIBLE); LinearLayout.LayoutParams al = lp(t.k(32), t.k(32)); al.setMarginEnd(t.u(7)); al.gravity = Gravity.BOTTOM; al.bottomMargin = t.u(2); row.addView(av, al); row.addView(col); av.setOnClickListener(v -> openInfo(sid)); }
-            return withDay(pos, m, row);
+            View outRow = withDay(pos, m, row);
+            FontManager.applyTo(A, outRow);   // نفس المحادثة العادية: الخط يُطبَّق فور بناء الصف فلا وميض
+            return outRow;
         }
     }
     private String mine2(Map<String, Object> m) { return s(map(m, "reactions"), me()); }
+    // ---------- الوسائط (نفس مسار المحادثة العادية: نافذة التجهيز ← رفع Cloudinary ← عارض الوسائط) ----------
+    private final MediaComposer.Host mediaHost = new MediaComposer.Host() {
+        @Override public void onSend(MediaComposer.Req r) { if (r.video) sendGroupVideo(r); else sendGroupImage(r); }
+        @Override public void onEditCaption(String id, String caption) {
+            if (id == null || chatId == null) return;
+            db().collection("chats").document(chatId).collection("messages").document(id).update("caption", caption == null || caption.isEmpty() ? FieldValue.delete() : caption)
+                .addOnSuccessListener(x -> toast(GroupRoomActivity.this, "تم تعديل الرسالة بنجاح")).addOnFailureListener(e -> toast(GroupRoomActivity.this, "تعذر تعديل الرسالة"));
+        }
+    };
+
+    private void prepareMedia(final android.net.Uri uri) {
+        if (uri == null || chatId == null) return;
+        String mm = null, nm = ""; long sz = -1;
+        try {
+            mm = getContentResolver().getType(uri);
+            android.database.Cursor c = getContentResolver().query(uri, new String[]{android.provider.OpenableColumns.DISPLAY_NAME, android.provider.OpenableColumns.SIZE}, null, null, null);
+            if (c != null) { try { if (c.moveToFirst()) { if (!c.isNull(0)) nm = c.getString(0); if (!c.isNull(1)) sz = c.getLong(1); } } finally { c.close(); } }
+        } catch (Throwable ignored) { }
+        if (mm == null || mm.isEmpty()) { String ex = android.webkit.MimeTypeMap.getFileExtensionFromUrl(nm.replace(" ", "_")); mm = ex == null || ex.isEmpty() ? "" : String.valueOf(android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(ex.toLowerCase(Locale.US))); }
+        final String mime = mm; final boolean isVid = mime.startsWith("video/"), isImg = mime.startsWith("image/"); final String name = nm;
+        if (!isVid && !isImg) { toast(this, "اختر صورة أو فيديو فقط"); return; }
+        if (isVid && sz > ChatMediaUp.MAX_VIDEO_MB * 1048576L) { toast(this, "حجم المقطع كبير (الأقصى " + ChatMediaUp.MAX_VIDEO_MB + " ميجا)"); return; }
+        if (isImg && sz > 15L * 1048576L) { toast(this, "الصورة كبيرة جداً"); return; }
+        int di = name.lastIndexOf('.'); final String ext = di >= 0 && name.length() - di <= 6 ? name.substring(di) : (isVid ? ".mp4" : ".jpg");
+        new Thread(() -> {
+            try {
+                File dir = new File(getCacheDir(), "chat_pick"); dir.mkdirs(); File[] old = dir.listFiles(); if (old != null) for (File of : old) if (System.currentTimeMillis() - of.lastModified() > 3600000L) of.delete();
+                final File f = new File(dir, "pick_" + System.currentTimeMillis() + ext);
+                java.io.InputStream in = getContentResolver().openInputStream(uri); if (in == null) throw new Exception("open");
+                FileOutputStream fo = new FileOutputStream(f); byte[] buf = new byte[65536]; int n; while ((n = in.read(buf)) > 0) fo.write(buf, 0, n); fo.close(); in.close();
+                if (f.length() == 0) throw new Exception("empty");
+                runOnUiThread(() -> { if (isFinishing()) return; MediaComposer.open(GroupRoomActivity.this, t.dark, f, mime, mediaHost); });
+            } catch (Throwable e) { runOnUiThread(() -> toast(GroupRoomActivity.this, "تعذر قراءة الملف من الجهاز، اختره مرة أخرى")); }
+        }).start();
+    }
+
+    private void sendGroupImage(final MediaComposer.Req r) {
+        final File file = r.cropped != null ? r.cropped : r.file;
+        if (file == null || !file.exists()) { toast(this, "تعذر تجهيز الصورة"); return; }
+        if (!canSend("media", me(), meta)) { toast(this, "إرسال الصور غير مسموح لك في هذه المجموعة"); return; }
+        final String caption = r.caption == null ? "" : r.caption; final String srcMime = r.cropped != null ? "image/jpeg" : (r.mime == null ? "" : r.mime);
+        toast(this, "جاري إرسال الصورة…");
+        new Thread(() -> {
+            String data = null, outMime = srcMime; final String thumb = ChatMediaUp.tinyThumb(file, false);
+            try {
+                try { org.json.JSONObject js = ChatMediaUp.upload(file, "image", "chat", new ChatMediaUp.Cancel(), null); String u = js.getString("secure_url"); if (!srcMime.matches("(?i)image/(jpeg|png|gif|webp)")) { u = u.replaceAll("\\.[^/.]+$", ".jpg"); outMime = "image/jpeg"; } data = u; } catch (Throwable e) { data = null; }
+                int w = 0, h = 0;
+                if (data == null) {
+                    Bitmap b = MediaComposer.decodeFile(file, 2048, true);
+                    if (b != null) { int dim = 1024; float q = 0.72f; String out = ""; for (int i = 0; i < 6; i++) { float sc = Math.min(1f, dim / (float) Math.max(b.getWidth(), b.getHeight())); Bitmap sm = Bitmap.createScaledBitmap(b, Math.max(1, Math.round(b.getWidth() * sc)), Math.max(1, Math.round(b.getHeight() * sc)), true); ByteArrayOutputStream bo = new ByteArrayOutputStream(); sm.compress(Bitmap.CompressFormat.JPEG, Math.round(q * 100), bo); out = "data:image/jpeg;base64," + android.util.Base64.encodeToString(bo.toByteArray(), android.util.Base64.NO_WRAP); if (out.length() < 850000) break; dim = Math.round(dim * 0.8f); q = Math.max(0.5f, q - 0.08f); } if (out.length() < 900000) { data = out; outMime = "image/jpeg"; w = b.getWidth(); h = b.getHeight(); } }
+                }
+                final String fData = data, fMime = outMime; final int fw = w, fh = h;
+                runOnUiThread(() -> {
+                    if (fData == null) { toast(GroupRoomActivity.this, "تعذر تجهيز الصورة، جرب صورة أخرى"); return; }
+                    Map<String, Object> m = baseMsg("image"); m.put("data", fData); m.put("mime", fMime); m.put("duration", 0L);
+                    if (fData.startsWith("http")) { m.put("imageUrl", fData); if (!thumb.isEmpty()) m.put("thumb", thumb); }
+                    if (fw > 0) { m.put("w", fw); m.put("h", fh); }
+                    if (!caption.isEmpty()) m.put("caption", caption);
+                    pushMsg(m, caption.isEmpty() ? ("image/gif".equals(fMime) ? "🎞 GIF" : "📷 صورة") : "📷 " + caption);
+                    try { ClickSfx.send(GroupRoomActivity.this, AppSettings.prefs(GroupRoomActivity.this, "babylon_ui")); } catch (Throwable ignored) { }
+                });
+            } catch (Throwable e) { runOnUiThread(() -> toast(GroupRoomActivity.this, "تعذر إرسال الصورة")); }
+        }).start();
+    }
+
+    private void sendGroupVideo(final MediaComposer.Req r) {
+        final File file = r.file;
+        if (file == null || !file.exists()) { toast(this, "تعذر قراءة الملف من الجهاز، اختره مرة أخرى"); return; }
+        if (!canSend("media", me(), meta)) { toast(this, "إرسال الوسائط غير مسموح لك في هذه المجموعة"); return; }
+        if (file.length() > ChatMediaUp.MAX_VIDEO_MB * 1048576L) { toast(this, "حجم المقطع كبير (الأقصى " + ChatMediaUp.MAX_VIDEO_MB + " ميجا)"); return; }
+        final String caption = r.caption == null ? "" : r.caption; final long total = file.length();
+        toast(this, "جاري رفع الفيديو (" + ChatMediaUp.fmtVP(total) + ")…");
+        new Thread(() -> {
+            final String thumb = ChatMediaUp.tinyThumb(file, true);
+            try {
+                final ChatMediaUp.Cancel cancel = new ChatMediaUp.Cancel();
+                org.json.JSONObject js = ChatMediaUp.upload(file, "video", "chat", cancel, null);
+                String secure = js.getString("secure_url"); double jdur = js.optDouble("duration", 0);
+                String plainPoster = secure.replace("/video/upload/", "/video/upload/so_0,w_480,c_limit/").replaceAll("\\.[^/.]+$", ".jpg");
+                ChatMediaUp.VideoEdit ed = ChatMediaUp.videoEdit(secure, r, r.dur > 0 ? r.dur : jdur);
+                String videoUrl, posterUrl; int durSec;
+                if (ed.edited) {
+                    String st = ChatMediaUp.waitVideoReady(ed.url, cancel);
+                    if ("bad".equals(st)) { runOnUiThread(() -> toast(GroupRoomActivity.this, "تعذر تطبيق التعديلات، تم إرسال الفيديو الأصلي")); videoUrl = secure; posterUrl = plainPoster; durSec = (int) Math.round(jdur); }
+                    else { videoUrl = ed.url; posterUrl = ed.poster; durSec = ed.duration > 0 ? ed.duration : (int) Math.round(jdur); }
+                } else { videoUrl = secure; posterUrl = ed.poster != null ? ed.poster : plainPoster; durSec = ed.duration > 0 ? ed.duration : (int) Math.round(jdur); }
+                final String fVideo = videoUrl, fPoster = posterUrl; final int fDur = durSec;
+                runOnUiThread(() -> {
+                    Map<String, Object> m = baseMsg("video"); m.put("videoUrl", fVideo); m.put("posterUrl", fPoster); m.put("data", fPoster); m.put("duration", (long) fDur);
+                    if (!thumb.isEmpty()) m.put("thumb", thumb); if (!caption.isEmpty()) m.put("caption", caption);
+                    pushMsg(m, caption.isEmpty() ? "▶ فيديو" : "▶ " + caption);
+                    try { ClickSfx.send(GroupRoomActivity.this, AppSettings.prefs(GroupRoomActivity.this, "babylon_ui")); } catch (Throwable ignored) { }
+                });
+            } catch (final Throwable e) { runOnUiThread(() -> toast(GroupRoomActivity.this, "تعذر رفع الفيديو")); }
+        }).start();
+    }
+
+    /** عارض الصورة/الفيديو نفسه المستعمل في المحادثة العادية (تكبير، تشغيل، تنزيل، حذف). */
+    private void openMedia(final DocumentSnapshot d, final boolean video, final String url, final String poster, final boolean mine) {
+        MediaViewer.Cb cb = new MediaViewer.Cb() {
+            @Override public void download() {
+                if (video) { try { android.app.DownloadManager.Request rq = new android.app.DownloadManager.Request(android.net.Uri.parse(url)); rq.setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED); rq.setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_MOVIES, "Babylon/Babylon_" + System.currentTimeMillis() + ".mp4"); ((android.app.DownloadManager) getSystemService(DOWNLOAD_SERVICE)).enqueue(rq); toast(GroupRoomActivity.this, "بدأ تنزيل الفيديو"); } catch (Throwable e) { toast(GroupRoomActivity.this, "تعذر التنزيل"); } }
+                else loadBitmap(url, 4096, bm -> runOnUiThread(() -> PhotoViewer.saveBitmap(GroupRoomActivity.this, bm)));
+            }
+            @Override public void delete() { String sid = s(d.getData(), "senderId"); boolean canDel = sid.equals(me()) || right("delete", me(), meta); if (!canDel) { toast(GroupRoomActivity.this, "ليس لديك صلاحية حذف هذه الرسالة"); return; } MediaViewer.closeIfOpen(); confirm(GroupRoomActivity.this, t, "حذف الرسالة", "حذف هذه الرسالة لدى الجميع؟", "حذف", (ok, x) -> { if (ok) d.getReference().delete(); }); }
+        };
+        if (video) MediaViewer.showVideo(this, url, poster, mine, true, cb); else MediaViewer.showImage(this, url, mine, true, cb);
+    }
+
+    @Override public void onBackPressed() {
+        if (MediaComposer.handleBack()) return;
+        if (MediaViewer.closeIfOpen()) return;
+        super.onBackPressed();
+    }
+
     private void viewImage(String src) {
         final Dialog dg = new Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen); final ImageView iv = new ImageView(this); iv.setScaleType(ImageView.ScaleType.FIT_CENTER); iv.setBackgroundColor(0xFF000000); iv.setOnClickListener(v -> dg.dismiss()); dg.setContentView(iv); dg.show();
         loadBitmap(src, 2048, bm -> iv.post(() -> iv.setImageBitmap(bm)));

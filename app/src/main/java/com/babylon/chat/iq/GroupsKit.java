@@ -237,7 +237,9 @@ final class GroupsKit {
         Av(Context c, float sizeDp) { super(c); int px = Math.round(sizeDp * c.getResources().getDisplayMetrics().density); setLayoutParams(new ViewGroup.LayoutParams(px, px)); tp.setColor(Color.WHITE); tp.setTextAlign(Paint.Align.CENTER); tp.setFakeBoldText(true); tp.setShadowLayer(2, 0, 1, 0x40000000); }
         Av ring(int color, int gapPx, int widthPx, int gapColor) { ring = color; ringGap = gapPx; ringW = widthPx; this.gapColor = gapColor; invalidate(); return this; }
         Av setGroup(Map<String, Object> d) { group = true; label = first(s(d, "name")); seed = ""; setPhoto(s(d, "photo")); return this; }
-        Av setUser(String uid) { group = false; U u = user(uid); label = first(u.name); seed = uid; setPhoto(u.photo); return this; }
+        Av setUser(final String uid) { group = false; U u = user(uid); label = first(u.name); seed = uid; setPhoto(u.photo);
+            if (!GU.containsKey(uid)) loadUsers(java.util.Collections.singletonList(uid), () -> post(() -> { U n = user(uid); if (!uid.equals(seed)) return; label = first(n.name); setPhoto(n.photo); invalidate(); }));   // المستخدم لم يُحمَّل بعد: نجلبه ثم نعيد الرسم بصورته
+            return this; }
         static String first(String n) { return n == null || n.isEmpty() ? "؟" : n.substring(0, n.offsetByCodePoints(0, 1)).toUpperCase(); }
         private void setPhoto(final String ph) {
             photo = ph == null ? "" : ph; bmp = null; invalidate(); if (photo.isEmpty()) return; Bitmap c = BMP.get(photo); if (c != null) { bmp = c; return; } final String want = photo;
@@ -259,7 +261,7 @@ final class GroupsKit {
             Bitmap b = null;
             try {
                 byte[] raw;
-                if (src.startsWith("data:")) raw = Base64.decode(src.substring(src.indexOf(',') + 1), Base64.DEFAULT);
+                if (!src.startsWith("http")) raw = Base64.decode(src.contains(",") ? src.substring(src.indexOf(',') + 1) : src, Base64.DEFAULT);   // data: أو Base64 خام كما تحفظه المحادثة العادية
                 else { HttpURLConnection cn = (HttpURLConnection) new URL(src).openConnection(); cn.setConnectTimeout(8000); cn.setReadTimeout(12000); InputStream in = cn.getInputStream(); java.io.ByteArrayOutputStream o = new java.io.ByteArrayOutputStream(); byte[] buf = new byte[8192]; int n; while ((n = in.read(buf)) > 0) o.write(buf, 0, n); in.close(); raw = o.toByteArray(); }
                 BitmapFactory.Options op = new BitmapFactory.Options(); op.inJustDecodeBounds = true; BitmapFactory.decodeByteArray(raw, 0, raw.length, op);
                 int ss = 1; while (Math.max(op.outWidth, op.outHeight) / (ss * 2) >= maxSide) ss *= 2; op = new BitmapFactory.Options(); op.inSampleSize = ss; b = BitmapFactory.decodeByteArray(raw, 0, raw.length, op);

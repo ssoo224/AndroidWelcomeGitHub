@@ -3,6 +3,7 @@ package com.babylon.chat.iq;
 import android.app.Activity;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
@@ -43,7 +44,7 @@ public class GroupInfoActivity extends Activity {
         LinearLayout tt = new LinearLayout(this); tt.setOrientation(LinearLayout.VERTICAL); tt.setPadding(t.u(4), 0, 0, 0); tt.addView(tv(this, t, title, 18, t.text, true));
         if (sub != null) { TextView s = tv(this, t, sub, 12.5f, t.sub, false); LinearLayout.LayoutParams sp = lp(-2, -2); sp.topMargin = t.u(1); tt.addView(s, sp); } top.addView(tt); return top;
     }
-    private LinearLayout card(LinearLayout parent) { LinearLayout c = new LinearLayout(this); c.setOrientation(LinearLayout.VERTICAL); c.setBackground(round(t.card, t.u(18))); LinearLayout.LayoutParams p = lp(-1, -2); p.setMargins(t.u(12), t.u(12), t.u(12), 0); parent.addView(c, p); return c; }
+    private LinearLayout card(LinearLayout parent) { LinearLayout c = new LinearLayout(this); c.setOrientation(LinearLayout.VERTICAL); c.setBackground(round(t.card, t.u(18))); c.setElevation(t.u(4)); if (Build.VERSION.SDK_INT >= 28) { c.setOutlineSpotShadowColor(t.dark ? 0xFF000000 : 0xFF5A6A8A); c.setOutlineAmbientShadowColor(t.dark ? 0xFF000000 : 0xFF5A6A8A); } parent.setClipChildren(false); parent.setClipToPadding(false); LinearLayout.LayoutParams p = lp(-1, -2); p.setMargins(t.u(12), t.u(12), t.u(12), 0); parent.addView(c, p); return c; }
     private void head(LinearLayout card, String text, String count) {
         LinearLayout h = new LinearLayout(this); h.setPadding(t.u(16), t.u(13), t.u(16), t.u(5)); h.addView(tv(this, t, text, 13, t.gold, true));
         if (count != null) { TextView c = tv(this, t, count, 13, t.sub, true); c.setPadding(t.u(4), 0, 0, 0); h.addView(c); } card.addView(h);
@@ -64,14 +65,14 @@ public class GroupInfoActivity extends Activity {
     private View roleTag(String u) { String tt = title(u, d); if (tt.isEmpty()) return null; TextView v = tv(this, t, tt, 12, role(u, d).equals("member") ? t.sub : t.gold, false); v.setSingleLine(true); v.setEllipsize(android.text.TextUtils.TruncateAt.END); v.setMaxWidth(Math.round(getResources().getDisplayMetrics().widthPixels * .42f)); return v; }
     private LinearLayout memberRow(LinearLayout card, String u, String subOverride, boolean tag, String tagText) {
         U g = user(u); LinearLayout r = new LinearLayout(this); r.setGravity(Gravity.CENTER_VERTICAL); r.setPadding(t.u(16), t.u(9), t.u(16), t.u(9));
-        Av av = new Av(this, 48 * t.s); av.setUser(u); r.addView(av, lp(t.k(48), t.k(48)));
+        Av av = new Av(this, 48 * t.s); av.setUser(u); if (rank(u) <= 1) av.ring(0xFFD4AF37, t.u(2), t.u(2), t.card); r.addView(av, lp(t.k(48), t.k(48)));
         LinearLayout x = new LinearLayout(this); x.setOrientation(LinearLayout.VERTICAL); x.setPadding(t.u(13), 0, t.u(13), 0);
         boolean muted = isTrue(map(d, "muted").get(u)) && rank(u) == 2;
         String nm = g.name + (u.equals(me()) ? "  (أنت)" : "") + (muted ? "  · مقيّد" : ""); TextView n = tv(this, t, nm, 15.5f, t.text, true); n.setSingleLine(true); n.setEllipsize(android.text.TextUtils.TruncateAt.END); x.addView(n);
         String sub = subOverride != null ? subOverride : (g.username.isEmpty() ? "" : "@" + g.username);
         if (!sub.isEmpty()) { TextView sv = tv(this, t, sub, 13, t.sub, false); LinearLayout.LayoutParams sp = lp(-2, -2); sp.topMargin = t.u(1); x.addView(sv, sp); }
         r.addView(x, lpw(0, -2, 1));
-        if (tag) { View tg = tagText != null ? tv(this, t, tagText, 12, t.sub, false) : roleTag(u); if (tg != null) r.addView(tg); }
+        if (tag) { View tg = tagText != null ? tv(this, t, tagText, 12, t.sub, false) : roleTag(u); if (tg != null) { if (tagText == null && rank(u) <= 1) { tg.setBackground(round(0x26D4AF37, t.u(10))); tg.setPadding(t.u(9), t.u(3), t.u(9), t.u(3)); } r.addView(tg); } }
         card.addView(r); return r;
     }
 
@@ -80,17 +81,18 @@ public class GroupInfoActivity extends Activity {
         final int st = infoScroll.getScrollY(); infoBody.removeAllViews(); final String me = me(); final boolean owner = s(d, "ownerId").equals(me), canInfo = right("info", me, d), canInvite = right("invite", me, d), canBan = right("ban", me, d), isStaff = !role(me, d).equals("member");
         final List<String> ps = parts(d); boolean muted = isMuted(this, chatId);
         // الهيرو
-        LinearLayout hero = new LinearLayout(this); hero.setOrientation(LinearLayout.VERTICAL); hero.setGravity(Gravity.CENTER_HORIZONTAL); hero.setPadding(t.u(16), t.u(14), t.u(16), t.u(6));
-        FrameLayout avw = new FrameLayout(this); avw.setClipChildren(false); Av av = new Av(this, 104 * t.s); av.setGroup(d); avw.addView(av, new FrameLayout.LayoutParams(t.k(104), t.k(104)));
+        LinearLayout heroCard = card(infoBody); View band = new View(this); android.graphics.drawable.GradientDrawable bg2 = new android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR, new int[]{0xFFD4AF37, 0xFFB88A20, 0xFF1769AA}); float rr = t.u(18); bg2.setCornerRadii(new float[]{rr, rr, rr, rr, 0, 0, 0, 0}); bg2.setAlpha(t.dark ? 150 : 215); band.setBackground(bg2); heroCard.addView(band, lp(-1, t.u(84)));
+        LinearLayout hero = new LinearLayout(this); hero.setOrientation(LinearLayout.VERTICAL); hero.setGravity(Gravity.CENTER_HORIZONTAL); hero.setPadding(t.u(16), 0, t.u(16), t.u(16));
+        FrameLayout avw = new FrameLayout(this); avw.setClipChildren(false); Av av = new Av(this, 104 * t.s); av.setGroup(d); av.ring(0xFFD4AF37, t.u(3), t.u(3), t.card); avw.addView(av, new FrameLayout.LayoutParams(t.k(104), t.k(104)));
         if (canInfo) {
             FrameLayout cam = new FrameLayout(this); GradientDrawable_set(cam); cam.addView(new Ic(this, IC_CAM_FILL, 0xFFFFFFFF, 18, true), center(this, 18));
             avw.addView(cam, new FrameLayout.LayoutParams(t.k(34), t.k(34), Gravity.BOTTOM | Gravity.LEFT)); avw.setOnClickListener(v -> { Intent i = new Intent(Intent.ACTION_GET_CONTENT); i.setType("image/*"); startActivityForResult(i, 5); });
         }
-        LinearLayout.LayoutParams ap = lp(t.k(104), t.k(104)); ap.bottomMargin = t.u(12); hero.addView(avw, ap);
+        LinearLayout.LayoutParams ap = lp(t.k(104), t.k(104)); ap.topMargin = -t.u(52); ap.bottomMargin = t.u(12); hero.addView(avw, ap);
         LinearLayout nm = new LinearLayout(this); nm.setGravity(Gravity.CENTER_VERTICAL); TextView ntv = tv(this, t, s(d, "name").isEmpty() ? "مجموعة" : s(d, "name"), 21, t.text, true); nm.addView(ntv);
         if (canInfo) { Ic pen = icon(this, IC_PEN, t.text, 16); pen.setAlpha(.55f); LinearLayout.LayoutParams pp = lp(t.u(16), t.u(16)); pp.setMarginStart(t.u(7)); nm.addView(pen, pp);
             nm.setOnClickListener(v -> ask(this, t, "اسم المجموعة", null, s(d, "name"), "اسم المجموعة", 40, false, "حفظ", "إلغاء", (ok, val) -> { if (!ok) return; if (val.isEmpty()) { toast(this, "الاسم لا يمكن أن يكون فارغاً"); return; } if (val.equals(s(d, "name"))) return; Map<String, Object> up = addSystem(chatId, "rename", null, Collections.<String, Object>singletonMap("name", val)); up.put("name", val); upd(up); })); }
-        hero.addView(nm); TextView sub = tv(this, t, memberWord(ps.size()), 13.5f, t.sub, false); LinearLayout.LayoutParams sp = lp(-2, -2); sp.topMargin = t.u(3); hero.addView(sub, sp); infoBody.addView(hero);
+        hero.addView(nm); TextView sub = tv(this, t, memberWord(ps.size()), 13.5f, t.sub, false); LinearLayout.LayoutParams sp = lp(-2, -2); sp.topMargin = t.u(3); hero.addView(sub, sp); heroCard.addView(hero);
         // الإشعارات
         LinearLayout c1 = card(infoBody); row(c1, muted ? IC_BELL_OFF : IC_BELL, 0xFFD4AF37, 0x24D4AF37, "الإشعارات", t.text, muted ? "مكتومة" : "مفعّلة", false, v -> { setMuted(this, chatId, !isMuted(this, chatId)); toast(this, isMuted(this, chatId) ? "تم كتم هذه المجموعة على جهازك" : "تم إلغاء كتم المحادثة"); render(); });
         // الوصف
