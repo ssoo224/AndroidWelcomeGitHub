@@ -38,41 +38,46 @@ public class GroupInfoActivity extends Activity {
     @Override public void onBackPressed() { if (!subs.isEmpty()) closeSub(); else super.onBackPressed(); }
 
     // ---------- هياكل مشتركة ----------
+    /** التطبيق بلا supportsRtl فيُتجاهل RTL: الترتيب يدوي (العنصر الأول بصرياً أقصى اليمين يُضاف أخيراً). */
+    private TextView rt(TextView v) { v.setTextAlignment(View.TEXT_ALIGNMENT_GRAVITY); v.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL); return v; }
+    private LinearLayout ltrRow() { LinearLayout r = new LinearLayout(this); r.setLayoutDirection(View.LAYOUT_DIRECTION_LTR); r.setGravity(Gravity.CENTER_VERTICAL); r.setClipChildren(false); return r; }
     private View topBar(String title, String sub, View.OnClickListener back) {
-        LinearLayout top = new LinearLayout(this); top.setGravity(Gravity.CENTER_VERTICAL); top.setPadding(t.u(8), t.u(10), t.u(8), t.u(8));
-        FrameLayout bk = new FrameLayout(this); bk.addView(icon(this, IC_BACK, t.text, 22), center(this, 22)); bk.setOnClickListener(back); top.addView(bk, lp(t.k(42), t.k(42)));
-        LinearLayout tt = new LinearLayout(this); tt.setOrientation(LinearLayout.VERTICAL); tt.setPadding(t.u(4), 0, 0, 0); tt.addView(tv(this, t, title, 18, t.text, true));
-        if (sub != null) { TextView s = tv(this, t, sub, 12.5f, t.sub, false); LinearLayout.LayoutParams sp = lp(-2, -2); sp.topMargin = t.u(1); tt.addView(s, sp); } top.addView(tt); return top;
+        LinearLayout top = ltrRow(); top.setPadding(t.u(8), t.u(10), t.u(8), t.u(8));
+        LinearLayout tt = new LinearLayout(this); tt.setOrientation(LinearLayout.VERTICAL); tt.setPadding(t.u(8), 0, t.u(4), 0); tt.addView(rt(tv(this, t, title, 18, t.text, true)), lp(-1, -2));
+        if (sub != null) { TextView s = rt(tv(this, t, sub, 12.5f, t.sub, false)); LinearLayout.LayoutParams sp = lp(-1, -2); sp.topMargin = t.u(1); tt.addView(s, sp); }
+        top.addView(tt, lpw(0, -2, 1));
+        FrameLayout bk = new FrameLayout(this); bk.addView(icon(this, IC_BACK, t.text, 22), center(this, 22)); bk.setOnClickListener(back); top.addView(bk, lp(t.k(42), t.k(42))); return top;
     }
     private LinearLayout card(LinearLayout parent) { LinearLayout c = new LinearLayout(this); c.setOrientation(LinearLayout.VERTICAL); c.setBackground(round(t.card, t.u(18))); c.setElevation(t.u(4)); if (Build.VERSION.SDK_INT >= 28) { c.setOutlineSpotShadowColor(t.dark ? 0xFF000000 : 0xFF5A6A8A); c.setOutlineAmbientShadowColor(t.dark ? 0xFF000000 : 0xFF5A6A8A); } parent.setClipChildren(false); parent.setClipToPadding(false); LinearLayout.LayoutParams p = lp(-1, -2); p.setMargins(t.u(12), t.u(12), t.u(12), 0); parent.addView(c, p); return c; }
     private void head(LinearLayout card, String text, String count) {
-        LinearLayout h = new LinearLayout(this); h.setPadding(t.u(16), t.u(13), t.u(16), t.u(5)); h.addView(tv(this, t, text, 13, t.gold, true));
-        if (count != null) { TextView c = tv(this, t, count, 13, t.sub, true); c.setPadding(t.u(4), 0, 0, 0); h.addView(c); } card.addView(h);
+        LinearLayout h = ltrRow(); h.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL); h.setPadding(t.u(18), t.u(14), t.u(18), t.u(6));
+        if (count != null) { TextView c = tv(this, t, count, 13, t.sub, true); c.setPadding(0, 0, t.u(6), 0); h.addView(c); }
+        h.addView(rt(tv(this, t, text, 13, t.gold, true))); card.addView(h);
     }
     private LinearLayout row(LinearLayout card, String ic, int icColor, int icBg, String label, int labelColor, String val, boolean chev, View.OnClickListener click) {
-        LinearLayout r = new LinearLayout(this); r.setGravity(Gravity.CENTER_VERTICAL); r.setPadding(t.u(16), t.u(14), t.u(16), t.u(14));
-        if (ic != null) { FrameLayout f = new FrameLayout(this); f.setBackground(oval(icBg)); f.addView(icon(this, ic, icColor, 20), center(this, 20)); r.addView(f, lp(t.k(36), t.k(36))); }
-        TextView l = tv(this, t, label, 15.5f, labelColor, false); l.setPadding(ic != null ? t.u(13) : 0, 0, 0, 0); r.addView(l, lpw(0, -2, 1));
-        if (val != null) r.addView(tv(this, t, val, 13.5f, t.sub, false));
-        if (chev) { Ic c = icon(this, IC_CHEV, t.sub, 18); c.setAlpha(.5f); LinearLayout.LayoutParams cp = lp(t.u(18), t.u(18)); cp.setMarginStart(t.u(8)); r.addView(c, cp); }
+        LinearLayout r = ltrRow(); r.setPadding(t.u(18), t.u(14), t.u(16), t.u(14)); r.setMinimumHeight(t.k(58));
+        if (chev) { Ic c = icon(this, IC_CHEV, t.sub, 18); c.setAlpha(.5f); r.addView(c, lp(t.u(18), t.u(18))); }
+        if (val != null) { TextView vv = tv(this, t, val, 13.5f, t.sub, false); vv.setSingleLine(true); vv.setPadding(t.u(10), 0, t.u(10), 0); r.addView(vv, lp(-2, -2)); }
+        TextView l = rt(tv(this, t, label, 15.5f, labelColor, false)); l.setPadding(t.u(4), 0, ic != null ? t.u(14) : 0, 0); r.addView(l, lpw(0, -2, 1));
+        if (ic != null) { FrameLayout f = new FrameLayout(this); f.setBackground(oval(icBg)); f.addView(icon(this, ic, icColor, 20), center(this, 20)); r.addView(f, lp(t.k(40), t.k(40))); }
         if (click != null) r.setOnClickListener(click); card.addView(r); return r;
     }
     private void sepLine(LinearLayout card) { View s = new View(this); s.setBackgroundColor(t.sep); card.addView(s, lp(-1, 1)); }
-    private TextView note(LinearLayout parent, String text) { TextView n = tv(this, t, text, 13, t.sub, false); n.setLineSpacing(0, 1.3f); LinearLayout.LayoutParams p = lp(-1, -2); p.setMargins(t.u(22), t.u(10), t.u(22), 0); parent.addView(n, p); return n; }
+    private TextView note(LinearLayout parent, String text) { TextView n = rt(tv(this, t, text, 13, t.sub, false)); n.setGravity(Gravity.RIGHT | Gravity.TOP); n.setLineSpacing(0, 1.3f); LinearLayout.LayoutParams p = lp(-1, -2); p.setMargins(t.u(22), t.u(10), t.u(22), 0); parent.addView(n, p); return n; }
     private void upd(Map<String, Object> m) { db().collection("chats").document(chatId).update(m).addOnFailureListener(e -> toast(this, "تعذر تنفيذ العملية")); }
     private void upd(String k, Object v) { Map<String, Object> m = new HashMap<>(); m.put(k, v); upd(m); }
     private int rank(String u) { return u.equals(s(d, "ownerId")) ? 0 : (map(d, "admins").containsKey(u) ? 1 : 2); }
     private View roleTag(String u) { String tt = title(u, d); if (tt.isEmpty()) return null; TextView v = tv(this, t, tt, 12, role(u, d).equals("member") ? t.sub : t.gold, false); v.setSingleLine(true); v.setEllipsize(android.text.TextUtils.TruncateAt.END); v.setMaxWidth(Math.round(getResources().getDisplayMetrics().widthPixels * .42f)); return v; }
     private LinearLayout memberRow(LinearLayout card, String u, String subOverride, boolean tag, String tagText) {
-        U g = user(u); LinearLayout r = new LinearLayout(this); r.setGravity(Gravity.CENTER_VERTICAL); r.setPadding(t.u(16), t.u(9), t.u(16), t.u(9));
-        Av av = new Av(this, 48 * t.s); av.setUser(u); if (rank(u) <= 1) av.ring(0xFFD4AF37, t.u(2), t.u(2), t.card); r.addView(av, lp(t.k(48), t.k(48)));
-        LinearLayout x = new LinearLayout(this); x.setOrientation(LinearLayout.VERTICAL); x.setPadding(t.u(13), 0, t.u(13), 0);
+        U g = user(u); LinearLayout r = ltrRow(); r.setPadding(t.u(16), t.u(10), t.u(16), t.u(10));
+        if (tag) { View tg = tagText != null ? tv(this, t, tagText, 12, t.sub, false) : roleTag(u); if (tg != null) { if (tagText == null && rank(u) <= 1) { tg.setBackground(round(0x26D4AF37, t.u(10))); tg.setPadding(t.u(9), t.u(3), t.u(9), t.u(3)); } r.addView(tg, lp(-2, -2)); } }
+        LinearLayout x = new LinearLayout(this); x.setOrientation(LinearLayout.VERTICAL); x.setPadding(t.u(10), 0, t.u(13), 0);
         boolean muted = isTrue(map(d, "muted").get(u)) && rank(u) == 2;
-        String nm = g.name + (u.equals(me()) ? "  (أنت)" : "") + (muted ? "  · مقيّد" : ""); TextView n = tv(this, t, nm, 15.5f, t.text, true); n.setSingleLine(true); n.setEllipsize(android.text.TextUtils.TruncateAt.END); x.addView(n);
+        String nm = g.name + (u.equals(me()) ? "  (أنت)" : "") + (muted ? "  · مقيّد" : ""); TextView n = rt(tv(this, t, nm, 15.5f, t.text, true)); n.setSingleLine(true); n.setEllipsize(android.text.TextUtils.TruncateAt.END); x.addView(n, lp(-1, -2));
         String sub = subOverride != null ? subOverride : (g.username.isEmpty() ? "" : "@" + g.username);
-        if (!sub.isEmpty()) { TextView sv = tv(this, t, sub, 13, t.sub, false); LinearLayout.LayoutParams sp = lp(-2, -2); sp.topMargin = t.u(1); x.addView(sv, sp); }
+        if (!sub.isEmpty()) { TextView sv = rt(tv(this, t, sub, 13, t.sub, false)); sv.setSingleLine(true); sv.setEllipsize(android.text.TextUtils.TruncateAt.END); sv.setTextDirection(View.TEXT_DIRECTION_ANY_RTL); LinearLayout.LayoutParams sp = lp(-1, -2); sp.topMargin = t.u(2); x.addView(sv, sp); }
         r.addView(x, lpw(0, -2, 1));
-        if (tag) { View tg = tagText != null ? tv(this, t, tagText, 12, t.sub, false) : roleTag(u); if (tg != null) { if (tagText == null && rank(u) <= 1) { tg.setBackground(round(0x26D4AF37, t.u(10))); tg.setPadding(t.u(9), t.u(3), t.u(9), t.u(3)); } r.addView(tg); } }
+        Av av = new Av(this, 48 * t.s); av.setUser(u); if (rank(u) <= 1) av.ring(0xFFD4AF37, t.u(2), t.u(2), t.card); r.addView(av, lp(t.k(48), t.k(48)));
         card.addView(r); return r;
     }
 
@@ -82,22 +87,23 @@ public class GroupInfoActivity extends Activity {
         final List<String> ps = parts(d); boolean muted = isMuted(this, chatId);
         // الهيرو
         LinearLayout heroCard = card(infoBody); View band = new View(this); android.graphics.drawable.GradientDrawable bg2 = new android.graphics.drawable.GradientDrawable(android.graphics.drawable.GradientDrawable.Orientation.TL_BR, new int[]{0xFFD4AF37, 0xFFB88A20, 0xFF1769AA}); float rr = t.u(18); bg2.setCornerRadii(new float[]{rr, rr, rr, rr, 0, 0, 0, 0}); bg2.setAlpha(t.dark ? 150 : 215); band.setBackground(bg2); heroCard.addView(band, lp(-1, t.u(84)));
-        LinearLayout hero = new LinearLayout(this); hero.setOrientation(LinearLayout.VERTICAL); hero.setGravity(Gravity.CENTER_HORIZONTAL); hero.setPadding(t.u(16), 0, t.u(16), t.u(16));
+        heroCard.setClipChildren(false); heroCard.setClipToPadding(false);
+        LinearLayout hero = new LinearLayout(this); hero.setOrientation(LinearLayout.VERTICAL); hero.setGravity(Gravity.CENTER_HORIZONTAL); hero.setClipChildren(false); hero.setClipToPadding(false); hero.setPadding(t.u(16), 0, t.u(16), t.u(18));
         FrameLayout avw = new FrameLayout(this); avw.setClipChildren(false); Av av = new Av(this, 104 * t.s); av.setGroup(d); av.ring(0xFFD4AF37, t.u(3), t.u(3), t.card); avw.addView(av, new FrameLayout.LayoutParams(t.k(104), t.k(104)));
         if (canInfo) {
             FrameLayout cam = new FrameLayout(this); GradientDrawable_set(cam); cam.addView(new Ic(this, IC_CAM_FILL, 0xFFFFFFFF, 18, true), center(this, 18));
-            avw.addView(cam, new FrameLayout.LayoutParams(t.k(34), t.k(34), Gravity.BOTTOM | Gravity.LEFT)); avw.setOnClickListener(v -> { Intent i = new Intent(Intent.ACTION_GET_CONTENT); i.setType("image/*"); startActivityForResult(i, 5); });
+            avw.addView(cam, new FrameLayout.LayoutParams(t.k(34), t.k(34), Gravity.BOTTOM | Gravity.RIGHT)); avw.setOnClickListener(v -> { Intent i = new Intent(Intent.ACTION_GET_CONTENT); i.setType("image/*"); startActivityForResult(i, 5); });
         }
-        LinearLayout.LayoutParams ap = lp(t.k(104), t.k(104)); ap.topMargin = -t.u(52); ap.bottomMargin = t.u(12); hero.addView(avw, ap);
-        LinearLayout nm = new LinearLayout(this); nm.setGravity(Gravity.CENTER_VERTICAL); TextView ntv = tv(this, t, s(d, "name").isEmpty() ? "مجموعة" : s(d, "name"), 21, t.text, true); nm.addView(ntv);
-        if (canInfo) { Ic pen = icon(this, IC_PEN, t.text, 16); pen.setAlpha(.55f); LinearLayout.LayoutParams pp = lp(t.u(16), t.u(16)); pp.setMarginStart(t.u(7)); nm.addView(pen, pp);
+        LinearLayout.LayoutParams ap = lp(t.k(104), t.k(104)); ap.topMargin = -t.u(52); ap.bottomMargin = t.u(14); hero.addView(avw, ap);
+        LinearLayout nm = ltrRow(); nm.setGravity(Gravity.CENTER); TextView ntv = tv(this, t, s(d, "name").isEmpty() ? "مجموعة" : s(d, "name"), 21, t.text, true); nm.addView(ntv);
+        if (canInfo) { Ic pen = icon(this, IC_PEN, t.text, 16); pen.setAlpha(.55f); LinearLayout.LayoutParams pp = lp(t.u(16), t.u(16)); pp.setMarginEnd(t.u(8)); nm.addView(pen, 0, pp);
             nm.setOnClickListener(v -> ask(this, t, "اسم المجموعة", null, s(d, "name"), "اسم المجموعة", 40, false, "حفظ", "إلغاء", (ok, val) -> { if (!ok) return; if (val.isEmpty()) { toast(this, "الاسم لا يمكن أن يكون فارغاً"); return; } if (val.equals(s(d, "name"))) return; Map<String, Object> up = addSystem(chatId, "rename", null, Collections.<String, Object>singletonMap("name", val)); up.put("name", val); upd(up); })); }
-        hero.addView(nm); TextView sub = tv(this, t, memberWord(ps.size()), 13.5f, t.sub, false); LinearLayout.LayoutParams sp = lp(-2, -2); sp.topMargin = t.u(3); hero.addView(sub, sp); heroCard.addView(hero);
+        hero.addView(nm); TextView sub = tv(this, t, memberWord(ps.size()), 13.5f, t.sub, false); sub.setGravity(Gravity.CENTER); LinearLayout.LayoutParams sp = lp(-2, -2); sp.topMargin = t.u(4); hero.addView(sub, sp); heroCard.addView(hero);
         // الإشعارات
         LinearLayout c1 = card(infoBody); row(c1, muted ? IC_BELL_OFF : IC_BELL, 0xFFD4AF37, 0x24D4AF37, "الإشعارات", t.text, muted ? "مكتومة" : "مفعّلة", false, v -> { setMuted(this, chatId, !isMuted(this, chatId)); toast(this, isMuted(this, chatId) ? "تم كتم هذه المجموعة على جهازك" : "تم إلغاء كتم المحادثة"); render(); });
         // الوصف
         if (!s(d, "about").isEmpty() || canInfo) {
-            LinearLayout c = card(infoBody); head(c, "الوصف", null); TextView ab = tv(this, t, s(d, "about").isEmpty() ? "أضف وصفاً للمجموعة" : s(d, "about"), 15, s(d, "about").isEmpty() ? t.gold : t.text, false); ab.setLineSpacing(0, 1.4f); ab.setPadding(t.u(16), t.u(4), t.u(16), t.u(16)); c.addView(ab);
+            LinearLayout c = card(infoBody); head(c, "الوصف", null); TextView ab = tv(this, t, s(d, "about").isEmpty() ? "أضف وصفاً للمجموعة" : s(d, "about"), 15, s(d, "about").isEmpty() ? t.gold : t.text, false); rt(ab); ab.setGravity(Gravity.RIGHT | Gravity.TOP); ab.setLineSpacing(0, 1.4f); ab.setPadding(t.u(18), t.u(4), t.u(18), t.u(16)); c.addView(ab);
             if (canInfo) ab.setOnClickListener(v -> ask(this, t, "وصف المجموعة", null, s(d, "about"), "اكتب وصفاً للمجموعة", 255, true, "حفظ", "إلغاء", (ok, val) -> { if (!ok || val.equals(s(d, "about"))) return; Map<String, Object> up = addSystem(chatId, "about", null, null); up.put("about", val); upd(up); toast(this, "تم تحديث الوصف"); }));
         }
         // الإدارة
@@ -154,11 +160,11 @@ public class GroupInfoActivity extends Activity {
         final LinearLayout body = openSub(isNew ? "تعيين مشرف" : "صلاحيات المشرف", g.name); subRefresh = null;
         LinearLayout hero = new LinearLayout(this); hero.setOrientation(LinearLayout.VERTICAL); hero.setGravity(Gravity.CENTER_HORIZONTAL); hero.setPadding(t.u(16), t.u(14), t.u(16), 0);
         Av av = new Av(this, 84 * t.s); av.setUser(uid); hero.addView(av, lp(t.k(84), t.k(84))); TextView hn = tv(this, t, g.name, 19, t.text, true); LinearLayout.LayoutParams hp = lp(-2, -2); hp.topMargin = t.u(10); hero.addView(hn, hp); body.addView(hero);
-        LinearLayout tc = card(body); head(tc, "اللقب المخصص", null); final EditText et = new EditText(this); et.setText(s(map(d, "titles"), uid)); et.setHint("مثال: المدير، الأستاذ، حارس الشلة"); et.setHintTextColor(t.sub & 0x00FFFFFF | 0x66000000); et.setTextColor(t.text); et.setTextSize(15.5f * t.s); et.setSingleLine(true);
+        LinearLayout tc = card(body); head(tc, "اللقب المخصص", null); final EditText et = new EditText(this); et.setText(s(map(d, "titles"), uid)); et.setHint("مثال: المدير، الأستاذ، حارس الشلة"); et.setHintTextColor(t.sub & 0x00FFFFFF | 0x66000000); et.setTextColor(t.text); et.setTextSize(15.5f * t.s); et.setSingleLine(true); et.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL); et.setTextAlignment(View.TEXT_ALIGNMENT_GRAVITY);
         et.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(16)}); android.graphics.drawable.GradientDrawable eb = round(t.dark ? t.chip : 0xFFFBFCFE, t.u(12)); eb.setStroke(Math.max(1, t.u(1.5f)), t.dark ? 0x0FFFFFFF : 0xFFE8EDF3); et.setBackground(eb); et.setPadding(t.u(13), t.u(11), t.u(13), t.u(11));
         LinearLayout.LayoutParams ep = lp(-1, -2); ep.setMargins(t.u(14), t.u(4), t.u(14), t.u(14)); tc.addView(et, ep);
         LinearLayout rc = card(body); head(rc, "ما يستطيع هذا المشرف فعله", null); final Sw[] sws = new Sw[cur.length];
-        for (int i = 0; i < cur.length; i++) { final int k = i; LinearLayout r = row(rc, null, 0, 0, ADMIN_RIGHTS[i][1], t.text, null, false, null); sws[i] = new Sw(this, t, cur[i]); r.addView(sws[i]); r.setOnClickListener(v -> { cur[k] = !cur[k]; sws[k].set(cur[k]); }); }
+        for (int i = 0; i < cur.length; i++) { final int k = i; LinearLayout r = row(rc, null, 0, 0, ADMIN_RIGHTS[i][1], t.text, null, false, null); sws[i] = new Sw(this, t, cur[i]); r.addView(sws[i], 0); r.setOnClickListener(v -> { cur[k] = !cur[k]; sws[k].set(cur[k]); }); }
         if (!isNew) { LinearLayout dc = card(body); row(dc, null, 0, 0, "إزالة من الإشراف", DANGER, null, false, v -> confirm(this, t, "إزالة من الإشراف", "هل تريد إزالة <b>" + esc(g.name) + "</b> من الإشراف؟", "إزالة", (ok, x) -> { if (!ok) return;
             Map<String, Object> up = addSystem(chatId, "demote", Collections.singletonList(uid), null); up.put("admins." + uid, FieldValue.delete()); if (!s(map(d, "titles"), uid).isEmpty()) up.put("titles." + uid, FieldValue.delete()); upd(up); toast(this, "تمت إزالة المشرف"); closeSub(); closeAllSubs(); openAdmins(); })); }
         body.addView(new View(this), lp(1, t.k(100)));
@@ -174,7 +180,7 @@ public class GroupInfoActivity extends Activity {
         final LinearLayout body = openSub("صلاحيات الأعضاء", "ما الذي يستطيع الأعضاء فعله");
         subRefresh = () -> {
             body.removeAllViews(); LinearLayout c = card(body); head(c, "الأعضاء يستطيعون", null); final Map<String, Object> pm = map(d, "perms");
-            for (int i = 0; i < MEMBER_PERMS.length; i++) { final String k = MEMBER_PERMS[i][0]; Object v = pm.get(k); final boolean on = v == null ? MEMBER_DEF[i] : isTrue(v); LinearLayout r = row(c, null, 0, 0, MEMBER_PERMS[i][1], t.text, null, false, null); Sw sw = new Sw(this, t, on); r.addView(sw);
+            for (int i = 0; i < MEMBER_PERMS.length; i++) { final String k = MEMBER_PERMS[i][0]; Object v = pm.get(k); final boolean on = v == null ? MEMBER_DEF[i] : isTrue(v); LinearLayout r = row(c, null, 0, 0, MEMBER_PERMS[i][1], t.text, null, false, null); Sw sw = new Sw(this, t, on); r.addView(sw, 0);
                 r.setOnClickListener(x -> { Map<String, Object> up = addSystem(chatId, "perms", null, null); up.put("perms." + k, !on); upd(up); }); }
             note(body, "هذه الصلاحيات تخص الأعضاء العاديين فقط، أما المالك والمشرفون فيستطيعون الإرسال دائماً. يمكنك أيضاً تقييد عضو معيّن من قائمة الأعضاء.");
         };

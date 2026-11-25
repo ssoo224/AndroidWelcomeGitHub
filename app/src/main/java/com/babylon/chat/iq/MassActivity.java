@@ -989,9 +989,9 @@ public class MassActivity extends Activity {
                 g.setCornerRadius(dp(composer ? 18 : 15));   // حقل الكتابة الداخلي في الشريط: +3dp
                 // أثناء الكتابة (نهاري، كل الثيمات): الحقل الداخلي أبيض بصبغة خفيفة جداً من لون الثيم
                 final int acc = (Tk.chatPal != null ? Tk.chatPal.accent : 0xFFC29D30) | 0xFF000000;
-                if (composer && focus && dark) {   // الليلي فقط: عند الكتابة يصير الحقل بلون الكبسولة الخارجية وحدّها تماماً   // أثناء الكتابة (ليلي ونهاري): الحقل الداخلي بنفس لون كبسولة الكتابة الخارجية
+                if (composer && focus) {   // الليلي فقط: عند الكتابة يصير الحقل بلون الكبسولة الخارجية وحدّها تماماً   // أثناء الكتابة (ليلي ونهاري): الحقل الداخلي بنفس لون كبسولة الكتابة الخارجية
                     g.setColor(Tk.composerOuter(dark));
-                    g.setStroke(dp(1), Tk.chatPal != null ? Tk.chatPal.line : 0x14FFFFFF);
+                    g.setStroke(dp(1), Tk.chatPal != null ? Tk.chatPal.line : (dark ? 0x14FFFFFF : Tk.BAB_INPUT_LINE));
                     return g;
                 }
                 if (Tk.chatPal != null) {   // الطورين الليلي والنهاري: ألوان الثيم (داخل شريط الكتابة --cr-card)

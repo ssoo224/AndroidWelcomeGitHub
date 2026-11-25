@@ -12,6 +12,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowInsets;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.view.animation.LinearInterpolator;
 import android.widget.ScrollView;
@@ -319,8 +320,9 @@ public class Main2Activity extends Activity {
     private boolean switching = false;
 
     /**
-     * انتقال بين الدخول والتسجيل: اللوغو والاسم ينزلان ويمسحان النموذج الحالي أمامهما،
-     * ثم يرتفعان ويكشفان النموذج الجديد تدريجياً (بلا طيّ).
+     * انتقال بين الدخول والتسجيل بطابع «ختم بابل الذهبي»:
+     * موجة ذهبية تتسع كحلقة من الزر الذي لُمس، واللوغو يدور دورة كاملة كعملة ذهبية،
+     * وحقول النموذج الحالي تنسحب متتابعة ثم حقول النموذج الجديد تنساب متتابعة من الجهة المقابلة.
      */
     private void switchForm(final boolean toRegister) {
         final View outF = toRegister ? binding.loginForm : binding.registerForm;
@@ -329,41 +331,92 @@ public class Main2Activity extends Activity {
         if (outF.getHeight() == 0) { outF.setVisibility(View.GONE); inF.setVisibility(View.VISIBLE); return; }
         switching = true;
         try { android.view.inputmethod.InputMethodManager im = (android.view.inputmethod.InputMethodManager) getSystemService(INPUT_METHOD_SERVICE); if (im != null) im.hideSoftInputFromWindow(binding.root.getWindowToken(), 0); } catch (Throwable ignored) { }
+        final float d = getResources().getDisplayMetrics().density;
         final View[] head = {binding.logoCircle, binding.title, binding.subtitle};
-        final View ref = binding.subtitle; final int[] loc = new int[2];
-        final android.view.animation.Interpolator calm = new android.view.animation.PathInterpolator(0.45f, 0f, 0.25f, 1f);
-        final int DUR = 520;
-        ref.getLocationOnScreen(loc); final float hb0 = loc[1] + ref.getHeight();
-        outF.getLocationOnScreen(loc); final float dy = Math.max(outF.getHeight() * 0.9f, outF.getTop() + outF.getHeight() - hb0 + 0f);
-        // 1) اللوغو والاسم ينزلان فوق النموذج ويمسحان كل ما يلاقيانه أمامهما (لا طيّ): الجزء الذي مرّا عليه يختفي
-        android.animation.ValueAnimator down = android.animation.ValueAnimator.ofFloat(0f, 1f); down.setDuration(DUR); down.setInterpolator(calm);
-        down.addUpdateListener(a -> { float p = (float) a.getAnimatedValue(); for (View h : head) h.setTranslationY(dy * p); wipe(outF, ref, loc); });
-        down.addListener(new android.animation.AnimatorListenerAdapter() { @Override public void onAnimationEnd(android.animation.Animator an) {
+        final android.view.animation.Interpolator out = new android.view.animation.AccelerateInterpolator(1.4f);
+        final android.view.animation.Interpolator in = new android.view.animation.DecelerateInterpolator(2.2f);
+        final float dir = toRegister ? 1f : -1f;           // اتجاه خروج النموذج القديم (ودخول الجديد من الجهة المعاكسة)
+        final int TOTAL = 980, SWAP = 300;
+
+        // ---- 1) الموجة الذهبية من الزر الذي لُمس ----
+        final View src = toRegister ? binding.btnNewAccount : binding.btnHaveAccount;
+        final ViewGroup lay = binding.linear26;
+        int[] a = new int[2], b = new int[2];
+        src.getLocationOnScreen(a); lay.getLocationOnScreen(b);
+        final float cx = a[0] - b[0] + src.getWidth() / 2f, cy = a[1] - b[1] + src.getHeight() / 2f;
+        final float maxR = (float) Math.hypot(Math.max(cx, lay.getWidth() - cx), Math.max(cy, lay.getHeight() - cy)) * 1.05f;
+        final GoldWave wave = new GoldWave(cx, cy, maxR, dark);
+        wave.setBounds(0, 0, lay.getWidth(), lay.getHeight());
+        lay.getOverlay().add(wave);
+        android.animation.ValueAnimator wv = android.animation.ValueAnimator.ofFloat(0f, 1f);
+        wv.setDuration(TOTAL); wv.setInterpolator(new android.view.animation.PathInterpolator(0.2f, 0.6f, 0.3f, 1f));
+        wv.addUpdateListener(an -> wave.setProgress((float) an.getAnimatedValue()));
+        wv.addListener(new android.animation.AnimatorListenerAdapter() { @Override public void onAnimationEnd(android.animation.Animator an) { lay.getOverlay().remove(wave); } });
+        wv.start();
+
+        // ---- 2) اللوغو يدور كعملة ذهبية، والعنوان يتنفس ----
+        binding.logoCircle.setCameraDistance(9000f * d);
+        binding.logoCircle.animate().rotationYBy(360f * dir).setDuration(TOTAL - 120)
+                .setInterpolator(new android.view.animation.PathInterpolator(0.55f, 0f, 0.2f, 1f)).withEndAction(() -> binding.logoCircle.setRotationY(0f)).start();
+        for (View h : new View[]{binding.title, binding.subtitle}) {
+            h.animate().alpha(0.25f).scaleX(0.96f).scaleY(0.96f).setDuration(SWAP).setInterpolator(out)
+                    .withEndAction(() -> h.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(420).setInterpolator(in).start()).start();
+        }
+
+        // ---- 3) انسحاب حقول النموذج الحالي بالتتابع ----
+        final java.util.List<View> outKids = visibleKids((ViewGroup) outF);
+        for (int i = 0; i < outKids.size(); i++) {
+            outKids.get(i).animate().alpha(0f).translationX(dir * 46f * d).setStartDelay(i * 28L).setDuration(190).setInterpolator(out).start();
+        }
+
+        // ---- 4) عند اكتمال الانسحاب: تبديل النموذجين ثم انسياب الجديد ----
+        binding.getRoot().postDelayed(() -> {
             final float topBefore = binding.logoCircle.getTop() + binding.logoCircle.getTranslationY();
-            outF.setClipBounds(null); outF.setVisibility(View.GONE);
-            inF.setVisibility(View.VISIBLE); inF.setAlpha(1f); inF.setScaleY(1f);
-            final View lay = binding.linear26;
+            for (View k : outKids) { k.animate().cancel(); k.setAlpha(1f); k.setTranslationX(0f); }
+            outF.setVisibility(View.GONE);
+            inF.setVisibility(View.VISIBLE);
+            final java.util.List<View> inKids = visibleKids((ViewGroup) inF);
+            for (View k : inKids) { k.setAlpha(0f); k.setTranslationX(-dir * 46f * d); }
             lay.getViewTreeObserver().addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
                 @Override public boolean onPreDraw() {
                     lay.getViewTreeObserver().removeOnPreDrawListener(this);
-                    // الرأس يبقى بصرياً في مكانه رغم تغيّر التخطيط (والنموذج الجديد مخفي بالكامل خلفه)، ثم يرتفع ويكشف النموذج الجديد تدريجياً
+                    // الرأس يبقى بصرياً في مكانه رغم تغيّر ارتفاع النموذج ثم ينزلق لمكانه الجديد بنعومة
                     final float shift = topBefore - binding.logoCircle.getTop();
-                    for (View h : head) h.setTranslationY(shift); wipe(inF, ref, loc);
-                    android.animation.ValueAnimator up = android.animation.ValueAnimator.ofFloat(0f, 1f); up.setDuration(DUR); up.setInterpolator(calm);
-                    up.addUpdateListener(a2 -> { float p = (float) a2.getAnimatedValue(); for (View h : head) h.setTranslationY(shift * (1f - p)); wipe(inF, ref, loc); });
-                    up.addListener(new android.animation.AnimatorListenerAdapter() { @Override public void onAnimationEnd(android.animation.Animator an2) { for (View h : head) h.setTranslationY(0f); inF.setClipBounds(null); switching = false; } });
-                    up.start(); return true;
+                    for (View h : head) { h.setTranslationY(shift); h.animate().translationY(0f).setDuration(520).setInterpolator(in).start(); }
+                    for (int i = 0; i < inKids.size(); i++) {
+                        inKids.get(i).animate().alpha(1f).translationX(0f).setStartDelay(60L + i * 42L).setDuration(430).setInterpolator(in).start();
+                    }
+                    long end = 60L + inKids.size() * 42L + 450L;
+                    binding.getRoot().postDelayed(() -> switching = false, Math.max(end, TOTAL - SWAP));
+                    return true;
                 }
             });
-        } });
-        down.start();
+        }, SWAP);
     }
 
-    /** يُظهر من النموذج ما تحت الحافة السفلى للرأس فقط (ما مرّ عليه الرأس يُمسح). */
-    private void wipe(View form, View headRef, int[] loc) {
-        headRef.getLocationOnScreen(loc); float hb = loc[1] + headRef.getHeight(); form.getLocationOnScreen(loc);
-        int w = form.getWidth(), h = form.getHeight(), top = Math.max(0, Math.min(h, Math.round(hb - loc[1])));
-        form.setClipBounds(new android.graphics.Rect(0, top, w, h));
+    private java.util.List<View> visibleKids(ViewGroup g) {
+        java.util.ArrayList<View> l = new java.util.ArrayList<>();
+        for (int i = 0; i < g.getChildCount(); i++) if (g.getChildAt(i).getVisibility() == View.VISIBLE) l.add(g.getChildAt(i));
+        return l;
+    }
+
+    /** موجة ذهبية: حلقة مضيئة تتسع من نقطة اللمس مع غسل ذهبي خفيف خلفها، ثم تتلاشى. */
+    private static final class GoldWave extends android.graphics.drawable.Drawable {
+        private final float cx, cy, maxR; private final android.graphics.Paint p = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        private final int rgb; private final float peak; private float t = 0f;
+        GoldWave(float cx, float cy, float maxR, boolean dark) { this.cx = cx; this.cy = cy; this.maxR = maxR; rgb = 0xC4961A; peak = dark ? 0.50f : 0.42f; }
+        void setProgress(float v) { t = v; invalidateSelf(); }
+        @Override public void draw(android.graphics.Canvas c) {
+            float r = Math.max(1f, maxR * t);
+            float fade = t < 0.15f ? t / 0.15f : (float) Math.pow(1f - (t - 0.15f) / 0.85f, 1.3);   // يظهر بسرعة ثم يتلاشى
+            int ring = ((int) (255 * peak * fade) << 24) | rgb, wash = ((int) (255 * peak * 0.22f * fade) << 24) | rgb, none = rgb;
+            p.setShader(new android.graphics.RadialGradient(cx, cy, r,
+                    new int[]{none, wash, ring, none}, new float[]{0f, 0.62f, 0.93f, 1f}, android.graphics.Shader.TileMode.CLAMP));
+            c.drawCircle(cx, cy, r, p);
+        }
+        @Override public void setAlpha(int a) { }
+        @Override public void setColorFilter(android.graphics.ColorFilter f) { }
+        @Override public int getOpacity() { return android.graphics.PixelFormat.TRANSLUCENT; }
     }
 
     /** الطور الليلي: الخلفية، الحقول، التسميات والنصوص. */

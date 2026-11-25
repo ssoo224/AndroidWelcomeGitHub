@@ -1108,8 +1108,8 @@
 			android:orientation="horizontal"
 			android:paddingStart="18dp"
 			android:paddingEnd="18dp"
-			android:paddingTop="17dp"
-			android:paddingBottom="17dp"
+			android:paddingTop="11.5dp"
+			android:paddingBottom="11.5dp"
 			android:layoutDirection="ltr"
 			android:tag="ephdr">
 			<LinearLayout
