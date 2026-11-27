@@ -10927,10 +10927,31 @@ for (DocumentChange dc : snapshots.getDocumentChanges(com.google.firebase.firest
                 else if (id.equals("sessBack")) show("privacySettingsView");
                 else if (id.equals("privacyBack") || id.equals("notifBack") || id.equals("chatSetBack")) show("settingsView");
                 else if (id.equals("itemShare")) {
-                    Intent i = new Intent(Intent.ACTION_SEND);
-                    i.setType("text/plain");
-                    i.putExtra(Intent.EXTRA_TEXT, "حمّل تطبيق Babylon Chat");
-                    act.startActivity(Intent.createChooser(i, "مشاركة رابط التحميل"));
+                    // مشاركة التطبيق كملف APK مباشرة إلى أي تطبيق آخر (واتساب، بلوتوث، ملفات...)
+                    final android.widget.Toast wait = android.widget.Toast.makeText(act, "جارٍ تجهيز ملف التطبيق…", android.widget.Toast.LENGTH_SHORT); wait.show();
+                    new Thread(() -> {
+                        try {
+                            java.io.File src = new java.io.File(act.getApplicationInfo().sourceDir);
+                            java.io.File dir = new java.io.File(act.getCacheDir(), "apk"); if (!dir.exists()) dir.mkdirs();
+                            final java.io.File out = new java.io.File(dir, "BabylonChat.apk");
+                            try (java.io.InputStream in = new java.io.FileInputStream(src); java.io.OutputStream os = new java.io.FileOutputStream(out)) {
+                                byte[] buf = new byte[64 * 1024]; int n; while ((n = in.read(buf)) > 0) os.write(buf, 0, n);
+                            }
+                            act.runOnUiThread(() -> {
+                                try {
+                                    Uri u = androidx.core.content.FileProvider.getUriForFile(act, act.getPackageName() + ".fileprovider", out);
+                                    Intent i = new Intent(Intent.ACTION_SEND);
+                                    i.setType("application/vnd.android.package-archive");
+                                    i.putExtra(Intent.EXTRA_STREAM, u);
+                                    i.putExtra(Intent.EXTRA_SUBJECT, "Babylon Chat");
+                                    i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                                    Intent ch = Intent.createChooser(i, "مشاركة التطبيق");
+                                    ch.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                                    act.startActivity(ch);
+                                } catch (Throwable e) { android.widget.Toast.makeText(act, "تعذّرت مشاركة التطبيق", android.widget.Toast.LENGTH_SHORT).show(); }
+                            });
+                        } catch (Throwable e) { act.runOnUiThread(() -> android.widget.Toast.makeText(act, "تعذّر تجهيز ملف التطبيق", android.widget.Toast.LENGTH_SHORT).show()); }
+                    }).start();
                 }
                 else if (id.equals("itemLogout")) confirm("تسجيل الخروج", "هل تريد تسجيل الخروج؟", "خروج", this::logout);
                 else if (id.equals("itemDelete")) confirm("حذف الحساب", "سيتم حذف حسابك وبياناتك نهائياً. متأكد؟", () -> {

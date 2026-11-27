@@ -323,7 +323,7 @@
 							android:id="@+id/textview761"
 							android:layout_width="wrap_content"
 							android:layout_height="wrap_content"
-							android:text="مشاركة رابط التحميل"
+							android:text="مشاركة التطبيق كملف APK"
 							android:textSize="15.5sp"
 							android:textStyle="bold"
 							android:tag="t" />
@@ -331,7 +331,7 @@
 							android:id="@+id/textview762"
 							android:layout_width="wrap_content"
 							android:layout_height="wrap_content"
-							android:text="رابط يفتح صفحة تحميل التطبيق"
+							android:text="إرسال ملف التثبيت مباشرة إلى أي تطبيق"
 							android:textSize="11.5sp"
 							android:textStyle="bold"
 							android:tag="m" />
@@ -536,28 +536,41 @@
 		<LinearLayout
 			android:id="@+id/linear749"
 			android:layout_width="match_parent"
-			android:layout_height="60dp"
+			android:layout_height="wrap_content"
 			android:gravity="center_vertical"
 			android:orientation="horizontal"
-			android:tag="sf"
-			android:elevation="0dp">
+			android:paddingStart="18dp"
+			android:paddingEnd="18dp"
+			android:paddingTop="11.5dp"
+			android:paddingBottom="11.5dp"
+			android:layoutDirection="ltr"
+			android:tag="ephdr">
+			<LinearLayout
+				android:layout_width="0dp"
+				android:layout_height="wrap_content"
+				android:layout_weight="1"
+				android:orientation="vertical"
+				android:gravity="right">
+				<TextView
+					android:id="@+id/textview773"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:text="الخصوصية والأمان"
+					android:textSize="18sp"
+					android:gravity="right"
+					android:textStyle="bold"
+					android:tag="t" />
+			</LinearLayout>
 			<TextView
 				android:id="@+id/privacyBack"
-				android:layout_width="56dp"
-				android:layout_height="match_parent"
+				android:layout_width="42dp"
+				android:layout_height="42dp"
+				android:layout_marginStart="12dp"
 				android:gravity="center"
 				android:text=""
 				android:drawableStart="@drawable/ic_arrow_back_24"
-				android:textSize="24sp"
-				android:tag="t" />
-			<TextView
-				android:id="@+id/textview773"
-				android:layout_width="wrap_content"
-				android:layout_height="wrap_content"
-				android:text="الخصوصية والأمان"
-				android:textSize="18sp"
-				android:textStyle="bold"
-				android:tag="t" />
+				android:contentDescription="رجوع"
+				android:tag="epback" />
 		</LinearLayout>
 		<ScrollView
  android:scrollbars="none"
@@ -571,24 +584,58 @@
 				android:paddingBottom="32dp"
 				android:orientation="vertical">
 
+				<LinearLayout
+					android:id="@+id/prHero"
+					android:layout_width="match_parent"
+					android:layout_height="wrap_content"
+					android:orientation="vertical"
+					android:gravity="center_horizontal"
+					android:layout_marginTop="22dp">
+					<ImageView
+						android:id="@+id/prHeroIcon"
+						android:layout_width="130dp"
+						android:layout_height="87dp"
+						android:src="@drawable/ic_shield_hero"
+						android:tag="nfbell"
+						android:scaleType="fitCenter" />
+					<TextView
+						android:id="@+id/prHeroTitle"
+						android:layout_width="wrap_content"
+						android:layout_height="wrap_content"
+						android:text="خصوصيتك وأمانك في Babylon Chat"
+						android:textSize="19sp"
+						android:textStyle="bold"
+						android:tag="t"
+						android:layout_marginTop="14dp" />
+					<View
+						android:id="@+id/prHeroBar"
+						android:layout_width="64dp"
+						android:layout_height="4dp"
+						android:layout_marginTop="8dp"
+						android:tag="nfbar" />
+				</LinearLayout>
 				<TextView
 					android:id="@+id/textview774"
 					android:layout_width="wrap_content"
 					android:layout_height="wrap_content"
-					android:layout_marginTop="16dp"
-					android:layout_marginBottom="6dp"
-					android:layout_marginStart="24dp"
 					android:text="الأمان"
-					android:textSize="12sp"
+					android:textSize="12.5sp"
 					android:textStyle="bold"
-					android:tag="m" />
+					android:tag="nfpill"
+					android:paddingStart="14dp"
+					android:paddingEnd="14dp"
+					android:paddingTop="7dp"
+					android:paddingBottom="7dp"
+					android:layout_marginTop="18dp"
+					android:layout_marginBottom="10dp"
+					android:layout_marginStart="18dp" />
 
 				<LinearLayout
 					android:id="@+id/linear751"
 					android:layout_width="match_parent"
 					android:layout_height="wrap_content"
 					android:orientation="vertical"
-					android:tag="card"
+					android:tag="nfcard"
 					android:elevation="0dp"
 					android:layout_marginStart="14dp"
 					android:layout_marginEnd="14dp">
@@ -602,27 +649,29 @@
 						android:orientation="horizontal">
 						<TextView
 							android:id="@+id/textview775"
-							android:layout_width="40dp"
-							android:layout_height="40dp"
+							android:layout_width="46dp"
+							android:layout_height="46dp"
 							android:gravity="center"
 							android:text=""
 							android:drawableStart="@drawable/ic_key_20"
 							android:textSize="18sp"
 							android:textColor="#FFFFFF"
-							android:tag="ic:#10B981" />
+							android:tag="icg" />
 						<LinearLayout
 							android:id="@+id/linear752"
 							android:layout_width="0dp"
 							android:layout_height="wrap_content"
 							android:orientation="vertical"
 							android:layout_weight="1"
-							android:layout_marginStart="14dp">
+							android:layout_marginStart="14dp"
+							android:layout_marginEnd="8dp">
 							<TextView
 								android:id="@+id/textview776"
-								android:layout_width="wrap_content"
+								android:layout_width="match_parent"
 								android:layout_height="wrap_content"
 								android:text="تغيير كلمة المرور"
-								android:textSize="15.5sp"
+								android:textSize="16sp"
+								android:gravity="right"
 								android:textStyle="bold"
 								android:tag="t" />
 						</LinearLayout>
@@ -630,10 +679,10 @@
 							android:id="@+id/textview777"
 							android:layout_width="wrap_content"
 							android:layout_height="wrap_content"
-							android:text="‹"
-							android:textSize="22sp"
+							android:text="›"
+							android:textSize="26sp"
 							android:textStyle="bold"
-							android:tag="m" />
+							android:tag="nfchev" />
 					</LinearLayout>
 
 					<View
@@ -641,7 +690,8 @@
 						android:layout_width="match_parent"
 						android:layout_height="1dp"
 						android:tag="line"
-						android:layout_marginStart="68dp" />
+						android:layout_marginStart="14dp"
+						android:layout_marginEnd="14dp" />
 
 					<LinearLayout
 						android:id="@+id/itemChangeEmail"
@@ -652,26 +702,28 @@
 						android:orientation="horizontal">
 						<TextView
 							android:id="@+id/textview778"
-							android:layout_width="40dp"
-							android:layout_height="40dp"
+							android:layout_width="46dp"
+							android:layout_height="46dp"
 							android:gravity="center"
 							android:text="ℹ"
 							android:textSize="18sp"
 							android:textColor="#FFFFFF"
-							android:tag="ic:#3B82F6" />
+							android:tag="icg" />
 						<LinearLayout
 							android:id="@+id/linear754"
 							android:layout_width="0dp"
 							android:layout_height="wrap_content"
 							android:orientation="vertical"
 							android:layout_weight="1"
-							android:layout_marginStart="14dp">
+							android:layout_marginStart="14dp"
+							android:layout_marginEnd="8dp">
 							<TextView
 								android:id="@+id/textview779"
-								android:layout_width="wrap_content"
+								android:layout_width="match_parent"
 								android:layout_height="wrap_content"
 								android:text="تغيير الإيميل"
-								android:textSize="15.5sp"
+								android:textSize="16sp"
+								android:gravity="right"
 								android:textStyle="bold"
 								android:tag="t" />
 						</LinearLayout>
@@ -679,10 +731,10 @@
 							android:id="@+id/textview780"
 							android:layout_width="wrap_content"
 							android:layout_height="wrap_content"
-							android:text="‹"
-							android:textSize="22sp"
+							android:text="›"
+							android:textSize="26sp"
 							android:textStyle="bold"
-							android:tag="m" />
+							android:tag="nfchev" />
 					</LinearLayout>
 
 					<View
@@ -690,7 +742,8 @@
 						android:layout_width="match_parent"
 						android:layout_height="1dp"
 						android:tag="line"
-						android:layout_marginStart="68dp" />
+						android:layout_marginStart="14dp"
+						android:layout_marginEnd="14dp" />
 
 					<LinearLayout
 						android:id="@+id/itemSessions"
@@ -701,26 +754,28 @@
 						android:orientation="horizontal">
 						<TextView
 							android:id="@+id/sessIcon"
-							android:layout_width="40dp"
-							android:layout_height="40dp"
+							android:layout_width="46dp"
+							android:layout_height="46dp"
 							android:gravity="center"
 							android:text=""
 							android:drawableStart="@drawable/ic_shield_20"
 							android:textSize="18sp"
 							android:textColor="#FFFFFF"
-							android:tag="ic:#0EA5E9" />
+							android:tag="icg" />
 						<LinearLayout
 							android:layout_width="0dp"
 							android:layout_height="wrap_content"
 							android:orientation="vertical"
 							android:layout_weight="1"
-							android:layout_marginStart="14dp">
+							android:layout_marginStart="14dp"
+							android:layout_marginEnd="8dp">
 							<TextView
 								android:id="@+id/sessLabel"
-								android:layout_width="wrap_content"
+								android:layout_width="match_parent"
 								android:layout_height="wrap_content"
 								android:text="الجلسات"
-								android:textSize="15.5sp"
+								android:textSize="16sp"
+								android:gravity="right"
 								android:textStyle="bold"
 								android:tag="t" />
 						</LinearLayout>
@@ -728,17 +783,18 @@
 							android:id="@+id/sessChev"
 							android:layout_width="wrap_content"
 							android:layout_height="wrap_content"
-							android:text="‹"
-							android:textSize="22sp"
+							android:text="›"
+							android:textSize="26sp"
 							android:textStyle="bold"
-							android:tag="m" />
+							android:tag="nfchev" />
 					</LinearLayout>
 					<View
 						android:id="@+id/sessLine"
 						android:layout_width="match_parent"
 						android:layout_height="1dp"
 						android:tag="line"
-						android:layout_marginStart="68dp" />
+						android:layout_marginStart="14dp"
+						android:layout_marginEnd="14dp" />
 
 					<LinearLayout
 						android:id="@+id/itemBlocked"
@@ -749,27 +805,29 @@
 						android:orientation="horizontal">
 						<TextView
 							android:id="@+id/textview781"
-							android:layout_width="40dp"
-							android:layout_height="40dp"
+							android:layout_width="46dp"
+							android:layout_height="46dp"
 							android:gravity="center"
 							android:text=""
 							android:drawableStart="@drawable/ic_shield_20"
 							android:textSize="18sp"
 							android:textColor="#FFFFFF"
-							android:tag="ic:#64748B" />
+							android:tag="icg" />
 						<LinearLayout
 							android:id="@+id/linear756"
 							android:layout_width="0dp"
 							android:layout_height="wrap_content"
 							android:orientation="vertical"
 							android:layout_weight="1"
-							android:layout_marginStart="14dp">
+							android:layout_marginStart="14dp"
+							android:layout_marginEnd="8dp">
 							<TextView
 								android:id="@+id/textview782"
-								android:layout_width="wrap_content"
+								android:layout_width="match_parent"
 								android:layout_height="wrap_content"
 								android:text="المستخدمون المحظورون"
-								android:textSize="15.5sp"
+								android:textSize="16sp"
+								android:gravity="right"
 								android:textStyle="bold"
 								android:tag="t" />
 						</LinearLayout>
@@ -777,10 +835,10 @@
 							android:id="@+id/textview783"
 							android:layout_width="wrap_content"
 							android:layout_height="wrap_content"
-							android:text="‹"
-							android:textSize="22sp"
+							android:text="›"
+							android:textSize="26sp"
 							android:textStyle="bold"
-							android:tag="m" />
+							android:tag="nfchev" />
 					</LinearLayout>
 				</LinearLayout>
 
@@ -788,20 +846,24 @@
 					android:id="@+id/textview784"
 					android:layout_width="wrap_content"
 					android:layout_height="wrap_content"
-					android:layout_marginTop="16dp"
-					android:layout_marginBottom="6dp"
-					android:layout_marginStart="24dp"
 					android:text="من يستطيع رؤية معلوماتي"
-					android:textSize="12sp"
+					android:textSize="12.5sp"
 					android:textStyle="bold"
-					android:tag="m" />
+					android:tag="nfpill"
+					android:paddingStart="14dp"
+					android:paddingEnd="14dp"
+					android:paddingTop="7dp"
+					android:paddingBottom="7dp"
+					android:layout_marginTop="18dp"
+					android:layout_marginBottom="10dp"
+					android:layout_marginStart="18dp" />
 
 				<LinearLayout
 					android:id="@+id/linear757"
 					android:layout_width="match_parent"
 					android:layout_height="wrap_content"
 					android:orientation="vertical"
-					android:tag="card"
+					android:tag="nfcard"
 					android:elevation="0dp"
 					android:layout_marginStart="14dp"
 					android:layout_marginEnd="14dp">
@@ -821,18 +883,21 @@
 							android:layout_weight="1">
 							<TextView
 								android:id="@+id/textview785"
-								android:layout_width="wrap_content"
+								android:layout_width="match_parent"
 								android:layout_height="wrap_content"
 								android:text="آخر ظهور"
-								android:textSize="15.5sp"
+								android:textSize="16sp"
+								android:gravity="right"
 								android:textStyle="bold"
 								android:tag="t" />
 							<TextView
 								android:id="@+id/textview786"
-								android:layout_width="wrap_content"
+								android:layout_width="match_parent"
 								android:layout_height="wrap_content"
 								android:text="إظهار أو إخفاء وقت آخر تواجدك"
-								android:textSize="11.5sp"
+								android:textSize="12sp"
+								android:gravity="right"
+								android:layout_marginTop="2dp"
 								android:textStyle="bold"
 								android:tag="m" />
 						</LinearLayout>
@@ -880,18 +945,21 @@
 							android:layout_weight="1">
 							<TextView
 								android:id="@+id/textview787"
-								android:layout_width="wrap_content"
+								android:layout_width="match_parent"
 								android:layout_height="wrap_content"
 								android:text="صورة الملف الشخصي"
-								android:textSize="15.5sp"
+								android:textSize="16sp"
+								android:gravity="right"
 								android:textStyle="bold"
 								android:tag="t" />
 							<TextView
 								android:id="@+id/textview788"
-								android:layout_width="wrap_content"
+								android:layout_width="match_parent"
 								android:layout_height="wrap_content"
 								android:text="إظهار أو إخفاء صورتك للآخرين"
-								android:textSize="11.5sp"
+								android:textSize="12sp"
+								android:gravity="right"
+								android:layout_marginTop="2dp"
 								android:textStyle="bold"
 								android:tag="m" />
 						</LinearLayout>
@@ -923,20 +991,24 @@
 					android:id="@+id/textview789"
 					android:layout_width="wrap_content"
 					android:layout_height="wrap_content"
-					android:layout_marginTop="16dp"
-					android:layout_marginBottom="6dp"
-					android:layout_marginStart="24dp"
 					android:text="البيانات"
-					android:textSize="12sp"
+					android:textSize="12.5sp"
 					android:textStyle="bold"
-					android:tag="m" />
+					android:tag="nfpill"
+					android:paddingStart="14dp"
+					android:paddingEnd="14dp"
+					android:paddingTop="7dp"
+					android:paddingBottom="7dp"
+					android:layout_marginTop="18dp"
+					android:layout_marginBottom="10dp"
+					android:layout_marginStart="18dp" />
 
 				<LinearLayout
 					android:id="@+id/linear763"
 					android:layout_width="match_parent"
 					android:layout_height="wrap_content"
 					android:orientation="vertical"
-					android:tag="card"
+					android:tag="nfcard"
 					android:elevation="0dp"
 					android:layout_marginStart="14dp"
 					android:layout_marginEnd="14dp">
@@ -950,27 +1022,29 @@
 						android:orientation="horizontal">
 						<TextView
 							android:id="@+id/textview790"
-							android:layout_width="40dp"
-							android:layout_height="40dp"
+							android:layout_width="46dp"
+							android:layout_height="46dp"
 							android:gravity="center"
 							android:text=""
 							android:drawableStart="@drawable/ic_trash_20"
 							android:textSize="18sp"
 							android:textColor="#FFFFFF"
-							android:tag="ic:#8B5CF6" />
+							android:tag="icg" />
 						<LinearLayout
 							android:id="@+id/linear764"
 							android:layout_width="0dp"
 							android:layout_height="wrap_content"
 							android:orientation="vertical"
 							android:layout_weight="1"
-							android:layout_marginStart="14dp">
+							android:layout_marginStart="14dp"
+							android:layout_marginEnd="8dp">
 							<TextView
 								android:id="@+id/textview791"
-								android:layout_width="wrap_content"
+								android:layout_width="match_parent"
 								android:layout_height="wrap_content"
 								android:text="مسح البيانات المؤقتة"
-								android:textSize="15.5sp"
+								android:textSize="16sp"
+								android:gravity="right"
 								android:textStyle="bold"
 								android:tag="t" />
 						</LinearLayout>
@@ -978,10 +1052,10 @@
 							android:id="@+id/textview792"
 							android:layout_width="wrap_content"
 							android:layout_height="wrap_content"
-							android:text="‹"
-							android:textSize="22sp"
+							android:text="›"
+							android:textSize="26sp"
 							android:textStyle="bold"
-							android:tag="m" />
+							android:tag="nfchev" />
 					</LinearLayout>
 
 					<View
@@ -989,7 +1063,8 @@
 						android:layout_width="match_parent"
 						android:layout_height="1dp"
 						android:tag="line"
-						android:layout_marginStart="68dp" />
+						android:layout_marginStart="14dp"
+						android:layout_marginEnd="14dp" />
 
 					<LinearLayout
 						android:id="@+id/itemWipe"
@@ -1000,27 +1075,29 @@
 						android:orientation="horizontal">
 						<TextView
 							android:id="@+id/textview793"
-							android:layout_width="40dp"
-							android:layout_height="40dp"
+							android:layout_width="46dp"
+							android:layout_height="46dp"
 							android:gravity="center"
 							android:text=""
 							android:drawableStart="@drawable/ic_trash_20"
 							android:textSize="18sp"
 							android:textColor="#FFFFFF"
-							android:tag="ic:#DC2626" />
+							android:tag="icg" />
 						<LinearLayout
 							android:id="@+id/linear766"
 							android:layout_width="0dp"
 							android:layout_height="wrap_content"
 							android:orientation="vertical"
 							android:layout_weight="1"
-							android:layout_marginStart="14dp">
+							android:layout_marginStart="14dp"
+							android:layout_marginEnd="8dp">
 							<TextView
 								android:id="@+id/textview794"
-								android:layout_width="wrap_content"
+								android:layout_width="match_parent"
 								android:layout_height="wrap_content"
 								android:text="مسح جميع البيانات"
-								android:textSize="15.5sp"
+								android:textSize="16sp"
+								android:gravity="right"
 								android:textStyle="bold"
 								android:tag="t" />
 						</LinearLayout>
@@ -1028,10 +1105,10 @@
 							android:id="@+id/textview795"
 							android:layout_width="wrap_content"
 							android:layout_height="wrap_content"
-							android:text="‹"
-							android:textSize="22sp"
+							android:text="›"
+							android:textSize="26sp"
 							android:textStyle="bold"
-							android:tag="m" />
+							android:tag="nfchev" />
 					</LinearLayout>
 				</LinearLayout>
 
@@ -1041,7 +1118,7 @@
 					android:layout_height="wrap_content"
 					android:layout_marginTop="16dp"
 					android:orientation="vertical"
-					android:tag="card"
+					android:tag="nfcard"
 					android:elevation="0dp"
 					android:layout_marginStart="14dp"
 					android:layout_marginEnd="14dp">
@@ -1055,26 +1132,28 @@
 						android:orientation="horizontal">
 						<TextView
 							android:id="@+id/textview796"
-							android:layout_width="40dp"
-							android:layout_height="40dp"
+							android:layout_width="46dp"
+							android:layout_height="46dp"
 							android:gravity="center"
 							android:text="ℹ"
 							android:textSize="18sp"
 							android:textColor="#FFFFFF"
-							android:tag="ic:#F59E0B" />
+							android:tag="icg" />
 						<LinearLayout
 							android:id="@+id/linear768"
 							android:layout_width="0dp"
 							android:layout_height="wrap_content"
 							android:orientation="vertical"
 							android:layout_weight="1"
-							android:layout_marginStart="14dp">
+							android:layout_marginStart="14dp"
+							android:layout_marginEnd="8dp">
 							<TextView
 								android:id="@+id/textview797"
-								android:layout_width="wrap_content"
+								android:layout_width="match_parent"
 								android:layout_height="wrap_content"
 								android:text="حول Babylon Chat"
-								android:textSize="15.5sp"
+								android:textSize="16sp"
+								android:gravity="right"
 								android:textStyle="bold"
 								android:tag="t" />
 						</LinearLayout>
@@ -1082,10 +1161,10 @@
 							android:id="@+id/textview798"
 							android:layout_width="wrap_content"
 							android:layout_height="wrap_content"
-							android:text="‹"
-							android:textSize="22sp"
+							android:text="›"
+							android:textSize="26sp"
 							android:textStyle="bold"
-							android:tag="m" />
+							android:tag="nfchev" />
 					</LinearLayout>
 				</LinearLayout>
 			</LinearLayout>

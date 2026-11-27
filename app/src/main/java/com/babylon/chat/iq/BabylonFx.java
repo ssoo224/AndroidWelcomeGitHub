@@ -180,7 +180,8 @@ public final class BabylonFx {
     private static final long FOLD_MS = 20;   // مدة حركة دخول المحادثة (أسرع ما يمكن مع بقاء الحركة ظاهرة)
     private static final long MSG_WAIT_MS = 0;   // الرسائل لا تنتظر الحركة: تُرسم فوراً أثناءها
     private static final long LEAVE_MS = 20;   // تلاشي الخروج سريع جداً
-    private static final long POP_MS = 20;     // انبثاق الدخول سريع جداً
+    private static final long POP_MS = 20;     // انبثاق الدخول سريع جداً (لعناصر أخرى)
+    private static final long ENTER_MS = 300;  // دخول المحادثة: انزلاق من اليمين + تلاشٍ
     /** وقت (uptime) انتهاء حركة الطيّ؛ تنتظره المحادثة قبل رسم الرسائل كي لا تتداخل معها ولا تُقطّعها. */
     private static volatile long foldEndUptime = 0L;
 
@@ -205,14 +206,14 @@ public final class BabylonFx {
         final int w = chat.getWidth(), h = chat.getHeight();
         if (w <= 0 || h <= 0) return;
         foldEndUptime = SystemClock.uptimeMillis() + MSG_WAIT_MS;
-        // انبثاق سريع جداً: تلاشٍ من الصفر + تكبير بسيط من الوسط
+        // دخول مرئي مثل دخول المجموعة: تنزلق المحادثة من اليمين مع تلاشٍ تدريجي (كل أجزائها كوحدة واحدة)
         chat.setPivotX(w / 2f);
         chat.setPivotY(h / 2f);
         chat.setAlpha(0f);
-        chat.setScaleX(0.94f);
-        chat.setScaleY(0.94f);
-        chat.animate().alpha(1f).scaleX(1f).scaleY(1f)
-                .setDuration(POP_MS).setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f))
+        chat.setTranslationX(w * 0.14f);
+        chat.animate().alpha(1f).translationX(0f)
+                .setStartDelay(0).setDuration(ENTER_MS).setInterpolator(new android.view.animation.DecelerateInterpolator(1.8f))
+                .withLayer()
                 .withEndAction(() -> reset(chat)).start();
     }
 
@@ -251,7 +252,7 @@ public final class BabylonFx {
         }
         if (msgs != null) { msgs.animate().cancel(); msgs.setAlpha(1f); }
         final android.view.animation.Interpolator lin = new android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f);
-        chat.animate().alpha(0f).setStartDelay(0).setDuration(LEAVE_ALL_MS).setInterpolator(lin)
+        chat.animate().alpha(0f).translationX(chat.getWidth() * 0.14f).setStartDelay(0).setDuration(LEAVE_ALL_MS).setInterpolator(lin)   // خروج مرئي: تنزلق لليمين مع التلاشي (عكس الدخول)
                 .withLayer()   // الجذر بأكمله (كل أبنائه) يُرسم كطبقة واحدة فيتلاشى بتساوٍ تام
                 .withEndAction(() -> {   // لا يُنفَّذ إن أُلغيت الحركة (دخول محادثة جديدة)
                     if (swap != null) swap.run();

@@ -55,8 +55,8 @@ final class GroupRows {
         row.setElevation(5 * d); if (android.os.Build.VERSION.SDK_INT >= 28) { row.setOutlineSpotShadowColor(dark ? 0xFF000000 : 0xFF5A6A8A); row.setOutlineAmbientShadowColor(dark ? 0xFF000000 : 0xFF5A6A8A); }
         row.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() { @Override public void onViewAttachedToWindow(View v) { if (v.getParent() instanceof android.view.ViewGroup) { android.view.ViewGroup pg = (android.view.ViewGroup) v.getParent(); pg.setClipChildren(false); pg.setClipToPadding(false); } } @Override public void onViewDetachedFromWindow(View v) { } });
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.bottomMargin = Math.round(3 * d); row.setLayoutParams(rp);
-        Av av = new Av(act, 46); av.setGroup(g.d); LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(Math.round(52 * d), Math.round(52 * d));
-        FrameLayout avw = new FrameLayout(act); avw.addView(av, new FrameLayout.LayoutParams(Math.round(46 * d), Math.round(46 * d), Gravity.CENTER));
+        Av av = new Av(act, 52); av.setGroup(g.d); LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(Math.round(52 * d), Math.round(52 * d));
+        FrameLayout avw = new FrameLayout(act); avw.addView(av, new FrameLayout.LayoutParams(Math.round(52 * d), Math.round(52 * d), Gravity.CENTER));   // نفس مقاس دائرة المحادثة العادية (52dp)
         LinearLayout mid = new LinearLayout(act); mid.setOrientation(LinearLayout.VERTICAL); LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(0, -2, 1f); mp.setMarginEnd(Math.round(12 * d)); mid.setLayoutParams(mp);
         LinearLayout r1 = new LinearLayout(act); r1.setGravity(Gravity.CENTER_VERTICAL);
         TextView tm = new TextView(act); long at = g.ts; tm.setText(at > 0 ? fmtTimeList(at) : ""); tm.setTextSize(12.5f); tm.setTypeface(null, hasUnread ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL); tm.setTextColor(hasUnread ? cGold : sub); tm.setIncludeFontPadding(false); r1.addView(tm, new LinearLayout.LayoutParams(-2, -2));

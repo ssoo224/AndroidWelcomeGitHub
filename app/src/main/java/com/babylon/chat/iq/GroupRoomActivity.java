@@ -37,6 +37,7 @@ public class GroupRoomActivity extends Activity {
     private boolean metaReady, loadingOlder; private long lastReadWrite; private String flashId = "";
     private FrameLayout rootFrame; private ListView list; private BaseAdapter adapter; private TextView hdAv; private int inkC, mutedC; private TextView hdName, hdSub; private LinearLayout pinBar, bottom, inputBar, recBar, lockBar, replyBar, mentionPop;
     private boolean sfxReady; private String sfxLastId = "";
+    private TextView moreBtn;
     private EditText input; private TextView sendB, micB, attachB; private LinearLayout topBox; private TextView recTimer;
     private String replyId = "", replyText = "", replySid = ""; private boolean typingOn; private final android.os.Handler h = new android.os.Handler(); private Runnable typingOff;
     private MediaRecorder rec; private File recFile; private long recStart; private Runnable recTick; private boolean recording;
@@ -125,7 +126,7 @@ public class GroupRoomActivity extends Activity {
         hdName = new TextView(this); hdName.setText("مجموعة"); hdName.setTextSize(16); hdName.setTypeface(null, android.graphics.Typeface.BOLD); hdName.setTextColor(inkC); hdName.setSingleLine(true); hdName.setEllipsize(TextUtils.TruncateAt.END);
         hdSub = new TextView(this); hdSub.setTextSize(12); hdSub.setTextColor(mutedC); hdSub.setSingleLine(true); tt.addView(hdName); tt.addView(hdSub);
         pill.addView(tt, lpw(0, -2, 1)); LinearLayout.LayoutParams pp = lpw(0, t.u(48), 1); pp.setMargins(t.u(8), 0, t.u(8), 0); hd.addView(pill, pp);
-        TextView more = rbtn(R.drawable.ic_more_22, 22); more.setOnClickListener(v -> moreMenu()); hd.addView(more, lp(t.u(38), t.u(38))); topBox.addView(hd);
+        TextView more = rbtn(R.drawable.ic_more_22, 22); moreBtn = more; more.setOnClickListener(v -> moreMenu()); hd.addView(more, lp(t.u(38), t.u(38))); topBox.addView(hd);
         // شريط التثبيت (داخل الهيدر الزجاجي كما في المحادثة العادية)
         pinBar = new LinearLayout(this); pinBar.setGravity(Gravity.CENTER_VERTICAL); Tk.handle("rpBar", pinBar, null, t.dark); pinBar.setPadding(t.u(8), t.u(7), t.u(14), t.u(7)); pinBar.setVisibility(View.GONE);
         LinearLayout.LayoutParams pbp = lp(-1, -2); pbp.setMargins(t.u(10), t.u(2), t.u(10), t.u(4)); topBox.addView(pinBar, pbp);
@@ -255,9 +256,43 @@ public class GroupRoomActivity extends Activity {
     }
     private void jumpTo(String id) { for (int i = 0; i < msgs.size(); i++) if (msgs.get(i).getId().equals(id)) { flashId = id; list.smoothScrollToPosition(i); adapter.notifyDataSetChanged(); h.postDelayed(() -> { flashId = ""; }, 1400); return; } toast(this, "الرسالة بعيدة، مرّر للأعلى لتحميل رسائل أقدم"); }
 
+    /** صف خيار القائمة ⋮ (مثل chatMenuItem في المحادثة العادية): [سهم ‹] [النص] [أيقونة في مربع ملوّن] — الترتيب يدوي (RTL غير مفعّل). */
+    private View menuItem(String ic, String label, int acc) {
+        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setLayoutDirection(View.LAYOUT_DIRECTION_LTR); row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setMinimumHeight(t.u(54)); row.setPadding(t.u(10), t.u(8), t.u(10), t.u(8));
+        GradientDrawable pr = new GradientDrawable(); pr.setColor((acc & 0x00FFFFFF) | (0x26 << 24)); pr.setCornerRadius(t.u(15));
+        android.graphics.drawable.StateListDrawable sl = new android.graphics.drawable.StateListDrawable(); sl.addState(new int[]{android.R.attr.state_pressed}, pr); row.setBackground(sl); row.setClickable(true);
+        Ic chev = icon(this, IC_CHEV, t.text, 16); chev.setAlpha(0.32f); row.addView(chev, lp(t.u(16), t.u(16)));
+        TextView tx = tv(this, t, label, 15, t.text, true); tx.setTextAlignment(View.TEXT_ALIGNMENT_GRAVITY); tx.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams tl = lpw(0, -2, 1); tl.setMargins(t.u(8), 0, t.u(12), 0); row.addView(tx, tl);
+        FrameLayout box = new FrameLayout(this); GradientDrawable ibg = new GradientDrawable(); ibg.setColor((acc & 0x00FFFFFF) | (0x24 << 24)); ibg.setCornerRadius(t.u(13)); box.setBackground(ibg);
+        box.addView(icon(this, ic, acc, 20), center(this, 20)); row.addView(box, lp(t.u(36), t.u(36)));
+        return row;
+    }
+    /** قائمة ⋮ بنفس شكل وحركة قائمة المحادثة العادية: بطاقة بانحناء 22 وحد ناعم تنبثق من زر الثلاث نقاط نفسه وعناصرها تدخل متتابعة. */
     private void moreMenu() {
-        List<String[]> it = new ArrayList<>(); it.add(new String[]{"info", "معلومات المجموعة", IC_USERS}); it.add(new String[]{"search", "بحث في المحادثة", IC_SEARCH}); it.add(new String[]{"mute", isMuted(this, chatId) ? "إلغاء كتم المحادثة" : "كتم المحادثة", isMuted(this, chatId) ? IC_BELL : IC_BELL_OFF});
-        sheet(null, it, key -> { switch (key) { case "info": openInfo(null); break; case "search": searchDialog(); break; case "mute": setMuted(this, chatId, !isMuted(this, chatId)); toast(this, isMuted(this, chatId) ? "تم كتم هذه المجموعة على جهازك" : "تم إلغاء كتم المحادثة"); break; } });
+        final View cm = moreBtn; if (cm == null) return;
+        final boolean mutedNow = isMuted(this, chatId); final int screenW = getResources().getDisplayMetrics().widthPixels; final int popW = Math.min(t.u(230), screenW - t.u(24));
+        final int acc = (Tk.chatPal != null ? Tk.chatPal.accent : t.gold) | 0xFF000000;
+        LinearLayout card = new LinearLayout(this); card.setOrientation(LinearLayout.VERTICAL); card.setLayoutDirection(View.LAYOUT_DIRECTION_LTR); card.setPadding(t.u(8), t.u(4), t.u(8), t.u(4));
+        GradientDrawable bg = new GradientDrawable(); bg.setColor(Tk.chatPal != null ? (Tk.chatPal.other | 0xFF000000) : (t.dark ? 0xFF17212B : Tk.BAB_CAPSULE)); bg.setCornerRadius(t.u(22));
+        bg.setStroke(t.u(1), Tk.chatPal != null ? Tk.chatPal.line : (t.dark ? 0xFF2B3A4C : Tk.BAB_LINE)); card.setBackground(bg);
+        final android.widget.PopupWindow pw = new android.widget.PopupWindow(card, popW, ViewGroup.LayoutParams.WRAP_CONTENT, true);
+        pw.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0)); pw.setOutsideTouchable(true);
+        String[][] its = {{"info", "معلومات المجموعة", IC_USERS}, {"search", "بحث في المحادثة", IC_SEARCH}, {"mute", mutedNow ? "إلغاء كتم المحادثة" : "كتم المحادثة", mutedNow ? IC_BELL : IC_BELL_OFF}};
+        for (int k = 0; k < its.length; k++) {
+            final String key = its[k][0]; View row = menuItem(its[k][2], its[k][1], acc);
+            row.setOnClickListener(x -> { pw.dismiss(); switch (key) { case "info": openInfo(null); break; case "search": searchDialog(); break; case "mute": setMuted(this, chatId, !mutedNow); toast(this, !mutedNow ? "تم كتم هذه المجموعة على جهازك" : "تم إلغاء كتم المحادثة"); break; } });
+            LinearLayout.LayoutParams rp = lp(-1, -2); if (k > 0) rp.topMargin = t.u(2); card.addView(row, rp);
+        }
+        int[] loc = new int[2]; cm.getLocationInWindow(loc); final int bw = cm.getWidth(); final boolean leftSide = loc[0] + bw / 2f < screenW / 2f; final int margin = t.u(12); int xoff, gravity; final float popLeft;
+        if (leftSide) { xoff = Math.max(0, margin - loc[0]); gravity = Gravity.START; popLeft = loc[0] + xoff; }
+        else { xoff = Math.min(0, (screenW - margin) - (loc[0] + bw)); gravity = Gravity.END; popLeft = loc[0] + bw + xoff - popW; }
+        final float pivotX = (loc[0] + bw / 2f) - popLeft;
+        pw.showAsDropDown(cm, xoff, t.u(5), gravity);
+        card.setPivotX(pivotX); card.setPivotY(0f); card.setAlpha(0f); card.setScaleX(0.35f); card.setScaleY(0.35f);
+        card.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(230).setInterpolator(new android.view.animation.PathInterpolator(0.2f, 0.8f, 0.3f, 1f)).start();
+        for (int k = 0; k < card.getChildCount(); k++) { View it = card.getChildAt(k); it.setAlpha(0f); it.setTranslationY(-t.u(6)); it.animate().alpha(1f).translationY(0f).setStartDelay(70 + k * 45L).setDuration(200).start(); }
     }
     private void searchDialog() {
         ask(this, t, "بحث في المحادثة", null, "", "اكتب كلمة أو حرفين", 60, false, "بحث", "إلغاء", (ok, q) -> { if (!ok) return; if (q.length() < 2) { toast(this, "اكتب حرفين على الأقل"); return; } String ql = q.toLowerCase();

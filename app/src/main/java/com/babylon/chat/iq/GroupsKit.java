@@ -249,9 +249,9 @@ final class GroupsKit {
             float w = getWidth(), h = getHeight(); float r0 = Math.min(w, h) / 2f; float r = r0 - (ring != 0 ? ringGap + ringW : 0);
             if (ring != 0) { p.setShader(null); p.setStyle(Paint.Style.FILL); p.setColor(ring); cv.drawCircle(w / 2, h / 2, r0, p); p.setColor(gapColor); cv.drawCircle(w / 2, h / 2, r0 - ringW, p); }
             if (bmp != null) { BitmapShader sh = new BitmapShader(bmp, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP); Matrix m = new Matrix(); float s = Math.max(2 * r / bmp.getWidth(), 2 * r / bmp.getHeight()); m.setScale(s, s); m.postTranslate(w / 2 - bmp.getWidth() * s / 2, h / 2 - bmp.getHeight() * s / 2); sh.setLocalMatrix(m); p.setShader(sh); cv.drawCircle(w / 2, h / 2, r, p); p.setShader(null); return; }
-            if (group) p.setShader(new LinearGradient(0, 0, w, h, new int[]{0xFFD4AF37, 0xFFB88A20, 0xFF1769AA}, new float[]{0, .58f, 1}, Shader.TileMode.CLAMP));
+            if (group) { double th = Math.toRadians(145); float dx = (float) Math.sin(th), dy = (float) -Math.cos(th), d2 = 2 * r, len = (float) (Math.abs(d2 * Math.sin(th)) + Math.abs(d2 * Math.cos(th))), cx0 = w / 2, cy0 = h / 2; p.setShader(new LinearGradient(cx0 - dx * len / 2, cy0 - dy * len / 2, cx0 + dx * len / 2, cy0 + dy * len / 2, StoryAvatarView.GOLD_A, StoryAvatarView.GOLD_B, Shader.TileMode.CLAMP)); }   // نفس تدرّج صورة أي حساب بلا صورة في قائمة المحادثات
             else { long a = fnv(seed); p.setShader(new LinearGradient(0, 0, w, h, GCOLORS[(int) (a % 7)], GCOLORS[(int) ((a >>> 5) % 7)], Shader.TileMode.CLAMP)); }
-            cv.drawCircle(w / 2, h / 2, r, p); p.setShader(null); tp.setTextSize(r * 0.95f); cv.drawText(label, w / 2, h / 2 - (tp.descent() + tp.ascent()) / 2, tp);
+            cv.drawCircle(w / 2, h / 2, r, p); p.setShader(null); tp.setTextSize(group ? r * 0.65f : r * 0.95f); tp.setShadowLayer(group ? 0 : 2, 0, group ? 0 : 1, group ? 0 : 0x40000000); cv.drawText(label, w / 2, h / 2 - (tp.descent() + tp.ascent()) / 2, tp);
         }
     }
     interface BmpCb { void got(Bitmap b); }
